@@ -1,0 +1,23 @@
+# Các lệnh cần chạy theo thứ tự:
+
+# 1. Khởi tạo git repository
+git init
+
+# 2. Thêm remote repository
+git remote add origin https://github.com/thanhbinh0407/CHECK_ATTENDANCE_BY_AI.git
+
+# 3. Kiểm tra status
+git status
+
+# 4. Add tất cả files
+git add .
+
+# 5. Commit
+git commit -m "Initial commit: Face Attendance System với Accountant Role và tính năng đầy đủ"
+
+# 6. Đặt branch chính là main
+git branch -M main
+
+# 7. Push lên git
+git push -u origin main
+
