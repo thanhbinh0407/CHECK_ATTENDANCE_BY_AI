@@ -12,10 +12,7 @@
     "db:migrate:job": "node migrate-add-job-fields.js",
     "db:reset": "node src/db/migrations/reset.js",
     "db:reset:drop": "DROP_DB=true node src/db/migrations/reset.js",
-    "db:seed": "node seed-pg.js",
-    "db:seed:20": "node seed-10-employees.js",
-    "admin:reset": "node reset-admin.js",
-    "accountant:create": "node create-accountant.js"
+    "db:seed": "node seed-data.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

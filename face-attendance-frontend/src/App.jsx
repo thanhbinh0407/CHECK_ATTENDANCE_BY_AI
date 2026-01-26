@@ -287,7 +287,7 @@ function App() {
 
       {/* Main Content Area */}
       <main style={mainContentStyle}>
-        {/* Header */}
+      {/* Header */}
         <header style={headerStyle}>
           <div>
             <h1 style={{ 
@@ -338,16 +338,16 @@ function App() {
           </div>
         </header>
 
-        {/* Content */}
+      {/* Content */}
         <div style={contentAreaStyle}>
-          {activeTab === "enrollment" && user?.role === "admin" && <EnrollmentForm />}
-          {activeTab === "dashboard" && user?.role === "admin" && <AdminDashboard />}
-          {activeTab === "logs" && user?.role === "admin" && <AttendanceLog />}
-          {activeTab === "shifts" && user?.role === "admin" && <ShiftAdmin />}
-          {activeTab === "salary" && user?.role === "admin" && <SalaryManagement />}
-          {activeTab === "leave" && user?.role === "admin" && <LeaveManagement />}
-          {activeTab === "analytics" && user?.role === "admin" && <AnalyticsDashboard />}
-        </div>
+        {activeTab === "enrollment" && user?.role === "admin" && <EnrollmentForm />}
+        {activeTab === "dashboard" && user?.role === "admin" && <AdminDashboard />}
+        {activeTab === "logs" && user?.role === "admin" && <AttendanceLog />}
+        {activeTab === "shifts" && user?.role === "admin" && <ShiftAdmin />}
+        {activeTab === "salary" && user?.role === "admin" && <SalaryManagement />}
+        {activeTab === "leave" && user?.role === "admin" && <LeaveManagement />}
+        {activeTab === "analytics" && user?.role === "admin" && <AnalyticsDashboard />}
+      </div>
       </main>
     </div>
   );

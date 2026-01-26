@@ -1,0 +1,225 @@
+@startuml Face_Attendance_System_ERD
+
+!define TABLE(name,desc) class name as "desc" << (T,#FFAAAA) >>
+!define PRIMARY_KEY(x) <b><u>x</u></b>
+!define FOREIGN_KEY(x) <i>x</i>
+
+title Face Attendance System - Entity Relationship Diagram (ERD)
+
+' ==========================================
+' ENTITIES DEFINITION
+' ==========================================
+
+TABLE(users, "users") {
+  PRIMARY_KEY(id) : INTEGER <<PK>>
+  --
+  name : STRING <<NOT NULL>>
+  email : STRING <<UNIQUE, NOT NULL>>
+  employeeCode : STRING <<UNIQUE>>
+  password : STRING
+  role : ENUM('admin','employee','accountant') <<DEFAULT: 'employee'>>
+  isActive : BOOLEAN <<DEFAULT: true>>
+  baseSalary : DECIMAL(12,2) <<DEFAULT: 0>>
+  jobTitle : STRING
+  educationLevel : STRING
+  certificates : JSONB <<DEFAULT: []>>
+  dependents : INTEGER <<DEFAULT: 0>>
+  --
+  createdAt : TIMESTAMP
+  updatedAt : TIMESTAMP
+}
+
+TABLE(face_profiles, "face_profiles") {
+  PRIMARY_KEY(id) : INTEGER <<PK>>
+  --
+  FOREIGN_KEY(userId) : INTEGER <<FK>>
+  modelVersion : STRING <<DEFAULT: 'faceapi-tiny'>>
+  embeddings : JSONB <<NOT NULL>>
+  imageUrl : STRING
+  --
+  createdAt : TIMESTAMP
+  updatedAt : TIMESTAMP
+}
+
+TABLE(attendance_logs, "attendance_logs") {
+  PRIMARY_KEY(id) : INTEGER <<PK>>
+  --
+  FOREIGN_KEY(userId) : INTEGER <<FK>>
+  detectedName : STRING <<NOT NULL>>
+  confidence : FLOAT
+  matchDistance : FLOAT
+  type : ENUM('IN','OUT') <<NOT NULL, DEFAULT: 'IN'>>
+  note : TEXT
+  shiftId : INTEGER
+  isLate : BOOLEAN <<DEFAULT: false>>
+  isEarlyLeave : BOOLEAN <<DEFAULT: false>>
+  isOvertime : BOOLEAN <<DEFAULT: false>>
+  deviceId : STRING
+  imageBase64 : TEXT
+  timestamp : DATE <<DEFAULT: NOW>>
+  --
+  createdAt : TIMESTAMP
+  updatedAt : TIMESTAMP
+}
+
+TABLE(salaries, "salaries") {
+  PRIMARY_KEY(id) : INTEGER <<PK>>
+  --
+  FOREIGN_KEY(userId) : INTEGER <<FK, NOT NULL>>
+  baseSalary : DECIMAL(12,2) <<NOT NULL, DEFAULT: 0>>
+  bonus : DECIMAL(12,2) <<DEFAULT: 0>>
+  deduction : DECIMAL(12,2) <<DEFAULT: 0>>
+  finalSalary : DECIMAL(12,2) <<NOT NULL, DEFAULT: 0>>
+  month : INTEGER <<NOT NULL, CHECK: 1-12>>
+  year : INTEGER <<NOT NULL>>
+  status : ENUM('pending','approved','paid') <<DEFAULT: 'pending'>>
+  notes : TEXT
+  calculatedAt : DATE
+  paidAt : DATE
+  --
+  createdAt : TIMESTAMP
+  updatedAt : TIMESTAMP
+  --
+  UNIQUE(userId, month, year)
+}
+
+TABLE(salary_rules, "salary_rules") {
+  PRIMARY_KEY(id) : INTEGER <<PK>>
+  --
+  name : STRING <<NOT NULL>>
+  type : ENUM('bonus','deduction') <<NOT NULL>>
+  triggerType : ENUM('late','early_leave','absent','overtime','full_attendance','custom') <<NOT NULL>>
+  amount : DECIMAL(12,2) <<NOT NULL, DEFAULT: 0>>
+  amountType : ENUM('fixed','percentage') <<DEFAULT: 'fixed'>>
+  threshold : INTEGER
+  isActive : BOOLEAN <<DEFAULT: true>>
+  description : TEXT
+  priority : INTEGER <<DEFAULT: 0>>
+  --
+  createdAt : TIMESTAMP
+  updatedAt : TIMESTAMP
+}
+
+TABLE(leave_requests, "leave_requests") {
+  PRIMARY_KEY(id) : INTEGER <<PK>>
+  --
+  FOREIGN_KEY(userId) : INTEGER <<FK, NOT NULL>>
+  type : ENUM('paid','unpaid','sick','maternity','personal','other') <<NOT NULL, DEFAULT: 'paid'>>
+  startDate : DATE <<NOT NULL>>
+  endDate : DATE <<NOT NULL>>
+  days : INTEGER <<NOT NULL>>
+  reason : TEXT
+  status : ENUM('pending','approved','rejected') <<DEFAULT: 'pending'>>
+  FOREIGN_KEY(approvedBy) : INTEGER <<FK>>
+  approvedAt : DATE
+  rejectionReason : TEXT
+  --
+  createdAt : TIMESTAMP
+  updatedAt : TIMESTAMP
+}
+
+TABLE(shift_settings, "shift_settings") {
+  PRIMARY_KEY(id) : INTEGER <<PK>>
+  --
+  name : STRING <<NOT NULL, DEFAULT: 'Company Working Hours'>>
+  startTime : STRING <<NOT NULL, DEFAULT: '08:00'>>
+  endTime : STRING <<NOT NULL, DEFAULT: '17:00'>>
+  gracePeriodMinutes : INTEGER <<NOT NULL, DEFAULT: 5>>
+  overtimeThresholdMinutes : INTEGER <<NOT NULL, DEFAULT: 15>>
+  active : BOOLEAN <<DEFAULT: true>>
+  note : TEXT
+  --
+  createdAt : TIMESTAMP
+  updatedAt : TIMESTAMP
+}
+
+TABLE(notifications, "notifications") {
+  PRIMARY_KEY(id) : INTEGER <<PK>>
+  --
+  FOREIGN_KEY(userId) : INTEGER <<FK>> <<NULL = broadcast>>
+  type : ENUM('attendance','late','leave','salary','system','alert') <<NOT NULL>>
+  title : STRING <<NOT NULL>>
+  message : TEXT <<NOT NULL>>
+  read : BOOLEAN <<DEFAULT: false>>
+  readAt : DATE
+  metadata : JSONB
+  --
+  createdAt : TIMESTAMP
+  updatedAt : TIMESTAMP
+}
+
+' ==========================================
+' RELATIONSHIPS
+' ==========================================
+
+users ||--o{ face_profiles : "has"
+users ||--o{ attendance_logs : "records"
+users ||--o{ salaries : "receives"
+users ||--o{ leave_requests : "requests"
+users ||--o{ notifications : "receives"
+users ||--o| leave_requests : "approves (approvedBy)"
+
+' Relationship notes
+note right of face_profiles
+  **One-to-Many**
+  One user can have multiple face profiles
+  (for different face poses/angles)
+end note
+
+note right of attendance_logs
+  **One-to-Many**
+  One user can have many attendance logs
+  Each log represents one check-in/out event
+end note
+
+note right of salaries
+  **One-to-Many**
+  One user can have many salary records
+  (one per month per year)
+  Unique constraint on (userId, month, year)
+end note
+
+note right of leave_requests
+  **One-to-Many**
+  One user can request many leaves
+  approvedBy references admin user
+end note
+
+note right of notifications
+  **One-to-Many**
+  One user can receive many notifications
+  userId = NULL means broadcast to all users
+end note
+
+' ==========================================
+' INDEXES (shown as notes)
+' ==========================================
+
+note bottom of salaries
+  **Indexes:**
+  - UNIQUE(userId, month, year)
+end note
+
+note bottom of leave_requests
+  **Indexes:**
+  - (userId, status)
+  - (startDate, endDate)
+end note
+
+note bottom of notifications
+  **Indexes:**
+  - (userId, read)
+  - (type, createdAt)
+end note
+
+note bottom of salary_rules
+  **Indexes:**
+  - (type, triggerType, isActive)
+end note
+
+@enduml
+
+
+
+
+
