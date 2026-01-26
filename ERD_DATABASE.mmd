@@ -1,0 +1,140 @@
+erDiagram
+    %% Face Attendance System - Entity Relationship Diagram (ERD)
+    
+    users ||--o{ face_profiles : "has"
+    users ||--o{ attendance_logs : "records"
+    users ||--o{ salaries : "receives"
+    users ||--o{ leave_requests : "requests"
+    users ||--o{ notifications : "receives"
+    users ||--o| leave_requests : "approves"
+    
+    users {
+        int id PK "Primary Key, Auto Increment"
+        string name "NOT NULL"
+        string email "UNIQUE, NOT NULL"
+        string employeeCode "UNIQUE"
+        string password
+        enum role "DEFAULT: 'employee' (admin/employee/accountant)"
+        boolean isActive "DEFAULT: true"
+        decimal baseSalary "DECIMAL(12,2), DEFAULT: 0"
+        string jobTitle "Chức vụ"
+        string educationLevel "Trình độ"
+        jsonb certificates "DEFAULT: []"
+        int dependents "DEFAULT: 0"
+        timestamp createdAt
+        timestamp updatedAt
+    }
+    
+    face_profiles {
+        int id PK "Primary Key, Auto Increment"
+        int userId FK "Foreign Key -> users.id, CASCADE"
+        string modelVersion "DEFAULT: 'faceapi-tiny'"
+        jsonb embeddings "NOT NULL, Face descriptor array"
+        string imageUrl "URL to face image"
+        timestamp createdAt
+        timestamp updatedAt
+    }
+    
+    attendance_logs {
+        int id PK "Primary Key, Auto Increment"
+        int userId FK "Foreign Key -> users.id, CASCADE"
+        string detectedName "NOT NULL"
+        float confidence "Face recognition confidence"
+        float matchDistance "Euclidean distance"
+        enum type "ENUM('IN','OUT'), DEFAULT: 'IN'"
+        text note
+        int shiftId "Optional shift reference"
+        boolean isLate "DEFAULT: false"
+        boolean isEarlyLeave "DEFAULT: false"
+        boolean isOvertime "DEFAULT: false"
+        string deviceId "Device identifier"
+        text imageBase64 "Captured image"
+        date timestamp "DEFAULT: NOW"
+        timestamp createdAt
+        timestamp updatedAt
+    }
+    
+    salaries {
+        int id PK "Primary Key, Auto Increment"
+        int userId FK "Foreign Key -> users.id, CASCADE, NOT NULL"
+        decimal baseSalary "DECIMAL(12,2), NOT NULL, DEFAULT: 0"
+        decimal bonus "DECIMAL(12,2), DEFAULT: 0"
+        decimal deduction "DECIMAL(12,2), DEFAULT: 0"
+        decimal finalSalary "DECIMAL(12,2), NOT NULL, DEFAULT: 0"
+        int month "NOT NULL, CHECK: 1-12"
+        int year "NOT NULL"
+        enum status "DEFAULT: 'pending' (pending/approved/paid)"
+        text notes
+        date calculatedAt
+        date paidAt
+        timestamp createdAt
+        timestamp updatedAt
+        unique_key "UNIQUE(userId, month, year)"
+    }
+    
+    salary_rules {
+        int id PK "Primary Key, Auto Increment"
+        string name "NOT NULL"
+        enum type "NOT NULL (bonus/deduction)"
+        enum triggerType "NOT NULL (late/early_leave/absent/overtime/full_attendance/custom)"
+        decimal amount "DECIMAL(12,2), NOT NULL, DEFAULT: 0"
+        enum amountType "DEFAULT: 'fixed' (fixed/percentage)"
+        int threshold "Trigger threshold"
+        boolean isActive "DEFAULT: true"
+        text description
+        int priority "DEFAULT: 0"
+        timestamp createdAt
+        timestamp updatedAt
+        index_key "INDEX(type, triggerType, isActive)"
+    }
+    
+    leave_requests {
+        int id PK "Primary Key, Auto Increment"
+        int userId FK "Foreign Key -> users.id, CASCADE, NOT NULL"
+        enum type "NOT NULL, DEFAULT: 'paid' (paid/unpaid/sick/maternity/personal/other)"
+        date startDate "NOT NULL"
+        date endDate "NOT NULL"
+        int days "NOT NULL"
+        text reason
+        enum status "DEFAULT: 'pending' (pending/approved/rejected)"
+        int approvedBy FK "Foreign Key -> users.id (Admin user)"
+        date approvedAt
+        text rejectionReason
+        timestamp createdAt
+        timestamp updatedAt
+        index_key "INDEX(userId, status)"
+        index_key "INDEX(startDate, endDate)"
+    }
+    
+    shift_settings {
+        int id PK "Primary Key, Auto Increment"
+        string name "NOT NULL, DEFAULT: 'Company Working Hours'"
+        string startTime "NOT NULL, DEFAULT: '08:00' (HH:MM format)"
+        string endTime "NOT NULL, DEFAULT: '17:00' (HH:MM format)"
+        int gracePeriodMinutes "NOT NULL, DEFAULT: 5"
+        int overtimeThresholdMinutes "NOT NULL, DEFAULT: 15"
+        boolean active "DEFAULT: true"
+        text note
+        timestamp createdAt
+        timestamp updatedAt
+    }
+    
+    notifications {
+        int id PK "Primary Key, Auto Increment"
+        int userId FK "Foreign Key -> users.id, CASCADE, NULL = broadcast to all"
+        enum type "NOT NULL (attendance/late/leave/salary/system/alert)"
+        string title "NOT NULL"
+        text message "NOT NULL"
+        boolean read "DEFAULT: false"
+        date readAt
+        jsonb metadata
+        timestamp createdAt
+        timestamp updatedAt
+        index_key "INDEX(userId, read)"
+        index_key "INDEX(type, createdAt)"
+    }
+
+
+
+
+

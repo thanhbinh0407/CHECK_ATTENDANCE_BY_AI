@@ -1,5 +1,8 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../../db/sequelize.js';
+import Department from './Department.js';
+import JobTitle from './JobTitle.js';
+import SalaryGrade from './SalaryGrade.js';
 
 const User = sequelize.define('User', {
   id: {
@@ -13,12 +16,10 @@ const User = sequelize.define('User', {
   },
   email: {
     type: DataTypes.STRING,
-    unique: true,
     allowNull: false,
   },
   employeeCode: {
     type: DataTypes.STRING,
-    unique: true,
   },
   password: {
     type: DataTypes.STRING,
@@ -35,34 +36,110 @@ const User = sequelize.define('User', {
     type: DataTypes.BOOLEAN,
     defaultValue: true,
   },
+
+  // ORGANIZATIONAL STRUCTURE
+  departmentId: {
+    type: DataTypes.INTEGER,
+    references: {
+      model: Department,
+      key: 'id',
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE'
+    },
+    allowNull: true
+  },
+
+  jobTitleId: {
+    type: DataTypes.INTEGER,
+    references: {
+      model: JobTitle,
+      key: 'id',
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE'
+    },
+    allowNull: true
+  },
+
+  salaryGradeId: {
+    type: DataTypes.INTEGER,
+    references: {
+      model: SalaryGrade,
+      key: 'id',
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE'
+    },
+    allowNull: true
+  },
+
+  // EMPLOYMENT INFORMATION
+  startDate: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+
+  probationStartDate: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+
+  probationEndDate: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+
+  // SALARY INFORMATION
   baseSalary: {
     type: DataTypes.DECIMAL(12, 2),
-    defaultValue: 0,
-    comment: 'Lương cơ bản'
+    defaultValue: 0
   },
-  jobTitle: {
+
+  // PERSONAL INFORMATION
+  phoneNumber: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Chức vụ (Nhân viên CNTT, Chuyên viên CNTT, ...)'
+    allowNull: true
   },
-  educationLevel: {
+
+  address: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+
+  bankAccount: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Trình độ (Trung cấp, Cao đẳng, Đại học, Sau đại học)'
+    allowNull: true
   },
-  certificates: {
-    type: DataTypes.JSONB,
-    defaultValue: [],
-    comment: 'Mảng chứng chỉ (ví dụ: ["CCASP"])'
+
+  bankName: {
+    type: DataTypes.STRING,
+    allowNull: true
   },
-  dependents: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0,
-    comment: 'Số người phụ thuộc'
+
+  taxCode: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
+  idNumber: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
+  dateOfBirth: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+
+  gender: {
+    type: DataTypes.ENUM('male', 'female', 'other'),
+    allowNull: true
   }
 }, {
   timestamps: true,
-  tableName: 'users'
+  tableName: 'users',
+  indexes: [
+    { unique: true, fields: ['email'] },
+    { unique: true, fields: ['employeeCode'] }
+  ]
 });
 
 export default User;

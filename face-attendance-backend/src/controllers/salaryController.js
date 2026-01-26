@@ -178,6 +178,7 @@ export const calculateSalary = async (req, res) => {
     }
 
     // Get shift settings
+
     const shift = await ShiftSetting.findOne({ where: { active: true } });
     if (!shift) {
       return res.status(400).json({
@@ -371,7 +372,8 @@ export const calculateSalary = async (req, res) => {
     console.error("Error calculating salary:", err);
     return res.status(500).json({
       status: "error",
-      message: err.message
+      message: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
   }
 };
@@ -443,3 +445,152 @@ export const updateSalaryStatus = async (req, res) => {
   }
 };
 
+// Get pending salaries for admin approval
+export const getPendingSalaries = async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    const where = { status: 'pending' };
+    
+    if (month) where.month = parseInt(month);
+    if (year) where.year = parseInt(year);
+
+    console.log("Fetching pending salaries with where:", where);
+
+    const pendingSalaries = await Salary.findAll({
+      where,
+      include: [{
+        model: User,
+        attributes: ['id', 'name', 'email', 'employeeCode'],
+        required: false // Allow salaries without users
+      }],
+      order: [['year', 'DESC'], ['month', 'DESC'], ['createdAt', 'ASC']]
+    });
+
+    console.log(`Found ${pendingSalaries.length} pending salaries`);
+
+    return res.json({
+      status: "success",
+      count: pendingSalaries.length,
+      salaries: pendingSalaries
+    });
+  } catch (err) {
+    console.error("Error fetching pending salaries:", err.message);
+    console.error("Stack:", err.stack);
+    return res.status(500).json({
+      status: "error",
+      message: err.message,
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
+};
+
+// Approve salary
+export const approveSalary = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const salary = await Salary.findByPk(id);
+    if (!salary) {
+      return res.status(404).json({
+        status: "error",
+        message: "Salary record not found"
+      });
+    }
+
+    await salary.update({
+      status: 'approved',
+      calculatedAt: new Date()
+    });
+
+    return res.json({
+      status: "success",
+      message: "Salary approved successfully",
+      salary
+    });
+  } catch (err) {
+    console.error("Error approving salary:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+};
+
+// Reject salary (revert to pending or delete for recalculation)
+export const rejectSalary = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const salary = await Salary.findByPk(id);
+    if (!salary) {
+      return res.status(404).json({
+        status: "error",
+        message: "Salary record not found"
+      });
+    }
+
+    // Update status to pending with rejection notes
+    await salary.update({
+      status: 'pending',
+      notes: reason ? `[REJECTED] ${reason}` : '[REJECTED] No reason provided',
+      calculatedAt: new Date()
+    });
+
+    return res.json({
+      status: "success",
+      message: "Salary rejected and reset for recalculation",
+      salary
+    });
+  } catch (err) {
+    console.error("Error rejecting salary:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+};
+
+// Adjust salary (admin override/adjustment)
+export const adjustSalary = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { baseAdjustment, bonusAdjustment, deductionAdjustment, notes } = req.body;
+
+    const salary = await Salary.findByPk(id);
+    if (!salary) {
+      return res.status(404).json({
+        status: "error",
+        message: "Salary record not found"
+      });
+    }
+
+    // Calculate adjusted values
+    const adjustedBaseSalary = salary.baseSalary + (baseAdjustment || 0);
+    const adjustedBonus = salary.bonus + (bonusAdjustment || 0);
+    const adjustedDeduction = salary.deduction + (deductionAdjustment || 0);
+    const adjustedFinalSalary = adjustedBaseSalary + adjustedBonus - adjustedDeduction;
+
+    await salary.update({
+      baseSalary: adjustedBaseSalary,
+      bonus: adjustedBonus,
+      deduction: adjustedDeduction,
+      finalSalary: adjustedFinalSalary,
+      notes: notes || salary.notes,
+      status: 'pending',
+      calculatedAt: new Date()
+    });
+
+    return res.json({
+      status: "success",
+      message: "Salary adjusted successfully",
+      salary
+    });
+  } catch (err) {
+    console.error("Error adjusting salary:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+};

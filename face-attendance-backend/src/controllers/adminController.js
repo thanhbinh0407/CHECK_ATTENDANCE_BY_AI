@@ -1,6 +1,13 @@
 import User from "../models/pg/User.js";
 import FaceProfile from "../models/pg/FaceProfile.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
+import Salary from "../models/pg/Salary.js";
+import LeaveRequest from "../models/pg/LeaveRequest.js";
+import Department from "../models/pg/Department.js";
+import JobTitle from "../models/pg/JobTitle.js";
+import SalaryGrade from "../models/pg/SalaryGrade.js";
+import Dependent from "../models/pg/Dependent.js";
+import Qualification from "../models/pg/Qualification.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
 
@@ -53,6 +60,49 @@ export const getEmployeeById = async (req, res) => {
     return res.json({
       status: "success",
       employee
+    });
+  } catch (err) {
+    console.error("Error fetching employee:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+};
+
+// Get employee by ID WITH password (for admin/accountant viewing)
+export const getEmployeeWithPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const employee = await User.findOne({
+      where: { id, role: "employee" },
+      include: [{ 
+        model: FaceProfile 
+      }]
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        status: "error",
+        message: "Employee not found"
+      });
+    }
+
+    return res.json({
+      status: "success",
+      employee: {
+        id: employee.id,
+        name: employee.name,
+        email: employee.email,
+        employeeCode: employee.employeeCode,
+        role: employee.role,
+        isActive: employee.isActive,
+        baseSalary: employee.baseSalary,
+        password: employee.password,
+        createdAt: employee.createdAt,
+        updatedAt: employee.updatedAt,
+        FaceProfiles: employee.FaceProfiles
+      }
     });
   } catch (err) {
     console.error("Error fetching employee:", err);
@@ -313,3 +363,146 @@ export const getEmployeeAttendanceStats = async (req, res) => {
     });
   }
 };
+
+// Get detailed employee information
+export const getEmployeeDetailedInfo = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get employee basic info
+    const employee = await User.findOne({
+      where: { id, role: "employee" },
+      include: [
+        { model: Department, attributes: ['id', 'name'] },
+        { model: JobTitle, attributes: ['id', 'name'] },
+        { model: SalaryGrade, attributes: ['id', 'name', 'baseSalary'] },
+        { model: Dependent, as: 'Dependents', attributes: ['id', 'fullName', 'relationship', 'dateOfBirth', 'gender'] },
+        { model: Qualification, as: 'Qualifications', attributes: ['id', 'type', 'name', 'issuedBy', 'issuedDate'] }
+      ]
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        status: "error",
+        message: "Employee not found"
+      });
+    }
+
+    // Get attendance statistics for current month
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth() + 1;
+    const currentYear = currentDate.getFullYear();
+
+    const startDate = new Date(currentYear, currentMonth - 1, 1);
+    const endDate = new Date(currentYear, currentMonth, 0, 23, 59, 59);
+
+    const attendanceLogs = await AttendanceLog.findAll({
+      where: {
+        userId: id,
+        createdAt: {
+          [Op.between]: [startDate, endDate]
+        }
+      },
+      order: [['createdAt', 'DESC']],
+      limit: 100
+    });
+
+    // Get leave requests
+    const leaveRequests = await LeaveRequest.findAll({
+      where: {
+        userId: id
+      },
+      order: [['startDate', 'DESC']],
+      limit: 10
+    });
+
+    // Get salary history
+    const salaries = await Salary.findAll({
+      where: {
+        userId: id
+      },
+      order: [['year', 'DESC'], ['month', 'DESC']],
+      limit: 12
+    });
+
+    // Calculate attendance statistics
+    const workingDaysCount = attendanceLogs.length;
+    const lateCount = attendanceLogs.filter(log => log.isLate === true).length;
+    const earlyLeaveCount = attendanceLogs.filter(log => log.isEarlyLeave === true).length;
+
+    return res.json({
+      status: "success",
+      employee: {
+        id: employee.id,
+        name: employee.name,
+        email: employee.email,
+        employeeCode: employee.employeeCode,
+        phoneNumber: employee.phoneNumber,
+        dateOfBirth: employee.dateOfBirth,
+        gender: employee.gender,
+        joiningDate: employee.joiningDate,
+        baseSalary: employee.baseSalary,
+        isActive: employee.isActive,
+        department: employee.Department?.name || 'N/A',
+        jobTitle: employee.JobTitle?.name || 'N/A',
+        salaryGrade: employee.SalaryGrade?.name || 'N/A',
+        attendanceStats: {
+          totalDaysWorked: workingDaysCount,
+          totalLate: lateCount,
+          totalAbsent: 0,
+          totalEarlyLeave: earlyLeaveCount
+        },
+        recentAttendance: attendanceLogs.map(log => ({
+          date: new Date(log.createdAt).toLocaleDateString('vi-VN'),
+          checkIn: log.createdAt ? new Date(log.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null,
+          checkOut: log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null,
+          status: log.isLate ? 'Muộn' : log.isEarlyLeave ? 'Về sớm' : 'Bình thường'
+        })),
+        leaveHistory: leaveRequests.map(leave => ({
+          id: leave.id,
+          type: leave.type,
+          startDate: new Date(leave.startDate).toLocaleDateString('vi-VN'),
+          endDate: new Date(leave.endDate).toLocaleDateString('vi-VN'),
+          days: leave.days,
+          status: leave.status,
+          reason: leave.reason
+        })),
+        leaveStats: {
+          totalDaysUsed: leaveRequests.filter(l => l.status === 'approved').reduce((sum, l) => sum + (l.days || 0), 0),
+          totalDaysRemaining: 12 - (leaveRequests.filter(l => l.status === 'approved').reduce((sum, l) => sum + (l.days || 0), 0) || 0)
+        },
+        salaryHistory: salaries.map(salary => ({
+          id: salary.id,
+          month: salary.month,
+          year: salary.year,
+          baseSalary: salary.baseSalary,
+          bonus: salary.bonus || 0,
+          deduction: salary.deduction || 0,
+          finalSalary: salary.finalSalary,
+          status: salary.status
+        })),
+        dependents: employee.Dependents ? employee.Dependents.map(dep => ({
+          id: dep.id,
+          fullName: dep.fullName,
+          relationship: dep.relationship,
+          dateOfBirth: dep.dateOfBirth,
+          gender: dep.gender
+        })) : [],
+        qualifications: employee.Qualifications ? employee.Qualifications.map(qual => ({
+          id: qual.id,
+          type: qual.type,
+          name: qual.name,
+          issuedBy: qual.issuedBy,
+          issuedDate: qual.issuedDate
+        })) : []
+      }
+    });
+  } catch (err) {
+    console.error("Error fetching employee details:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+};
+
