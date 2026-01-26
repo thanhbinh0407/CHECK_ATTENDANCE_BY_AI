@@ -1,0 +1,17 @@
+import React, { useState, useEffect } from "react";
+
+export default function SalaryCalculation() {
+  const [message, setMessage] = useState("Redirect sang Salary page bên AccountantClient");
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <h2>💰 Tính Lương</h2>
+      <p>{message}</p>
+      <a href="http://localhost:5174" target="_blank" rel="noopener noreferrer">
+        <button style={{ padding: "10px 20px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}>
+          Mở Hệ thống Quản lý Lương
+        </button>
+      </a>
+    </div>
+  );
+}

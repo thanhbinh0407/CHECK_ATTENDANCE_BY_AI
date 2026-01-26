@@ -21,48 +21,39 @@ const LeaveRequest = sequelize.define('LeaveRequest', {
   type: {
     type: DataTypes.ENUM('paid', 'unpaid', 'sick', 'maternity', 'personal', 'other'),
     allowNull: false,
-    defaultValue: 'paid',
-    comment: 'Loại nghỉ phép'
+    defaultValue: 'paid'
   },
   startDate: {
     type: DataTypes.DATEONLY,
-    allowNull: false,
-    comment: 'Ngày bắt đầu nghỉ'
+    allowNull: false
   },
   endDate: {
     type: DataTypes.DATEONLY,
-    allowNull: false,
-    comment: 'Ngày kết thúc nghỉ'
+    allowNull: false
   },
   days: {
     type: DataTypes.INTEGER,
-    allowNull: false,
-    comment: 'Số ngày nghỉ'
+    allowNull: false
   },
   reason: {
-    type: DataTypes.TEXT,
-    comment: 'Lý do nghỉ phép'
+    type: DataTypes.TEXT
   },
   status: {
     type: DataTypes.ENUM('pending', 'approved', 'rejected'),
-    defaultValue: 'pending',
-    comment: 'Trạng thái: chờ duyệt, đã duyệt, từ chối'
+    defaultValue: 'pending'
   },
   approvedBy: {
     type: DataTypes.INTEGER,
     references: {
       model: User,
       key: 'id'
-    },
-    comment: 'Người duyệt'
+    }
   },
   approvedAt: {
-    type: DataTypes.DATE,
-    comment: 'Thời điểm duyệt'
+    type: DataTypes.DATE
   },
   rejectionReason: {
-    type: DataTypes.TEXT,
-    comment: 'Lý do từ chối'
+    type: DataTypes.TEXT
   }
 }, {
   timestamps: true,

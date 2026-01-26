@@ -21,24 +21,20 @@ const Salary = sequelize.define('Salary', {
   baseSalary: {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: false,
-    defaultValue: 0,
-    comment: 'Lương cơ bản'
+    defaultValue: 0
   },
   bonus: {
     type: DataTypes.DECIMAL(12, 2),
-    defaultValue: 0,
-    comment: 'Thưởng'
+    defaultValue: 0
   },
   deduction: {
     type: DataTypes.DECIMAL(12, 2),
-    defaultValue: 0,
-    comment: 'Khấu trừ'
+    defaultValue: 0
   },
   finalSalary: {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: false,
-    defaultValue: 0,
-    comment: 'Lương thực nhận'
+    defaultValue: 0
   },
   month: {
     type: DataTypes.INTEGER,
@@ -46,30 +42,24 @@ const Salary = sequelize.define('Salary', {
     validate: {
       min: 1,
       max: 12
-    },
-    comment: 'Tháng'
+    }
   },
   year: {
     type: DataTypes.INTEGER,
-    allowNull: false,
-    comment: 'Năm'
+    allowNull: false
   },
   status: {
     type: DataTypes.ENUM('pending', 'approved', 'paid'),
-    defaultValue: 'pending',
-    comment: 'Trạng thái: chờ duyệt, đã duyệt, đã thanh toán'
+    defaultValue: 'pending'
   },
   notes: {
-    type: DataTypes.TEXT,
-    comment: 'Ghi chú'
+    type: DataTypes.TEXT
   },
   calculatedAt: {
-    type: DataTypes.DATE,
-    comment: 'Thời điểm tính toán'
+    type: DataTypes.DATE
   },
   paidAt: {
-    type: DataTypes.DATE,
-    comment: 'Thời điểm thanh toán'
+    type: DataTypes.DATE
   }
 }, {
   timestamps: true,
