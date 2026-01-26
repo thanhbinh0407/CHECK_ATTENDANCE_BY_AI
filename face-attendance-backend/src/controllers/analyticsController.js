@@ -2,6 +2,7 @@ import AttendanceLog from "../models/pg/AttendanceLog.js";
 import User from "../models/pg/User.js";
 import Salary from "../models/pg/Salary.js";
 import LeaveRequest from "../models/pg/LeaveRequest.js";
+import FaceProfile from "../models/pg/FaceProfile.js";
 import { Op } from "sequelize";
 
 // Get overview statistics

@@ -2,13 +2,15 @@ import express from "express";
 import {
   getAllEmployees,
   getEmployeeById,
+  getEmployeeWithPassword,
   updateEmployee,
   deleteEmployee,
   permanentlyDeleteEmployee,
   resetEmployeePassword,
-  getEmployeeAttendanceStats
+  getEmployeeAttendanceStats,
+  getEmployeeDetailedInfo
 } from "../controllers/adminController.js";
-import { authMiddleware, adminOnly } from "../middleware/authMiddleware.js";
+import { authMiddleware, adminOnly, adminOrAccountant } from "../middleware/authMiddleware.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import User from "../models/pg/User.js";
 
@@ -31,16 +33,20 @@ router.get("/logs", async (req, res) => {
   }
 });
 
-// Protected admin endpoints
+// Protected admin/accountant endpoints
 router.use(authMiddleware);
-router.use(adminOnly);
+router.use(adminOrAccountant);
 
 router.get("/employees", getAllEmployees);
 router.get("/employees/:id", getEmployeeById);
-router.put("/employees/:id", updateEmployee);
-router.delete("/employees/:id", deleteEmployee);
-router.delete("/employees/:id/permanent", permanentlyDeleteEmployee);
-router.post("/employees/:id/reset-password", resetEmployeePassword);
+router.get("/employees/:id/details", getEmployeeDetailedInfo);
+
+// Admin only endpoints
+router.get("/employees/:id/with-password", adminOnly, getEmployeeWithPassword);
+router.put("/employees/:id", adminOnly, updateEmployee);
+router.delete("/employees/:id", adminOnly, deleteEmployee);
+router.delete("/employees/:id/permanent", adminOnly, permanentlyDeleteEmployee);
+router.post("/employees/:id/reset-password", adminOnly, resetEmployeePassword);
 router.get("/employees/:id/attendance-stats", getEmployeeAttendanceStats);
 
 export default router;

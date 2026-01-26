@@ -55,8 +55,7 @@ const AttendanceLog = sequelize.define('AttendanceLog', {
     type: DataTypes.STRING,
   },
   imageBase64: {
-    type: DataTypes.TEXT,
-    comment: 'Base64 encoded image captured at attendance time'
+    type: DataTypes.TEXT
   },
   timestamp: {
     type: DataTypes.DATE,

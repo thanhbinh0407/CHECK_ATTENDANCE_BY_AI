@@ -83,6 +83,7 @@ export const login = async (req, res) => {
 
     const user = await User.findOne({ where: { email } });
     if (!user) {
+      console.log(`Login attempt failed: User not found - ${email}`);
       return res.status(401).json({
         status: "error",
         message: "Invalid credentials"
@@ -96,9 +97,19 @@ export const login = async (req, res) => {
       });
     }
 
+    // Check if user has a password set
+    if (!user.password) {
+      console.log(`Login attempt failed: User has no password set - ${email}`);
+      return res.status(401).json({
+        status: "error",
+        message: "Password not set. Please contact administrator to set your password."
+      });
+    }
+
     // Check password
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
+      console.log(`Login attempt failed: Invalid password - ${email}`);
       return res.status(401).json({
         status: "error",
         message: "Invalid credentials"

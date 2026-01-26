@@ -15,6 +15,10 @@ import employeeRoutes from "./routes/employeeRoutes.js";
 import leaveRoutes from "./routes/leaveRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import departmentRoutes from "./routes/departmentRoutes.js";
+import jobTitleRoutes from "./routes/jobTitleRoutes.js";
+import qualificationRoutes from "./routes/qualificationRoutes.js";
+import dependentRoutes from "./routes/dependentRoutes.js";
 import swaggerUi from "swagger-ui-express";
 import { swaggerDoc } from "./swagger.js";
 
@@ -66,6 +70,10 @@ app.use("/api/employee", employeeRoutes);
 app.use("/api/leave", leaveRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/departments", departmentRoutes);
+app.use("/api/job-titles", jobTitleRoutes);
+app.use("/api/qualifications", qualificationRoutes);
+app.use("/api/dependents", dependentRoutes);
 app.use("/api", debugRoutes);
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
