@@ -10,6 +10,14 @@ export const theme = {
     gradient: "linear-gradient(135deg, #1f2937 0%, #111827 100%)",
   },
   
+  // Colors (for backward compatibility)
+  colors: {
+    primary: "#1f2937",
+    secondary: "#3b82f6",
+    light: "#f9fafb",
+    border: "#e5e7eb",
+  },
+  
   // Neutral Colors
   neutral: {
     white: "#ffffff",

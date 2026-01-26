@@ -9,7 +9,7 @@ export default function SalaryManagement() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [activeTab, setActiveTab] = useState("rules");
+  const [activeTab, setActiveTab] = useState("salaries");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [showRuleForm, setShowRuleForm] = useState(false);
@@ -331,7 +331,7 @@ export default function SalaryManagement() {
           </div>
         )}
 
-        {/* Modern Tabs */}
+        {/* Modern Tabs - Only Salaries Tab (Rules Manager Hidden) */}
         <div style={{
           display: "flex",
           gap: "8px",
@@ -341,24 +341,7 @@ export default function SalaryManagement() {
           padding: "4px",
           borderRadius: "12px"
         }}>
-          <button
-            onClick={() => setActiveTab("rules")}
-            style={{
-              flex: 1,
-              padding: "14px 24px",
-              border: "none",
-              borderRadius: "8px",
-              backgroundColor: activeTab === "rules" ? "#fff" : "transparent",
-              color: activeTab === "rules" ? theme.primary.main : theme.neutral.gray600,
-              fontWeight: "700",
-              cursor: "pointer",
-              fontSize: "15px",
-              transition: "all 0.3s",
-              boxShadow: activeTab === "rules" ? "0 2px 8px rgba(0,0,0,0.1)" : "none"
-            }}
-          >
-            Quy Tắc Lương
-          </button>
+          {/* Quy Tắc Lương Tab is hidden - using default payroll calculation logic */}
           <button
             onClick={() => setActiveTab("salaries")}
             style={{

@@ -33,3 +33,13 @@ export const adminOnly = (req, res, next) => {
   }
   next();
 };
+
+export const adminOrAccountant = (req, res, next) => {
+  if (req.user?.role !== "admin" && req.user?.role !== "accountant") {
+    return res.status(403).json({
+      status: "error",
+      message: "Admin or Accountant access required"
+    });
+  }
+  next();
+};

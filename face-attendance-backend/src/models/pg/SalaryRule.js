@@ -9,47 +9,38 @@ const SalaryRule = sequelize.define('SalaryRule', {
   },
   name: {
     type: DataTypes.STRING,
-    allowNull: false,
-    comment: 'Tên rule'
+    allowNull: false
   },
   type: {
     type: DataTypes.ENUM('bonus', 'deduction'),
-    allowNull: false,
-    comment: 'Loại: thưởng hoặc khấu trừ'
+    allowNull: false
   },
   triggerType: {
     type: DataTypes.ENUM('late', 'early_leave', 'absent', 'overtime', 'full_attendance', 'custom'),
-    allowNull: false,
-    comment: 'Loại trigger: muộn, về sớm, vắng, tăng ca, chuyên cần, tùy chỉnh'
+    allowNull: false
   },
   amount: {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: false,
-    defaultValue: 0,
-    comment: 'Số tiền (dương cho bonus, âm cho deduction)'
+    defaultValue: 0
   },
   amountType: {
     type: DataTypes.ENUM('fixed', 'percentage'),
-    defaultValue: 'fixed',
-    comment: 'Loại số tiền: cố định hoặc phần trăm'
+    defaultValue: 'fixed'
   },
   threshold: {
-    type: DataTypes.INTEGER,
-    comment: 'Ngưỡng kích hoạt (ví dụ: số lần muộn, số giờ OT)'
+    type: DataTypes.INTEGER
   },
   isActive: {
     type: DataTypes.BOOLEAN,
-    defaultValue: true,
-    comment: 'Trạng thái kích hoạt'
+    defaultValue: true
   },
   description: {
-    type: DataTypes.TEXT,
-    comment: 'Mô tả chi tiết'
+    type: DataTypes.TEXT
   },
   priority: {
     type: DataTypes.INTEGER,
-    defaultValue: 0,
-    comment: 'Độ ưu tiên khi tính toán (số càng cao càng được tính trước)'
+    defaultValue: 0
   }
 }, {
   timestamps: true,

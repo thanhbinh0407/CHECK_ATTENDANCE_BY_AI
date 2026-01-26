@@ -21,31 +21,25 @@ const Notification = sequelize.define('Notification', {
   },
   type: {
     type: DataTypes.ENUM('attendance', 'late', 'leave', 'salary', 'system', 'alert'),
-    allowNull: false,
-    comment: 'Loại thông báo'
+    allowNull: false
   },
   title: {
     type: DataTypes.STRING,
-    allowNull: false,
-    comment: 'Tiêu đề'
+    allowNull: false
   },
   message: {
     type: DataTypes.TEXT,
-    allowNull: false,
-    comment: 'Nội dung thông báo'
+    allowNull: false
   },
   read: {
     type: DataTypes.BOOLEAN,
-    defaultValue: false,
-    comment: 'Đã đọc'
+    defaultValue: false
   },
   readAt: {
-    type: DataTypes.DATE,
-    comment: 'Thời điểm đọc'
+    type: DataTypes.DATE
   },
   metadata: {
-    type: DataTypes.JSONB,
-    comment: 'Dữ liệu bổ sung (JSON)'
+    type: DataTypes.JSONB
   }
 }, {
   timestamps: true,

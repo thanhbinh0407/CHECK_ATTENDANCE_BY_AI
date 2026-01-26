@@ -2,6 +2,11 @@ import { useState, useEffect } from "react";
 import LoginForm from "./components/LoginForm.jsx";
 import AttendanceHistory from "./components/AttendanceHistory.jsx";
 import SalaryHistory from "./components/SalaryHistory.jsx";
+import LeaveRequest from "./components/LeaveRequest.jsx";
+import Qualifications from "./components/Qualifications.jsx";
+import Dependents from "./components/Dependents.jsx";
+import ApprovalManagement from "./components/ApprovalManagement.jsx";
+import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
 import "./App.css";
 
 function App() {
@@ -127,12 +132,51 @@ function App() {
         >
           💰 Lương
         </button>
+        <button
+          onClick={() => setActiveTab("leave")}
+          style={tabStyle(activeTab === "leave")}
+        >
+          📝 Đơn Nghỉ Phép
+        </button>
+        <button
+          onClick={() => setActiveTab("qualifications")}
+          style={tabStyle(activeTab === "qualifications")}
+        >
+          📜 Chứng Chỉ
+        </button>
+        <button
+          onClick={() => setActiveTab("dependents")}
+          style={tabStyle(activeTab === "dependents")}
+        >
+          👨‍👩‍👧‍👦 Người Phụ Thuộc
+        </button>
+        {user?.role === "admin" && (
+          <>
+            <button
+              onClick={() => setActiveTab("approval")}
+              style={tabStyle(activeTab === "approval")}
+            >
+              ✅ Phê Duyệt Hồ Sơ
+            </button>
+            <button
+              onClick={() => setActiveTab("rules")}
+              style={tabStyle(activeTab === "rules")}
+            >
+              ⚙️ Quy Tắc Lương
+            </button>
+          </>
+        )}
       </div>
 
       {/* Content */}
       <div style={contentStyle}>
         {activeTab === "attendance" && <AttendanceHistory userId={user?.id} />}
         {activeTab === "salary" && <SalaryHistory userId={user?.id} />}
+        {activeTab === "leave" && <LeaveRequest userId={user?.id} />}
+        {activeTab === "qualifications" && <Qualifications userId={user?.id} />}
+        {activeTab === "dependents" && <Dependents userId={user?.id} />}
+        {activeTab === "approval" && user?.role === "admin" && <ApprovalManagement />}
+        {activeTab === "rules" && user?.role === "admin" && <SalaryRulesManagement />}
       </div>
     </div>
   );
