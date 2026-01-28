@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import sequelize from './src/db/sequelize.js';
 import './src/models/pg/index.js';
 
