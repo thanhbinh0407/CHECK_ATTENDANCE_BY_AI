@@ -7,6 +7,9 @@ import AttendanceLog from "./components/AttendanceLog.jsx";
 import SalaryManagement from "./components/SalaryManagement.jsx";
 import LeaveManagement from "./components/LeaveManagement.jsx";
 import AnalyticsDashboard from "./components/AnalyticsDashboard.jsx";
+import DepartmentManagement from "./components/DepartmentManagement.jsx";
+import JobTitleManagement from "./components/JobTitleManagement.jsx";
+import ApprovalManagement from "./components/ApprovalManagement.jsx";
 import { theme, commonStyles } from "./styles/theme.js";
 import "./App.css";
 
@@ -44,11 +47,12 @@ function App() {
       // Ctrl/Cmd + number shortcuts
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
         const num = parseInt(e.key);
-        if (num >= 1 && num <= 7) {
+        if (num >= 0 && num <= 9) {
           e.preventDefault();
-          const tabs = ["enrollment", "dashboard", "logs", "shifts", "salary", "leave", "analytics"];
-          if (tabs[num - 1] && user?.role === "admin") {
-            setActiveTab(tabs[num - 1]);
+          const tabs = ["enrollment", "dashboard", "logs", "shifts", "salary", "leave", "approvals", "departments", "job-titles", "analytics"];
+          const tabIndex = num === 0 ? 9 : num - 1;
+          if (tabs[tabIndex] && user?.role === "admin") {
+            setActiveTab(tabs[tabIndex]);
           }
         }
       }
@@ -81,7 +85,10 @@ function App() {
     { id: "shifts", label: "Ca làm việc", shortcut: "4" },
     { id: "salary", label: "Quản lý lương", shortcut: "5" },
     { id: "leave", label: "Nghỉ phép", shortcut: "6" },
-    { id: "analytics", label: "Phân tích", shortcut: "7" },
+    { id: "approvals", label: "Duyệt yêu cầu", shortcut: "7" },
+    { id: "departments", label: "Phòng ban", shortcut: "8" },
+    { id: "job-titles", label: "Chức vụ", shortcut: "9" },
+    { id: "analytics", label: "Phân tích", shortcut: "0" },
   ];
 
   // Layout styles
@@ -346,6 +353,9 @@ function App() {
         {activeTab === "shifts" && user?.role === "admin" && <ShiftAdmin />}
         {activeTab === "salary" && user?.role === "admin" && <SalaryManagement />}
         {activeTab === "leave" && user?.role === "admin" && <LeaveManagement />}
+        {activeTab === "approvals" && user?.role === "admin" && <ApprovalManagement />}
+        {activeTab === "departments" && user?.role === "admin" && <DepartmentManagement />}
+        {activeTab === "job-titles" && user?.role === "admin" && <JobTitleManagement />}
         {activeTab === "analytics" && user?.role === "admin" && <AnalyticsDashboard />}
       </div>
       </main>

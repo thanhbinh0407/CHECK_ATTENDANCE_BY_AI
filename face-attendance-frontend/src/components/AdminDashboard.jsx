@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { exportEmployeesToExcel, exportEmployeesToPDF, importEmployeesFromExcel, downloadEmployeeTemplate } from "../utils/exportUtils.js";
 import { theme, commonStyles } from "../styles/theme.js";
+import EmployeeProfileModal from "./EmployeeProfileModal.jsx";
 
 export default function AdminDashboard() {
   const [employees, setEmployees] = useState([]);
@@ -746,100 +747,16 @@ export default function AdminDashboard() {
         </>
       )}
 
+        {/* Employee Profile Modal */}
         {selectedEmployee && (
-          <div style={{
-            marginTop: "32px",
-            padding: "32px",
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            border: "2px solid #007bff",
-            boxShadow: "0 4px 12px rgba(0,123,255,0.15)"
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", paddingBottom: "16px", borderBottom: "2px solid #e0e0e0" }}>
-              <div>
-                <h3 style={{ margin: "0 0 4px 0", fontSize: "24px", fontWeight: "700", color: "#1a1a1a" }}>
-                  Chi tiết nhân viên
-                </h3>
-                <p style={{ margin: 0, fontSize: "16px", color: "#666", fontWeight: "600" }}>
-                  {selectedEmployee.name}
-                </p>
-              </div>
-              <button
-                onClick={() => setSelectedEmployee(null)}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: "#6c757d",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                  fontSize: "14px",
-                  transition: "all 0.3s"
-                }}
-                onMouseOver={(e) => e.target.style.backgroundColor = "#5a6268"}
-                onMouseOut={(e) => e.target.style.backgroundColor = "#6c757d"}
-              >
-                Đóng
-              </button>
-            </div>
-
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "24px",
-              fontSize: "14px"
-            }}>
-              <div style={{ padding: "16px", backgroundColor: "#f8f9fa", borderRadius: "8px" }}>
-                <label style={{ display: "block", fontWeight: "700", color: "#495057", marginBottom: "8px", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Tên đầy đủ
-                </label>
-                <p style={{ margin: 0, fontSize: "16px", fontWeight: "600", color: "#1a1a1a" }}>{selectedEmployee.name}</p>
-              </div>
-              <div style={{ padding: "16px", backgroundColor: "#f8f9fa", borderRadius: "8px" }}>
-                <label style={{ display: "block", fontWeight: "700", color: "#495057", marginBottom: "8px", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Email
-                </label>
-                <p style={{ margin: 0, fontSize: "16px", fontWeight: "600", color: "#1a1a1a" }}>{selectedEmployee.email}</p>
-              </div>
-              <div style={{ padding: "16px", backgroundColor: "#f8f9fa", borderRadius: "8px" }}>
-                <label style={{ display: "block", fontWeight: "700", color: "#495057", marginBottom: "8px", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Mã nhân viên
-                </label>
-                <p style={{ margin: 0, fontSize: "16px", fontWeight: "600", color: "#007bff" }}>{selectedEmployee.employeeCode}</p>
-              </div>
-              <div style={{ padding: "16px", backgroundColor: "#f8f9fa", borderRadius: "8px" }}>
-                <label style={{ display: "block", fontWeight: "700", color: "#495057", marginBottom: "8px", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Vai trò
-                </label>
-                <p style={{ margin: 0, fontSize: "16px", fontWeight: "600", color: "#1a1a1a" }}>
-                  {selectedEmployee.role === "admin" ? "Quản lý" : "Nhân viên"}
-                </p>
-              </div>
-              <div style={{ padding: "16px", backgroundColor: "#f8f9fa", borderRadius: "8px" }}>
-                <label style={{ display: "block", fontWeight: "700", color: "#495057", marginBottom: "8px", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Ngày tạo
-                </label>
-                <p style={{ margin: 0, fontSize: "16px", fontWeight: "600", color: "#1a1a1a" }}>
-                  {new Date(selectedEmployee.createdAt).toLocaleString("vi-VN")}
-                </p>
-              </div>
-              <div style={{ padding: "16px", backgroundColor: "#f8f9fa", borderRadius: "8px" }}>
-                <label style={{ display: "block", fontWeight: "700", color: "#495057", marginBottom: "8px", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Trạng thái khuôn mặt
-                </label>
-                <p style={{ margin: 0, fontSize: "16px", fontWeight: "600" }}>
-                  {selectedEmployee.FaceProfiles?.length > 0 ? (
-                    <span style={{ color: "#28a745" }}>
-                      Đã đăng ký ({selectedEmployee.FaceProfiles.length} profile)
-                    </span>
-                  ) : (
-                    <span style={{ color: "#ffc107" }}>Chưa đăng ký</span>
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
+          <EmployeeProfileModal
+            employee={selectedEmployee}
+            onClose={() => setSelectedEmployee(null)}
+            onUpdate={() => {
+              fetchEmployees();
+              setSelectedEmployee(null);
+            }}
+          />
         )}
       </div>
     </div>
