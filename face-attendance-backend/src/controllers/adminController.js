@@ -117,7 +117,24 @@ export const getEmployeeWithPassword = async (req, res) => {
 export const updateEmployee = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, employeeCode, isActive, baseSalary } = req.body;
+    const { 
+      name, 
+      email, 
+      employeeCode, 
+      isActive, 
+      baseSalary,
+      phoneNumber,
+      address,
+      dateOfBirth,
+      gender,
+      departmentId,
+      jobTitleId,
+      startDate,
+      bankAccount,
+      bankName,
+      taxCode,
+      idNumber
+    } = req.body;
 
     const employee = await User.findOne({
       where: { id, role: "employee" }
@@ -147,14 +164,33 @@ export const updateEmployee = async (req, res) => {
     if (employeeCode !== undefined) updateData.employeeCode = employeeCode;
     if (isActive !== undefined) updateData.isActive = isActive;
     if (baseSalary !== undefined) updateData.baseSalary = parseFloat(baseSalary) || 0;
+    if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+    if (address !== undefined) updateData.address = address;
+    if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+    if (gender !== undefined) updateData.gender = gender;
+    if (departmentId !== undefined) updateData.departmentId = departmentId;
+    if (jobTitleId !== undefined) updateData.jobTitleId = jobTitleId;
+    if (startDate !== undefined) updateData.startDate = startDate ? new Date(startDate) : null;
+    if (bankAccount !== undefined) updateData.bankAccount = bankAccount;
+    if (bankName !== undefined) updateData.bankName = bankName;
+    if (taxCode !== undefined) updateData.taxCode = taxCode;
+    if (idNumber !== undefined) updateData.idNumber = idNumber;
 
     await employee.update(updateData);
 
-    console.log(`Employee updated: ${employee.name} (ID: ${id})${baseSalary !== undefined ? `, baseSalary: ${updateData.baseSalary}` : ''}`);
+    // Reload with associations
+    await employee.reload({
+      include: [
+        { model: Department, attributes: ['id', 'name'] },
+        { model: JobTitle, attributes: ['id', 'name'] }
+      ]
+    });
+
+    console.log(`Employee updated: ${employee.name} (ID: ${id})`);
 
     return res.json({
       status: "success",
-      message: "Employee updated",
+      message: "Employee updated successfully",
       employee: {
         id: employee.id,
         name: employee.name,
@@ -162,7 +198,20 @@ export const updateEmployee = async (req, res) => {
         employeeCode: employee.employeeCode,
         role: employee.role,
         isActive: employee.isActive,
-        baseSalary: employee.baseSalary
+        baseSalary: employee.baseSalary,
+        phoneNumber: employee.phoneNumber,
+        address: employee.address,
+        dateOfBirth: employee.dateOfBirth,
+        gender: employee.gender,
+        departmentId: employee.departmentId,
+        jobTitleId: employee.jobTitleId,
+        startDate: employee.startDate,
+        bankAccount: employee.bankAccount,
+        bankName: employee.bankName,
+        taxCode: employee.taxCode,
+        idNumber: employee.idNumber,
+        Department: employee.Department,
+        JobTitle: employee.JobTitle
       }
     });
   } catch (err) {
@@ -369,16 +418,17 @@ export const getEmployeeDetailedInfo = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Get employee basic info
+    // Get employee basic info (including password for admin viewing)
     const employee = await User.findOne({
       where: { id, role: "employee" },
       include: [
         { model: Department, attributes: ['id', 'name'] },
         { model: JobTitle, attributes: ['id', 'name'] },
         { model: SalaryGrade, attributes: ['id', 'name', 'baseSalary'] },
-        { model: Dependent, as: 'Dependents', attributes: ['id', 'fullName', 'relationship', 'dateOfBirth', 'gender'] },
-        { model: Qualification, as: 'Qualifications', attributes: ['id', 'type', 'name', 'issuedBy', 'issuedDate'] }
+        { model: Dependent, as: 'Dependents', attributes: ['id', 'fullName', 'relationship', 'dateOfBirth', 'gender', 'idNumber', 'phoneNumber', 'email', 'occupation', 'approvalStatus'] },
+        { model: Qualification, as: 'Qualifications', attributes: ['id', 'type', 'name', 'issuedBy', 'issuedDate', 'expiryDate', 'certificateNumber', 'documentPath', 'description', 'approvalStatus'] }
       ]
+      // Note: password is included by default, not excluded
     });
 
     if (!employee) {
@@ -438,14 +488,22 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         email: employee.email,
         employeeCode: employee.employeeCode,
         phoneNumber: employee.phoneNumber,
+        address: employee.address,
         dateOfBirth: employee.dateOfBirth,
         gender: employee.gender,
-        joiningDate: employee.joiningDate,
+        idNumber: employee.idNumber,
+        startDate: employee.startDate,
         baseSalary: employee.baseSalary,
         isActive: employee.isActive,
+        departmentId: employee.departmentId,
+        jobTitleId: employee.jobTitleId,
         department: employee.Department?.name || 'N/A',
         jobTitle: employee.JobTitle?.name || 'N/A',
         salaryGrade: employee.SalaryGrade?.name || 'N/A',
+        bankAccount: employee.bankAccount,
+        bankName: employee.bankName,
+        taxCode: employee.taxCode,
+        password: employee.password, // Include password for admin viewing
         attendanceStats: {
           totalDaysWorked: workingDaysCount,
           totalLate: lateCount,
