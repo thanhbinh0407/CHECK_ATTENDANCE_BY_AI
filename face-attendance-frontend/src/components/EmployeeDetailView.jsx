@@ -10,12 +10,48 @@ export default function EmployeeDetailView() {
   const [activeTab, setActiveTab] = useState("info");
   const [showModal, setShowModal] = useState(false);
   const [selectedEmployeeForModal, setSelectedEmployeeForModal] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [departments, setDepartments] = useState([]);
+  const [jobTitles, setJobTitles] = useState([]);
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
   useEffect(() => {
     fetchEmployees();
+    fetchDepartments();
+    fetchJobTitles();
   }, []);
+
+  const fetchDepartments = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/departments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDepartments(data.departments || []);
+      }
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+    }
+  };
+
+  const fetchJobTitles = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/job-titles`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setJobTitles(data.jobTitles || []);
+      }
+    } catch (error) {
+      console.error("Error fetching job titles:", error);
+    }
+  };
 
   const fetchEmployees = async () => {
     try {
@@ -59,6 +95,52 @@ export default function EmployeeDetailView() {
       }
     } catch (error) {
       console.error("Error fetching employee details:", error);
+      setMessage("Lỗi: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = () => {
+    setIsEditing(true);
+    setEditForm({
+      name: selectedEmployeeForModal.name || "",
+      email: selectedEmployeeForModal.email || "",
+      phoneNumber: selectedEmployeeForModal.phoneNumber || "",
+      address: selectedEmployeeForModal.address || "",
+      dateOfBirth: selectedEmployeeForModal.dateOfBirth ? new Date(selectedEmployeeForModal.dateOfBirth).toISOString().split('T')[0] : "",
+      gender: selectedEmployeeForModal.gender || "",
+      departmentId: selectedEmployeeForModal.departmentId || null,
+      jobTitleId: selectedEmployeeForModal.jobTitleId || null,
+      baseSalary: selectedEmployeeForModal.baseSalary || 0,
+      isActive: selectedEmployeeForModal.isActive !== undefined ? selectedEmployeeForModal.isActive : true
+    });
+  };
+
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/admin/employees/${selectedEmployeeForModal.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(editForm)
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMessage("Cập nhật thông tin nhân viên thành công!");
+        setIsEditing(false);
+        openEmployeeModal(selectedEmployeeForModal.id); // Refresh data
+        fetchEmployees(); // Refresh list
+        setTimeout(() => setMessage(""), 3000);
+      } else {
+        setMessage("Lỗi: " + (data.message || "Không thể cập nhật"));
+      }
+    } catch (error) {
       setMessage("Lỗi: " + error.message);
     } finally {
       setLoading(false);
@@ -217,22 +299,41 @@ export default function EmployeeDetailView() {
                     <span><strong>Phòng ban:</strong> {selectedEmployeeForModal.Department?.name || "N/A"}</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setShowModal(false);
-                    setSelectedEmployeeForModal(null);
-                  }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: theme.neutral.white,
-                    fontSize: "24px",
-                    cursor: "pointer",
-                    padding: `${theme.spacing.xs} ${theme.spacing.md}`
-                  }}
-                >
-                  ✕
-                </button>
+                <div style={{ display: "flex", gap: theme.spacing.sm }}>
+                  {!isEditing && (
+                    <button
+                      onClick={handleEdit}
+                      style={{
+                        padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                        backgroundColor: "rgba(255,255,255,0.2)",
+                        color: theme.neutral.white,
+                        border: "none",
+                        borderRadius: theme.radius.md,
+                        cursor: "pointer",
+                        fontWeight: 600
+                      }}
+                    >
+                      ✏️ Chỉnh sửa
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowModal(false);
+                      setSelectedEmployeeForModal(null);
+                      setIsEditing(false);
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: theme.neutral.white,
+                      fontSize: "24px",
+                      cursor: "pointer",
+                      padding: `${theme.spacing.xs} ${theme.spacing.md}`
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
               {/* Tabs */}
@@ -267,29 +368,218 @@ export default function EmployeeDetailView() {
                   <div>
                     <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>Thông Tin Cá Nhân</h3>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl, marginBottom: theme.spacing.xl }}>
+                    {isEditing ? (
                       <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Email:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.email}</p>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl, marginBottom: theme.spacing.xl }}>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Tên *</label>
+                            <input
+                              type="text"
+                              value={editForm.name}
+                              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Email *</label>
+                            <input
+                              type="email"
+                              value={editForm.email}
+                              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Số điện thoại</label>
+                            <input
+                              type="text"
+                              value={editForm.phoneNumber}
+                              onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày sinh</label>
+                            <input
+                              type="date"
+                              value={editForm.dateOfBirth}
+                              onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Giới tính</label>
+                            <select
+                              value={editForm.gender}
+                              onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            >
+                              <option value="">Chọn giới tính</option>
+                              <option value="male">Nam</option>
+                              <option value="female">Nữ</option>
+                              <option value="other">Khác</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Phòng ban</label>
+                            <select
+                              value={editForm.departmentId || ""}
+                              onChange={(e) => setEditForm({ ...editForm, departmentId: e.target.value ? parseInt(e.target.value) : null })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            >
+                              <option value="">Chọn phòng ban</option>
+                              {departments.map(dept => (
+                                <option key={dept.id} value={dept.id}>{dept.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chức vụ</label>
+                            <select
+                              value={editForm.jobTitleId || ""}
+                              onChange={(e) => setEditForm({ ...editForm, jobTitleId: e.target.value ? parseInt(e.target.value) : null })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            >
+                              <option value="">Chọn chức vụ</option>
+                              {jobTitles.map(job => (
+                                <option key={job.id} value={job.id}>{job.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Lương cơ bản (VNĐ)</label>
+                            <input
+                              type="number"
+                              value={editForm.baseSalary}
+                              onChange={(e) => setEditForm({ ...editForm, baseSalary: parseFloat(e.target.value) || 0 })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Địa chỉ</label>
+                            <textarea
+                              value={editForm.address}
+                              onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "flex", alignItems: "center", gap: theme.spacing.sm, marginTop: theme.spacing.lg }}>
+                              <input
+                                type="checkbox"
+                                checked={editForm.isActive}
+                                onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })}
+                              />
+                              <span style={{ fontWeight: "600" }}>Đang làm việc</span>
+                            </label>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: theme.spacing.md, marginTop: theme.spacing.xl }}>
+                          <button
+                            onClick={handleSave}
+                            disabled={loading}
+                            style={{
+                              padding: `${theme.spacing.md} ${theme.spacing.xl}`,
+                              backgroundColor: theme.primary.main,
+                              color: theme.neutral.white,
+                              border: "none",
+                              borderRadius: theme.radius.md,
+                              cursor: loading ? "not-allowed" : "pointer",
+                              fontWeight: 600
+                            }}
+                          >
+                            {loading ? "Đang lưu..." : "💾 Lưu thay đổi"}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setIsEditing(false);
+                              setEditForm({});
+                            }}
+                            style={{
+                              padding: `${theme.spacing.md} ${theme.spacing.xl}`,
+                              backgroundColor: theme.neutral.gray300,
+                              color: theme.neutral.gray700,
+                              border: "none",
+                              borderRadius: theme.radius.md,
+                              cursor: "pointer",
+                              fontWeight: 600
+                            }}
+                          >
+                            Hủy
+                          </button>
+                        </div>
                       </div>
+                    ) : (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl, marginBottom: theme.spacing.xl }}>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Email:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.email}</p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Số điện thoại:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.phone || "Chưa cập nhật"}</p>
-                      </div>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Số điện thoại:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.phoneNumber || "Chưa cập nhật"}</p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày sinh:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>
-                          {selectedEmployeeForModal.dateOfBirth ? new Date(selectedEmployeeForModal.dateOfBirth).toLocaleDateString('vi-VN') : "Chưa cập nhật"}
-                        </p>
-                      </div>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày sinh:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>
+                            {selectedEmployeeForModal.dateOfBirth ? new Date(selectedEmployeeForModal.dateOfBirth).toLocaleDateString('vi-VN') : "Chưa cập nhật"}
+                          </p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Giới tính:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.gender || "Chưa cập nhật"}</p>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Giới tính:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.gender || "Chưa cập nhật"}</p>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     <div style={{ borderTop: `1px solid ${theme.neutral.gray200}`, paddingTop: theme.spacing.xl, marginTop: theme.spacing.xl }}>
                       <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>👨‍👩‍👧‍👦 Người Phụ Thuộc</h3>
