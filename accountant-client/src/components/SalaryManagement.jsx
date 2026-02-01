@@ -2,6 +2,25 @@ import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
 import { exportSalariesToExcel, exportSalariesToPDF } from "../utils/exportUtils.js";
 
+// Add keyframe animation for notification popup
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
+  @keyframes slideInRight {
+    from {
+      transform: translateX(400px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+`;
+if (!document.head.querySelector('style[data-notification-animation]')) {
+  styleSheet.setAttribute('data-notification-animation', 'true');
+  document.head.appendChild(styleSheet);
+}
+
 export default function SalaryManagement() {
   const [salaries, setSalaries] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -11,6 +30,16 @@ export default function SalaryManagement() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+  // Auto-hide message after 5 seconds
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => {
+        setMessage("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
 
   useEffect(() => {
     fetchSalaries();
@@ -205,7 +234,7 @@ export default function SalaryManagement() {
     <div style={containerStyle}>
       <div style={headerStyle}>
         <h2 style={{ margin: 0, fontSize: "28px", fontWeight: "700", color: theme.neutral.gray900 }}>
-          Quản lý Bảng Lương
+          💼 Quản lý Bảng Lương
         </h2>
         <p style={{ margin: `${theme.spacing.sm} 0 0 0`, color: theme.neutral.gray600, fontSize: "14px" }}>
           Quản lý và tính lương nhân viên theo tháng
@@ -214,14 +243,26 @@ export default function SalaryManagement() {
 
       {message && (
         <div style={{
-          padding: theme.spacing.md,
+          position: "fixed",
+          top: "80px",
+          right: "20px",
+          padding: "15px 20px",
           background: message.includes("thành công") ? "#d4edda" : "#f8d7da",
-          border: `1px solid ${message.includes("thành công") ? "#c3e6cb" : "#f5c6cb"}`,
-          borderRadius: theme.radius.md,
+          border: message.includes("thành công") ? "2px solid #28a745" : "2px solid #dc3545",
+          borderRadius: "8px",
           color: message.includes("thành công") ? "#155724" : "#721c24",
-          marginBottom: theme.spacing.lg,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          zIndex: 9999,
+          minWidth: "300px",
+          maxWidth: "400px",
+          animation: "slideInRight 0.3s ease-out"
         }}>
-          {message}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "1.2em" }}>
+              {message.includes("thành công") ? "✅" : "❌"}
+            </span>
+            <span style={{ flex: 1, fontWeight: "500" }}>{message}</span>
+          </div>
         </div>
       )}
 
@@ -282,31 +323,32 @@ export default function SalaryManagement() {
           <div>Chưa có dữ liệu lương cho tháng {selectedMonth}/{selectedYear}</div>
         </div>
       ) : (
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Nhân viên</th>
-              <th style={thStyle}>Mã NV</th>
-              <th style={thStyle}>Lương cơ bản</th>
-              <th style={thStyle}>Thưởng</th>
-              <th style={thStyle}>Khấu trừ</th>
-              <th style={thStyle}>Thực nhận</th>
-              <th style={thStyle}>Trạng thái</th>
-              <th style={thStyle}>Thao tác</th>
-            </tr>
-          </thead>
+        <div style={{ backgroundColor: "white", borderRadius: "8px", overflow: "hidden", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
+          <table style={tableStyle}>
+            <thead style={{ backgroundColor: theme.colors.primary, color: "white" }}>
+              <tr>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none" }}>👥 Nhân viên</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none" }}>🎫 Mã NV</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "right" }}>💵 Lương cơ bản</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "right" }}>📈 Thưởng</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "right" }}>📉 Khấu trừ</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "right" }}>💰 Thực nhận</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "center" }}>📊 Trạng thái</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "center" }}>⚙️ Thao tác</th>
+              </tr>
+            </thead>
           <tbody>
             {salaries.map(salary => {
               const statusBadge = getStatusBadge(salary.status);
               return (
                 <tr key={salary.id}>
-                  <td style={tdStyle}>{salary.User?.name || "N/A"}</td>
-                  <td style={tdStyle}>{salary.User?.employeeCode || "N/A"}</td>
-                  <td style={tdStyle}>{formatCurrency(salary.baseSalary)}</td>
-                  <td style={tdStyle}>{formatCurrency(salary.bonus)}</td>
-                  <td style={tdStyle}>{formatCurrency(salary.deduction)}</td>
-                  <td style={tdStyle}><strong>{formatCurrency(salary.finalSalary)}</strong></td>
-                  <td style={tdStyle}>
+                  <td style={{ ...tdStyle, fontWeight: "bold" }}>{salary.User?.name || "N/A"}</td>
+                  <td style={{ ...tdStyle, fontWeight: "bold" }}>{salary.User?.employeeCode || "N/A"}</td>
+                  <td style={{ ...tdStyle, textAlign: "right" }}>{formatCurrency(salary.baseSalary)}</td>
+                  <td style={{ ...tdStyle, textAlign: "right", color: "#28a745" }}>+{formatCurrency(salary.bonus)}</td>
+                  <td style={{ ...tdStyle, textAlign: "right", color: "#dc3545" }}>-{formatCurrency(salary.deduction)}</td>
+                  <td style={{ ...tdStyle, textAlign: "right" }}><strong>{formatCurrency(salary.finalSalary)}</strong></td>
+                  <td style={{ ...tdStyle, textAlign: "center" }}>
                     <span style={{
                       ...statusBadge.style,
                       padding: "4px 12px",
@@ -348,6 +390,7 @@ export default function SalaryManagement() {
             })}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );
