@@ -422,7 +422,6 @@ export default function SalaryManagement() {
         </table>
         </div>
       )}
-      </div>
     </div>
   );
 }
