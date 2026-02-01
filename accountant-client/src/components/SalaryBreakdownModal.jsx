@@ -210,12 +210,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
         const updatedSalary = await res.json();
         if (onUpdate) onUpdate(updatedSalary);
         setEditMode(false);
-        alert("Cập nhật phiên bản lương thành công");
+        alert("Payroll version updated successfully");
       } else {
-        alert("Lỗi khi cập nhật");
+        alert("Error updating");
       }
     } catch (error) {
-      alert("Lỗi: " + error.message);
+      alert("Error: " + error.message);
     } finally {
       setSaving(false);
     }
@@ -240,7 +240,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
       <div style={contentStyle} onClick={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <div>
-            <h2 style={titleStyle}>💰 Chi Tiết Tính Lương</h2>
+            <h2 style={titleStyle}>💰 Salary Breakdown</h2>
             <div style={{ fontSize: "14px", color: "#666", marginTop: "5px" }}>
               {employee?.name} - {new Date(salary?.month).toLocaleDateString("vi-VN", {
                 month: "long",
@@ -260,9 +260,9 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
 
         {/* Base Salary */}
         <div style={sectionStyle}>
-          <div style={sectionTitleStyle}>📊 Lương Cơ Bản</div>
+          <div style={sectionTitleStyle}>📊 Base Salary</div>
           <div style={itemRowStyle}>
-            <div style={labelStyle}>Lương cơ bản tháng</div>
+            <div style={labelStyle}>Monthly base salary</div>
             <div style={amountStyle}>
               {((salary?.baseSalary || 0) / 1000000).toFixed(2)}M₫
             </div>
@@ -273,19 +273,19 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
         {/* Bonuses */}
         {salary?.bonuses && salary.bonuses.length > 0 && (
           <div style={sectionStyle}>
-            <div style={sectionTitleStyle}>🎁 Các Khoản Thưởng</div>
+            <div style={sectionTitleStyle}>🎁 Bonuses</div>
             {salary.bonuses.map((bonus, idx) => {
               const rule = rules.find((r) => r.id === bonus.ruleId);
               return (
                 <div key={idx} style={itemRowStyle}>
-                  <div style={labelStyle}>{rule?.name || "Thưởng"}</div>
+                  <div style={labelStyle}>{rule?.name || "Bonus"}</div>
                   <div style={amountStyle}>+{(bonus.amount / 1000000).toFixed(2)}M₫</div>
                   <div style={percentStyle}>{rule?.description || ""}</div>
                 </div>
               );
             })}
             <div style={{ ...itemRowStyle, backgroundColor: "#e8f5e9" }}>
-              <div style={labelStyle}>Tổng thưởng</div>
+              <div style={labelStyle}>Total bonus</div>
               <div style={{ ...amountStyle, color: "#28a745" }}>
                 +{((salary?.totalBonus || 0) / 1000000).toFixed(2)}M₫
               </div>
@@ -297,12 +297,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
         {/* Deductions */}
         {salary?.deductions && salary.deductions.length > 0 && (
           <div style={sectionStyle}>
-            <div style={sectionTitleStyle}>📉 Các Khoản Khấu Trừ</div>
+            <div style={sectionTitleStyle}>📉 Deductions</div>
             {salary.deductions.map((deduction, idx) => {
               const rule = rules.find((r) => r.id === deduction.ruleId);
               return (
                 <div key={idx} style={itemRowStyle}>
-                  <div style={labelStyle}>{rule?.name || "Khấu trừ"}</div>
+                  <div style={labelStyle}>{rule?.name || "Deduction"}</div>
                   <div style={{ ...amountStyle, color: "#dc3545" }}>
                     -{(deduction.amount / 1000000).toFixed(2)}M₫
                   </div>
@@ -311,7 +311,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
               );
             })}
             <div style={{ ...itemRowStyle, backgroundColor: "#ffe5e5" }}>
-              <div style={labelStyle}>Tổng khấu trừ</div>
+              <div style={labelStyle}>Total deduction</div>
               <div style={{ ...amountStyle, color: "#dc3545" }}>
                 -{((salary?.totalDeduction || 0) / 1000000).toFixed(2)}M₫
               </div>
@@ -322,10 +322,10 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
 
         {/* Summary */}
         <div style={sectionStyle}>
-          <div style={sectionTitleStyle}>📈 Tổng Hợp</div>
+          <div style={sectionTitleStyle}>📈 Summary</div>
           <div style={summaryStyle}>
             <div style={{ ...summaryItemStyle, backgroundColor: "#f0f8ff", borderLeft: `4px solid ${theme.colors.primary}` }}>
-              <div style={{ fontSize: "12px", color: "#666", marginBottom: "5px" }}>Tổng Gross</div>
+              <div style={{ fontSize: "12px", color: "#666", marginBottom: "5px" }}>Gross Total</div>
               <div style={{ fontSize: "20px", fontWeight: "700", color: theme.colors.primary }}>
                 {editMode
                   ? (calculateGrossAdjusted() / 1000000).toFixed(2)
@@ -334,7 +334,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
               </div>
             </div>
             <div style={{ ...summaryItemStyle, backgroundColor: "#e8f5e9", borderLeft: "4px solid #28a745" }}>
-              <div style={{ fontSize: "12px", color: "#666", marginBottom: "5px" }}>Lương Net</div>
+              <div style={{ fontSize: "12px", color: "#666", marginBottom: "5px" }}>Net Salary</div>
               <div style={{ fontSize: "20px", fontWeight: "700", color: "#28a745" }}>
                 {editMode
                   ? (calculateNetAdjusted() / 1000000).toFixed(2)
@@ -349,11 +349,11 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
         {editMode && (
           <div style={editFormStyle}>
             <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>
-              ✏️ Điều Chỉnh Lương
+              ✏️ Adjust Salary
             </h3>
 
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Điều chỉnh lương cơ bản (đơn vị: đồng)</label>
+              <label style={labelFormStyle}>Base salary adjustment (VND)</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -364,12 +364,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     baseAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                placeholder="Nhập số điều chỉnh (âm để giảm, dương để tăng)"
+                placeholder="Enter adjustment (negative to decrease, positive to increase)"
               />
             </div>
 
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Điều chỉnh thưởng (đơn vị: đồng)</label>
+              <label style={labelFormStyle}>Bonus adjustment (VND)</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -380,12 +380,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     bonusAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                placeholder="Nhập số điều chỉnh thưởng"
+                placeholder="Enter bonus adjustment amount"
               />
             </div>
 
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Điều chỉnh khấu trừ (đơn vị: đồng)</label>
+              <label style={labelFormStyle}>Deduction adjustment (VND)</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -396,12 +396,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     deductionAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                placeholder="Nhập số điều chỉnh khấu trừ"
+                placeholder="Enter deduction adjustment amount"
               />
             </div>
 
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Ghi chú</label>
+              <label style={labelFormStyle}>Notes</label>
               <textarea
                 style={textareaStyle}
                 value={adjustments.notes}
@@ -411,7 +411,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     notes: e.target.value
                   })
                 }
-                placeholder="Ghi chú về điều chỉnh..."
+                placeholder="Notes about adjustment..."
               />
             </div>
           </div>
@@ -425,7 +425,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
             onMouseOver={(e) => (e.target.style.opacity = 0.9)}
             onMouseOut={(e) => (e.target.style.opacity = 1)}
           >
-            Đóng
+            Close
           </button>
 
           {editMode && (
@@ -444,7 +444,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                 onMouseOver={(e) => (e.target.style.opacity = 0.9)}
                 onMouseOut={(e) => (e.target.style.opacity = 1)}
               >
-                Hủy
+                Cancel
               </button>
               <button
                 onClick={handleSaveAdjustments}
@@ -453,7 +453,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                 onMouseOver={(e) => !saving && (e.target.style.opacity = 0.9)}
                 onMouseOut={(e) => !saving && (e.target.style.opacity = 1)}
               >
-                {saving ? "Đang lưu..." : "Lưu Điều Chỉnh"}
+                {saving ? "Saving..." : "Save Adjustments"}
               </button>
             </>
           )}
@@ -465,7 +465,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
               onMouseOver={(e) => (e.target.style.opacity = 0.9)}
               onMouseOut={(e) => (e.target.style.opacity = 1)}
             >
-              ✏️ Điều Chỉnh
+              Apply
             </button>
           )}
         </div>

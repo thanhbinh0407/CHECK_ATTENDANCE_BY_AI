@@ -7,6 +7,7 @@ export default function SalaryManagement() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [toastPopup, setToastPopup] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
@@ -33,7 +34,7 @@ export default function SalaryManagement() {
       }
     } catch (error) {
       console.error("Error fetching salaries:", error);
-      setMessage("Lỗi khi tải dữ liệu lương");
+      setMessage("Error loading salary data");
     } finally {
       setLoading(false);
     }
@@ -78,14 +79,15 @@ export default function SalaryManagement() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Tính lương thành công!");
+        setMessage("");
+        setToastPopup("Salary calculated successfully!");
         fetchSalaries();
-        setTimeout(() => setMessage(""), 3000);
+        setTimeout(() => setToastPopup(""), 5000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể tính lương"));
+        setMessage("Error: " + (data.message || "Cannot calculate salary"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -108,36 +110,34 @@ export default function SalaryManagement() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Cập nhật trạng thái thành công!");
+        setMessage("");
+        setToastPopup("Status updated successfully!");
         fetchSalaries();
-        setTimeout(() => setMessage(""), 3000);
+        setTimeout(() => { setMessage(""); setToastPopup(""); }, 5000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể cập nhật"));
+        setMessage("Error: " + (data.message || "Could not update"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND"
-    }).format(amount || 0);
+    return new Intl.NumberFormat("vi-VN").format(amount || 0) + " ₫";
   };
 
   const getStatusBadge = (status) => {
     const styles = {
-      pending: { background: "#fbbf24", color: "#78350f" },
-      approved: { background: "#3b82f6", color: "#1e3a8a" },
-      paid: { background: "#10b981", color: "#065f46" }
+      pending: { background: "#fff3cd", color: "#997404" },
+      approved: { background: "#cfe2ff", color: "#084298" },
+      paid: { background: "#d4edda", color: "#155724" }
     };
     const labels = {
-      pending: "Chờ duyệt",
-      approved: "Đã duyệt",
-      paid: "Đã thanh toán"
+      pending: "Pending",
+      approved: "Approved",
+      paid: "Paid"
     };
     return { style: styles[status] || styles.pending, label: labels[status] || status };
   };
@@ -186,13 +186,24 @@ export default function SalaryManagement() {
     marginTop: theme.spacing.lg,
   };
 
+  const tableWrapperStyle = {
+    backgroundColor: theme.neutral.white,
+    borderRadius: "8px",
+    overflow: "hidden",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+    marginTop: theme.spacing.lg,
+    border: "1px solid #e5e7eb",
+  };
+
+  const headerBg = "#1e293b";
   const thStyle = {
-    padding: theme.spacing.md,
+    padding: "12px 16px",
     textAlign: "left",
-    borderBottom: `2px solid ${theme.neutral.gray200}`,
+    borderBottom: "2px solid rgba(255,255,255,0.2)",
     fontWeight: "600",
-    color: theme.neutral.gray700,
+    color: "#fff",
     fontSize: "14px",
+    backgroundColor: headerBg,
   };
 
   const tdStyle = {
@@ -202,33 +213,53 @@ export default function SalaryManagement() {
   };
 
   return (
-    <div style={containerStyle}>
-      <div style={headerStyle}>
-        <h2 style={{ margin: 0, fontSize: "28px", fontWeight: "700", color: theme.neutral.gray900 }}>
-          Quản lý Bảng Lương
-        </h2>
-        <p style={{ margin: `${theme.spacing.sm} 0 0 0`, color: theme.neutral.gray600, fontSize: "14px" }}>
-          Quản lý và tính lương nhân viên theo tháng
-        </p>
-      </div>
+    <div style={{ padding: "20px", backgroundColor: theme.colors?.light || theme.neutral.gray50, minHeight: "100%" }}>
+      <div style={containerStyle}>
+        <div style={headerStyle}>
+          <h1 style={{ margin: 0, fontSize: "1.75rem", fontWeight: "700", color: theme.colors?.primary || theme.primary?.main }}>
+            Salary Management
+          </h1>
+          <p style={{ margin: `${theme.spacing.sm} 0 0 0`, color: theme.neutral.gray600, fontSize: "14px" }}>
+            Manage and calculate employee salaries by month
+          </p>
+        </div>
 
-      {message && (
+      {message && !toastPopup && (
         <div style={{
           padding: theme.spacing.md,
-          background: message.includes("thành công") ? "#d4edda" : "#f8d7da",
-          border: `1px solid ${message.includes("thành công") ? "#c3e6cb" : "#f5c6cb"}`,
+          background: message.includes("success") ? "#d4edda" : "#f8d7da",
+          border: `1px solid ${message.includes("success") ? "#c3e6cb" : "#f5c6cb"}`,
           borderRadius: theme.radius.md,
-          color: message.includes("thành công") ? "#155724" : "#721c24",
+          color: message.includes("success") ? "#155724" : "#721c24",
           marginBottom: theme.spacing.lg,
         }}>
           {message}
         </div>
       )}
 
+      {toastPopup && (
+        <div style={{
+          position: "fixed",
+          top: 24,
+          left: "50%",
+          transform: "translateX(-50%)",
+          padding: `${theme.spacing.md} ${theme.spacing.xl}`,
+          background: "#059669",
+          color: "#fff",
+          borderRadius: theme.radius.lg,
+          boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+          fontWeight: "600",
+          fontSize: "15px",
+          zIndex: 9999,
+        }}>
+          {toastPopup}
+        </div>
+      )}
+
       <div style={filtersStyle}>
         <div>
           <label style={{ display: "block", marginBottom: theme.spacing.sm, fontWeight: "600", fontSize: "14px" }}>
-            Tháng
+            Month
           </label>
           <select
             style={inputStyle}
@@ -236,14 +267,14 @@ export default function SalaryManagement() {
             onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
           >
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
-              <option key={m} value={m}>Tháng {m}</option>
+              <option key={m} value={m}>Month {m}</option>
             ))}
           </select>
         </div>
 
         <div>
           <label style={{ display: "block", marginBottom: theme.spacing.sm, fontWeight: "600", fontSize: "14px" }}>
-            Năm
+            Year
           </label>
           <select
             style={inputStyle}
@@ -261,7 +292,7 @@ export default function SalaryManagement() {
           disabled={salaries.length === 0}
           style={{ ...buttonStyle, background: "#10b981" }}
         >
-          Xuất Excel
+          Export Excel
         </button>
 
         <button
@@ -269,86 +300,101 @@ export default function SalaryManagement() {
           disabled={salaries.length === 0}
           style={{ ...buttonStyle, background: "#ef4444" }}
         >
-          Xuất PDF
+          Export PDF
         </button>
       </div>
 
       {loading ? (
         <div style={{ textAlign: "center", padding: theme.spacing.xxl }}>
-          <div>Đang tải...</div>
+          <div>Loading...</div>
         </div>
       ) : salaries.length === 0 ? (
         <div style={{ textAlign: "center", padding: theme.spacing.xxl, color: theme.neutral.gray500 }}>
-          <div>Chưa có dữ liệu lương cho tháng {selectedMonth}/{selectedYear}</div>
+          <div>No salary data for {selectedMonth}/{selectedYear}</div>
         </div>
       ) : (
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Nhân viên</th>
-              <th style={thStyle}>Mã NV</th>
-              <th style={thStyle}>Lương cơ bản</th>
-              <th style={thStyle}>Thưởng</th>
-              <th style={thStyle}>Khấu trừ</th>
-              <th style={thStyle}>Thực nhận</th>
-              <th style={thStyle}>Trạng thái</th>
-              <th style={thStyle}>Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            {salaries.map(salary => {
-              const statusBadge = getStatusBadge(salary.status);
-              return (
-                <tr key={salary.id}>
-                  <td style={tdStyle}>{salary.User?.name || "N/A"}</td>
-                  <td style={tdStyle}>{salary.User?.employeeCode || "N/A"}</td>
-                  <td style={tdStyle}>{formatCurrency(salary.baseSalary)}</td>
-                  <td style={tdStyle}>{formatCurrency(salary.bonus)}</td>
-                  <td style={tdStyle}>{formatCurrency(salary.deduction)}</td>
-                  <td style={tdStyle}><strong>{formatCurrency(salary.finalSalary)}</strong></td>
-                  <td style={tdStyle}>
-                    <span style={{
-                      ...statusBadge.style,
-                      padding: "4px 12px",
-                      borderRadius: "12px",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                    }}>
-                      {statusBadge.label}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ display: "flex", gap: theme.spacing.sm }}>
-                      {salary.status === "pending" && (
+        <div style={tableWrapperStyle}>
+          <table style={tableStyle}>
+            <thead style={{ backgroundColor: "#1e293b", color: "#fff" }}>
+              <tr>
+                <th style={thStyle}>Employee</th>
+                <th style={thStyle}>Emp. ID</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Base Salary</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Bonus</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Deduction</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Net Pay</th>
+                <th style={{ ...thStyle, textAlign: "center" }}>Status</th>
+                <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...salaries]
+                .sort((a, b) => {
+                  const order = { paid: 0, approved: 1, pending: 2 };
+                  return (order[a.status] ?? 2) - (order[b.status] ?? 2);
+                })
+                .map(salary => {
+                const statusBadge = getStatusBadge(salary.status);
+                return (
+                  <tr
+                    key={salary.id}
+                    style={{
+                      backgroundColor: salary.status === "paid" ? "#f0fdf4" : theme.neutral.white,
+                      borderBottom: `1px solid ${theme.neutral.gray200}`,
+                    }}
+                  >
+                    <td style={tdStyle}>{salary.User?.name || "N/A"}</td>
+                    <td style={tdStyle}><strong>{salary.User?.employeeCode || "N/A"}</strong></td>
+                    <td style={tdStyle}>{formatCurrency(salary.baseSalary)}</td>
+                    <td style={{ ...tdStyle, color: "#16a34a", fontWeight: "500" }}>{formatCurrency(salary.bonus)}</td>
+                    <td style={{ ...tdStyle, color: "#dc2626", fontWeight: "500" }}>{formatCurrency(salary.deduction)}</td>
+                    <td style={tdStyle}><strong>{formatCurrency(salary.finalSalary)}</strong></td>
+                    <td style={tdStyle}>
+                      <span style={{
+                        ...statusBadge.style,
+                        padding: "4px 12px",
+                        borderRadius: "20px",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        display: "inline-block",
+                      }}>
+                        {statusBadge.label}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <div style={{ display: "flex", gap: theme.spacing.sm, flexWrap: "wrap" }}>
+                        {salary.status === "pending" && (
+                          <button
+                            onClick={() => handleUpdateStatus(salary.id, "approved")}
+                            style={{ ...buttonStyle, background: "#28a745", color: "#fff", padding: "6px 12px", fontSize: "12px", borderRadius: "4px" }}
+                          >
+                            Approve
+                          </button>
+                        )}
+                        {salary.status === "approved" && (
+                          <button
+                            onClick={() => handleUpdateStatus(salary.id, "paid")}
+                            style={{ ...buttonStyle, background: "#28a745", color: "#fff", padding: "6px 12px", fontSize: "12px", borderRadius: "4px" }}
+                          >
+                            Mark Paid
+                          </button>
+                        )}
                         <button
-                          onClick={() => handleUpdateStatus(salary.id, "approved")}
-                          style={{ ...buttonStyle, background: "#3b82f6", padding: "6px 12px", fontSize: "12px" }}
+                          onClick={() => handleCalculateSalary(salary.User?.id)}
+                          style={{ ...buttonStyle, background: theme.colors?.secondary || "#3b82f6", color: "#fff", padding: "6px 12px", fontSize: "12px", borderRadius: "4px" }}
                         >
-                          Duyệt
+                          Recalculate
                         </button>
-                      )}
-                      {salary.status === "approved" && (
-                        <button
-                          onClick={() => handleUpdateStatus(salary.id, "paid")}
-                          style={{ ...buttonStyle, background: "#10b981", padding: "6px 12px", fontSize: "12px" }}
-                        >
-                          Thanh toán
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleCalculateSalary(salary.User?.id)}
-                        style={{ ...buttonStyle, background: theme.neutral.gray600, padding: "6px 12px", fontSize: "12px" }}
-                      >
-                        Tính lại
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
+      </div>
     </div>
   );
 }
