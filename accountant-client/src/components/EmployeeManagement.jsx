@@ -33,7 +33,7 @@ export default function EmployeeManagement() {
       }
     } catch (error) {
       console.error("Error fetching employees:", error);
-      setMessage("Lỗi khi tải danh sách nhân viên");
+      setMessage("Error loading employee list");
     } finally {
       setLoading(false);
     }
@@ -87,14 +87,14 @@ export default function EmployeeManagement() {
       });
 
       if (res.ok) {
-        setMessage("Cập nhật thông tin nhân viên thành công");
+        setMessage("Employee info updated successfully");
         setShowEditModal(false);
         fetchEmployees();
       } else {
-        setMessage("Lỗi khi cập nhật");
+        setMessage("Error updating");
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -292,15 +292,15 @@ export default function EmployeeManagement() {
 
   return (
     <div style={containerStyle}>
-      <h1 style={headerStyle}>🏢 Quản Lý Nhân Viên</h1>
+      <h1 style={headerStyle}>🏢 Employee Management</h1>
 
       {message && (
         <div
           style={{
             padding: "12px",
             marginBottom: "15px",
-            backgroundColor: message.includes("Lỗi") ? "#f8d7da" : "#d4edda",
-            color: message.includes("Lỗi") ? "#721c24" : "#155724",
+            backgroundColor: message.includes("Error") ? "#f8d7da" : "#d4edda",
+            color: message.includes("Error") ? "#721c24" : "#155724",
             borderRadius: "5px",
             fontSize: "14px"
           }}
@@ -312,7 +312,7 @@ export default function EmployeeManagement() {
       <div style={searchBoxStyle}>
         <input
           type="text"
-          placeholder="Tìm kiếm theo tên hoặc mã nhân viên..."
+          placeholder="Search by name or employee ID..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           style={searchInputStyle}
@@ -329,25 +329,25 @@ export default function EmployeeManagement() {
             fontWeight: "600"
           }}
         >
-          🔄 Làm Mới
+          🔄 Refresh
         </button>
       </div>
 
-      {loading && <div style={{ textAlign: "center", padding: "20px" }}>Đang tải...</div>}
+      {loading && <div style={{ textAlign: "center", padding: "20px" }}>Loading...</div>}
 
       {!loading && filteredEmployees.length > 0 && (
         <div style={tableContainerStyle}>
           <table style={tableStyle}>
             <thead>
               <tr>
-                <th style={headerCellStyle}>Mã NV</th>
-                <th style={headerCellStyle}>Họ Tên</th>
-                <th style={headerCellStyle}>Phòng Ban</th>
-                <th style={headerCellStyle}>Chức Vụ</th>
-                <th style={headerCellStyle}>Ngày Vào</th>
-                <th style={headerCellStyle}>Cấp Lương</th>
-                <th style={headerCellStyle}>Lương CB</th>
-                <th style={headerCellStyle}>Hành Động</th>
+                <th style={headerCellStyle}>Emp. ID</th>
+                <th style={headerCellStyle}>Name</th>
+                <th style={headerCellStyle}>Department</th>
+                <th style={headerCellStyle}>Job Title</th>
+                <th style={headerCellStyle}>Start Date</th>
+                <th style={headerCellStyle}>Salary Grade</th>
+                <th style={headerCellStyle}>Base Salary</th>
+                <th style={headerCellStyle}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -411,7 +411,7 @@ export default function EmployeeManagement() {
             color: "#999"
           }}
         >
-          Không tìm thấy nhân viên nào
+          No employees found
         </div>
       )}
 
@@ -422,11 +422,11 @@ export default function EmployeeManagement() {
           onClick={(e) => e.stopPropagation()}
         >
           <h2 style={{ color: theme.colors.primary, marginBottom: "20px" }}>
-            ✏️ Cập Nhật Thông Tin Nhân Viên
+            Update Employee Info
           </h2>
 
           <div style={formGroupStyle}>
-            <label style={labelStyle}>Họ Tên</label>
+            <label style={labelStyle}>Full Name</label>
             <input
               type="text"
               style={inputStyle}
@@ -450,7 +450,7 @@ export default function EmployeeManagement() {
           </div>
 
           <div style={formGroupStyle}>
-            <label style={labelStyle}>Số Điện Thoại</label>
+            <label style={labelStyle}>Phone</label>
             <input
               type="text"
               style={inputStyle}
@@ -462,7 +462,7 @@ export default function EmployeeManagement() {
           </div>
 
           <div style={formGroupStyle}>
-            <label style={labelStyle}>Lương Cơ Bản</label>
+            <label style={labelStyle}>Base Salary</label>
             <input
               type="number"
               style={inputStyle}
@@ -477,7 +477,7 @@ export default function EmployeeManagement() {
           </div>
 
           <div style={formGroupStyle}>
-            <label style={labelStyle}>Ngày Vào Làm</label>
+            <label style={labelStyle}>Start Date</label>
             <input
               type="date"
               style={inputStyle}
@@ -498,13 +498,13 @@ export default function EmployeeManagement() {
               onClick={() => setShowEditModal(false)}
               style={cancelButtonStyle}
             >
-              Hủy
+              Cancel
             </button>
             <button
               onClick={handleSaveEdit}
               style={saveButtonStyle}
             >
-              Lưu
+              Save
             </button>
           </div>
         </div>
@@ -523,14 +523,14 @@ export default function EmployeeManagement() {
           onClick={(e) => e.stopPropagation()}
         >
           <h2 style={{ color: theme.colors.primary, marginBottom: "20px" }}>
-            👤 Chi Tiết Nhân Viên: {selectedEmployee?.name}
+            👤 Employee Details: {selectedEmployee?.name}
           </h2>
 
           {/* Personal Info */}
           <div style={detailSectionStyle}>
-            <div style={detailTitleStyle}>📋 Thông Tin Cá Nhân</div>
+            <div style={detailTitleStyle}>📋 Personal Info</div>
             <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Mã NV:</div>
+              <div style={detailLabelStyle}>Emp. ID:</div>
               <div>{selectedEmployee?.employeeCode}</div>
             </div>
             <div style={detailItemStyle}>
@@ -538,11 +538,11 @@ export default function EmployeeManagement() {
               <div>{selectedEmployee?.email}</div>
             </div>
             <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Số điện thoại:</div>
+              <div style={detailLabelStyle}>Phone:</div>
               <div>{selectedEmployee?.phone || "N/A"}</div>
             </div>
             <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Ngày sinh:</div>
+              <div style={detailLabelStyle}>Date of birth:</div>
               <div>
                 {selectedEmployee?.dateOfBirth
                   ? new Date(selectedEmployee.dateOfBirth).toLocaleDateString(
@@ -552,24 +552,24 @@ export default function EmployeeManagement() {
               </div>
             </div>
             <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Giới tính:</div>
+              <div style={detailLabelStyle}>Gender:</div>
               <div>{selectedEmployee?.gender || "N/A"}</div>
             </div>
           </div>
 
           {/* Job Info */}
           <div style={detailSectionStyle}>
-            <div style={detailTitleStyle}>💼 Thông Tin Công Việc</div>
+            <div style={detailTitleStyle}>💼 Job Info</div>
             <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Phòng ban:</div>
+              <div style={detailLabelStyle}>Department:</div>
               <div>{selectedEmployee?.Department?.name || "N/A"}</div>
             </div>
             <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Chức vụ:</div>
+              <div style={detailLabelStyle}>Job title:</div>
               <div>{selectedEmployee?.JobTitle?.name || "N/A"}</div>
             </div>
             <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Ngày vào:</div>
+              <div style={detailLabelStyle}>Start date:</div>
               <div>
                 {selectedEmployee?.startDate
                   ? new Date(selectedEmployee.startDate).toLocaleDateString(
@@ -579,11 +579,11 @@ export default function EmployeeManagement() {
               </div>
             </div>
             <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Cấp lương:</div>
+              <div style={detailLabelStyle}>Salary grade:</div>
               <div>{selectedEmployee?.SalaryGrade?.code || "N/A"}</div>
             </div>
             <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Lương cơ bản:</div>
+              <div style={detailLabelStyle}>Base salary:</div>
               <div>
                 {selectedEmployee?.baseSalary
                   ? (selectedEmployee.baseSalary / 1000000).toFixed(1) + "M₫"
@@ -596,7 +596,7 @@ export default function EmployeeManagement() {
           {selectedEmployee?.dependents &&
             selectedEmployee.dependents.length > 0 && (
               <div style={detailSectionStyle}>
-                <div style={detailTitleStyle}>👨‍👩‍👧‍👦 Người Phụ Thuộc ({selectedEmployee.dependents.length})</div>
+                <div style={detailTitleStyle}>👨‍👩‍👧‍👦 Dependents ({selectedEmployee.dependents.length})</div>
                 {selectedEmployee.dependents.map((dep, idx) => (
                   <div
                     key={idx}
@@ -610,10 +610,10 @@ export default function EmployeeManagement() {
                   >
                     <div style={{ fontWeight: "600" }}>{dep.fullName}</div>
                     <div style={{ fontSize: "13px", color: "#666" }}>
-                      Quan hệ: {dep.relationship}
+                      Relationship: {dep.relationship}
                     </div>
                     <div style={{ fontSize: "13px", color: "#666" }}>
-                      Ngày sinh:{" "}
+                      Date of birth:{" "}
                       {new Date(dep.dateOfBirth).toLocaleDateString("vi-VN")}
                     </div>
                   </div>
@@ -625,7 +625,7 @@ export default function EmployeeManagement() {
           {selectedEmployee?.qualifications &&
             selectedEmployee.qualifications.length > 0 && (
               <div style={detailSectionStyle}>
-                <div style={detailTitleStyle}>📜 Bằng Cấp & Chứng Chỉ ({selectedEmployee.qualifications.length})</div>
+                <div style={detailTitleStyle}>📜 Qualifications & Certificates ({selectedEmployee.qualifications.length})</div>
                 {selectedEmployee.qualifications.map((qual, idx) => (
                   <div
                     key={idx}
@@ -639,13 +639,13 @@ export default function EmployeeManagement() {
                   >
                     <div style={{ fontWeight: "600" }}>{qual.name}</div>
                     <div style={{ fontSize: "13px", color: "#666" }}>
-                      Loại: {qual.type}
+                      Type: {qual.type}
                     </div>
                     <div style={{ fontSize: "13px", color: "#666" }}>
-                      Cơ quan cấp: {qual.issuedBy}
+                      Issued by: {qual.issuedBy}
                     </div>
                     <div style={{ fontSize: "13px", color: "#666" }}>
-                      Ngày cấp:{" "}
+                      Issue date:{" "}
                       {new Date(qual.issuedDate).toLocaleDateString("vi-VN")}
                     </div>
                   </div>
@@ -667,7 +667,7 @@ export default function EmployeeManagement() {
               marginTop: "20px"
             }}
           >
-            Đóng
+            Close
           </button>
         </div>
       </div>
