@@ -146,291 +146,1152 @@ export default function SalaryCalculation() {
     }
   };
 
-  return (
-    <div style={{ padding: "20px", backgroundColor: theme.colors.light }}>
-      <h1 style={{ color: theme.colors.primary }}>💰 Tính Lương Tháng</h1>
+  // Icon Components
+  const EyeIcon = ({ size = 18 }) => (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
 
+  const CheckIcon = ({ size = 18 }) => (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+
+  return (
+    <>
+      <style>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes tableRowFadeIn {
+          from {
+            opacity: 0;
+            transform: translateX(-20px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0) scale(1);
+          }
+        }
+        @keyframes pulse {
+          0%, 100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);
+          }
+          50% {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 4px rgba(255, 193, 7, 0);
+          }
+        }
+        @keyframes bounce {
+          0%, 100% {
+            transform: translateY(0) scale(1);
+          }
+          50% {
+            transform: translateY(-3px) scale(1.05);
+          }
+        }
+        @keyframes shake {
+          0%, 100% {
+            transform: translateX(0);
+          }
+          25% {
+            transform: translateX(-3px);
+          }
+          75% {
+            transform: translateX(3px);
+          }
+        }
+        @keyframes numberCount {
+          from {
+            opacity: 0;
+            transform: translateY(-10px) scale(0.8);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        @keyframes slideInRight {
+          from {
+            opacity: 0;
+            transform: translateX(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        @keyframes glow {
+          0%, 100% {
+            box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+          }
+          50% {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+          }
+        }
+      `}</style>
+      <div style={{ 
+        padding: theme.spacing.xl, 
+        backgroundColor: theme.neutral.gray50,
+        minHeight: "100vh"
+      }}>
+      {/* Header Section */}
+      <div style={{ 
+        marginBottom: theme.spacing.xl
+      }}>
+        <h1 style={{ 
+          color: theme.primary.main, 
+          fontSize: "28px",
+          fontWeight: "700",
+          margin: 0,
+          marginBottom: theme.spacing.xs
+        }}>
+          💰 Tính Lương Tháng
+        </h1>
+        <p style={{ 
+          color: theme.neutral.gray600,
+          fontSize: "14px",
+          margin: 0
+        }}>
+          Tính toán và quản lý lương nhân viên theo tháng
+        </p>
+      </div>
+
+      {/* Alert Message */}
       {message && (
         <div
           style={{
-            padding: "10px",
-            marginBottom: "15px",
+            padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+            marginBottom: theme.spacing.lg,
             backgroundColor: message.includes("thành công") ? "#d4edda" : "#f8d7da",
             color: message.includes("thành công") ? "#155724" : "#721c24",
-            borderRadius: "5px"
+            borderRadius: theme.radius.md,
+            border: `1px solid ${message.includes("thành công") ? "#c3e6cb" : "#f5c6cb"}`,
+            fontSize: "14px",
+            fontWeight: "500",
+            display: "flex",
+            alignItems: "center",
+            gap: theme.spacing.sm,
+            boxShadow: theme.shadows.sm
           }}
         >
-          {message}
+          {message.includes("thành công") ? "✓" : "⚠"} {message}
         </div>
       )}
 
-      <div style={{ marginBottom: "20px", display: "flex", gap: "20px", alignItems: "center" }}>
-        <div>
-          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Tháng:</label>
-          <input
-            type="number"
-            min="1"
-            max="12"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+      {/* Control Panel */}
+      <div style={{ 
+        marginBottom: theme.spacing.xl,
+        backgroundColor: theme.neutral.white,
+        padding: theme.spacing.lg,
+        borderRadius: theme.radius.lg,
+        boxShadow: theme.shadows.md,
+        border: `1px solid ${theme.neutral.gray200}`
+      }}>
+        <div style={{ 
+          display: "flex", 
+          gap: theme.spacing.lg, 
+          alignItems: "flex-end",
+          flexWrap: "wrap"
+        }}>
+          <div style={{ flex: "0 0 auto" }}>
+            <label style={{ 
+              display: "block",
+              marginBottom: theme.spacing.sm, 
+              fontWeight: "600",
+              color: theme.neutral.gray700,
+              fontSize: "13px",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px"
+            }}>
+              Tháng
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="12"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              style={{
+                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                borderRadius: theme.radius.md,
+                border: `2px solid ${theme.neutral.gray300}`,
+                width: "100px",
+                fontSize: "15px",
+                fontWeight: "500",
+                transition: "all 0.2s",
+                outline: "none"
+              }}
+              onFocus={(e) => e.target.style.borderColor = theme.primary.main}
+              onBlur={(e) => e.target.style.borderColor = theme.neutral.gray300}
+            />
+          </div>
+
+          <div style={{ flex: "0 0 auto" }}>
+            <label style={{ 
+              display: "block",
+              marginBottom: theme.spacing.sm, 
+              fontWeight: "600",
+              color: theme.neutral.gray700,
+              fontSize: "13px",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px"
+            }}>
+              Năm
+            </label>
+            <input
+              type="number"
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              style={{
+                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                borderRadius: theme.radius.md,
+                border: `2px solid ${theme.neutral.gray300}`,
+                width: "120px",
+                fontSize: "15px",
+                fontWeight: "500",
+                transition: "all 0.2s",
+                outline: "none"
+              }}
+              onFocus={(e) => e.target.style.borderColor = theme.primary.main}
+              onBlur={(e) => e.target.style.borderColor = theme.neutral.gray300}
+            />
+          </div>
+
+          <button
+            onClick={calculateSalaries}
+            disabled={loading}
             style={{
-              padding: "8px",
-              borderRadius: "5px",
-              border: `1px solid ${theme.colors.border}`,
-              width: "80px"
+              padding: `${theme.spacing.sm} ${theme.spacing.xl}`,
+              backgroundColor: theme.primary.main,
+              color: theme.neutral.white,
+              border: "none",
+              borderRadius: theme.radius.md,
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.6 : 1,
+              fontSize: "15px",
+              fontWeight: "600",
+              transition: "all 0.2s",
+              boxShadow: loading ? "none" : theme.shadows.sm,
+              display: "flex",
+              alignItems: "center",
+              gap: theme.spacing.sm,
+              height: "42px"
             }}
-          />
-        </div>
+            onMouseEnter={(e) => !loading && (e.target.style.transform = "translateY(-1px)", e.target.style.boxShadow = theme.shadows.md)}
+            onMouseLeave={(e) => !loading && (e.target.style.transform = "translateY(0)", e.target.style.boxShadow = theme.shadows.sm)}
+          >
+            {loading ? "⏳ Đang tính..." : "💰 Tính lương"}
+          </button>
 
-        <div>
-          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Năm:</label>
-          <input
-            type="number"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+          <button
+            onClick={() => setShowRules(!showRules)}
             style={{
-              padding: "8px",
-              borderRadius: "5px",
-              border: `1px solid ${theme.colors.border}`,
-              width: "100px"
+              padding: `${theme.spacing.sm} ${theme.spacing.xl}`,
+              backgroundColor: showRules ? theme.neutral.gray600 : theme.colors.secondary,
+              color: theme.neutral.white,
+              border: "none",
+              borderRadius: theme.radius.md,
+              cursor: "pointer",
+              fontSize: "15px",
+              fontWeight: "600",
+              transition: "all 0.2s",
+              boxShadow: theme.shadows.sm,
+              display: "flex",
+              alignItems: "center",
+              gap: theme.spacing.sm,
+              height: "42px"
             }}
-          />
+            onMouseEnter={(e) => (e.target.style.transform = "translateY(-1px)", e.target.style.boxShadow = theme.shadows.md)}
+            onMouseLeave={(e) => (e.target.style.transform = "translateY(0)", e.target.style.boxShadow = theme.shadows.sm)}
+          >
+            {showRules ? "📋 Ẩn Quy tắc" : "📋 Xem Quy tắc"}
+          </button>
         </div>
-
-        <button
-          onClick={calculateSalaries}
-          disabled={loading}
-          style={{
-            padding: "8px 20px",
-            backgroundColor: theme.colors.primary,
-            color: "white",
-            border: "none",
-            borderRadius: "5px",
-            cursor: loading ? "not-allowed" : "pointer",
-            opacity: loading ? 0.6 : 1
-          }}
-        >
-          {loading ? "Đang tính..." : "Tính lương"}
-        </button>
-
-        <button
-          onClick={() => setShowRules(!showRules)}
-          style={{
-            padding: "8px 20px",
-            backgroundColor: theme.colors.secondary,
-            color: "white",
-            border: "none",
-            borderRadius: "5px",
-            cursor: "pointer"
-          }}
-        >
-          {showRules ? "Ẩn" : "Xem"} Quy tắc
-        </button>
       </div>
 
-      {/* Rules Section */}
+      {/* Rules Modal */}
       {showRules && (
-        <div style={{ marginBottom: "20px", backgroundColor: "white", padding: "15px", borderRadius: "8px", border: `1px solid ${theme.colors.border}` }}>
-          <h3 style={{ color: theme.colors.primary }}>📋 Quy Tắc Tính Lương (Không Thể Chỉnh Sửa)</h3>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.7)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+            padding: theme.spacing.xl,
+            boxSizing: "border-box",
+            backdropFilter: "blur(4px)",
+            animation: "fadeIn 0.2s ease-in"
+          }}
+          onClick={() => setShowRules(false)}
+        >
+          <div
+            style={{ 
+              backgroundColor: theme.neutral.white, 
+              padding: theme.spacing.xl, 
+              borderRadius: theme.radius.xl, 
+              border: `1px solid ${theme.neutral.gray200}`,
+              boxShadow: theme.shadows.lg,
+              maxWidth: "1000px",
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              animation: "slideUp 0.3s ease-out",
+              position: "relative"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setShowRules(false)}
+              style={{
+                position: "absolute",
+                top: theme.spacing.lg,
+                right: theme.spacing.lg,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: theme.neutral.gray500,
+                transition: "all 0.2s",
+                padding: theme.spacing.sm,
+                borderRadius: theme.radius.md,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "36px",
+                height: "36px",
+                backgroundColor: theme.neutral.gray100
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = theme.neutral.gray200;
+                e.currentTarget.style.color = theme.neutral.gray900;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = theme.neutral.gray100;
+                e.currentTarget.style.color = theme.neutral.gray500;
+              }}
+              title="Đóng"
+            >
+              ×
+            </button>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: theme.spacing.xl,
+            paddingBottom: theme.spacing.lg,
+            borderBottom: `2px solid ${theme.neutral.gray200}`
+          }}>
+            <div>
+              <h3 style={{ 
+                color: theme.primary.main,
+                fontSize: "24px",
+                fontWeight: "700",
+                margin: 0,
+                marginBottom: theme.spacing.xs,
+                display: "flex",
+                alignItems: "center",
+                gap: theme.spacing.sm
+              }}>
+                📋 Quy Tắc Tính Lương
+              </h3>
+              <p style={{
+                fontSize: "13px",
+                color: theme.neutral.gray500,
+                margin: 0,
+                fontStyle: "italic"
+              }}>
+                Các quy tắc được thiết lập theo tiêu chuẩn công ty
+              </p>
+            </div>
+            <div style={{
+              padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+              backgroundColor: theme.neutral.gray100,
+              borderRadius: theme.radius.md,
+              fontSize: "12px",
+              fontWeight: "600",
+              color: theme.neutral.gray600,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px"
+            }}>
+              Chỉ Đọc
+            </div>
+          </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl }}>
             {/* Deductions */}
             <div>
-              <h4 style={{ color: "#dc3545" }}>📉 Khấu Trừ:</h4>
-              {rules.filter(r => r.type === "deduction").map(rule => (
-                <div
-                  key={rule.id}
-                  style={{
-                    padding: "10px",
-                    marginBottom: "8px",
-                    backgroundColor: "#fff5f5",
-                    borderLeft: `4px solid #dc3545`,
-                    borderRadius: "4px"
-                  }}
-                >
-                  <div style={{ fontWeight: "bold" }}>{rule.name}</div>
-                  <div style={{ fontSize: "0.9em", color: "#666" }}>
-                    {rule.amountType === "percentage"
-                      ? `${rule.amount}% lương cơ bản`
-                      : `₫${rule.amount.toLocaleString("vi-VN")}`}
-                  </div>
-                  <div style={{ fontSize: "0.85em", color: "#999", marginTop: "4px" }}>
-                    {rule.description}
-                  </div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: theme.spacing.sm,
+                marginBottom: theme.spacing.lg,
+                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                backgroundColor: "#fff5f5",
+                borderRadius: theme.radius.md,
+                border: `1px solid #ffebee`
+              }}>
+                <div style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "50%",
+                  backgroundColor: "#ffebee",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "20px"
+                }}>
+                  📉
                 </div>
-              ))}
+                <h4 style={{ 
+                  color: "#dc3545",
+                  fontSize: "18px",
+                  fontWeight: "700",
+                  margin: 0
+                }}>
+                  Khấu Trừ
+                </h4>
+              </div>
+              {rules.filter(r => r.type === "deduction").length === 0 ? (
+                <div style={{
+                  padding: theme.spacing.lg,
+                  textAlign: "center",
+                  color: theme.neutral.gray400,
+                  fontStyle: "italic"
+                }}>
+                  Không có quy tắc khấu trừ
+                </div>
+              ) : (
+                rules.filter(r => r.type === "deduction").map(rule => (
+                  <div
+                    key={rule.id}
+                    style={{
+                      padding: theme.spacing.lg,
+                      marginBottom: theme.spacing.md,
+                      backgroundColor: "#fff5f5",
+                      borderLeft: `5px solid #dc3545`,
+                      borderRadius: theme.radius.md,
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      boxShadow: theme.shadows.sm,
+                      border: `1px solid #ffebee`,
+                      position: "relative",
+                      overflow: "hidden"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateX(8px) translateY(-2px)";
+                      e.currentTarget.style.boxShadow = theme.shadows.lg;
+                      e.currentTarget.style.borderLeftWidth = "8px";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateX(0) translateY(0)";
+                      e.currentTarget.style.boxShadow = theme.shadows.sm;
+                      e.currentTarget.style.borderLeftWidth = "5px";
+                    }}
+                  >
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: theme.spacing.sm
+                    }}>
+                      <div style={{ 
+                        fontWeight: "700", 
+                        fontSize: "16px",
+                        color: theme.neutral.gray900 
+                      }}>
+                        {rule.name}
+                      </div>
+                      <div style={{
+                        padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+                        backgroundColor: "#ffebee",
+                        borderRadius: theme.radius.sm,
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#dc3545",
+                        textTransform: "uppercase"
+                      }}>
+                        Khấu Trừ
+                      </div>
+                    </div>
+                    <div style={{ 
+                      fontSize: "15px", 
+                      color: theme.neutral.gray700, 
+                      marginBottom: theme.spacing.xs,
+                      fontWeight: "500"
+                    }}>
+                      {rule.amountType === "percentage"
+                        ? `${rule.amount}% lương cơ bản`
+                        : `₫${rule.amount.toLocaleString("vi-VN")}`}
+                    </div>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: theme.neutral.gray600,
+                      lineHeight: "1.5"
+                    }}>
+                      {rule.description}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
             {/* Bonuses */}
             <div>
-              <h4 style={{ color: "#28a745" }}>📈 Thưởng:</h4>
-              {rules.filter(r => r.type === "bonus").map(rule => (
-                <div
-                  key={rule.id}
-                  style={{
-                    padding: "10px",
-                    marginBottom: "8px",
-                    backgroundColor: "#f5fff5",
-                    borderLeft: `4px solid #28a745`,
-                    borderRadius: "4px"
-                  }}
-                >
-                  <div style={{ fontWeight: "bold" }}>{rule.name}</div>
-                  <div style={{ fontSize: "0.9em", color: "#666" }}>
-                    {rule.amountType === "percentage"
-                      ? `${rule.amount}% lương cơ bản`
-                      : `₫${rule.amount.toLocaleString("vi-VN")}`}
-                  </div>
-                  <div style={{ fontSize: "0.85em", color: "#999", marginTop: "4px" }}>
-                    {rule.description}
-                  </div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: theme.spacing.sm,
+                marginBottom: theme.spacing.lg,
+                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                backgroundColor: "#f0fdf4",
+                borderRadius: theme.radius.md,
+                border: `1px solid #dcfce7`
+              }}>
+                <div style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "50%",
+                  backgroundColor: "#dcfce7",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "20px"
+                }}>
+                  📈
                 </div>
-              ))}
+                <h4 style={{ 
+                  color: "#28a745",
+                  fontSize: "18px",
+                  fontWeight: "700",
+                  margin: 0
+                }}>
+                  Thưởng
+                </h4>
+              </div>
+              {rules.filter(r => r.type === "bonus").length === 0 ? (
+                <div style={{
+                  padding: theme.spacing.lg,
+                  textAlign: "center",
+                  color: theme.neutral.gray400,
+                  fontStyle: "italic"
+                }}>
+                  Không có quy tắc thưởng
+                </div>
+              ) : (
+                rules.filter(r => r.type === "bonus").map(rule => (
+                  <div
+                    key={rule.id}
+                    style={{
+                      padding: theme.spacing.lg,
+                      marginBottom: theme.spacing.md,
+                      backgroundColor: "#f0fdf4",
+                      borderLeft: `5px solid #28a745`,
+                      borderRadius: theme.radius.md,
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      boxShadow: theme.shadows.sm,
+                      border: `1px solid #dcfce7`,
+                      position: "relative",
+                      overflow: "hidden"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateX(8px) translateY(-2px)";
+                      e.currentTarget.style.boxShadow = theme.shadows.lg;
+                      e.currentTarget.style.borderLeftWidth = "8px";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateX(0) translateY(0)";
+                      e.currentTarget.style.boxShadow = theme.shadows.sm;
+                      e.currentTarget.style.borderLeftWidth = "5px";
+                    }}
+                  >
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: theme.spacing.sm
+                    }}>
+                      <div style={{ 
+                        fontWeight: "700", 
+                        fontSize: "16px",
+                        color: theme.neutral.gray900 
+                      }}>
+                        {rule.name}
+                      </div>
+                      <div style={{
+                        padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+                        backgroundColor: "#dcfce7",
+                        borderRadius: theme.radius.sm,
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#28a745",
+                        textTransform: "uppercase"
+                      }}>
+                        Thưởng
+                      </div>
+                    </div>
+                    <div style={{ 
+                      fontSize: "15px", 
+                      color: theme.neutral.gray700, 
+                      marginBottom: theme.spacing.xs,
+                      fontWeight: "500"
+                    }}>
+                      {rule.amountType === "percentage"
+                        ? `${rule.amount}% lương cơ bản`
+                        : `₫${rule.amount.toLocaleString("vi-VN")}`}
+                    </div>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: theme.neutral.gray600,
+                      lineHeight: "1.5"
+                    }}>
+                      {rule.description}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
-          <div style={{ marginTop: "15px", padding: "10px", backgroundColor: "#fffbea", borderRadius: "4px", fontSize: "0.9em", color: "#666" }}>
-            <strong>⚠️ Lưu ý:</strong> Các quy tắc này được thiết lập theo tiêu chuẩn của công ty chuyên nghiệp. Để thay đổi, vui lòng liên hệ với quản trị viên hệ thống.
+          <div style={{ 
+            marginTop: theme.spacing.xl, 
+            padding: theme.spacing.lg, 
+            backgroundColor: "#fffbea", 
+            borderRadius: theme.radius.md, 
+            fontSize: "14px", 
+            color: theme.neutral.gray700,
+            border: `2px solid #ffeaa7`,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: theme.spacing.md
+          }}>
+            <div style={{
+              fontSize: "24px",
+              flexShrink: 0
+            }}>
+              ⚠️
+            </div>
+            <div>
+              <strong style={{ display: "block", marginBottom: theme.spacing.xs }}>
+                Lưu ý quan trọng
+              </strong>
+              <div style={{ lineHeight: "1.6" }}>
+                Các quy tắc này được thiết lập theo tiêu chuẩn của công ty chuyên nghiệp. Để thay đổi, vui lòng liên hệ với quản trị viên hệ thống.
+              </div>
+            </div>
+          </div>
           </div>
         </div>
       )}
 
       {/* Calculated Salaries Table */}
-      <div style={{ backgroundColor: "white", borderRadius: "8px", overflow: "hidden", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ backgroundColor: theme.colors.primary, color: "white" }}>
-            <tr>
-              <th style={{ padding: "12px", textAlign: "left", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Mã NV
-              </th>
-              <th style={{ padding: "12px", textAlign: "left", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Tên Nhân Viên
-              </th>
-              <th style={{ padding: "12px", textAlign: "left", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Phòng Ban
-              </th>
-              <th style={{ padding: "12px", textAlign: "right", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Lương Cơ Bản
-              </th>
-              <th style={{ padding: "12px", textAlign: "right", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Thưởng
-              </th>
-              <th style={{ padding: "12px", textAlign: "right", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Khấu Trừ
-              </th>
-              <th style={{ padding: "12px", textAlign: "right", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Lương Thực
-              </th>
-              <th style={{ padding: "12px", textAlign: "center", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Trạng Thái
-              </th>
-              <th style={{ padding: "12px", textAlign: "center", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Hành Động
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {calculatedSalaries.length === 0 ? (
+      <div style={{ 
+        backgroundColor: theme.neutral.white, 
+        borderRadius: theme.radius.lg, 
+        overflow: "hidden", 
+        boxShadow: theme.shadows.md,
+        border: `1px solid ${theme.neutral.gray200}`,
+        animation: "fadeInUp 0.5s ease-out",
+        transform: "translateY(0)"
+      }}>
+        <div style={{
+          overflowX: "auto"
+        }}>
+          <table style={{ 
+            width: "100%", 
+            borderCollapse: "collapse",
+            minWidth: "1000px"
+          }}>
+            <thead style={{ 
+              backgroundColor: theme.primary.main, 
+              color: theme.neutral.white,
+              animation: "fadeIn 0.5s ease-out"
+            }}>
               <tr>
-                <td colSpan="9" style={{ padding: "20px", textAlign: "center", color: "#999" }}>
-                  Chưa có dữ liệu. Nhấn "Tính lương" để bắt đầu.
-                </td>
+                <th style={{ 
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                  textAlign: "left",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                  animation: "slideInRight 0.4s ease-out 0.1s both"
+                }}>
+                  Mã NV
+                </th>
+                <th style={{ 
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                  textAlign: "left",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px"
+                }}>
+                  Tên Nhân Viên
+                </th>
+                <th style={{ 
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                  textAlign: "left",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px"
+                }}>
+                  Phòng Ban
+                </th>
+                <th style={{ 
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                  textAlign: "right",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px"
+                }}>
+                  Lương Cơ Bản
+                </th>
+                <th style={{ 
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                  textAlign: "right",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px"
+                }}>
+                  Thưởng
+                </th>
+                <th style={{ 
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                  textAlign: "right",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px"
+                }}>
+                  Khấu Trừ
+                </th>
+                <th style={{ 
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                  textAlign: "right",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px"
+                }}>
+                  Lương Thực
+                </th>
+                <th style={{ 
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                  textAlign: "center",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px"
+                }}>
+                  Trạng Thái
+                </th>
+                <th style={{ 
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                  textAlign: "center",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px"
+                }}>
+                  Hành Động
+                </th>
               </tr>
-            ) : (
-              calculatedSalaries.map((salary) => {
-                const employee = employees.find(e => e.id === salary.userId);
-                return (
-                  <tr
-                    key={salary.id}
-                    style={{
-                      borderBottom: `1px solid ${theme.colors.border}`,
-                      backgroundColor: salary.status === "paid" ? "#f0fff4" : "white",
-                      "&:hover": { backgroundColor: "#f9f9f9" }
-                    }}
-                  >
-                    <td style={{ padding: "12px" }}>{employee?.employeeCode || "N/A"}</td>
-                    <td style={{ padding: "12px" }}>{employee?.name || "N/A"}</td>
-                    <td style={{ padding: "12px" }}>{employee?.department || "N/A"}</td>
-                    <td style={{ padding: "12px", textAlign: "right" }}>
-                      ₫{salary.baseSalary?.toLocaleString("vi-VN") || "0"}
-                    </td>
-                    <td style={{ padding: "12px", textAlign: "right", color: "#28a745" }}>
-                      +₫{(salary.bonus || 0).toLocaleString("vi-VN")}
-                    </td>
-                    <td style={{ padding: "12px", textAlign: "right", color: "#dc3545" }}>
-                      -₫{(salary.deduction || 0).toLocaleString("vi-VN")}
-                    </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontWeight: "bold", color: theme.colors.primary }}>
-                      ₫{salary.finalSalary?.toLocaleString("vi-VN") || "0"}
-                    </td>
-                    <td style={{ padding: "12px", textAlign: "center" }}>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "4px 12px",
-                          borderRadius: "20px",
-                          fontSize: "0.85em",
-                          fontWeight: "bold",
-                          backgroundColor:
-                            salary.status === "paid"
-                              ? "#d4edda"
-                              : salary.status === "approved"
-                              ? "#cfe2ff"
-                              : "#fff3cd",
-                          color:
-                            salary.status === "paid"
-                              ? "#155724"
-                              : salary.status === "approved"
-                              ? "#084298"
-                              : "#997404"
-                        }}
-                      >
-                        {salary.status === "paid"
-                          ? "Đã thanh toán"
-                          : salary.status === "approved"
-                          ? "Đã duyệt"
-                          : "Chưa duyệt"}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px", textAlign: "center" }}>
-                      <button
-                        onClick={() => viewSalaryBreakdown(salary)}
-                        style={{
-                          padding: "6px 12px",
-                          marginRight: "5px",
-                          backgroundColor: theme.colors.secondary,
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          fontSize: "0.9em"
-                        }}
-                      >
-                        Chi tiết
-                      </button>
-                      {salary.status !== "paid" && (
-                        <button
-                          onClick={() => approveSalary(salary.id)}
+            </thead>
+            <tbody>
+              {calculatedSalaries.length === 0 ? (
+                <tr>
+                  <td colSpan="9" style={{ 
+                    padding: theme.spacing.xxl, 
+                    textAlign: "center", 
+                    color: theme.neutral.gray500,
+                    fontSize: "15px"
+                  }}>
+                    <div style={{ 
+                      display: "flex", 
+                      flexDirection: "column", 
+                      alignItems: "center",
+                      gap: theme.spacing.md
+                    }}>
+                      <div style={{ fontSize: "48px" }}>📊</div>
+                      <div>Chưa có dữ liệu. Nhấn "Tính lương" để bắt đầu.</div>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                calculatedSalaries.map((salary, index) => {
+                  const employee = employees.find(e => e.id === salary.userId);
+                  return (
+                    <tr
+                      key={salary.id}
+                      style={{
+                        borderBottom: `1px solid ${theme.neutral.gray200}`,
+                        backgroundColor: salary.status === "paid" ? "#f0fff4" : index % 2 === 0 ? theme.neutral.white : theme.neutral.gray50,
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                        cursor: "default",
+                        animation: `tableRowFadeIn 0.5s ease-out ${index * 0.05}s both`,
+                        position: "relative"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "#f8f9fa";
+                        e.currentTarget.style.transform = "translateX(4px) scale(1.01)";
+                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
+                        e.currentTarget.style.borderLeft = `4px solid ${theme.primary.main}`;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = salary.status === "paid" ? "#f0fff4" : index % 2 === 0 ? theme.neutral.white : theme.neutral.gray50;
+                        e.currentTarget.style.transform = "translateX(0) scale(1)";
+                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.borderLeft = "none";
+                      }}
+                    >
+                      <td style={{ 
+                        padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                        fontWeight: "500",
+                        color: theme.neutral.gray900
+                      }}>
+                        {employee?.employeeCode || "N/A"}
+                      </td>
+                      <td style={{ 
+                        padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                        fontWeight: "500",
+                        color: theme.neutral.gray900
+                      }}>
+                        <span
                           style={{
-                            padding: "6px 12px",
-                            backgroundColor: "#28a745",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
+                            display: "inline-block",
                             cursor: "pointer",
-                            fontSize: "0.9em"
+                            transition: "all 0.3s ease",
+                            position: "relative",
+                            padding: "4px 8px",
+                            borderRadius: theme.radius.sm
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.color = theme.primary.main;
+                            e.currentTarget.style.transform = "translateX(4px) scale(1.05)";
+                            e.currentTarget.style.fontWeight = "600";
+                            e.currentTarget.style.backgroundColor = theme.neutral.gray100;
+                            e.currentTarget.style.boxShadow = theme.shadows.sm;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.color = theme.neutral.gray900;
+                            e.currentTarget.style.transform = "translateX(0) scale(1)";
+                            e.currentTarget.style.fontWeight = "500";
+                            e.currentTarget.style.backgroundColor = "transparent";
+                            e.currentTarget.style.boxShadow = "none";
                           }}
                         >
-                          Duyệt
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                          {employee?.name || "N/A"}
+                        </span>
+                      </td>
+                      <td style={{ 
+                        padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                        color: theme.neutral.gray600,
+                        fontSize: "14px"
+                      }}>
+                        {employee?.department || "N/A"}
+                      </td>
+                      <td style={{ 
+                        padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                        textAlign: "right",
+                        fontWeight: "500",
+                        color: theme.neutral.gray900
+                      }}>
+                        <span style={{
+                          display: "inline-block",
+                          animation: `numberCount 0.5s ease-out ${index * 0.05 + 0.15}s both`,
+                          transition: "all 0.2s"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "scale(1.1)";
+                          e.currentTarget.style.fontWeight = "700";
+                          e.currentTarget.style.color = theme.primary.main;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "scale(1)";
+                          e.currentTarget.style.fontWeight = "500";
+                          e.currentTarget.style.color = theme.neutral.gray900;
+                        }}
+                        >
+                          ₫{salary.baseSalary?.toLocaleString("vi-VN") || "0"}
+                        </span>
+                      </td>
+                      <td style={{ 
+                        padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                        textAlign: "right", 
+                        color: "#28a745",
+                        fontWeight: "500"
+                      }}>
+                        <span style={{
+                          display: "inline-block",
+                          animation: `numberCount 0.5s ease-out ${index * 0.05 + 0.2}s both`,
+                          transition: "all 0.2s"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "scale(1.1)";
+                          e.currentTarget.style.fontWeight = "700";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "scale(1)";
+                          e.currentTarget.style.fontWeight = "500";
+                        }}
+                        >
+                          +₫{(salary.bonus || 0).toLocaleString("vi-VN")}
+                        </span>
+                      </td>
+                      <td style={{ 
+                        padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                        textAlign: "right", 
+                        color: "#dc3545",
+                        fontWeight: "500"
+                      }}>
+                        <span style={{
+                          display: "inline-block",
+                          animation: `numberCount 0.5s ease-out ${index * 0.05 + 0.25}s both`,
+                          transition: "all 0.2s"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "scale(1.1)";
+                          e.currentTarget.style.fontWeight = "700";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "scale(1)";
+                          e.currentTarget.style.fontWeight = "500";
+                        }}
+                        >
+                          -₫{(salary.deduction || 0).toLocaleString("vi-VN")}
+                        </span>
+                      </td>
+                      <td style={{ 
+                        padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                        textAlign: "right", 
+                        fontWeight: "700", 
+                        color: theme.primary.main,
+                        fontSize: "15px"
+                      }}>
+                        <span style={{
+                          display: "inline-block",
+                          animation: `numberCount 0.6s ease-out ${index * 0.05 + 0.3}s both`,
+                          transition: "all 0.3s",
+                          position: "relative"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "scale(1.15)";
+                          e.currentTarget.style.textShadow = `0 0 10px ${theme.primary.main}`;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "scale(1)";
+                          e.currentTarget.style.textShadow = "none";
+                        }}
+                        >
+                          ₫{salary.finalSalary?.toLocaleString("vi-VN") || "0"}
+                        </span>
+                      </td>
+                      <td style={{ 
+                        padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                        textAlign: "center" 
+                      }}>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+                            borderRadius: "20px",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            backgroundColor:
+                              salary.status === "paid"
+                                ? "#d4edda"
+                                : salary.status === "approved"
+                                ? "#cfe2ff"
+                                : "#fff3cd",
+                            color:
+                              salary.status === "paid"
+                                ? "#155724"
+                                : salary.status === "approved"
+                                ? "#084298"
+                                : "#997404",
+                            border: `1px solid ${
+                              salary.status === "paid"
+                                ? "#c3e6cb"
+                                : salary.status === "approved"
+                                ? "#b6d4fe"
+                                : "#ffecb5"
+                            }`,
+                            transition: "all 0.3s ease",
+                            animation: salary.status === "pending" || !salary.status || salary.status === "Chưa duyệt" 
+                              ? "pulse 2s ease-in-out infinite" 
+                              : "none",
+                            cursor: "default"
+                          }}
+                          onMouseEnter={(e) => {
+                            if (salary.status === "pending" || !salary.status || salary.status === "Chưa duyệt") {
+                              e.currentTarget.style.animation = "bounce 0.5s ease";
+                            }
+                          }}
+                        >
+                          {salary.status === "paid"
+                            ? "✓ Đã thanh toán"
+                            : salary.status === "approved"
+                            ? "✓ Đã duyệt"
+                            : "⏳ Chưa duyệt"}
+                        </span>
+                      </td>
+                      <td style={{ 
+                        padding: `${theme.spacing.md} ${theme.spacing.lg}`, 
+                        textAlign: "center" 
+                      }}>
+                        <div style={{
+                          display: "flex",
+                          gap: theme.spacing.sm,
+                          justifyContent: "center",
+                          alignItems: "center"
+                        }}>
+                          <button
+                            onClick={() => viewSalaryBreakdown(salary)}
+                            title="Xem chi tiết"
+                            style={{
+                              padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+                              backgroundColor: theme.colors.secondary,
+                              color: theme.neutral.white,
+                              border: "none",
+                              borderRadius: theme.radius.md,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: "36px",
+                              height: "36px",
+                              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                              boxShadow: theme.shadows.sm,
+                              animation: `slideInRight 0.4s ease-out ${index * 0.05 + 0.4}s both`
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = "#2563eb";
+                              e.currentTarget.style.transform = "scale(1.15) rotate(5deg)";
+                              e.currentTarget.style.boxShadow = "0 4px 12px rgba(37, 99, 235, 0.4)";
+                              e.currentTarget.style.animation = "bounce 0.5s ease";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = theme.colors.secondary;
+                              e.currentTarget.style.transform = "scale(1) rotate(0deg)";
+                              e.currentTarget.style.boxShadow = theme.shadows.sm;
+                              e.currentTarget.style.animation = "none";
+                            }}
+                            onMouseDown={(e) => {
+                              e.currentTarget.style.transform = "scale(0.95)";
+                            }}
+                            onMouseUp={(e) => {
+                              e.currentTarget.style.transform = "scale(1.15) rotate(5deg)";
+                            }}
+                          >
+                            <EyeIcon size={18} />
+                          </button>
+                          {salary.status !== "paid" && salary.status !== "approved" && (
+                            <button
+                              onClick={() => approveSalary(salary.id)}
+                              title="Phê duyệt lương"
+                              style={{
+                                padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+                                backgroundColor: "#28a745",
+                                color: theme.neutral.white,
+                                border: "none",
+                                borderRadius: theme.radius.md,
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: "36px",
+                                height: "36px",
+                                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                boxShadow: theme.shadows.sm,
+                                animation: `slideInRight 0.4s ease-out ${index * 0.05 + 0.45}s both`
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = "#218838";
+                                e.currentTarget.style.transform = "scale(1.15) rotate(-5deg)";
+                                e.currentTarget.style.boxShadow = "0 4px 12px rgba(40, 167, 69, 0.4)";
+                                e.currentTarget.style.animation = "bounce 0.5s ease";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = "#28a745";
+                                e.currentTarget.style.transform = "scale(1) rotate(0deg)";
+                                e.currentTarget.style.boxShadow = theme.shadows.sm;
+                                e.currentTarget.style.animation = "none";
+                              }}
+                              onMouseDown={(e) => {
+                                e.currentTarget.style.transform = "scale(0.95)";
+                              }}
+                              onMouseUp={(e) => {
+                                e.currentTarget.style.transform = "scale(1.15) rotate(-5deg)";
+                              }}
+                            >
+                              <CheckIcon size={18} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Salary Breakdown Modal */}
@@ -442,11 +1303,12 @@ export default function SalaryCalculation() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
+            backgroundColor: "rgba(0,0,0,0.6)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 1000
+            zIndex: 1000,
+            backdropFilter: "blur(4px)"
           }}
           onClick={() => {
             setSalaryBreakdown(null);
@@ -455,59 +1317,140 @@ export default function SalaryCalculation() {
         >
           <div
             style={{
-              backgroundColor: "white",
-              padding: "30px",
-              borderRadius: "8px",
+              backgroundColor: theme.neutral.white,
+              padding: theme.spacing.xl,
+              borderRadius: theme.radius.xl,
               maxWidth: "600px",
+              width: "90%",
               maxHeight: "90vh",
               overflowY: "auto",
-              boxShadow: "0 5px 15px rgba(0,0,0,0.3)"
+              boxShadow: theme.shadows.lg,
+              border: `1px solid ${theme.neutral.gray200}`
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ color: theme.colors.primary, marginBottom: "20px" }}>
-              📊 Chi Tiết Tính Lương
-            </h2>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: theme.spacing.xl,
+              paddingBottom: theme.spacing.md,
+              borderBottom: `2px solid ${theme.neutral.gray200}`
+            }}>
+              <h2 style={{ 
+                color: theme.primary.main, 
+                margin: 0,
+                fontSize: "24px",
+                fontWeight: "700"
+              }}>
+                📊 Chi Tiết Tính Lương
+              </h2>
+              <button
+                onClick={() => {
+                  setSalaryBreakdown(null);
+                  setSelectedEmployee(null);
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "24px",
+                  cursor: "pointer",
+                  color: theme.neutral.gray500,
+                  padding: "4px",
+                  lineHeight: 1,
+                  transition: "color 0.2s"
+                }}
+                onMouseEnter={(e) => e.target.style.color = theme.neutral.gray900}
+                onMouseLeave={(e) => e.target.style.color = theme.neutral.gray500}
+              >
+                ×
+              </button>
+            </div>
 
-            <div style={{ marginBottom: "15px" }}>
-              <strong>Nhân viên:</strong> {selectedEmployee.name}
-            </div>
-            <div style={{ marginBottom: "15px" }}>
-              <strong>Mã NV:</strong> {selectedEmployee.employeeCode}
-            </div>
-            <div style={{ marginBottom: "20px" }}>
-              <strong>Tháng/Năm:</strong> {selectedMonth}/{selectedYear}
-            </div>
-
-            <div style={{ borderTop: `1px solid ${theme.colors.border}`, paddingTop: "15px" }}>
-              <h4 style={{ color: "#28a745" }}>Thu Nhập:</h4>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                <span>Lương cơ bản:</span>
-                <strong>₫{salaryBreakdown.baseSalary?.toLocaleString("vi-VN") || "0"}</strong>
+            <div style={{ 
+              marginBottom: theme.spacing.lg,
+              padding: theme.spacing.md,
+              backgroundColor: theme.neutral.gray50,
+              borderRadius: theme.radius.md
+            }}>
+              <div style={{ marginBottom: theme.spacing.sm, fontSize: "14px", color: theme.neutral.gray600 }}>
+                <strong style={{ color: theme.neutral.gray900 }}>Nhân viên:</strong> {selectedEmployee.name}
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px" }}>
-                <span>Thưởng:</span>
+              <div style={{ marginBottom: theme.spacing.sm, fontSize: "14px", color: theme.neutral.gray600 }}>
+                <strong style={{ color: theme.neutral.gray900 }}>Mã NV:</strong> {selectedEmployee.employeeCode}
+              </div>
+              <div style={{ fontSize: "14px", color: theme.neutral.gray600 }}>
+                <strong style={{ color: theme.neutral.gray900 }}>Tháng/Năm:</strong> {selectedMonth}/{selectedYear}
+              </div>
+            </div>
+
+            <div style={{ 
+              borderTop: `1px solid ${theme.neutral.gray200}`, 
+              paddingTop: theme.spacing.lg 
+            }}>
+              <h4 style={{ 
+                color: "#28a745",
+                fontSize: "16px",
+                fontWeight: "600",
+                marginBottom: theme.spacing.md
+              }}>
+                💰 Thu Nhập
+              </h4>
+              <div style={{ 
+                display: "flex", 
+                justifyContent: "space-between", 
+                marginBottom: theme.spacing.sm,
+                padding: `${theme.spacing.sm} 0`,
+                borderBottom: `1px solid ${theme.neutral.gray100}`
+              }}>
+                <span style={{ color: theme.neutral.gray700 }}>Lương cơ bản:</span>
+                <strong style={{ color: theme.neutral.gray900 }}>₫{salaryBreakdown.baseSalary?.toLocaleString("vi-VN") || "0"}</strong>
+              </div>
+              <div style={{ 
+                display: "flex", 
+                justifyContent: "space-between", 
+                marginBottom: theme.spacing.lg,
+                padding: `${theme.spacing.sm} 0`
+              }}>
+                <span style={{ color: theme.neutral.gray700 }}>Thưởng:</span>
                 <strong style={{ color: "#28a745" }}>+₫{(salaryBreakdown.bonus || 0).toLocaleString("vi-VN")}</strong>
               </div>
 
-              <h4 style={{ color: "#dc3545", marginTop: "15px" }}>Khấu Trừ:</h4>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px" }}>
-                <span>Tổng khấu trừ:</span>
+              <h4 style={{ 
+                color: "#dc3545", 
+                marginTop: theme.spacing.lg,
+                fontSize: "16px",
+                fontWeight: "600",
+                marginBottom: theme.spacing.md
+              }}>
+                📉 Khấu Trừ
+              </h4>
+              <div style={{ 
+                display: "flex", 
+                justifyContent: "space-between", 
+                marginBottom: theme.spacing.lg,
+                padding: `${theme.spacing.sm} 0`
+              }}>
+                <span style={{ color: theme.neutral.gray700 }}>Tổng khấu trừ:</span>
                 <strong style={{ color: "#dc3545" }}>-₫{(salaryBreakdown.deduction || 0).toLocaleString("vi-VN")}</strong>
               </div>
 
               <div
                 style={{
-                  borderTop: `2px solid ${theme.colors.primary}`,
-                  paddingTop: "15px",
-                  marginTop: "15px",
+                  borderTop: `2px solid ${theme.primary.main}`,
+                  paddingTop: theme.spacing.lg,
+                  marginTop: theme.spacing.lg,
                   display: "flex",
                   justifyContent: "space-between",
-                  fontSize: "1.1em"
+                  fontSize: "18px",
+                  fontWeight: "700",
+                  padding: theme.spacing.md,
+                  backgroundColor: theme.neutral.gray50,
+                  borderRadius: theme.radius.md
                 }}
               >
-                <strong>Lương thực nhận:</strong>
-                <strong style={{ color: theme.colors.primary }}>
+                <span style={{ color: theme.neutral.gray900 }}>Lương thực nhận:</span>
+                <strong style={{ color: theme.primary.main }}>
                   ₫{salaryBreakdown.finalSalary?.toLocaleString("vi-VN") || "0"}
                 </strong>
               </div>
@@ -519,15 +1462,26 @@ export default function SalaryCalculation() {
                 setSelectedEmployee(null);
               }}
               style={{
-                marginTop: "20px",
+                marginTop: theme.spacing.xl,
                 width: "100%",
-                padding: "10px",
-                backgroundColor: theme.colors.primary,
-                color: "white",
+                padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                backgroundColor: theme.primary.main,
+                color: theme.neutral.white,
                 border: "none",
-                borderRadius: "5px",
+                borderRadius: theme.radius.md,
                 cursor: "pointer",
-                fontWeight: "bold"
+                fontWeight: "600",
+                fontSize: "15px",
+                transition: "all 0.2s",
+                boxShadow: theme.shadows.sm
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = theme.primary.dark;
+                e.target.style.boxShadow = theme.shadows.md;
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = theme.primary.main;
+                e.target.style.boxShadow = theme.shadows.sm;
               }}
             >
               Đóng
@@ -556,5 +1510,6 @@ export default function SalaryCalculation() {
         />
       )}
     </div>
+    </>
   );
 }
