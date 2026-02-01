@@ -2,6 +2,25 @@ import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
 import { exportSalariesToExcel, exportSalariesToPDF } from "../utils/exportUtils.js";
 
+// Add keyframe animation for notification popup
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
+  @keyframes slideInRight {
+    from {
+      transform: translateX(400px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+`;
+if (!document.head.querySelector('style[data-notification-animation]')) {
+  styleSheet.setAttribute('data-notification-animation', 'true');
+  document.head.appendChild(styleSheet);
+}
+
 export default function SalaryManagement() {
   const [salaries, setSalaries] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -12,6 +31,16 @@ export default function SalaryManagement() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+  // Auto-hide message after 5 seconds
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => {
+        setMessage("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
 
   useEffect(() => {
     fetchSalaries();
@@ -213,27 +242,38 @@ export default function SalaryManagement() {
   };
 
   return (
-    <div style={{ padding: "20px", backgroundColor: theme.colors?.light || theme.neutral.gray50, minHeight: "100%" }}>
-      <div style={containerStyle}>
-        <div style={headerStyle}>
-          <h1 style={{ margin: 0, fontSize: "1.75rem", fontWeight: "700", color: theme.colors?.primary || theme.primary?.main }}>
-            Salary Management
-          </h1>
-          <p style={{ margin: `${theme.spacing.sm} 0 0 0`, color: theme.neutral.gray600, fontSize: "14px" }}>
-            Manage and calculate employee salaries by month
-          </p>
-        </div>
+    <div style={containerStyle}>
+      <div style={headerStyle}>
+        <h2 style={{ margin: 0, fontSize: "28px", fontWeight: "700", color: theme.neutral.gray900 }}>
+          💼 Quản lý Bảng Lương
+        </h2>
+        <p style={{ margin: `${theme.spacing.sm} 0 0 0`, color: theme.neutral.gray600, fontSize: "14px" }}>
+          Quản lý và tính lương nhân viên theo tháng
+        </p>
+      </div>
 
       {message && !toastPopup && (
         <div style={{
-          padding: theme.spacing.md,
-          background: message.includes("success") ? "#d4edda" : "#f8d7da",
-          border: `1px solid ${message.includes("success") ? "#c3e6cb" : "#f5c6cb"}`,
-          borderRadius: theme.radius.md,
-          color: message.includes("success") ? "#155724" : "#721c24",
-          marginBottom: theme.spacing.lg,
+          position: "fixed",
+          top: "80px",
+          right: "20px",
+          padding: "15px 20px",
+          background: message.includes("thành công") ? "#d4edda" : "#f8d7da",
+          border: message.includes("thành công") ? "2px solid #28a745" : "2px solid #dc3545",
+          borderRadius: "8px",
+          color: message.includes("thành công") ? "#155724" : "#721c24",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          zIndex: 9999,
+          minWidth: "300px",
+          maxWidth: "400px",
+          animation: "slideInRight 0.3s ease-out"
         }}>
-          {message}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "1.2em" }}>
+              {message.includes("thành công") ? "✅" : "❌"}
+            </span>
+            <span style={{ flex: 1, fontWeight: "500" }}>{message}</span>
+          </div>
         </div>
       )}
 
@@ -313,88 +353,75 @@ export default function SalaryManagement() {
           <div>No salary data for {selectedMonth}/{selectedYear}</div>
         </div>
       ) : (
-        <div style={tableWrapperStyle}>
+        <div style={{ backgroundColor: "white", borderRadius: "8px", overflow: "hidden", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
           <table style={tableStyle}>
-            <thead style={{ backgroundColor: "#1e293b", color: "#fff" }}>
+            <thead style={{ backgroundColor: theme.colors.primary, color: "white" }}>
               <tr>
-                <th style={thStyle}>Employee</th>
-                <th style={thStyle}>Emp. ID</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Base Salary</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Bonus</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Deduction</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Net Pay</th>
-                <th style={{ ...thStyle, textAlign: "center" }}>Status</th>
-                <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none" }}>👥 Nhân viên</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none" }}>🎫 Mã NV</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "right" }}>💵 Lương cơ bản</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "right" }}>📈 Thưởng</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "right" }}>📉 Khấu trừ</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "right" }}>💰 Thực nhận</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "center" }}>📊 Trạng thái</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "center" }}>⚙️ Thao tác</th>
               </tr>
             </thead>
-            <tbody>
-              {[...salaries]
-                .sort((a, b) => {
-                  const order = { paid: 0, approved: 1, pending: 2 };
-                  return (order[a.status] ?? 2) - (order[b.status] ?? 2);
-                })
-                .map(salary => {
-                const statusBadge = getStatusBadge(salary.status);
-                return (
-                  <tr
-                    key={salary.id}
-                    style={{
-                      backgroundColor: salary.status === "paid" ? "#f0fdf4" : theme.neutral.white,
-                      borderBottom: `1px solid ${theme.neutral.gray200}`,
-                    }}
-                  >
-                    <td style={tdStyle}>{salary.User?.name || "N/A"}</td>
-                    <td style={tdStyle}><strong>{salary.User?.employeeCode || "N/A"}</strong></td>
-                    <td style={tdStyle}>{formatCurrency(salary.baseSalary)}</td>
-                    <td style={{ ...tdStyle, color: "#16a34a", fontWeight: "500" }}>{formatCurrency(salary.bonus)}</td>
-                    <td style={{ ...tdStyle, color: "#dc2626", fontWeight: "500" }}>{formatCurrency(salary.deduction)}</td>
-                    <td style={tdStyle}><strong>{formatCurrency(salary.finalSalary)}</strong></td>
-                    <td style={tdStyle}>
-                      <span style={{
-                        ...statusBadge.style,
-                        padding: "4px 12px",
-                        borderRadius: "20px",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        display: "inline-block",
-                      }}>
-                        {statusBadge.label}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      <div style={{ display: "flex", gap: theme.spacing.sm, flexWrap: "wrap" }}>
-                        {salary.status === "pending" && (
-                          <button
-                            onClick={() => handleUpdateStatus(salary.id, "approved")}
-                            style={{ ...buttonStyle, background: "#28a745", color: "#fff", padding: "6px 12px", fontSize: "12px", borderRadius: "4px" }}
-                          >
-                            Approve
-                          </button>
-                        )}
-                        {salary.status === "approved" && (
-                          <button
-                            onClick={() => handleUpdateStatus(salary.id, "paid")}
-                            style={{ ...buttonStyle, background: "#28a745", color: "#fff", padding: "6px 12px", fontSize: "12px", borderRadius: "4px" }}
-                          >
-                            Mark Paid
-                          </button>
-                        )}
+          <tbody>
+            {salaries.map(salary => {
+              const statusBadge = getStatusBadge(salary.status);
+              return (
+                <tr key={salary.id}>
+                  <td style={{ ...tdStyle, fontWeight: "bold" }}>{salary.User?.name || "N/A"}</td>
+                  <td style={{ ...tdStyle, fontWeight: "bold" }}>{salary.User?.employeeCode || "N/A"}</td>
+                  <td style={{ ...tdStyle, textAlign: "right" }}>{formatCurrency(salary.baseSalary)}</td>
+                  <td style={{ ...tdStyle, textAlign: "right", color: "#28a745" }}>+{formatCurrency(salary.bonus)}</td>
+                  <td style={{ ...tdStyle, textAlign: "right", color: "#dc3545" }}>-{formatCurrency(salary.deduction)}</td>
+                  <td style={{ ...tdStyle, textAlign: "right" }}><strong>{formatCurrency(salary.finalSalary)}</strong></td>
+                  <td style={{ ...tdStyle, textAlign: "center" }}>
+                    <span style={{
+                      ...statusBadge.style,
+                      padding: "4px 12px",
+                      borderRadius: "12px",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                    }}>
+                      {statusBadge.label}
+                    </span>
+                  </td>
+                  <td style={tdStyle}>
+                    <div style={{ display: "flex", gap: theme.spacing.sm }}>
+                      {salary.status === "pending" && (
+                        <button
+                          onClick={() => handleUpdateStatus(salary.id, "approved")}
+                          style={{ ...buttonStyle, background: "#3b82f6", padding: "6px 12px", fontSize: "12px" }}
+                        >
+                          Duyệt
+                        </button>
+                      )}
+                      {salary.status === "approved" && (
                         <button
                           onClick={() => handleCalculateSalary(salary.User?.id)}
                           style={{ ...buttonStyle, background: theme.colors?.secondary || "#3b82f6", color: "#fff", padding: "6px 12px", fontSize: "12px", borderRadius: "4px" }}
                         >
                           Recalculate
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      )}
+                      <button
+                        onClick={() => handleCalculateSalary(salary.User?.id)}
+                        style={{ ...buttonStyle, background: theme.neutral.gray600, padding: "6px 12px", fontSize: "12px" }}
+                      >
+                        Tính lại
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
         </div>
       )}
-      </div>
     </div>
   );
 }
