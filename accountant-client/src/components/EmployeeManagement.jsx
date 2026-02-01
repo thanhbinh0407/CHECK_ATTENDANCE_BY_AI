@@ -353,8 +353,8 @@ export default function EmployeeManagement() {
             <tbody>
               {filteredEmployees.map((employee) => (
                 <tr key={employee.id} style={rowStyle}>
-                  <td style={cellStyle}>{employee.employeeCode}</td>
-                  <td style={cellStyle}>{employee.name}</td>
+                  <td style={{...cellStyle, fontWeight: "bold"}}>{employee.employeeCode}</td>
+                  <td style={{...cellStyle, fontWeight: "bold"}}>{employee.name}</td>
                   <td style={cellStyle}>{employee.Department?.name || "N/A"}</td>
                   <td style={cellStyle}>{employee.JobTitle?.name || "N/A"}</td>
                   <td style={cellStyle}>
@@ -379,7 +379,7 @@ export default function EmployeeManagement() {
                         (e.target.style.backgroundColor = "#17a2b8")
                       }
                     >
-                      👁️ Chi Tiết
+                      Chi Tiết
                     </button>
                     <button
                       onClick={() => handleEdit(employee)}
@@ -391,7 +391,7 @@ export default function EmployeeManagement() {
                         (e.target.style.backgroundColor = theme.colors.primary)
                       }
                     >
-                      ✏️ Sửa
+                      Sửa
                     </button>
                   </td>
                 </tr>

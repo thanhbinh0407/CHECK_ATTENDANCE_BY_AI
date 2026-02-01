@@ -2,6 +2,25 @@ import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
 import SalaryBreakdownModal from "./SalaryBreakdownModal.jsx";
 
+// Add keyframe animation for notification popup
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
+  @keyframes slideInRight {
+    from {
+      transform: translateX(400px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+`;
+if (!document.head.querySelector('style[data-notification-animation]')) {
+  styleSheet.setAttribute('data-notification-animation', 'true');
+  document.head.appendChild(styleSheet);
+}
+
 export default function SalaryCalculation() {
   const [employees, setEmployees] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -17,16 +36,20 @@ export default function SalaryCalculation() {
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
+  // Auto-hide message after 5 seconds
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => {
+        setMessage("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
+
   useEffect(() => {
     fetchEmployees();
     fetchRules();
   }, []);
-
-  useEffect(() => {
-    if (employees.length > 0) {
-      calculateSalaries();
-    }
-  }, [selectedMonth, selectedYear, employees]);
 
   const fetchEmployees = async () => {
     try {
@@ -42,7 +65,6 @@ export default function SalaryCalculation() {
       }
     } catch (error) {
       console.error("Error fetching employees:", error);
-      setMessage("Lỗi khi tải danh sách nhân viên");
     }
   };
 
@@ -153,14 +175,27 @@ export default function SalaryCalculation() {
       {message && (
         <div
           style={{
-            padding: "10px",
-            marginBottom: "15px",
+            position: "fixed",
+            top: "80px",
+            right: "20px",
+            padding: "15px 20px",
             backgroundColor: message.includes("thành công") ? "#d4edda" : "#f8d7da",
             color: message.includes("thành công") ? "#155724" : "#721c24",
-            borderRadius: "5px"
+            borderRadius: "8px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            zIndex: 9999,
+            minWidth: "300px",
+            maxWidth: "400px",
+            animation: "slideInRight 0.3s ease-out",
+            border: message.includes("thành công") ? "2px solid #28a745" : "2px solid #dc3545"
           }}
         >
-          {message}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "1.2em" }}>
+              {message.includes("thành công") ? "✅" : "❌"}
+            </span>
+            <span style={{ flex: 1, fontWeight: "500" }}>{message}</span>
+          </div>
         </div>
       )}
 
@@ -348,7 +383,7 @@ export default function SalaryCalculation() {
                       "&:hover": { backgroundColor: "#f9f9f9" }
                     }}
                   >
-                    <td style={{ padding: "12px" }}>{employee?.employeeCode || "N/A"}</td>
+                    <td style={{ padding: "12px", fontWeight: "bold" }}>{employee?.employeeCode || "N/A"}</td>
                     <td style={{ padding: "12px" }}>{employee?.name || "N/A"}</td>
                     <td style={{ padding: "12px" }}>{employee?.department || "N/A"}</td>
                     <td style={{ padding: "12px", textAlign: "right" }}>
@@ -473,7 +508,7 @@ export default function SalaryCalculation() {
               <strong>Nhân viên:</strong> {selectedEmployee.name}
             </div>
             <div style={{ marginBottom: "15px" }}>
-              <strong>Mã NV:</strong> {selectedEmployee.employeeCode}
+              <strong>Mã NV:</strong> <span style={{ fontWeight: "bold" }}>{selectedEmployee.employeeCode}</span>
             </div>
             <div style={{ marginBottom: "20px" }}>
               <strong>Tháng/Năm:</strong> {selectedMonth}/{selectedYear}
