@@ -152,24 +152,21 @@ export default function SalaryApprovalDashboard() {
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND"
-    }).format(amount || 0);
+    return new Intl.NumberFormat("vi-VN").format(amount || 0) + " ₫";
   };
 
   const getStatusBadge = (salaryId) => {
     const status = approvalInProgress[salaryId];
     if (status === "approving")
-      return <span style={{ color: "#2196F3" }}>⏳ Đang phê duyệt...</span>;
+      return <span style={{ color: "#2196F3" }}>⏳ Approving...</span>;
     if (status === "approved")
-      return <span style={{ color: "#4CAF50" }}>✅ Đã phê duyệt</span>;
+      return <span style={{ color: "#4CAF50" }}>✅ Approved</span>;
     if (status === "rejecting")
-      return <span style={{ color: "#FF9800" }}>⏳ Đang từ chối...</span>;
+      return <span style={{ color: "#FF9800" }}>⏳ Rejecting...</span>;
     if (status === "rejected")
-      return <span style={{ color: "#f44336" }}>❌ Đã từ chối</span>;
+      return <span style={{ color: "#f44336" }}>❌ Rejected</span>;
     if (status === "error")
-      return <span style={{ color: "#f44336" }}>⚠️ Lỗi</span>;
+      return <span style={{ color: "#f44336" }}>⚠️ Error</span>;
     return null;
   };
 
@@ -243,10 +240,10 @@ export default function SalaryApprovalDashboard() {
       </div>
 
       {loading ? (
-        <p>Đang tải...</p>
+        <p>Loading...</p>
       ) : pendingSalaries.length === 0 ? (
         <div style={{ textAlign: "center", padding: "40px", backgroundColor: "#f5f5f5", borderRadius: "8px" }}>
-          <p>✅ Không có lương nào chờ phê duyệt</p>
+          <p>✅ No salaries pending approval</p>
         </div>
       ) : (        <div style={{ backgroundColor: "white", borderRadius: "8px", overflow: "hidden", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
           <table
@@ -287,22 +284,22 @@ export default function SalaryApprovalDashboard() {
                     <td style={{ padding: "12px", textAlign: "right", fontWeight: "bold", color: theme.colors.primary }}>
                       {formatCurrency(salary.finalSalary)}
                     </td>
-                    <td style={{ padding: "12px", textAlign: "center" }}>
+                    <td style={{ padding: "12px 16px", textAlign: "center" }}>
                       {!approvalInProgress[salary.id] && (
                         <div style={{ display: "flex", gap: "5px", justifyContent: "center" }}>
                           <button
                             onClick={() => approveSalary(salary.id)}
                             style={{
                               padding: "6px 12px",
-                              backgroundColor: "#4CAF50",
+                              backgroundColor: "#28a745",
                               color: "white",
                               border: "none",
-                              borderRadius: "4px",
+                              borderRadius: "6px",
                               cursor: "pointer",
                               fontSize: "12px"
                             }}
                           >
-                            ✅ Phê duyệt
+                            Approve
                           </button>
                           <button
                             onClick={() =>
@@ -321,7 +318,7 @@ export default function SalaryApprovalDashboard() {
                               fontSize: "12px"
                             }}
                           >
-                            ❌ Từ chối
+                            Reject
                           </button>
                         </div>
                       )}
@@ -333,7 +330,7 @@ export default function SalaryApprovalDashboard() {
                       <td colSpan="7" style={{ padding: "12px" }}>
                         <div style={{ marginBottom: "10px" }}>
                           <label style={{ display: "block", marginBottom: "5px" }}>
-                            Lý do từ chối:
+                            Rejection reason:
                           </label>
                           <textarea
                             value={rejectReasons[salary.id] || ""}
@@ -350,7 +347,7 @@ export default function SalaryApprovalDashboard() {
                               border: "1px solid #ddd",
                               minHeight: "60px"
                             }}
-                            placeholder="Nhập lý do từ chối lương..."
+                            placeholder="Enter rejection reason..."
                           />
                         </div>
                         <div style={{ display: "flex", gap: "10px" }}>
@@ -365,7 +362,7 @@ export default function SalaryApprovalDashboard() {
                               cursor: "pointer"
                             }}
                           >
-                            Xác nhận từ chối
+                            Confirm Reject
                           </button>
                           <button
                             onClick={() =>
@@ -383,7 +380,7 @@ export default function SalaryApprovalDashboard() {
                               cursor: "pointer"
                             }}
                           >
-                            Hủy
+                            Cancel
                           </button>
                         </div>
                       </td>
@@ -395,6 +392,7 @@ export default function SalaryApprovalDashboard() {
           </table>
         </div>
       )}
+      </div>
     </div>
   );
 }
