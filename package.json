@@ -1,0 +1,29 @@
+{
+  "name": "project-ky-9",
+  "version": "1.0.0",
+  "description": "Unified project setup for all services",
+  "private": true,
+  "scripts": {
+    "install:all": "npm run install:backend && npm run install:frontend && npm run install:employee && npm run install:portal && npm run install:accountant && npm run install:payroll && npm run install:login",
+    "install:backend": "cd face-attendance-backend && npm install",
+    "install:frontend": "cd face-attendance-frontend && npm install",
+    "install:employee": "cd face-attendance-employee && npm install",
+    "install:portal": "cd employee-portal && npm install",
+    "install:accountant": "cd accountant-client && npm install",
+    "install:payroll": "cd payroll-frontend && npm install",
+    "install:login": "cd login-portal && npm install",
+    "dev": "concurrently --names \"LOGIN,BACKEND,FRONTEND,EMPLOYEE,PORTAL,ACCOUNTANT,PAYROLL\" --prefix-colors \"white,blue,green,yellow,cyan,magenta,red\" \"npm run dev:login\" \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:employee\" \"npm run dev:portal\" \"npm run dev:accountant\" \"npm run dev:payroll\"",
+    "dev:login": "cd login-portal && npm run dev",
+    "dev:backend": "cd face-attendance-backend && npm run dev",
+    "dev:frontend": "cd face-attendance-frontend && npm run dev",
+    "dev:employee": "cd face-attendance-employee && npm run dev",
+    "dev:portal": "cd employee-portal && npm run dev",
+    "dev:accountant": "cd accountant-client && npm run dev",
+    "dev:payroll": "cd payroll-frontend && npm run dev",
+    "postinstall": "npm run install:all"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
+

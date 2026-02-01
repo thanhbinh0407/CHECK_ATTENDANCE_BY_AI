@@ -121,21 +121,21 @@ function App() {
     <div className="app-container">
       <header style={headerStyle}>
         <div style={headerContentStyle}>
-          <h1 style={titleStyle}>Hệ thống Quản lý Lương</h1>
+          <h1 style={titleStyle}>Payroll Management System</h1>
           <div style={userInfoStyle}>
             <div style={avatarStyle}>
               {user?.name?.charAt(0)?.toUpperCase() || "K"}
             </div>
             <div>
               <div style={{ fontSize: "14px", fontWeight: "600" }}>
-                {user?.name || "Kế toán"}
+                {user?.name || "Accountant"}
               </div>
               <div style={{ fontSize: "12px", opacity: 0.9 }}>
                 {user?.email || ""}
               </div>
             </div>
             <button onClick={handleLogout} style={logoutButtonStyle}>
-              Đăng xuất
+              Logout
             </button>
           </div>
         </div>
@@ -147,26 +147,26 @@ function App() {
             onClick={() => setCurrentView("salary-calculation")}
             style={navButtonStyle(currentView === "salary-calculation")}
           >
-            💰 Tính Lương
+            💰 Calculate Salary
           </button>
           <button
             onClick={() => setCurrentView("salary-management")}
             style={navButtonStyle(currentView === "salary-management")}
           >
-            📊 Quản lý Lương
+            📊 Salary Management
           </button>
           <button
             onClick={() => setCurrentView("salary-approval")}
             style={navButtonStyle(currentView === "salary-approval")}
           >
-            ✅ Phê Duyệt Lương
+            ✅ Approve Payroll
           </button>
           {user?.role === "admin" && (
             <button
               onClick={() => setCurrentView("approvals")}
               style={navButtonStyle(currentView === "approvals")}
             >
-              🆗 Phê Duyệt Hồ Sơ
+              🆗 Approve Records
             </button>
           )}
           {user?.role === "admin" && (
@@ -174,30 +174,34 @@ function App() {
               onClick={() => setCurrentView("rules")}
               style={navButtonStyle(currentView === "rules")}
             >
-              ⚙️ Quy Tắc Tính Lương
+              ⚙️ Salary Rules
             </button>
           )}
           <button
             onClick={() => setCurrentView("employee-details")}
             style={navButtonStyle(currentView === "employee-details")}
           >
-            👤 Thông Tin Nhân Viên
+            👤 Employee Info
           </button>
           <button
             onClick={() => setCurrentView("employee-management")}
             style={navButtonStyle(currentView === "employee-management")}
           >
-            🏢 Quản Lý Nhân Viên
+            🏢 Employee Management
           </button>
         </div>
 
-        {currentView === "salary-calculation" && <SalaryCalculation />}
-        {currentView === "salary-management" && <SalaryManagement />}
-        {currentView === "salary-approval" && <SalaryApprovalDashboard />}
-        {currentView === "approvals" && <ApprovalManagement />}
-        {currentView === "rules" && <SalaryRulesManagement />}
-        {currentView === "employee-details" && <EmployeeDetailView />}
-        {currentView === "employee-management" && <EmployeeManagement />}
+        <div style={{ padding: "20px", backgroundColor: theme.colors.light, borderRadius: "8px", minHeight: "400px" }}>
+          <div style={{ backgroundColor: theme.neutral.white, borderRadius: "8px", padding: "24px", boxShadow: "0 2px 4px rgba(0,0,0,0.08)", border: "1px solid #e5e7eb" }}>
+            {currentView === "salary-calculation" && <SalaryCalculation />}
+            {currentView === "salary-management" && <SalaryManagement />}
+            {currentView === "salary-approval" && <SalaryApprovalDashboard />}
+            {currentView === "approvals" && <ApprovalManagement />}
+            {currentView === "rules" && <SalaryRulesManagement />}
+            {currentView === "employee-details" && <EmployeeDetailView />}
+            {currentView === "employee-management" && <EmployeeManagement />}
+          </div>
+        </div>
       </main>
     </div>
   );

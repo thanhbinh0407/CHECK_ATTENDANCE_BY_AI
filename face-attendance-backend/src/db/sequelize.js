@@ -2,9 +2,9 @@ import { Sequelize } from 'sequelize';
 
 const sequelize = new Sequelize({
   host: process.env.PG_HOST || '127.0.0.1',
-  port: parseInt(process.env.PG_PORT, 10) || 5432,
+  port: parseInt(process.env.PG_PORT) || 5432,
   username: process.env.PG_USER || 'postgres',
-  password: String(process.env.PG_PASSWORD || '654321'),
+  password: process.env.PG_PASSWORD || undefined,
   database: process.env.PG_DATABASE || 'facedb',
   dialect: 'postgres',
   logging: false

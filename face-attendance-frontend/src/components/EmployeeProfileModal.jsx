@@ -578,7 +578,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                 </div>
               )}
 
-              {/* Tab: Thông tin công việc */}
+              {/* Tab: Work Info */}
               {activeTab === "work" && (
                 <div>
                   <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
@@ -769,7 +769,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                 </div>
               )}
 
-              {/* Tab: Gia đình */}
+              {/* Tab: Family */}
               {activeTab === "family" && (
                 <div>
                   <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
@@ -798,7 +798,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                       ))}
                     </div>
                   ) : (
-                    <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>Chưa có người phụ thuộc</p>
+                    <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No dependents</p>
                   )}
                 </div>
               )}
@@ -847,7 +847,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                 </div>
               )}
 
-              {/* Tab: Chuyên cần */}
+              {/* Tab: Attendance */}
               {activeTab === "attendance" && (
                 <div>
                   <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>

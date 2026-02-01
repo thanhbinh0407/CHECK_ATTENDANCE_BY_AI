@@ -62,7 +62,7 @@ export default function ApprovalManagement() {
 
   const rejectItem = async (id) => {
     if (!rejectReasons[id]) {
-      alert("Vui lòng nhập lý do từ chối");
+      alert("Please enter rejection reason");
       return;
     }
 
@@ -121,72 +121,74 @@ export default function ApprovalManagement() {
   };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h2>✅ Quản lý phê duyệt</h2>
+    <div style={{ padding: "20px", backgroundColor: "#f9fafb", minHeight: "100%" }}>
+      <div style={{ backgroundColor: "white", borderRadius: "8px", padding: "24px", boxShadow: "0 2px 4px rgba(0,0,0,0.08)", border: "1px solid #e5e7eb" }}>
+        <h1 style={{ margin: "0 0 8px 0", fontSize: "1.75rem", fontWeight: "700", color: "#1e293b" }}>Approval Management</h1>
+        <p style={{ margin: 0, color: "#64748b", fontSize: "14px" }}>Approve dependents and qualifications</p>
 
-      <div style={{ marginBottom: "20px" }}>
+      <div style={{ marginTop: "20px", marginBottom: "20px" }}>
         <button
           onClick={() => setActiveTab("dependents")}
           style={tabStyle(activeTab === "dependents")}
         >
-          👨‍👩‍👧‍👦 Người Phụ Thuộc
+          Dependents
         </button>
         <button
           onClick={() => setActiveTab("qualifications")}
           style={tabStyle(activeTab === "qualifications")}
         >
-          📜 Chứng Chỉ
+          Qualifications
         </button>
       </div>
 
       {loading ? (
-        <p>Đang tải...</p>
+        <p>Loading...</p>
       ) : items.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "40px", backgroundColor: "#f5f5f5", borderRadius: "8px" }}>
-          <p>✅ Không có đơn chờ phê duyệt</p>
+        <div style={{ textAlign: "center", padding: "40px", backgroundColor: "#f9fafb", borderRadius: "8px" }}>
+          <p>No items pending approval</p>
         </div>
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <div style={{ overflowX: "auto", borderRadius: "8px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)", border: "1px solid #e5e7eb" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", backgroundColor: "white" }}>
             <thead>
-              <tr style={{ backgroundColor: "#f5f5f5", borderBottom: "2px solid #ddd" }}>
-                <th style={{ padding: "12px", textAlign: "left" }}>Tên</th>
-                <th style={{ padding: "12px", textAlign: "left" }}>Chi tiết</th>
-                <th style={{ padding: "12px", textAlign: "left" }}>Nhân viên</th>
-                <th style={{ padding: "12px", textAlign: "left" }}>Ngày gửi</th>
-                <th style={{ padding: "12px", textAlign: "center" }}>Hành động</th>
+              <tr style={{ backgroundColor: "#1e293b", color: "white" }}>
+                <th style={{ padding: "12px 16px", textAlign: "left", borderBottom: "2px solid rgba(255,255,255,0.2)" }}>Name</th>
+                <th style={{ padding: "12px 16px", textAlign: "left", borderBottom: "2px solid rgba(255,255,255,0.2)" }}>Details</th>
+                <th style={{ padding: "12px 16px", textAlign: "left", borderBottom: "2px solid rgba(255,255,255,0.2)" }}>Employee</th>
+                <th style={{ padding: "12px 16px", textAlign: "left", borderBottom: "2px solid rgba(255,255,255,0.2)" }}>Submitted</th>
+                <th style={{ padding: "12px 16px", textAlign: "center", borderBottom: "2px solid rgba(255,255,255,0.2)" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
                 <React.Fragment key={item.id}>
-                  <tr style={{ borderBottom: "1px solid #ddd" }}>
-                    <td style={{ padding: "12px" }}>{getDisplayName(item)}</td>
-                    <td style={{ padding: "12px" }}>{getDisplayDetail(item)}</td>
-                    <td style={{ padding: "12px" }}>
+                  <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+                    <td style={{ padding: "12px 16px" }}>{getDisplayName(item)}</td>
+                    <td style={{ padding: "12px 16px" }}>{getDisplayDetail(item)}</td>
+                    <td style={{ padding: "12px 16px" }}>
                       {item.User?.name || "N/A"}
                       <div style={{ fontSize: "12px", color: "#666" }}>
-                        {item.User?.employeeCode}
+                        <strong>{item.User?.employeeCode}</strong>
                       </div>
                     </td>
-                    <td style={{ padding: "12px" }}>
+                    <td style={{ padding: "12px 16px" }}>
                       {new Date(item.createdAt).toLocaleDateString("vi-VN")}
                     </td>
-                    <td style={{ padding: "12px", textAlign: "center" }}>
+                    <td style={{ padding: "12px 16px", textAlign: "center" }}>
                       <button
                         onClick={() => approveItem(item.id)}
                         style={{
                           padding: "6px 12px",
-                          backgroundColor: "#4CAF50",
+                          backgroundColor: "#28a745",
                           color: "white",
                           border: "none",
-                          borderRadius: "4px",
+                          borderRadius: "6px",
                           cursor: "pointer",
                           marginRight: "5px",
                           fontSize: "12px"
                         }}
                       >
-                        ✅ Phê duyệt
+                        Approve
                       </button>
                       <button
                         onClick={() =>
@@ -197,15 +199,15 @@ export default function ApprovalManagement() {
                         }
                         style={{
                           padding: "6px 12px",
-                          backgroundColor: "#f44336",
+                          backgroundColor: "#dc2626",
                           color: "white",
                           border: "none",
-                          borderRadius: "4px",
+                          borderRadius: "6px",
                           cursor: "pointer",
                           fontSize: "12px"
                         }}
                       >
-                        ❌ Từ chối
+                        Reject
                       </button>
                     </td>
                   </tr>
@@ -214,7 +216,7 @@ export default function ApprovalManagement() {
                     <tr style={{ backgroundColor: "#fff3cd" }}>
                       <td colSpan="5" style={{ padding: "12px" }}>
                         <label style={{ display: "block", marginBottom: "8px" }}>
-                          Lý do từ chối:
+                          Rejection reason:
                         </label>
                         <textarea
                           value={rejectReasons[item.id] || ""}
@@ -232,7 +234,7 @@ export default function ApprovalManagement() {
                             minHeight: "60px",
                             marginBottom: "10px"
                           }}
-                          placeholder="Nhập lý do từ chối..."
+                          placeholder="Enter rejection reason..."
                         />
                         <button
                           onClick={() => rejectItem(item.id)}
@@ -246,7 +248,7 @@ export default function ApprovalManagement() {
                             marginRight: "5px"
                           }}
                         >
-                          Xác nhận từ chối
+                          Confirm Reject
                         </button>
                         <button
                           onClick={() =>
@@ -264,7 +266,7 @@ export default function ApprovalManagement() {
                             cursor: "pointer"
                           }}
                         >
-                          Hủy
+                          Cancel
                         </button>
                       </td>
                     </tr>
@@ -275,6 +277,7 @@ export default function ApprovalManagement() {
           </table>
         </div>
       )}
+      </div>
     </div>
   );
 }
