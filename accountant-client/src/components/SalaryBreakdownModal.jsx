@@ -2,71 +2,6 @@ import React, { useState } from "react";
 import { theme } from "../theme.js";
 
 export default function SalaryBreakdownModal({ salary, employee, rules, onClose, onUpdate }) {
-  // Icon Components
-  const EditIcon = ({ size = 18 }) => (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-    </svg>
-  );
-
-  const SaveIcon = ({ size = 18 }) => (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-      <polyline points="17 21 17 13 7 13 7 21" />
-      <polyline points="7 3 7 8 15 8" />
-    </svg>
-  );
-
-  const CancelIcon = ({ size = 18 }) => (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  );
-
-  const CloseIcon = ({ size = 18 }) => (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  );
   const [editMode, setEditMode] = useState(false);
   const [adjustments, setAdjustments] = useState({
     baseAdjustment: 0,
@@ -88,9 +23,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     alignItems: "center",
     zIndex: 1000,
     padding: "20px",
-    boxSizing: "border-box",
-    backdropFilter: "blur(4px)",
-    animation: "fadeIn 0.2s ease-in"
+    boxSizing: "border-box"
   };
 
   const contentStyle = {
@@ -102,8 +35,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     maxHeight: "90vh",
     overflowY: "auto",
     boxShadow: theme.shadows.lg,
-    border: `1px solid ${theme.neutral.gray200}`,
-    animation: "slideUp 0.3s ease-out"
+    border: `1px solid ${theme.neutral.gray200}`
   };
 
   const headerStyle = {
@@ -320,26 +252,6 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
 
   return (
     <>
-      <style>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
       <div style={modalStyle} onClick={onClose}>
         <div style={contentStyle} onClick={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
@@ -355,17 +267,9 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
           <button
             style={closeButtonStyle}
             onClick={onClose}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = theme.neutral.gray200;
-              e.currentTarget.style.color = theme.neutral.gray900;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = theme.neutral.gray500;
-            }}
             title="Đóng"
           >
-            <CloseIcon size={20} />
+            ×
           </button>
         </div>
 
@@ -666,8 +570,6 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     baseAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                onFocus={(e) => e.target.style.borderColor = theme.primary.main}
-                onBlur={(e) => e.target.style.borderColor = theme.neutral.gray300}
                 placeholder="Nhập số điều chỉnh (âm để giảm, dương để tăng)"
               />
             </div>
@@ -684,8 +586,6 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     bonusAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                onFocus={(e) => e.target.style.borderColor = theme.primary.main}
-                onBlur={(e) => e.target.style.borderColor = theme.neutral.gray300}
                 placeholder="Nhập số điều chỉnh thưởng"
               />
             </div>
@@ -702,8 +602,6 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     deductionAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                onFocus={(e) => e.target.style.borderColor = theme.primary.main}
-                onBlur={(e) => e.target.style.borderColor = theme.neutral.gray300}
                 placeholder="Nhập số điều chỉnh khấu trừ"
               />
             </div>
@@ -719,8 +617,6 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     notes: e.target.value
                   })
                 }
-                onFocus={(e) => e.target.style.borderColor = theme.primary.main}
-                onBlur={(e) => e.target.style.borderColor = theme.neutral.gray300}
                 placeholder="Ghi chú về điều chỉnh..."
               />
             </div>
@@ -731,20 +627,9 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
         <div style={buttonGroupStyle}>
           <button
             onClick={onClose}
-            style={iconButtonStyle(theme.neutral.gray600, theme.neutral.gray700)}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = theme.neutral.gray700;
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = theme.shadows.md;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = theme.neutral.gray600;
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = theme.shadows.sm;
-            }}
+            style={iconButtonStyle(theme.neutral.gray600)}
             title="Đóng"
           >
-            <CloseIcon size={16} />
             Đóng
           </button>
 
@@ -760,43 +645,17 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     notes: ""
                   });
                 }}
-                style={iconButtonStyle(theme.neutral.gray600, theme.neutral.gray700)}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = theme.neutral.gray700;
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = theme.shadows.md;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = theme.neutral.gray600;
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = theme.shadows.sm;
-                }}
+                style={iconButtonStyle(theme.neutral.gray600)}
                 title="Hủy"
               >
-                <CancelIcon size={16} />
                 Hủy
               </button>
               <button
                 onClick={handleSaveAdjustments}
-                style={iconButtonStyle(theme.primary.main, theme.primary.dark)}
+                style={iconButtonStyle(theme.primary.main)}
                 disabled={saving}
-                onMouseEnter={(e) => {
-                  if (!saving) {
-                    e.currentTarget.style.backgroundColor = theme.primary.dark;
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                    e.currentTarget.style.boxShadow = theme.shadows.md;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!saving) {
-                    e.currentTarget.style.backgroundColor = theme.primary.main;
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = theme.shadows.sm;
-                  }
-                }}
                 title="Lưu điều chỉnh"
               >
-                <SaveIcon size={16} />
                 {saving ? "Đang lưu..." : "Lưu"}
               </button>
             </>
@@ -805,20 +664,9 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
           {!editMode && (
             <button
               onClick={() => setEditMode(true)}
-              style={iconButtonStyle("#ffc107", "#ffb300")}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#ffb300";
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = theme.shadows.md;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "#ffc107";
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = theme.shadows.sm;
-              }}
+              style={iconButtonStyle("#ffc107")}
               title="Điều chỉnh lương"
             >
-              <EditIcon size={16} />
               Điều Chỉnh
             </button>
           )}
