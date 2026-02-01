@@ -21,12 +21,20 @@ import qualificationRoutes from "./routes/qualificationRoutes.js";
 import dependentRoutes from "./routes/dependentRoutes.js";
 import swaggerUi from "swagger-ui-express";
 import { swaggerDoc } from "./swagger.js";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: "15mb" }));
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Debug middleware
 app.use((req, res, next) => {

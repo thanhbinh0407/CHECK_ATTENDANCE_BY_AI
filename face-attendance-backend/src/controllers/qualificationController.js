@@ -1,6 +1,7 @@
 import Qualification from "../models/pg/Qualification.js";
 import User from "../models/pg/User.js";
 import { Op } from "sequelize";
+import { getFileUrl, deleteFile } from "../utils/fileUpload.js";
 
 // Get all qualifications (optionally filtered by userId and approvalStatus)
 export const getAllQualifications = async (req, res) => {
@@ -68,16 +69,25 @@ export const getQualificationById = async (req, res) => {
 export const createQualification = async (req, res) => {
   try {
     const { userId, type, name, issuedBy, issuedDate, expiryDate, certificateNumber, documentPath, description } = req.body;
+    const actualUserId = userId || req.user?.userId; // Allow employee to create for themselves
 
-    if (!userId || !type || !name) {
+    if (!actualUserId || !type || !name) {
       return res.status(400).json({
         status: "error",
         message: "UserId, type, and name are required"
       });
     }
 
+    // Document path is required for verification
+    if (!documentPath) {
+      return res.status(400).json({
+        status: "error",
+        message: "Document scan is required for verification. Please upload a scanned copy of the certificate."
+      });
+    }
+
     // Verify user exists
-    const user = await User.findByPk(userId);
+    const user = await User.findByPk(actualUserId);
     if (!user) {
       return res.status(404).json({
         status: "error",
@@ -86,7 +96,7 @@ export const createQualification = async (req, res) => {
     }
 
     const qualification = await Qualification.create({
-      userId,
+      userId: actualUserId,
       type,
       name,
       issuedBy,
@@ -95,12 +105,13 @@ export const createQualification = async (req, res) => {
       certificateNumber,
       documentPath,
       description,
-      isActive: true
+      isActive: true,
+      approvalStatus: 'pending' // Always starts as pending, requires admin approval
     });
 
     return res.json({
       status: "success",
-      message: "Qualification created successfully",
+      message: "Qualification created successfully. Waiting for admin approval.",
       qualification
     });
   } catch (err) {
@@ -191,8 +202,9 @@ export const getMyQualifications = async (req, res) => {
       });
     }
 
+    // Return all qualifications (including pending) so employee can see status
     const qualifications = await Qualification.findAll({
-      where: { userId, approvalStatus: 'approved' },
+      where: { userId },
       order: [['createdAt', 'DESC']]
     });
 
@@ -270,6 +282,33 @@ export const rejectQualificationRequest = async (req, res) => {
     });
   } catch (err) {
     console.error("Error rejecting qualification:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+};
+
+// Upload qualification document
+export const uploadQualificationDocument = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        status: "error",
+        message: "No file uploaded"
+      });
+    }
+
+    const fileUrl = getFileUrl(req.file.filename);
+
+    return res.json({
+      status: "success",
+      message: "File uploaded successfully",
+      documentPath: fileUrl,
+      filename: req.file.filename
+    });
+  } catch (err) {
+    console.error("Error uploading file:", err);
     return res.status(500).json({
       status: "error",
       message: err.message

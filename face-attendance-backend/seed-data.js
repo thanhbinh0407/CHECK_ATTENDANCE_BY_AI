@@ -9,6 +9,7 @@ import AttendanceLog from './src/models/pg/AttendanceLog.js';
 import LeaveRequest from './src/models/pg/LeaveRequest.js';
 import Dependent from './src/models/pg/Dependent.js';
 import Qualification from './src/models/pg/Qualification.js';
+import ShiftSetting from './src/models/pg/ShiftSetting.js';
 import bcrypt from 'bcryptjs';
 
 const VN_FIRST_NAMES = ['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Phan', 'Võ', 'Đặng', 'Bùi', 'Đỗ'];
@@ -37,6 +38,16 @@ async function seedDB() {
     console.log('🔄 Syncing database...');
     await sequelize.sync({ force: true });
     console.log('✅ Database synced');
+
+    // Shift Settings
+    await ShiftSetting.create({
+      name: 'Ca sáng',
+      startTime: '08:00',
+      endTime: '17:00',
+      overtimeThresholdMinutes: 15,
+      active: true
+    });
+    console.log('✅ Created shift settings');
 
     // Departments
     const depts = await Department.bulkCreate([

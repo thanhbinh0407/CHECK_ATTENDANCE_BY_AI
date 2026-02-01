@@ -7,6 +7,9 @@ import AttendanceLog from "./components/AttendanceLog.jsx";
 import SalaryManagement from "./components/SalaryManagement.jsx";
 import LeaveManagement from "./components/LeaveManagement.jsx";
 import AnalyticsDashboard from "./components/AnalyticsDashboard.jsx";
+import DepartmentManagement from "./components/DepartmentManagement.jsx";
+import JobTitleManagement from "./components/JobTitleManagement.jsx";
+import ApprovalManagement from "./components/ApprovalManagement.jsx";
 import { theme, commonStyles } from "./styles/theme.js";
 import "./App.css";
 
@@ -44,11 +47,12 @@ function App() {
       // Ctrl/Cmd + number shortcuts
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
         const num = parseInt(e.key);
-        if (num >= 1 && num <= 7) {
+        if (num >= 0 && num <= 9) {
           e.preventDefault();
-          const tabs = ["enrollment", "dashboard", "logs", "shifts", "salary", "leave", "analytics"];
-          if (tabs[num - 1] && user?.role === "admin") {
-            setActiveTab(tabs[num - 1]);
+          const tabs = ["enrollment", "dashboard", "logs", "shifts", "salary", "leave", "approvals", "departments", "job-titles", "analytics"];
+          const tabIndex = num === 0 ? 9 : num - 1;
+          if (tabs[tabIndex] && user?.role === "admin") {
+            setActiveTab(tabs[tabIndex]);
           }
         }
       }
@@ -85,7 +89,6 @@ function App() {
     { id: "departments", label: "Department Management", shortcut: "8" },
     { id: "job-titles", label: "Job Title Management", shortcut: "9" },
     { id: "analytics", label: "Analytics Dashboard", shortcut: "0" },
-
   ];
 
   // Layout styles
@@ -164,12 +167,25 @@ function App() {
     padding: theme.spacing.xl,
   };
 
-  const getNavItemStyle = (itemId) => ({
-    ...commonStyles.sidebarItem,
-    ...(activeTab === itemId ? commonStyles.sidebarItemActive : {}),
-    justifyContent: sidebarCollapsed ? "center" : "flex-start",
-    padding: sidebarCollapsed ? theme.spacing.md : `${theme.spacing.md} ${theme.spacing.lg}`,
-  });
+  const getNavItemStyle = (itemId) => {
+    const isActive = activeTab === itemId;
+    return {
+      ...commonStyles.sidebarItem,
+      ...(isActive ? {
+        ...commonStyles.sidebarItemActive,
+        backgroundColor: "#f0f9ff",
+        color: "#667eea",
+        fontWeight: "700",
+        borderLeft: "4px solid #667eea",
+        boxShadow: "0 4px 12px rgba(102, 126, 234, 0.15)",
+        transform: "translateX(4px)",
+        position: "relative",
+      } : {}),
+      justifyContent: sidebarCollapsed ? "center" : "flex-start",
+      padding: sidebarCollapsed ? theme.spacing.md : `${theme.spacing.md} ${theme.spacing.lg}`,
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    };
+  };
 
   return (
     <div style={appContainerStyle}>
@@ -212,22 +228,47 @@ function App() {
         </div>
 
         <nav style={{ padding: theme.spacing.md, flex: 1 }}>
-          {user?.role === "admin" && navigationItems.map((item) => (
+          {user?.role === "admin" && navigationItems.map((item) => {
+            const isActive = activeTab === item.id;
+            return (
             <div
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               style={getNavItemStyle(item.id)}
               title={sidebarCollapsed ? `${item.label} (Ctrl+${item.shortcut})` : `Ctrl+${item.shortcut}`}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.backgroundColor = theme.neutral.gray100;
+                  e.currentTarget.style.color = theme.primary.main;
+                  e.currentTarget.style.transform = "translateX(2px)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = theme.neutral.gray700;
+                  e.currentTarget.style.transform = "translateX(0)";
+                }
+              }}
             >
               {!sidebarCollapsed && (
                 <>
-                  <span style={{ flex: 1, fontWeight: activeTab === item.id ? "600" : "500" }}>{item.label}</span>
+                  <span style={{ 
+                    flex: 1, 
+                    fontWeight: activeTab === item.id ? "700" : "500",
+                    color: activeTab === item.id ? "#667eea" : "inherit"
+                  }}>
+                    {item.label}
+                  </span>
                   <span style={{ 
                     fontSize: theme.typography.tiny.fontSize, 
-                    color: theme.neutral.gray400,
-                    backgroundColor: theme.neutral.gray100,
-                    padding: `2px ${theme.spacing.xs}`,
+                    color: activeTab === item.id ? "#667eea" : theme.neutral.gray400,
+                    backgroundColor: activeTab === item.id ? "#e0e7ff" : theme.neutral.gray100,
+                    padding: `4px ${theme.spacing.xs}`,
                     borderRadius: theme.radius.sm,
+                    fontWeight: activeTab === item.id ? "700" : "500",
+                    border: activeTab === item.id ? "1px solid #667eea" : "none",
+                    transition: "all 0.2s"
                   }}>
                     {item.shortcut}
                   </span>
@@ -239,7 +280,8 @@ function App() {
                 </span>
               )}
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         {/* User section */}
@@ -282,7 +324,7 @@ function App() {
                 fontSize: theme.typography.small.fontSize, 
                 color: theme.neutral.gray500,
               }}>
-                {user?.role === "admin" ? "Quản trị viên" : "Nhân viên"}
+                {user?.role === "admin" ? "Admin" : "Employee"}
               </div>
             </div>
           )}
@@ -308,7 +350,7 @@ function App() {
               color: theme.neutral.gray500 
             }}>
               {navigationItems.find(item => item.id === activeTab)?.icon} 
-              {sidebarCollapsed ? "" : ` Quản lý hệ thống điểm danh`}
+              {sidebarCollapsed ? "" : ` Attendance Management System`}
             </p>
           </div>
           <div style={userInfoStyle}>
@@ -337,7 +379,7 @@ function App() {
                 e.target.style.boxShadow = theme.shadows.sm;
               }}
             >
-              Đăng xuất
+              Logout
             </button>
           </div>
         </header>
@@ -350,6 +392,9 @@ function App() {
         {activeTab === "shifts" && user?.role === "admin" && <ShiftAdmin />}
         {activeTab === "salary" && user?.role === "admin" && <SalaryManagement />}
         {activeTab === "leave" && user?.role === "admin" && <LeaveManagement />}
+        {activeTab === "approvals" && user?.role === "admin" && <ApprovalManagement />}
+        {activeTab === "departments" && user?.role === "admin" && <DepartmentManagement />}
+        {activeTab === "job-titles" && user?.role === "admin" && <JobTitleManagement />}
         {activeTab === "analytics" && user?.role === "admin" && <AnalyticsDashboard />}
       </div>
       </main>
