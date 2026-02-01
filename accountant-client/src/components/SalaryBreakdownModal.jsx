@@ -225,12 +225,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
         const updatedSalary = await res.json();
         if (onUpdate) onUpdate(updatedSalary);
         setEditMode(false);
-        alert("Cập nhật phiên bản lương thành công");
+        alert("Payroll version updated successfully");
       } else {
-        alert("Lỗi khi cập nhật");
+        alert("Error updating");
       }
     } catch (error) {
-      alert("Lỗi: " + error.message);
+      alert("Error: " + error.message);
     } finally {
       setSaving(false);
     }
@@ -256,7 +256,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
         <div style={contentStyle} onClick={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <div>
-            <h2 style={titleStyle}>💰 Chi Tiết Tính Lương</h2>
+            <h2 style={titleStyle}>💰 Salary Breakdown</h2>
             <div style={{ fontSize: "14px", color: "#666", marginTop: "5px" }}>
               {employee?.name} - {new Date(salary?.month).toLocaleDateString("vi-VN", {
                 month: "long",
@@ -275,291 +275,14 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
 
         {/* Breakdown Table */}
         <div style={sectionStyle}>
-          <div style={sectionTitleStyle}>📊 Bảng Chi Tiết Lương</div>
-          <div style={{
-            backgroundColor: theme.neutral.white,
-            borderRadius: theme.radius.md,
-            overflow: "hidden",
-            boxShadow: theme.shadows.sm,
-            border: `1px solid ${theme.neutral.gray200}`
-          }}>
-            <table style={{
-              width: "100%",
-              borderCollapse: "collapse"
-            }}>
-              <thead style={{
-                backgroundColor: theme.primary.main,
-                color: theme.neutral.white
-              }}>
-                <tr>
-                  <th style={{
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    textAlign: "left",
-                    fontSize: "13px",
-                    fontWeight: "600",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
-                  }}>
-                    Khoản Mục
-                  </th>
-                  <th style={{
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    textAlign: "right",
-                    fontSize: "13px",
-                    fontWeight: "600",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
-                  }}>
-                    Số Tiền
-                  </th>
-                  <th style={{
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    textAlign: "center",
-                    fontSize: "13px",
-                    fontWeight: "600",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
-                  }}>
-                    Ghi Chú
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Base Salary */}
-                <tr style={{
-                  borderBottom: `1px solid ${theme.neutral.gray200}`,
-                  backgroundColor: theme.neutral.white
-                }}>
-                  <td style={{
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    fontWeight: "600",
-                    color: theme.neutral.gray900
-                  }}>
-                    Lương cơ bản
-                  </td>
-                  <td style={{
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    textAlign: "right",
-                    fontWeight: "600",
-                    color: theme.primary.main
-                  }}>
-                    {((salary?.baseSalary || 0) / 1000000).toFixed(2)}M₫
-                  </td>
-                  <td style={{
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    textAlign: "center",
-                    color: theme.neutral.gray600,
-                    fontSize: "12px"
-                  }}>
-                    100%
-                  </td>
-                </tr>
 
-                {/* Bonuses */}
-                {salary?.bonuses && salary.bonuses.map((bonus, idx) => {
-                  const rule = rules.find((r) => r.id === bonus.ruleId);
-                  return (
-                    <tr
-                      key={idx}
-                      style={{
-                        borderBottom: `1px solid ${theme.neutral.gray200}`,
-                        backgroundColor: "#f0fdf4"
-                      }}
-                    >
-                      <td style={{
-                        padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                        fontWeight: "500",
-                        color: theme.neutral.gray900
-                      }}>
-                        {rule?.name || "Thưởng"}
-                      </td>
-                      <td style={{
-                        padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                        textAlign: "right",
-                        fontWeight: "600",
-                        color: "#28a745"
-                      }}>
-                        +{(bonus.amount / 1000000).toFixed(2)}M₫
-                      </td>
-                      <td style={{
-                        padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                        textAlign: "center",
-                        color: theme.neutral.gray600,
-                        fontSize: "12px"
-                      }}>
-                        {rule?.description || ""}
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {/* Total Bonus */}
-                {salary?.bonuses && salary.bonuses.length > 0 && (
-                  <tr style={{
-                    borderBottom: `2px solid ${theme.neutral.gray300}`,
-                    backgroundColor: "#e8f5e9",
-                    fontWeight: "700"
-                  }}>
-                    <td style={{
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      fontWeight: "700",
-                      color: theme.neutral.gray900
-                    }}>
-                      Tổng thưởng
-                    </td>
-                    <td style={{
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      textAlign: "right",
-                      fontWeight: "700",
-                      color: "#28a745"
-                    }}>
-                      +{((salary?.totalBonus || 0) / 1000000).toFixed(2)}M₫
-                    </td>
-                    <td style={{
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      textAlign: "center"
-                    }}></td>
-                  </tr>
-                )}
-
-                {/* Deductions */}
-                {salary?.deductions && salary.deductions.map((deduction, idx) => {
-                  const rule = rules.find((r) => r.id === deduction.ruleId);
-                  return (
-                    <tr
-                      key={idx}
-                      style={{
-                        borderBottom: `1px solid ${theme.neutral.gray200}`,
-                        backgroundColor: "#fff5f5"
-                      }}
-                    >
-                      <td style={{
-                        padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                        fontWeight: "500",
-                        color: theme.neutral.gray900
-                      }}>
-                        {rule?.name || "Khấu trừ"}
-                      </td>
-                      <td style={{
-                        padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                        textAlign: "right",
-                        fontWeight: "600",
-                        color: "#dc3545"
-                      }}>
-                        -{(deduction.amount / 1000000).toFixed(2)}M₫
-                      </td>
-                      <td style={{
-                        padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                        textAlign: "center",
-                        color: theme.neutral.gray600,
-                        fontSize: "12px"
-                      }}>
-                        {rule?.description || ""}
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {/* Total Deduction */}
-                {salary?.deductions && salary.deductions.length > 0 && (
-                  <tr style={{
-                    borderBottom: `2px solid ${theme.neutral.gray300}`,
-                    backgroundColor: "#ffe5e5",
-                    fontWeight: "700"
-                  }}>
-                    <td style={{
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      fontWeight: "700",
-                      color: theme.neutral.gray900
-                    }}>
-                      Tổng khấu trừ
-                    </td>
-                    <td style={{
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      textAlign: "right",
-                      fontWeight: "700",
-                      color: "#dc3545"
-                    }}>
-                      -{((salary?.totalDeduction || 0) / 1000000).toFixed(2)}M₫
-                    </td>
-                    <td style={{
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      textAlign: "center"
-                    }}></td>
-                  </tr>
-                )}
-
-                {/* Summary Row */}
-                <tr style={{
-                  borderTop: `3px solid ${theme.primary.main}`,
-                  backgroundColor: theme.neutral.gray50,
-                  fontWeight: "700"
-                }}>
-                  <td style={{
-                    padding: `${theme.spacing.lg} ${theme.spacing.lg}`,
-                    fontWeight: "700",
-                    fontSize: "16px",
-                    color: theme.neutral.gray900
-                  }}>
-                    Lương thực nhận (Net)
-                  </td>
-                  <td style={{
-                    padding: `${theme.spacing.lg} ${theme.spacing.lg}`,
-                    textAlign: "right",
-                    fontWeight: "700",
-                    fontSize: "18px",
-                    color: theme.primary.main
-                  }}>
-                    {editMode
-                      ? (calculateNetAdjusted() / 1000000).toFixed(2)
-                      : ((salary?.netSalary || (salary?.baseSalary || 0) + (salary?.totalBonus || 0) - (salary?.totalDeduction || 0)) / 1000000).toFixed(2)}
-                    M₫
-                  </td>
-                  <td style={{
-                    padding: `${theme.spacing.lg} ${theme.spacing.lg}`,
-                    textAlign: "center"
-                  }}></td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         </div>
 
         {/* Edit Mode */}
         {editMode && (
           <div style={editFormStyle}>
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: theme.spacing.sm,
-              marginBottom: theme.spacing.lg,
-              paddingBottom: theme.spacing.md,
-              borderBottom: `2px solid #b3d9ff`
-            }}>
-              <div style={{
-                width: "40px",
-                height: "40px",
-                borderRadius: "50%",
-                backgroundColor: "#b3d9ff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "20px"
-              }}>
-                ✏️
-              </div>
-              <h3 style={{ 
-                color: theme.primary.main, 
-                margin: 0,
-                fontSize: "20px",
-                fontWeight: "700"
-              }}>
-                Điều Chỉnh Lương
-              </h3>
-            </div>
 
-            <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Điều chỉnh lương cơ bản (₫)</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -570,12 +293,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     baseAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                placeholder="Nhập số điều chỉnh (âm để giảm, dương để tăng)"
+                placeholder="Enter adjustment (negative to decrease, positive to increase)"
               />
             </div>
 
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Điều chỉnh thưởng (₫)</label>
+
               <input
                 type="number"
                 style={inputStyle}
@@ -586,12 +309,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     bonusAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                placeholder="Nhập số điều chỉnh thưởng"
+                placeholder="Enter bonus adjustment amount"
               />
             </div>
 
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Điều chỉnh khấu trừ (₫)</label>
+
               <input
                 type="number"
                 style={inputStyle}
@@ -602,12 +325,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     deductionAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                placeholder="Nhập số điều chỉnh khấu trừ"
+                placeholder="Enter deduction adjustment amount"
               />
             </div>
 
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Ghi chú</label>
+              <label style={labelFormStyle}>Notes</label>
               <textarea
                 style={textareaStyle}
                 value={adjustments.notes}
@@ -617,7 +340,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     notes: e.target.value
                   })
                 }
-                placeholder="Ghi chú về điều chỉnh..."
+                placeholder="Notes about adjustment..."
               />
             </div>
           </div>
@@ -630,7 +353,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
             style={iconButtonStyle(theme.neutral.gray600)}
             title="Đóng"
           >
-            Đóng
+            Close
           </button>
 
           {editMode && (
@@ -648,7 +371,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                 style={iconButtonStyle(theme.neutral.gray600)}
                 title="Hủy"
               >
-                Hủy
+                Cancel
               </button>
               <button
                 onClick={handleSaveAdjustments}
@@ -656,7 +379,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                 disabled={saving}
                 title="Lưu điều chỉnh"
               >
-                {saving ? "Đang lưu..." : "Lưu"}
+
               </button>
             </>
           )}
@@ -667,7 +390,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
               style={iconButtonStyle("#ffc107")}
               title="Điều chỉnh lương"
             >
-              Điều Chỉnh
+
             </button>
           )}
         </div>
@@ -676,3 +399,5 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     </>
   );
 }
+
+
