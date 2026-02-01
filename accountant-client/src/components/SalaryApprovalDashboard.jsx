@@ -392,7 +392,6 @@ export default function SalaryApprovalDashboard() {
           </table>
         </div>
       )}
-      </div>
     </div>
   );
 }
