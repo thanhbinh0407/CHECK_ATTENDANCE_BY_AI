@@ -37,7 +37,7 @@ function App() {
         fontSize: "16px",
         color: "#666"
       }}>
-        Đang kiểm tra kết nối server...
+        Checking server connection...
       </div>
     );
   }
@@ -56,10 +56,10 @@ function App() {
       }}>
         <div style={{ fontSize: "28px" }}>⚠️</div>
         <div style={{ fontSize: "18px", fontWeight: "600", color: "#856404" }}>
-          Server không có sẵn
+          Server Unavailable
         </div>
         <div style={{ fontSize: "13px", color: "#856404" }}>
-          Vui lòng đảm bảo backend chạy trên http://localhost:5000
+          Please ensure backend is running on http://localhost:5000
         </div>
         <button
           onClick={checkServerStatus}
@@ -73,7 +73,7 @@ function App() {
             marginTop: "16px"
           }}
         >
-          Kiểm tra lại
+          Check Again
         </button>
       </div>
     );
@@ -81,7 +81,7 @@ function App() {
 
   const headerStyle = {
     backgroundColor: "#1a1a1a",
-    color: "#fff",
+    color: "#ffffff",
     padding: "20px",
     boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
     textAlign: "center"
@@ -90,13 +90,15 @@ function App() {
   const titleStyle = {
     fontSize: "24px",
     fontWeight: "700",
-    margin: "0 0 4px 0"
+    margin: "0 0 4px 0",
+    color: "#ffffff"
   };
 
   const subtitleStyle = {
     fontSize: "13px",
     opacity: 0.8,
-    margin: 0
+    margin: 0,
+    color: "#ffffff"
   };
 
   return (
@@ -104,7 +106,7 @@ function App() {
       {/* Header */}
       <div style={headerStyle}>
         <h1 style={titleStyle}>Employee Attendance Kiosk</h1>
-        <p style={subtitleStyle}>Quét khuôn mặt để điểm danh</p>
+        <p style={subtitleStyle}>Scan your face to check attendance</p>
       </div>
 
       {/* Content */}

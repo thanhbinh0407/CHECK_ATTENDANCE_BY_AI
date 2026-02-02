@@ -2,15 +2,45 @@ import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
 import { exportSalariesToExcel, exportSalariesToPDF } from "../utils/exportUtils.js";
 
+// Add keyframe animation for notification popup
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
+  @keyframes slideInRight {
+    from {
+      transform: translateX(400px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+`;
+if (!document.head.querySelector('style[data-notification-animation]')) {
+  styleSheet.setAttribute('data-notification-animation', 'true');
+  document.head.appendChild(styleSheet);
+}
+
 export default function SalaryManagement() {
   const [salaries, setSalaries] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [toastPopup, setToastPopup] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+  // Auto-hide message after 5 seconds
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => {
+        setMessage("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
 
   useEffect(() => {
     fetchSalaries();
@@ -33,7 +63,7 @@ export default function SalaryManagement() {
       }
     } catch (error) {
       console.error("Error fetching salaries:", error);
-      setMessage("Lỗi khi tải dữ liệu lương");
+      setMessage("Error loading salary data");
     } finally {
       setLoading(false);
     }
@@ -78,14 +108,15 @@ export default function SalaryManagement() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Tính lương thành công!");
+        setMessage("");
+        setToastPopup("Salary calculated successfully!");
         fetchSalaries();
-        setTimeout(() => setMessage(""), 3000);
+        setTimeout(() => setToastPopup(""), 5000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể tính lương"));
+        setMessage("Error: " + (data.message || "Cannot calculate salary"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -108,36 +139,34 @@ export default function SalaryManagement() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Cập nhật trạng thái thành công!");
+        setMessage("");
+        setToastPopup("Status updated successfully!");
         fetchSalaries();
-        setTimeout(() => setMessage(""), 3000);
+        setTimeout(() => { setMessage(""); setToastPopup(""); }, 5000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể cập nhật"));
+        setMessage("Error: " + (data.message || "Could not update"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND"
-    }).format(amount || 0);
+    return new Intl.NumberFormat("vi-VN").format(amount || 0) + " ₫";
   };
 
   const getStatusBadge = (status) => {
     const styles = {
-      pending: { background: "#fbbf24", color: "#78350f" },
-      approved: { background: "#3b82f6", color: "#1e3a8a" },
-      paid: { background: "#10b981", color: "#065f46" }
+      pending: { background: "#fff3cd", color: "#997404" },
+      approved: { background: "#cfe2ff", color: "#084298" },
+      paid: { background: "#d4edda", color: "#155724" }
     };
     const labels = {
-      pending: "Chờ duyệt",
-      approved: "Đã duyệt",
-      paid: "Đã thanh toán"
+      pending: "Pending",
+      approved: "Approved",
+      paid: "Paid"
     };
     return { style: styles[status] || styles.pending, label: labels[status] || status };
   };
@@ -186,13 +215,24 @@ export default function SalaryManagement() {
     marginTop: theme.spacing.lg,
   };
 
+  const tableWrapperStyle = {
+    backgroundColor: theme.neutral.white,
+    borderRadius: "8px",
+    overflow: "hidden",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+    marginTop: theme.spacing.lg,
+    border: "1px solid #e5e7eb",
+  };
+
+  const headerBg = "#1e293b";
   const thStyle = {
-    padding: theme.spacing.md,
+    padding: "12px 16px",
     textAlign: "left",
-    borderBottom: `2px solid ${theme.neutral.gray200}`,
+    borderBottom: "2px solid rgba(255,255,255,0.2)",
     fontWeight: "600",
-    color: theme.neutral.gray700,
+    color: "#fff",
     fontSize: "14px",
+    backgroundColor: headerBg,
   };
 
   const tdStyle = {
@@ -205,30 +245,61 @@ export default function SalaryManagement() {
     <div style={containerStyle}>
       <div style={headerStyle}>
         <h2 style={{ margin: 0, fontSize: "28px", fontWeight: "700", color: theme.neutral.gray900 }}>
-          Quản lý Bảng Lương
+          💼 Quản lý Bảng Lương
         </h2>
         <p style={{ margin: `${theme.spacing.sm} 0 0 0`, color: theme.neutral.gray600, fontSize: "14px" }}>
           Quản lý và tính lương nhân viên theo tháng
         </p>
       </div>
 
-      {message && (
+      {message && !toastPopup && (
         <div style={{
-          padding: theme.spacing.md,
+          position: "fixed",
+          top: "80px",
+          right: "20px",
+          padding: "15px 20px",
           background: message.includes("thành công") ? "#d4edda" : "#f8d7da",
-          border: `1px solid ${message.includes("thành công") ? "#c3e6cb" : "#f5c6cb"}`,
-          borderRadius: theme.radius.md,
+          border: message.includes("thành công") ? "2px solid #28a745" : "2px solid #dc3545",
+          borderRadius: "8px",
           color: message.includes("thành công") ? "#155724" : "#721c24",
-          marginBottom: theme.spacing.lg,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          zIndex: 9999,
+          minWidth: "300px",
+          maxWidth: "400px",
+          animation: "slideInRight 0.3s ease-out"
         }}>
-          {message}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "1.2em" }}>
+              {message.includes("thành công") ? "✅" : "❌"}
+            </span>
+            <span style={{ flex: 1, fontWeight: "500" }}>{message}</span>
+          </div>
+        </div>
+      )}
+
+      {toastPopup && (
+        <div style={{
+          position: "fixed",
+          top: 24,
+          left: "50%",
+          transform: "translateX(-50%)",
+          padding: `${theme.spacing.md} ${theme.spacing.xl}`,
+          background: "#059669",
+          color: "#fff",
+          borderRadius: theme.radius.lg,
+          boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+          fontWeight: "600",
+          fontSize: "15px",
+          zIndex: 9999,
+        }}>
+          {toastPopup}
         </div>
       )}
 
       <div style={filtersStyle}>
         <div>
           <label style={{ display: "block", marginBottom: theme.spacing.sm, fontWeight: "600", fontSize: "14px" }}>
-            Tháng
+            Month
           </label>
           <select
             style={inputStyle}
@@ -236,14 +307,14 @@ export default function SalaryManagement() {
             onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
           >
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
-              <option key={m} value={m}>Tháng {m}</option>
+              <option key={m} value={m}>Month {m}</option>
             ))}
           </select>
         </div>
 
         <div>
           <label style={{ display: "block", marginBottom: theme.spacing.sm, fontWeight: "600", fontSize: "14px" }}>
-            Năm
+            Year
           </label>
           <select
             style={inputStyle}
@@ -261,7 +332,7 @@ export default function SalaryManagement() {
           disabled={salaries.length === 0}
           style={{ ...buttonStyle, background: "#10b981" }}
         >
-          Xuất Excel
+          Export Excel
         </button>
 
         <button
@@ -269,44 +340,45 @@ export default function SalaryManagement() {
           disabled={salaries.length === 0}
           style={{ ...buttonStyle, background: "#ef4444" }}
         >
-          Xuất PDF
+          Export PDF
         </button>
       </div>
 
       {loading ? (
         <div style={{ textAlign: "center", padding: theme.spacing.xxl }}>
-          <div>Đang tải...</div>
+          <div>Loading...</div>
         </div>
       ) : salaries.length === 0 ? (
         <div style={{ textAlign: "center", padding: theme.spacing.xxl, color: theme.neutral.gray500 }}>
-          <div>Chưa có dữ liệu lương cho tháng {selectedMonth}/{selectedYear}</div>
+          <div>No salary data for {selectedMonth}/{selectedYear}</div>
         </div>
       ) : (
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Nhân viên</th>
-              <th style={thStyle}>Mã NV</th>
-              <th style={thStyle}>Lương cơ bản</th>
-              <th style={thStyle}>Thưởng</th>
-              <th style={thStyle}>Khấu trừ</th>
-              <th style={thStyle}>Thực nhận</th>
-              <th style={thStyle}>Trạng thái</th>
-              <th style={thStyle}>Thao tác</th>
-            </tr>
-          </thead>
+        <div style={{ backgroundColor: "white", borderRadius: "8px", overflow: "hidden", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
+          <table style={tableStyle}>
+            <thead style={{ backgroundColor: theme.colors.primary, color: "white" }}>
+              <tr>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none" }}>👥 Nhân viên</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none" }}>🎫 Mã NV</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "right" }}>💵 Lương cơ bản</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "right" }}>📈 Thưởng</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "right" }}>📉 Khấu trừ</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "right" }}>💰 Thực nhận</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "center" }}>📊 Trạng thái</th>
+                <th style={{ ...thStyle, color: "white", borderBottom: "none", textAlign: "center" }}>⚙️ Thao tác</th>
+              </tr>
+            </thead>
           <tbody>
             {salaries.map(salary => {
               const statusBadge = getStatusBadge(salary.status);
               return (
                 <tr key={salary.id}>
-                  <td style={tdStyle}>{salary.User?.name || "N/A"}</td>
-                  <td style={tdStyle}>{salary.User?.employeeCode || "N/A"}</td>
-                  <td style={tdStyle}>{formatCurrency(salary.baseSalary)}</td>
-                  <td style={tdStyle}>{formatCurrency(salary.bonus)}</td>
-                  <td style={tdStyle}>{formatCurrency(salary.deduction)}</td>
-                  <td style={tdStyle}><strong>{formatCurrency(salary.finalSalary)}</strong></td>
-                  <td style={tdStyle}>
+                  <td style={{ ...tdStyle, fontWeight: "bold" }}>{salary.User?.name || "N/A"}</td>
+                  <td style={{ ...tdStyle, fontWeight: "bold" }}>{salary.User?.employeeCode || "N/A"}</td>
+                  <td style={{ ...tdStyle, textAlign: "right" }}>{formatCurrency(salary.baseSalary)}</td>
+                  <td style={{ ...tdStyle, textAlign: "right", color: "#28a745" }}>+{formatCurrency(salary.bonus)}</td>
+                  <td style={{ ...tdStyle, textAlign: "right", color: "#dc3545" }}>-{formatCurrency(salary.deduction)}</td>
+                  <td style={{ ...tdStyle, textAlign: "right" }}><strong>{formatCurrency(salary.finalSalary)}</strong></td>
+                  <td style={{ ...tdStyle, textAlign: "center" }}>
                     <span style={{
                       ...statusBadge.style,
                       padding: "4px 12px",
@@ -329,10 +401,10 @@ export default function SalaryManagement() {
                       )}
                       {salary.status === "approved" && (
                         <button
-                          onClick={() => handleUpdateStatus(salary.id, "paid")}
-                          style={{ ...buttonStyle, background: "#10b981", padding: "6px 12px", fontSize: "12px" }}
+                          onClick={() => handleCalculateSalary(salary.User?.id)}
+                          style={{ ...buttonStyle, background: theme.colors?.secondary || "#3b82f6", color: "#fff", padding: "6px 12px", fontSize: "12px", borderRadius: "4px" }}
                         >
-                          Thanh toán
+                          Recalculate
                         </button>
                       )}
                       <button
@@ -348,6 +420,7 @@ export default function SalaryManagement() {
             })}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

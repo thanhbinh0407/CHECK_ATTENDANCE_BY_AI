@@ -44,12 +44,12 @@ function App() {
   const headerStyle = {
     backgroundColor: "#1a1a1a",
     color: "#fff",
-    padding: "24px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.15)"
+    padding: "20px 24px",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
   };
 
   const headerContentStyle = {
-    maxWidth: "1200px",
+    maxWidth: "1400px",
     margin: "0 auto",
     display: "flex",
     justifyContent: "space-between",
@@ -57,62 +57,88 @@ function App() {
   };
 
   const tabsStyle = {
-    maxWidth: "1200px",
+    maxWidth: "1400px",
     margin: "0 auto",
     display: "flex",
-    borderBottom: "2px solid #e0e0e0",
-    backgroundColor: "#fff"
+    gap: "4px",
+    backgroundColor: "#fff",
+    borderBottom: "1px solid #e0e0e0",
+    padding: "0 24px"
   };
 
   const tabStyle = (active) => ({
-    padding: "16px 32px",
+    padding: "14px 24px",
     cursor: "pointer",
     fontWeight: "600",
-    fontSize: "15px",
-    borderBottom: active ? "3px solid #007bff" : "3px solid transparent",
-    color: active ? "#007bff" : "#666",
-    backgroundColor: "transparent",
-    transition: "all 0.3s"
+    fontSize: "13px",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    border: "none",
+    borderBottom: active ? "3px solid #1976d2" : "3px solid transparent",
+    color: active ? "#1976d2" : "#666",
+    backgroundColor: active ? "#f5f5f5" : "transparent",
+    transition: "all 0.2s ease",
+    outline: "none"
   });
 
   const contentStyle = {
-    maxWidth: "1200px",
+    maxWidth: "1400px",
     margin: "0 auto",
-    padding: "32px 20px"
+    padding: "32px 24px",
+    backgroundColor: "#f8f9fa"
   };
 
   return (
-    <div style={{ width: "100%", minHeight: "100vh", backgroundColor: "#f5f7fa" }}>
+    <div style={{ width: "100%", minHeight: "100vh", backgroundColor: "#f8f9fa" }}>
       {/* Header */}
       <div style={headerStyle}>
         <div style={headerContentStyle}>
           <div>
-            <h1 style={{ fontSize: "28px", fontWeight: "700", margin: "0 0 4px 0" }}>
-              👤 Employee Portal
+            <h1 style={{ 
+              fontSize: "24px", 
+              fontWeight: "700", 
+              margin: "0 0 4px 0",
+              letterSpacing: "0.5px"
+            }}>
+              EMPLOYEE PORTAL
             </h1>
-            <p style={{ margin: 0, fontSize: "14px", opacity: 0.9 }}>
-              Hệ thống quản lý điểm danh và lương nhân viên
+            <p style={{ 
+              margin: 0, 
+              fontSize: "13px", 
+              opacity: 0.9,
+              fontWeight: "400"
+            }}>
+              Attendance & Payroll Management System
             </p>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontWeight: "600", fontSize: "16px" }}>{user?.name}</div>
-              <div style={{ fontSize: "13px", opacity: 0.8 }}>{user?.email}</div>
+              <div style={{ fontWeight: "600", fontSize: "15px" }}>{user?.name}</div>
+              <div style={{ fontSize: "12px", opacity: 0.85 }}>{user?.email}</div>
             </div>
             <button
               onClick={handleLogout}
               style={{
-                padding: "10px 20px",
+                padding: "10px 24px",
                 backgroundColor: "#dc3545",
                 color: "#fff",
                 border: "none",
-                borderRadius: "6px",
+                borderRadius: "4px",
                 cursor: "pointer",
                 fontWeight: "600",
-                fontSize: "14px"
+                fontSize: "13px",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+                transition: "all 0.2s"
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = "#c82333";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = "#dc3545";
               }}
             >
-              Đăng xuất
+              Logout
             </button>
           </div>
         </div>
@@ -124,31 +150,31 @@ function App() {
           onClick={() => setActiveTab("attendance")}
           style={tabStyle(activeTab === "attendance")}
         >
-          📅 Điểm Danh
+          Attendance
         </button>
         <button
           onClick={() => setActiveTab("salary")}
           style={tabStyle(activeTab === "salary")}
         >
-          💰 Lương
+          Salary
         </button>
         <button
           onClick={() => setActiveTab("leave")}
           style={tabStyle(activeTab === "leave")}
         >
-          📝 Đơn Nghỉ Phép
+          Leave Request
         </button>
         <button
           onClick={() => setActiveTab("qualifications")}
           style={tabStyle(activeTab === "qualifications")}
         >
-          📜 Chứng Chỉ
+          Qualifications
         </button>
         <button
           onClick={() => setActiveTab("dependents")}
           style={tabStyle(activeTab === "dependents")}
         >
-          👨‍👩‍👧‍👦 Người Phụ Thuộc
+          Dependents
         </button>
         {user?.role === "admin" && (
           <>
@@ -156,13 +182,13 @@ function App() {
               onClick={() => setActiveTab("approval")}
               style={tabStyle(activeTab === "approval")}
             >
-              ✅ Phê Duyệt Hồ Sơ
+              Approval
             </button>
             <button
               onClick={() => setActiveTab("rules")}
               style={tabStyle(activeTab === "rules")}
             >
-              ⚙️ Quy Tắc Lương
+              Salary Rules
             </button>
           </>
         )}

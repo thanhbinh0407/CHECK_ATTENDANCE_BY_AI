@@ -110,39 +110,34 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
     }
 
     return {
-      'Nhân viên': salary.User?.name || '',
-      'Mã NV': salary.User?.employeeCode || '',
-      'Chức vụ': salary.User?.jobTitle || '',
-      'Tháng': salary.month || '',
-      'Năm': salary.year || '',
-      // Thu nhập
-      'Lương cơ sở': baseSalary,
-      'Tổng hệ số': totalCoefficient.toFixed(2),
-      'Lương gộp': salaryCalc?.grossSalary || (baseSalary * totalCoefficient),
-      'Thưởng': bonus,
-      // Bảo hiểm
+      'Employee': salary.User?.name || '',
+      'Code': salary.User?.employeeCode || '',
+      'Job Title': salary.User?.jobTitle || '',
+      'Month': salary.month || '',
+      'Year': salary.year || '',
+      'Base Salary': baseSalary,
+      'Coefficient': totalCoefficient.toFixed(2),
+      'Gross Salary': salaryCalc?.grossSalary || (baseSalary * totalCoefficient),
+      'Bonus': bonus,
       'BHXH (8%)': salaryCalc?.insurance?.bhxh || 0,
       'BHYT (1.5%)': salaryCalc?.insurance?.bhyt || 0,
       'BHTN (1%)': salaryCalc?.insurance?.bhtn || 0,
-      'Tổng BH': salaryCalc?.insurance?.total || 0,
-      // Thuế
-      'Thu nhập chịu thuế': salaryCalc?.tax?.taxableIncome || 0,
-      'Giảm trừ gia cảnh': salaryCalc?.tax?.personalDeduction || 0,
-      'Thuế TNCN': salaryCalc?.tax?.pit || 0,
-      // Khác
-      'Khấu trừ khác': deduction,
-      // Kết quả
-      'Thực nhận': salaryCalc?.netSalary || salary.finalSalary || 0,
-      'Người phụ thuộc': dependents,
-      'Trạng thái': salary.status === 'paid' ? 'Đã thanh toán' : 
-                     salary.status === 'approved' ? 'Đã duyệt' : 'Chờ duyệt',
-      'Ngày tính': salary.calculatedAt ? new Date(salary.calculatedAt).toLocaleDateString('vi-VN') : ''
+      'Total Insurance': salaryCalc?.insurance?.total || 0,
+      'Taxable Income': salaryCalc?.tax?.taxableIncome || 0,
+      'Deduction': salaryCalc?.tax?.personalDeduction || 0,
+      'PIT': salaryCalc?.tax?.pit || 0,
+      'Other Deduction': deduction,
+      'Net Pay': salaryCalc?.netSalary || salary.finalSalary || 0,
+      'Dependents': dependents,
+      'Status': salary.status === 'paid' ? 'Paid' : 
+                salary.status === 'approved' ? 'Approved' : 'Pending',
+      'Calculated At': salary.calculatedAt ? new Date(salary.calculatedAt).toLocaleDateString('en-US') : ''
     };
   });
 
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Bảng lương');
+  XLSX.utils.book_append_sheet(wb, ws, 'Payroll');
   
   // Auto-size columns
   const colWidths = [
@@ -216,10 +211,10 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
 
   // Title
   doc.setFontSize(18);
-  doc.text('Bảng Lương Chi Tiết', 14, 20);
+  doc.text('Payroll Details', 14, 20);
   doc.setFontSize(12);
-  doc.text(`Xuất ngày: ${new Date().toLocaleDateString('vi-VN')}`, 14, 28);
-  doc.text(`Tổng số: ${salaries.length} nhân viên`, 14, 34);
+  doc.text(`Exported: ${new Date().toLocaleDateString('en-US')}`, 14, 28);
+  doc.text(`Total: ${salaries.length} employees`, 14, 34);
 
   // Prepare table data with detailed breakdown
   const tableData = salaries.map(salary => {
@@ -259,15 +254,15 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
       formatNumber(salaryCalc?.tax?.pit || 0),
       formatNumber(deduction),
       formatNumber(salaryCalc?.netSalary || salary.finalSalary || 0),
-      salary.status === 'paid' ? 'Đã thanh toán' : 
-      salary.status === 'approved' ? 'Đã duyệt' : 'Chờ duyệt'
+      salary.status === 'paid' ? 'Paid' : 
+      salary.status === 'approved' ? 'Approved' : 'Pending'
     ];
   });
 
   doc.autoTable({
     head: [[
-      'Mã NV', 'Nhân viên', 'Lương cơ sở', 'Hệ số', 'Lương gộp', 'Thưởng',
-      'BHXH', 'BHYT', 'BHTN', 'Tổng BH', 'Thuế TNCN', 'Khấu trừ', 'Thực nhận', 'Trạng thái'
+      'Code', 'Employee', 'Base Salary', 'Coeff', 'Gross', 'Bonus',
+      'BHXH', 'BHYT', 'BHTN', 'Total Ins', 'PIT', 'Deduction', 'Net Pay', 'Status'
     ]],
     body: tableData,
     startY: 42,

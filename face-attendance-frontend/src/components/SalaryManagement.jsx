@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { theme, commonStyles } from "../styles/theme.js";
 import { calculateCompleteSalary, formatCurrency } from "../utils/salaryCalculation.js";
 import { exportSalariesToExcel } from "../utils/exportUtils.js";
 
@@ -12,7 +11,10 @@ export default function SalaryManagement() {
   const [activeTab, setActiveTab] = useState("salaries");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [filterStatus, setFilterStatus] = useState("all"); // all, pending, approved, paid
+  const [page, setPage] = useState(1);
   const [showRuleForm, setShowRuleForm] = useState(false);
+  const ITEMS_PER_PAGE = 12;
   const [editingRule, setEditingRule] = useState(null);
   const [ruleForm, setRuleForm] = useState({
     name: "",
@@ -36,6 +38,17 @@ export default function SalaryManagement() {
       fetchEmployees();
     }
   }, [activeTab, selectedMonth, selectedYear]);
+
+  const filteredSalaries = salaries.filter(s => {
+    if (filterStatus === "all") return true;
+    return (s.status || "pending") === filterStatus;
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredSalaries.length / ITEMS_PER_PAGE));
+  const paginatedSalaries = filteredSalaries.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filterStatus, selectedMonth, selectedYear]);
 
   const fetchRules = async () => {
     try {
@@ -114,11 +127,11 @@ export default function SalaryManagement() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Tính lương thành công!");
+        setMessage("Payroll calculated successfully!");
         fetchSalaries();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Unknown error"));
+        setMessage("Error: " + (data.message || "Unknown error"));
       }
     } catch (error) {
       setMessage("Lỗi: " + error.message);
@@ -128,9 +141,11 @@ export default function SalaryManagement() {
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("vi-VN", {
+    return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "VND"
+      currency: "VND",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(amount);
   };
 
@@ -155,7 +170,7 @@ export default function SalaryManagement() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Tạo quy tắc thành công!");
+        setMessage("Rule created successfully!");
         setShowRuleForm(false);
         setRuleForm({
           name: "",
@@ -171,7 +186,7 @@ export default function SalaryManagement() {
         fetchRules();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Unknown error"));
+        setMessage("Error: " + (data.message || "Unknown error"));
       }
     } catch (error) {
       setMessage("Lỗi: " + error.message);
@@ -218,7 +233,7 @@ export default function SalaryManagement() {
         fetchRules();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Unknown error"));
+        setMessage("Error: " + (data.message || "Unknown error"));
       }
     } catch (error) {
       setMessage("Lỗi: " + error.message);
@@ -228,7 +243,7 @@ export default function SalaryManagement() {
   };
 
   const handleDeleteRule = async (ruleId) => {
-    if (!window.confirm("Bạn chắc chắn muốn xóa quy tắc này?")) return;
+    if (!window.confirm("Are you sure you want to delete this rule?")) return;
 
     try {
       setLoading(true);
@@ -244,11 +259,11 @@ export default function SalaryManagement() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Xóa quy tắc thành công!");
+        setMessage("Rule deleted successfully!");
         fetchRules();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Unknown error"));
+        setMessage("Error: " + (data.message || "Unknown error"));
       }
     } catch (error) {
       setMessage("Lỗi: " + error.message);
@@ -293,16 +308,17 @@ export default function SalaryManagement() {
     <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "0" }}>
       {/* Welcome Header */}
       <div style={{
-        background: theme.gradients.primary,
-        color: theme.neutral.white,
-        padding: `${theme.spacing["2xl"]} ${theme.spacing.xl}`,
-        borderRadius: `${theme.radius.xl} ${theme.radius.xl} 0 0`
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        color: "#fff",
+        padding: "48px 40px",
+        borderRadius: "16px 16px 0 0",
+        boxShadow: "0 4px 20px rgba(102, 126, 234, 0.3)"
       }}>
-        <h1 style={{ margin: "0 0 12px 0", fontSize: theme.typography.h2.fontSize, fontWeight: "700" }}>
-          Quản Lý Lương
+        <h1 style={{ margin: "0 0 12px 0", fontSize: "36px", fontWeight: "700" }}>
+          💰 Payroll Management
         </h1>
-        <p style={{ margin: 0, fontSize: theme.typography.body.fontSize, opacity: 0.95 }}>
-          Quản lý quy tắc tính lương và bảng lương nhân viên. Thiết lập các quy tắc thưởng/phạt dựa trên chấm công và tính lương tự động.
+        <p style={{ margin: 0, fontSize: "16px", opacity: 0.95 }}>
+          Manage payroll rules and employee payroll. Set up bonus/penalty rules based on attendance and automatic payroll calculation.
         </p>
       </div>
 
@@ -316,10 +332,10 @@ export default function SalaryManagement() {
         {message && (
           <div style={{
             padding: "16px 20px",
-            backgroundColor: message.includes("thành công") ? "#d4edda" : "#f8d7da",
-            border: `2px solid ${message.includes("thành công") ? "#c3e6cb" : "#f5c6cb"}`,
-            borderRadius: "8px",
-            color: message.includes("thành công") ? "#155724" : "#721c24",
+            backgroundColor: (message.includes("successfully") || message.includes("thành công")) ? "#d4edda" : "#f8d7da",
+            border: `2px solid ${(message.includes("successfully") || message.includes("thành công")) ? "#c3e6cb" : "#f5c6cb"}`,
+            borderRadius: "12px",
+            color: (message.includes("successfully") || message.includes("thành công")) ? "#155724" : "#721c24",
             marginBottom: "24px",
             fontSize: "14px",
             fontWeight: "500",
@@ -350,7 +366,7 @@ export default function SalaryManagement() {
               border: "none",
               borderRadius: "8px",
               backgroundColor: activeTab === "salaries" ? "#fff" : "transparent",
-              color: activeTab === "salaries" ? theme.primary.main : theme.neutral.gray600,
+              color: activeTab === "salaries" ? "#667eea" : "#666",
               fontWeight: "700",
               cursor: "pointer",
               fontSize: "15px",
@@ -367,7 +383,7 @@ export default function SalaryManagement() {
           <div>
             <div style={{ marginBottom: "32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#1a1a1a" }}>
-                Quy Tắc Tính Lương
+                Payroll Rules
               </h2>
               <button
                 onClick={openCreateForm}
@@ -395,12 +411,12 @@ export default function SalaryManagement() {
                   e.currentTarget.style.boxShadow = "0 2px 8px rgba(40,167,69,0.3)";
                 }}
               >
-                Thêm Quy Tắc Mới
+                Add New Rule
               </button>
             </div>
 
             {loading ? (
-              <div style={{ textAlign: "center", padding: "60px", color: theme.neutral.gray600 }}>
+              <div style={{ textAlign: "center", padding: "60px", color: "#666" }}>
                 <div style={{ fontSize: "16px", fontWeight: "500" }}>Đang tải quy tắc...</div>
               </div>
             ) : rules.length === 0 ? (
@@ -411,11 +427,12 @@ export default function SalaryManagement() {
                 borderRadius: "12px",
                 border: "2px dashed #dee2e6"
               }}>
+                <div style={{ fontSize: "64px", marginBottom: "16px" }}>📋</div>
                 <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#333", marginBottom: "8px" }}>
-                  Chưa có quy tắc nào
+                  No rules yet
                 </h3>
                 <p style={{ fontSize: "14px", color: "#666" }}>
-                  Hãy thêm quy tắc đầu tiên để bắt đầu tính lương tự động
+                  Add your first rule to enable automatic payroll calculation
                 </p>
               </div>
             ) : (
@@ -460,7 +477,7 @@ export default function SalaryManagement() {
                       backgroundColor: rule.isActive ? "#d4edda" : "#f8d7da",
                       color: rule.isActive ? "#155724" : "#721c24"
                     }}>
-                      {rule.isActive ? "Kích hoạt" : "Tắt"}
+                      {rule.isActive ? "Active" : "Inactive"}
                     </div>
 
                     {/* Rule Type Badge */}
@@ -492,16 +509,16 @@ export default function SalaryManagement() {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ fontSize: "13px", color: "#666", fontWeight: "500" }}>Trigger:</span>
                         <span style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600" }}>
-                          {rule.triggerType === "late" ? "Muộn" :
-                           rule.triggerType === "early_leave" ? "Về sớm" :
-                           rule.triggerType === "overtime" ? "Tăng ca" :
-                           rule.triggerType === "absent" ? "Vắng mặt" :
-                           rule.triggerType === "full_attendance" ? "Chuyên cần" :
+                          {rule.triggerType === "late" ? "Late" :
+                           rule.triggerType === "early_leave" ? "Early Leave" :
+                           rule.triggerType === "overtime" ? "Overtime" :
+                           rule.triggerType === "absent" ? "Absent" :
+                           rule.triggerType === "full_attendance" ? "Full Attendance" :
                            rule.triggerType}
                         </span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: "13px", color: "#666", fontWeight: "500" }}>Số tiền:</span>
+                        <span style={{ fontSize: "13px", color: "#666", fontWeight: "500" }}>Amount:</span>
                         <span style={{
                           fontSize: "16px",
                           color: rule.type === "bonus" ? "#28a745" : "#dc3545",
@@ -512,7 +529,7 @@ export default function SalaryManagement() {
                       </div>
                       {rule.threshold && (
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: "13px", color: "#666", fontWeight: "500" }}>Ngưỡng:</span>
+                          <span style={{ fontSize: "13px", color: "#666", fontWeight: "500" }}>Threshold:</span>
                           <span style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600" }}>
                             {rule.threshold}
                           </span>
@@ -556,7 +573,7 @@ export default function SalaryManagement() {
                         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#0056b3"}
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#007bff"}
                       >
-                        Sửa
+                        Edit
                       </button>
                       <button
                         onClick={() => handleDeleteRule(rule.id)}
@@ -574,7 +591,7 @@ export default function SalaryManagement() {
                         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#c82333"}
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#dc3545"}
                       >
-                        Xóa
+                        Delete
                       </button>
                     </div>
                   </div>
@@ -598,13 +615,31 @@ export default function SalaryManagement() {
             }}>
               <div>
                 <h2 style={{ margin: "0 0 8px 0", fontSize: "24px", fontWeight: "700", color: "#1a1a1a" }}>
-                  Bảng Lương Tháng {selectedMonth}/{selectedYear}
+                  Payroll for {new Date(selectedYear, selectedMonth - 1).toLocaleString("en-US", { month: "long" })} {selectedYear}
                 </h2>
                 <div style={{ fontSize: "14px", color: "#666" }}>
-                  {employees.length} nhân viên • {salaries.length} bảng lương đã tính
+                  {employees.length} employees • {salaries.length} payrolls • Showing {filteredSalaries.length} {filterStatus !== "all" ? `(${filterStatus})` : ""}
                 </div>
               </div>
-              <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  style={{
+                    padding: "10px 16px",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    cursor: "pointer",
+                    backgroundColor: "#fff"
+                  }}
+                >
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="paid">Paid</option>
+                </select>
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
@@ -622,7 +657,7 @@ export default function SalaryManagement() {
                   onMouseLeave={(e) => e.currentTarget.style.borderColor = "#e0e0e0"}
                 >
                   {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                    <option key={m} value={m}>Tháng {m}</option>
+                    <option key={m} value={m}>{new Date(2000, m - 1).toLocaleString("en-US", { month: "long" })}</option>
                   ))}
                 </select>
                 <select
@@ -647,7 +682,7 @@ export default function SalaryManagement() {
                 </select>
                 <button
                   onClick={async () => {
-                    if (!window.confirm(`Tính lương cho tất cả ${employees.length} nhân viên?`)) return;
+                    if (!window.confirm(`Calculate payroll for all ${employees.length} employees?`)) return;
                     setLoading(true);
                     try {
                       const token = localStorage.getItem("authToken");
@@ -671,7 +706,7 @@ export default function SalaryManagement() {
                           failCount++;
                         }
                       }
-                      setMessage(`Tính lương thành công: ${successCount}/${employees.length} nhân viên${failCount > 0 ? ` (${failCount} lỗi)` : ''}`);
+                      setMessage(`Payroll calculated: ${successCount}/${employees.length} employees${failCount > 0 ? ` (${failCount} errors)` : ''}`);
                       fetchSalaries();
                       setTimeout(() => setMessage(""), 5000);
                     } catch (error) {
@@ -704,10 +739,10 @@ export default function SalaryManagement() {
                     e.currentTarget.style.transform = "translateY(0)";
                   }}
                 >
-                  {loading ? "Đang tính..." : "Tính lương tất cả"}
+                  {loading ? "Calculating..." : "Calculate All"}
                 </button>
                 <button
-                  onClick={() => exportSalariesToExcel(salaries, `bang-luong-${selectedMonth}-${selectedYear}`)}
+                  onClick={() => exportSalariesToExcel(salaries, `payroll-${selectedMonth}-${selectedYear}`)}
                   disabled={salaries.length === 0}
                   style={{
                     padding: "10px 20px",
@@ -733,16 +768,17 @@ export default function SalaryManagement() {
                     e.currentTarget.style.backgroundColor = "#007bff";
                   }}
                 >
-                  Xuất Excel
+                  Export Excel
                 </button>
               </div>
             </div>
 
             {loading ? (
-              <div style={{ textAlign: "center", padding: "60px", color: theme.neutral.gray600 }}>
-                <div style={{ fontSize: "16px", fontWeight: "500" }}>Đang tải bảng lương...</div>
+              <div style={{ textAlign: "center", padding: "60px", color: "#666" }}>
+                <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏳</div>
+                <div style={{ fontSize: "16px", fontWeight: "500" }}>Loading payroll...</div>
               </div>
-            ) : salaries.length === 0 ? (
+            ) : filteredSalaries.length === 0 ? (
               <div style={{
                 textAlign: "center",
                 padding: "60px 40px",
@@ -750,11 +786,14 @@ export default function SalaryManagement() {
                 borderRadius: "12px",
                 border: "2px dashed #dee2e6"
               }}>
+                <div style={{ fontSize: "64px", marginBottom: "16px" }}>📭</div>
                 <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#333", marginBottom: "8px" }}>
-                  Chưa có dữ liệu lương
+                  {salaries.length === 0 ? "No payroll data" : `No ${filterStatus === "all" ? "" : filterStatus + " "}payrolls`}
                 </h3>
                 <p style={{ fontSize: "14px", color: "#666" }}>
-                  Chưa có dữ liệu lương cho tháng {selectedMonth}/{selectedYear}
+                  {salaries.length === 0
+                    ? `No payroll data for ${new Date(selectedYear, selectedMonth - 1).toLocaleString("en-US", { month: "long" })} ${selectedYear}`
+                    : `Try changing the status filter or month/year`}
                 </p>
               </div>
             ) : (
@@ -763,7 +802,7 @@ export default function SalaryManagement() {
                 gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))",
                 gap: "24px"
               }}>
-                {salaries.map(salary => (
+                {paginatedSalaries.map(salary => (
                   <div
                     key={salary.id}
                     style={{
@@ -799,7 +838,7 @@ export default function SalaryManagement() {
                       backgroundColor: salary.status === "paid" ? "#d4edda" : salary.status === "approved" ? "#d1ecf1" : "#fff3cd",
                       color: salary.status === "paid" ? "#155724" : salary.status === "approved" ? "#0c5460" : "#856404"
                     }}>
-                      {salary.status === "paid" ? "Đã thanh toán" : salary.status === "approved" ? "Đã duyệt" : "Chờ duyệt"}
+                      {salary.status === "paid" ? "Paid" : salary.status === "approved" ? "Approved" : "Pending"}
                     </div>
 
                     {/* Employee Info */}
@@ -877,7 +916,7 @@ export default function SalaryManagement() {
                               letterSpacing: "0.5px",
                               marginBottom: "12px"
                             }}>
-                              Thu nhập
+                              Income
                             </div>
                       <div style={{
                         display: "flex",
@@ -885,7 +924,7 @@ export default function SalaryManagement() {
                         alignItems: "center",
                               marginBottom: "8px"
                       }}>
-                        <span style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>Lương cơ bản:</span>
+                        <span style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>Base Salary:</span>
                               <span style={{ fontSize: "15px", color: "#1a1a1a", fontWeight: "600" }}>
                                 {formatCurrency(baseSalary)}
                         </span>
@@ -897,7 +936,7 @@ export default function SalaryManagement() {
                         alignItems: "center",
                                 marginBottom: "8px"
                               }}>
-                                <span style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>Tổng hệ số: {totalCoefficient.toFixed(2)}</span>
+                                <span style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>Total coefficient: {totalCoefficient.toFixed(2)}</span>
                                 <span style={{ fontSize: "15px", color: "#1a1a1a", fontWeight: "600" }}>
                                   {formatCurrency(salaryCalc?.grossSalary || baseSalary * totalCoefficient)}
                                 </span>
@@ -910,7 +949,7 @@ export default function SalaryManagement() {
                                 alignItems: "center",
                                 marginBottom: "8px"
                       }}>
-                        <span style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>Thưởng:</span>
+                        <span style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>Bonus:</span>
                                 <span style={{ fontSize: "15px", color: "#10b981", fontWeight: "600" }}>
                                   +{formatCurrency(bonus)}
                         </span>
@@ -923,7 +962,7 @@ export default function SalaryManagement() {
                         alignItems: "center",
                                 marginBottom: "8px"
                       }}>
-                        <span style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>Khấu trừ:</span>
+                        <span style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>Deduction:</span>
                                 <span style={{ fontSize: "15px", color: "#ef4444", fontWeight: "600" }}>
                                   -{formatCurrency(deduction)}
                         </span>
@@ -937,7 +976,7 @@ export default function SalaryManagement() {
                               marginTop: "12px",
                               borderTop: "1px solid #e0e0e0"
                             }}>
-                              <span style={{ fontSize: "15px", color: "#1a1a1a", fontWeight: "700" }}>Tổng thu nhập (Gross):</span>
+                              <span style={{ fontSize: "15px", color: "#1a1a1a", fontWeight: "700" }}>Total Income (Gross):</span>
                               <span style={{ fontSize: "18px", color: "#6366f1", fontWeight: "700" }}>
                                 {formatCurrency(salaryCalc?.grossSalary || baseSalary + bonus - deduction)}
                               </span>
@@ -956,7 +995,7 @@ export default function SalaryManagement() {
                                   letterSpacing: "0.5px",
                                   marginBottom: "12px"
                                 }}>
-                                  Bảo hiểm (NLĐ đóng)
+                                  Insurance (Employee)
                                 </div>
                                 <div style={{
                                   display: "flex",
@@ -1016,7 +1055,7 @@ export default function SalaryManagement() {
                                   letterSpacing: "0.5px",
                                   marginBottom: "12px"
                                 }}>
-                                  Thuế TNCN
+                                  PIT (Personal Income Tax)
                                 </div>
                                 {dependents > 0 && (
                                   <div style={{
@@ -1025,7 +1064,7 @@ export default function SalaryManagement() {
                                     alignItems: "center",
                                     marginBottom: "6px"
                                   }}>
-                                    <span style={{ fontSize: "13px", color: "#666" }}>Giảm trừ ({dependents} người phụ thuộc):</span>
+                                    <span style={{ fontSize: "13px", color: "#666" }}>Deduction ({dependents} dependents):</span>
                                     <span style={{ fontSize: "14px", color: "#10b981", fontWeight: "600" }}>
                                       -{formatCurrency(salaryCalc.tax.personalDeduction)}
                                     </span>
@@ -1039,7 +1078,7 @@ export default function SalaryManagement() {
                                   marginTop: "8px",
                                   borderTop: "1px solid #e0e0e0"
                                 }}>
-                                  <span style={{ fontSize: "14px", color: "#666", fontWeight: "600" }}>Thuế TNCN:</span>
+                                  <span style={{ fontSize: "14px", color: "#666", fontWeight: "600" }}>PIT:</span>
                                   <span style={{ fontSize: "15px", color: "#ef4444", fontWeight: "700" }}>
                                     {formatCurrency(salaryCalc.tax.pit)}
                                   </span>
@@ -1059,7 +1098,7 @@ export default function SalaryManagement() {
                               justifyContent: "space-between",
                               alignItems: "center"
                             }}>
-                              <span style={{ fontSize: "16px", color: "#1a1a1a", fontWeight: "700" }}>Thực lĩnh (Net):</span>
+                              <span style={{ fontSize: "16px", color: "#1a1a1a", fontWeight: "700" }}>Net Pay:</span>
                         <span style={{
                                 fontSize: "26px",
                                 color: "#6366f1",
@@ -1097,10 +1136,59 @@ export default function SalaryManagement() {
                         e.currentTarget.style.transform = "translateY(0)";
                       }}
                     >
-                      Tính lại lương
+                      Recalculate
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Pagination */}
+            {!loading && salaries.length > 0 && totalPages > 1 && (
+              <div style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "8px",
+                marginTop: "32px",
+                paddingTop: "24px",
+                borderTop: "1px solid #e8e8e8"
+              }}>
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  style={{
+                    padding: "8px 16px",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "8px",
+                    backgroundColor: "#fff",
+                    cursor: page <= 1 ? "not-allowed" : "pointer",
+                    fontWeight: "600",
+                    fontSize: "14px",
+                    opacity: page <= 1 ? 0.5 : 1
+                  }}
+                >
+                  Previous
+                </button>
+                <span style={{ fontSize: "14px", fontWeight: "600", color: "#333", padding: "0 16px" }}>
+                  Page {page} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  style={{
+                    padding: "8px 16px",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "8px",
+                    backgroundColor: "#fff",
+                    cursor: page >= totalPages ? "not-allowed" : "pointer",
+                    fontWeight: "600",
+                    fontSize: "14px",
+                    opacity: page >= totalPages ? 0.5 : 1
+                  }}
+                >
+                  Next
+                </button>
               </div>
             )}
           </div>
@@ -1146,13 +1234,13 @@ export default function SalaryManagement() {
               <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                 <div>
                   <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "14px", color: "#495057" }}>
-                    Tên quy tắc *
+                    Rule Name *
                   </label>
                   <input
                     type="text"
                     value={ruleForm.name}
                     onChange={(e) => setRuleForm({...ruleForm, name: e.target.value})}
-                    placeholder="Ví dụ: Trừ lương khi muộn"
+                    placeholder="e.g., Deduct for late"
                     style={{
                       width: "100%",
                       padding: "12px 16px",
@@ -1181,8 +1269,8 @@ export default function SalaryManagement() {
                         cursor: "pointer"
                       }}
                     >
-                      <option value="bonus">Thưởng</option>
-                      <option value="deduction">Khấu trừ</option>
+                      <option value="bonus">Bonus</option>
+                      <option value="deduction">Deduction</option>
                     </select>
                   </div>
 
@@ -1214,7 +1302,7 @@ export default function SalaryManagement() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                   <div>
                     <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "14px", color: "#495057" }}>
-                      Loại số tiền *
+                      Amount Type *
                     </label>
                     <select
                       value={ruleForm.amountType}
@@ -1228,20 +1316,20 @@ export default function SalaryManagement() {
                         cursor: "pointer"
                       }}
                     >
-                      <option value="fixed">Cố định (VND)</option>
-                      <option value="percentage">% Phần trăm lương cơ bản</option>
+                      <option value="fixed">Fixed (VND)</option>
+                      <option value="percentage">% of base salary</option>
                     </select>
                   </div>
 
                   <div>
                     <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "14px", color: "#495057" }}>
-                      Số tiền / % *
+                      Amount / % *
                     </label>
                     <input
                       type="number"
                       value={ruleForm.amount}
                       onChange={(e) => setRuleForm({...ruleForm, amount: e.target.value})}
-                      placeholder={ruleForm.amountType === "percentage" ? "Ví dụ: 10" : "Ví dụ: 50000"}
+                      placeholder={ruleForm.amountType === "percentage" ? "e.g., 10" : "e.g., 50000"}
                       style={{
                         width: "100%",
                         padding: "12px 16px",
@@ -1255,13 +1343,13 @@ export default function SalaryManagement() {
 
                 <div>
                   <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "14px", color: "#495057" }}>
-                    Ngưỡng (tùy chọn)
+                    Threshold (optional)
                   </label>
                   <input
                     type="number"
                     value={ruleForm.threshold}
                     onChange={(e) => setRuleForm({...ruleForm, threshold: e.target.value})}
-                    placeholder="Ví dụ: Số lần muộn tối thiểu để áp dụng"
+                    placeholder="e.g., Minimum late count to apply"
                     style={{
                       width: "100%",
                       padding: "12px 16px",
@@ -1271,18 +1359,18 @@ export default function SalaryManagement() {
                     }}
                   />
                   <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>
-                    Áp dụng khi số lần/giờ {'>='} ngưỡng này
+                    Apply when count/hours {'>='} this threshold
                   </div>
                 </div>
 
                 <div>
                   <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "14px", color: "#495057" }}>
-                    Mô tả
+                    Description
                   </label>
                   <textarea
                     value={ruleForm.description}
                     onChange={(e) => setRuleForm({...ruleForm, description: e.target.value})}
-                    placeholder="Mô tả chi tiết về quy tắc này..."
+                    placeholder="Describe this rule..."
                     rows={3}
                     style={{
                       width: "100%",
@@ -1306,7 +1394,7 @@ export default function SalaryManagement() {
                       style={{ width: "18px", height: "18px", cursor: "pointer" }}
                     />
                     <label htmlFor="isActive" style={{ fontSize: "14px", fontWeight: "500", cursor: "pointer" }}>
-                      Kích hoạt quy tắc
+                      Enable rule
                     </label>
                   </div>
                 </div>
@@ -1332,7 +1420,7 @@ export default function SalaryManagement() {
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#5a6268"}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#6c757d"}
                   >
-                    Hủy
+                    Cancel
                   </button>
                   <button
                     onClick={() => editingRule ? handleUpdateRule(editingRule.id) : handleCreateRule()}
@@ -1359,7 +1447,7 @@ export default function SalaryManagement() {
                       e.currentTarget.style.backgroundColor = editingRule ? "#007bff" : "#28a745";
                     }}
                   >
-                    {editingRule ? "Cập nhật" : "Tạo mới"}
+                    {editingRule ? "Update" : "Create"}
                   </button>
                 </div>
               </div>
