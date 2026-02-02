@@ -1,7 +1,28 @@
 import React, { useEffect, useRef, useState } from "react";
-import { theme, commonStyles } from "../styles/theme.js";
+import { theme } from "../styles/theme.js";
 import * as faceapi from "face-api.js";
 import { JOB_COEFFICIENTS, EDUCATION_COEFFICIENTS, CERTIFICATE_COEFFICIENTS } from "../utils/salaryCalculation.js";
+import { filterNumbersFromName, validateName, validateEmail, validateEmployeeCode, validatePassword } from "../utils/validationUtils.js";
+
+const JOB_LABELS = {
+  "Nhân viên CNTT": "IT Staff",
+  "Chuyên viên CNTT": "IT Specialist",
+  "Chuyên viên chính": "Senior Specialist",
+  "Phó phòng CNTT": "IT Deputy Manager",
+  "Trưởng phòng CNTT": "IT Manager",
+  "Nhân viên": "Employee",
+  "Chuyên viên": "Specialist",
+  "Phó phòng": "Deputy Manager",
+  "Trưởng phòng": "Manager",
+  "Phó giám đốc": "Deputy Director",
+  "Giám đốc": "Director",
+};
+const EDU_LABELS = {
+  "Trung cấp": "Vocational",
+  "Cao đẳng": "College",
+  "Đại học": "University",
+  "Sau đại học (ThS/TS)": "Postgraduate (Master/PhD)",
+};
 
 export default function EnrollmentForm() {
   const videoRef = useRef();
@@ -187,7 +208,7 @@ export default function EnrollmentForm() {
         .withFaceLandmarks();
 
       if (allDetections.length > 1) {
-        setMessage(`Phát hiện ${allDetections.length} khuôn mặt! Chỉ 1 khuôn mặt được phép. Vui lòng loại bỏ những người khác.`);
+        setMessage(`${allDetections.length} faces detected! Only 1 face is allowed. Please remove others from the frame.`);
         setLoading(false);
         return;
       }
@@ -214,19 +235,33 @@ export default function EnrollmentForm() {
 
   const handleSubmitEnrollment = async (e) => {
     e.preventDefault();
-    
-    if (!formData.name || !formData.email || !formData.employeeCode) {
-      setMessage("Vui lòng điền đầy đủ thông tin bắt buộc");
+
+    const nameCheck = validateName(formData.name);
+    if (!nameCheck.valid) {
+      setMessage(nameCheck.message);
+      return;
+    }
+    const emailCheck = validateEmail(formData.email);
+    if (!emailCheck.valid) {
+      setMessage(emailCheck.message);
+      return;
+    }
+    const codeCheck = validateEmployeeCode(formData.employeeCode);
+    if (!codeCheck.valid) {
+      setMessage(codeCheck.message);
       return;
     }
 
-    if (useCustomPassword && (!formData.password || formData.password.length < 6)) {
-      setMessage("Mật khẩu phải có ít nhất 6 ký tự");
-      return;
+    if (useCustomPassword) {
+      const pwdCheck = validatePassword(formData.password, true);
+      if (!pwdCheck.valid) {
+        setMessage(pwdCheck.message);
+        return;
+      }
     }
 
     if (!capturedDescriptor) {
-      setMessage("Vui lòng chụp ảnh khuôn mặt trước khi đăng ký");
+      setMessage("Please capture your face before submitting");
       return;
     }
 
@@ -257,7 +292,7 @@ export default function EnrollmentForm() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Đăng ký nhân viên thành công!");
+        setMessage("Employee registered successfully!");
         setGeneratedPassword(data.password);
         setPasswordGenerated(data.passwordGenerated || false);
         setFormData({ 
@@ -274,7 +309,7 @@ export default function EnrollmentForm() {
         setUseCustomPassword(false);
         setCapturedDescriptor(null);
       } else {
-        setMessage("Đăng ký thất bại: " + data.message);
+        setMessage("Registration failed: " + data.message);
         setGeneratedPassword(null);
         setPasswordGenerated(false);
       }
@@ -292,31 +327,16 @@ export default function EnrollmentForm() {
   };
 
   const welcomeStyle = {
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    color: "#fff",
     padding: "40px 32px",
     borderRadius: "16px 16px 0 0",
     marginBottom: "0"
   };
 
-  const titleStyle = {
-    fontSize: "32px",
-    fontWeight: "700",
-    color: "#1a1a1a",
-    marginBottom: "8px"
-  };
-
-  const subtitleStyle = {
-    fontSize: "15px",
-    color: "#666",
-    marginBottom: "32px"
-  };
-
   const contentCardStyle = {
-    backgroundColor: "#ffffff",
+    backgroundColor: theme.neutral.white,
     borderRadius: "0 0 16px 16px",
     padding: "40px 32px",
-    boxShadow: "0 4px 24px rgba(0,0,0,0.1)"
+    boxShadow: (theme.shadows && theme.shadows.lg) || "0 4px 24px rgba(0,0,0,0.1)"
   };
 
   const labelStyle = {
@@ -330,11 +350,11 @@ export default function EnrollmentForm() {
   const inputStyle = {
     width: "100%",
     padding: "12px 16px",
-    border: "2px solid #e0e0e0",
-    borderRadius: "8px",
+    border: `2px solid ${theme.neutral.gray200}`,
+    borderRadius: "10px",
     fontSize: "14px",
     boxSizing: "border-box",
-    transition: "all 0.3s"
+    transition: "all 0.2s"
   };
 
   const buttonStyle = {
@@ -350,31 +370,31 @@ export default function EnrollmentForm() {
 
   const primaryButtonStyle = {
     ...buttonStyle,
-    backgroundColor: "#007bff",
+    backgroundColor: theme.info.main,
     color: "#fff"
   };
 
   const successButtonStyle = {
     ...buttonStyle,
-    backgroundColor: "#28a745",
+    backgroundColor: theme.success.main,
     color: "#fff"
   };
 
   const secondaryButtonStyle = {
     ...buttonStyle,
-    backgroundColor: "#6c757d",
+    backgroundColor: theme.neutral.gray600,
     color: "#fff"
   };
 
   return (
     <div style={containerStyle}>
       {/* Welcome Header */}
-      <div style={welcomeStyle}>
-        <h1 style={{ margin: "0 0 12px 0", fontSize: "36px", fontWeight: "700" }}>
-          Đăng Ký Nhân Viên Mới
+      <div style={{ ...welcomeStyle, background: "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)" }}>
+        <h1 style={{ margin: "0 0 12px 0", fontSize: "28px", fontWeight: "700", color: "#fff" }}>
+          New Employee Registration
         </h1>
-        <p style={{ margin: 0, fontSize: "16px", opacity: 0.95 }}>
-          Chào mừng bạn đến với hệ thống đăng ký nhân viên! Vui lòng điền thông tin và chụp ảnh khuôn mặt để hoàn tất đăng ký.
+        <p style={{ margin: 0, fontSize: "15px", opacity: 0.95, color: "#fff" }}>
+          Fill in the form below and capture your face to complete registration. Fields marked with * are required.
         </p>
       </div>
 
@@ -383,11 +403,11 @@ export default function EnrollmentForm() {
         {message && (
           <div style={{
             padding: "16px 20px",
-            backgroundColor: message.includes("thành công") ? "#d4edda" : "#f8d7da",
-            border: `2px solid ${message.includes("thành công") ? "#c3e6cb" : "#f5c6cb"}`,
-            borderRadius: "8px",
-            color: message.includes("thành công") ? "#155724" : "#721c24",
-            marginBottom: "28px",
+            backgroundColor: /success|captured successfully/i.test(message) ? theme.success.bg : /failed|error|denied|required|cannot|invalid|please enter/i.test(message) ? theme.error.bg : theme.info.bg,
+            border: `2px solid ${/success|captured successfully/i.test(message) ? theme.success.border : /failed|error|denied|required|cannot|invalid|please enter/i.test(message) ? theme.error.border : theme.info.border}`,
+            borderRadius: "10px",
+            color: /success|captured successfully/i.test(message) ? theme.success.text : /failed|error|denied|required|cannot|invalid|please enter/i.test(message) ? theme.error.text : theme.info.text,
+            marginBottom: "24px",
             fontSize: "14px",
             fontWeight: "500",
             display: "flex",
@@ -408,8 +428,8 @@ export default function EnrollmentForm() {
                 type="text"
                 style={inputStyle}
                 value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                placeholder="e.g., John Doe"
+                onChange={(e) => setFormData({...formData, name: filterNumbersFromName(e.target.value)})}
+                placeholder="Nguyễn Văn A"
               />
             </div>
 
@@ -420,7 +440,7 @@ export default function EnrollmentForm() {
                 style={inputStyle}
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
-                placeholder="e.g., john@company.com"
+                placeholder="john@company.com"
               />
             </div>
 
@@ -431,41 +451,41 @@ export default function EnrollmentForm() {
                 style={inputStyle}
                 value={formData.employeeCode}
                 onChange={(e) => setFormData({...formData, employeeCode: e.target.value})}
-                placeholder="e.g., EMP001"
+                placeholder="EMP001"
               />
             </div>
 
             {/* Job Title */}
             <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Chức vụ *</label>
+              <label style={labelStyle}>Job Title *</label>
               <select
                 style={inputStyle}
                 value={formData.jobTitle}
                 onChange={(e) => setFormData({...formData, jobTitle: e.target.value})}
               >
                 {Object.keys(JOB_COEFFICIENTS).map(job => (
-                  <option key={job} value={job}>{job}</option>
+                  <option key={job} value={job}>{JOB_LABELS[job] || job}</option>
                 ))}
               </select>
             </div>
 
             {/* Education Level */}
             <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Trình độ *</label>
+              <label style={labelStyle}>Education Level *</label>
               <select
                 style={inputStyle}
                 value={formData.educationLevel}
                 onChange={(e) => setFormData({...formData, educationLevel: e.target.value})}
               >
                 {Object.keys(EDUCATION_COEFFICIENTS).map(edu => (
-                  <option key={edu} value={edu}>{edu}</option>
+                  <option key={edu} value={edu}>{EDU_LABELS[edu] || edu}</option>
                 ))}
               </select>
             </div>
 
             {/* Certificates */}
             <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Chứng chỉ (có thể chọn nhiều)</label>
+              <label style={labelStyle}>Certificates (select multiple)</label>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
                 {Object.keys(CERTIFICATE_COEFFICIENTS).map(cert => (
                   <label key={cert} style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
@@ -489,7 +509,7 @@ export default function EnrollmentForm() {
 
             {/* Dependents */}
             <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Số người phụ thuộc</label>
+              <label style={labelStyle}>Number of Dependents</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -502,7 +522,7 @@ export default function EnrollmentForm() {
 
             {/* Base Salary */}
             <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Lương cơ sở (VNĐ)</label>
+              <label style={labelStyle}>Base Salary (VND)</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -511,8 +531,8 @@ export default function EnrollmentForm() {
                 min="0"
                 placeholder="1800000"
               />
-              <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>
-                Mặc định: 1,800,000 VNĐ (lương cơ sở Nhà nước)
+              <div style={{ fontSize: "12px", color: theme.neutral.gray600, marginTop: "4px" }}>
+                Default: 1,800,000 VND (state base salary)
               </div>
             </div>
 
@@ -531,22 +551,22 @@ export default function EnrollmentForm() {
                   style={{ marginRight: "8px", width: "16px", height: "16px", cursor: "pointer" }}
                 />
                 <label htmlFor="useCustomPassword" style={{ ...labelStyle, margin: 0, cursor: "pointer", fontWeight: "500" }}>
-                  Tạo mật khẩu tùy chỉnh (nếu không chọn, hệ thống sẽ tự động tạo mật khẩu)
+                  Use custom password (leave unchecked for auto-generated password)
                 </label>
               </div>
               {useCustomPassword && (
                 <div>
-                  <label style={{...labelStyle, marginTop: "8px"}}>Mật khẩu *</label>
+                  <label style={{...labelStyle, marginTop: "8px"}}>Password *</label>
                   <input
                     type="password"
                     style={inputStyle}
                     value={formData.password}
                     onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    placeholder="Nhập mật khẩu cho nhân viên"
+                    placeholder="Enter password for employee"
                     minLength={6}
                   />
-                  <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>
-                    Mật khẩu phải có ít nhất 6 ký tự
+                  <div style={{ fontSize: "12px", color: theme.neutral.gray600, marginTop: "4px" }}>
+                    Password must be at least 6 characters
                   </div>
                 </div>
               )}
@@ -555,20 +575,20 @@ export default function EnrollmentForm() {
             <div style={{ 
               marginBottom: "24px", 
               paddingTop: "16px", 
-              borderTop: "1px solid #e0e0e0"
+              borderTop: `1px solid ${theme.neutral.gray200}`
             }}>
               <label style={labelStyle}>Face Recognition Status</label>
               <div style={{
-                padding: "12px",
-                borderRadius: "6px",
+                padding: "12px 16px",
+                borderRadius: "10px",
                 fontSize: "13px",
                 fontWeight: "500",
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
-                backgroundColor: capturedDescriptor ? "#d4edda" : "#fff3cd",
-                border: "1px solid " + (capturedDescriptor ? "#c3e6cb" : "#ffeaa7"),
-                color: capturedDescriptor ? "#155724" : "#856404"
+                backgroundColor: capturedDescriptor ? theme.success.bg : theme.warning.bg,
+                border: `2px solid ${capturedDescriptor ? theme.success.border : theme.warning.border}`,
+                color: capturedDescriptor ? theme.success.text : theme.warning.text
               }}>
                 <span style={{
                   width: "8px",
@@ -719,24 +739,24 @@ export default function EnrollmentForm() {
         <div style={{
           marginTop: "32px",
           padding: "24px",
-          backgroundColor: "#f8f9fa",
+          backgroundColor: theme.success.bg,
           borderRadius: "12px",
-          border: "2px solid #28a745"
+          border: `2px solid ${theme.success.border}`
         }}>
-          <div style={{ fontWeight: "700", marginBottom: "16px", color: "#155724", fontSize: "18px" }}>
-            {passwordGenerated ? "Mật khẩu đã được tạo tự động" : "Mật khẩu đã được tạo"}
+          <div style={{ fontWeight: "700", marginBottom: "16px", color: theme.success.text, fontSize: "18px" }}>
+            {passwordGenerated ? "Password was auto-generated" : "Password was created"}
           </div>
           <div style={{
             fontSize: "24px",
             fontFamily: "'Courier New', monospace",
             fontWeight: "700",
-            color: "#007bff",
-            backgroundColor: "#fff",
+            color: theme.info.main,
+            backgroundColor: theme.neutral.white,
             padding: "20px 24px",
-            borderRadius: "8px",
+            borderRadius: "10px",
             display: "block",
             letterSpacing: "3px",
-            border: "2px solid #007bff",
+            border: `2px solid ${theme.info.main}`,
             textAlign: "center",
             marginBottom: "16px"
           }}>
@@ -745,11 +765,11 @@ export default function EnrollmentForm() {
           <div style={{ 
             marginBottom: "16px", 
             padding: "16px", 
-            backgroundColor: "#fff3cd", 
-            borderRadius: "8px",
+            backgroundColor: theme.warning.bg, 
+            borderRadius: "10px",
             fontSize: "14px", 
-            color: "#856404",
-            border: "1px solid #ffc107"
+            color: theme.warning.text,
+            border: `2px solid ${theme.warning.border}`
           }}>
             <strong>Lưu ý quan trọng:</strong> Vui lòng ghi lại mật khẩu này và cung cấp cho nhân viên. Mật khẩu sẽ không được hiển thị lại sau khi bạn rời khỏi trang này.
           </div>
@@ -762,23 +782,23 @@ export default function EnrollmentForm() {
               btn.style.backgroundColor = "#28a745";
               setTimeout(() => {
                 btn.textContent = originalText;
-                btn.style.backgroundColor = "#007bff";
+                btn.style.backgroundColor = theme.info.main;
               }, 2000);
             }}
             style={{
               width: "100%",
               padding: "14px",
-              backgroundColor: "#007bff",
+              backgroundColor: theme.info.main,
               color: "#fff",
               border: "none",
-              borderRadius: "8px",
+              borderRadius: "10px",
               cursor: "pointer",
               fontSize: "15px",
               fontWeight: "600",
-              transition: "all 0.3s"
+              transition: "all 0.2s"
             }}
           >
-            Copy mật khẩu
+            Copy Password
           </button>
         </div>
       )}

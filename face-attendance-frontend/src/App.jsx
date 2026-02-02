@@ -79,11 +79,11 @@ function App() {
   }
 
   const navigationItems = [
-    { id: "enrollment", label: "Đăng ký nhân viên", shortcut: "1" },
-    { id: "dashboard", label: "Quản lý nhân viên", shortcut: "2" },
-    { id: "logs", label: "Lịch sử điểm danh", shortcut: "3" },
-    { id: "shifts", label: "Ca làm việc", shortcut: "4" },
-    { id: "salary", label: "Quản lý lương", shortcut: "5" },
+    { id: "enrollment", label: "Enroll Employee", shortcut: "1" },
+    { id: "dashboard", label: "Employee Management", shortcut: "2" },
+    { id: "logs", label: "Attendance History", shortcut: "3" },
+    { id: "shifts", label: "Work Schedule", shortcut: "4" },
+    { id: "salary", label: "Payroll Management", shortcut: "5" },
     { id: "leave", label: "Leave Management", shortcut: "6" },
     { id: "approvals", label: "Approval Management", shortcut: "7" },
     { id: "departments", label: "Department Management", shortcut: "8" },

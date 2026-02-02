@@ -54,7 +54,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         });
       }
     } catch (error) {
-      setMessage("Lỗi khi tải thông tin nhân viên");
+      setMessage("Error loading employee information");
     } finally {
       setLoading(false);
     }
@@ -105,23 +105,23 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Cập nhật thông tin thành công!");
+        setMessage("Information updated successfully!");
         setIsEditing(false);
         fetchEmployeeDetails();
         if (onUpdate) onUpdate();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể cập nhật"));
+        setMessage("Error: " + (data.message || "Unable to update"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleResetPassword = async () => {
-    if (!window.confirm("Bạn có chắc chắn muốn reset mật khẩu cho nhân viên này? Mật khẩu mới sẽ là: Password123!")) {
+    if (!window.confirm("Are you sure you want to reset the password for this employee? The new password will be: Password123!")) {
       return;
     }
 
@@ -139,14 +139,14 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       const data = await res.json();
       if (res.ok) {
         setNewPassword(data.newPassword);
-        setMessage(`Reset mật khẩu thành công!`);
+        setMessage("Password reset successfully!");
         fetchEmployeeDetails();
         setTimeout(() => setMessage(""), 5000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể reset mật khẩu"));
+        setMessage("Error: " + (data.message || "Unable to reset password"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setResettingPassword(false);
     }
@@ -281,7 +281,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                   fontSize: "14px"
                 }}
               >
-                ✏️ Chỉnh sửa
+                ✏️ Edit
               </button>
             )}
             <button
@@ -306,8 +306,8 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
           <div style={{
             padding: theme.spacing.md,
             margin: theme.spacing.md,
-            backgroundColor: message.includes("thành công") ? "#d4edda" : "#f8d7da",
-            color: message.includes("thành công") ? "#155724" : "#721c24",
+            backgroundColor: (message.includes("successfully") || message.includes("thành công")) ? "#d4edda" : "#f8d7da",
+            color: (message.includes("successfully") || message.includes("thành công")) ? "#155724" : "#721c24",
             borderRadius: theme.radius.md,
             fontSize: "14px"
           }}>
@@ -318,19 +318,19 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         {/* Tabs */}
         <div style={tabsStyle}>
           <button style={tabButtonStyle(activeTab === "info")} onClick={() => setActiveTab("info")}>
-            📋 Thông tin cá nhân
+            📋 Personal Info
           </button>
           <button style={tabButtonStyle(activeTab === "work")} onClick={() => setActiveTab("work")}>
-            💼 Thông tin công việc
+            💼 Work Info
           </button>
           <button style={tabButtonStyle(activeTab === "family")} onClick={() => setActiveTab("family")}>
-            👨‍👩‍👧‍👦 Gia đình
+            👨‍👩‍👧‍👦 Family
           </button>
           <button style={tabButtonStyle(activeTab === "qualifications")} onClick={() => setActiveTab("qualifications")}>
-            🎓 Bằng cấp
+            🎓 Qualifications
           </button>
           <button style={tabButtonStyle(activeTab === "attendance")} onClick={() => setActiveTab("attendance")}>
-            📍 Chuyên cần
+            📍 Attendance
           </button>
         </div>
 
@@ -338,7 +338,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         <div style={contentStyle}>
           {loading && !employeeDetails ? (
             <div style={{ textAlign: "center", padding: theme.spacing.xxl }}>
-              Đang tải thông tin...
+              Loading...
             </div>
           ) : (
             <>
@@ -346,11 +346,11 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
               {activeTab === "info" && (
                 <div>
                   <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
-                    Thông tin cá nhân
+                    Personal Information
                   </h3>
                   <div style={infoGridStyle}>
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Họ và tên *</label>
+                      <label style={labelStyle}>Full Name *</label>
                       {isEditing ? (
                         <input
                           type="text"
@@ -380,7 +380,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                     </div>
 
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Số điện thoại</label>
+                      <label style={labelStyle}>Phone Number</label>
                       {isEditing ? (
                         <input
                           type="text"
@@ -394,7 +394,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                     </div>
 
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Ngày sinh</label>
+                      <label style={labelStyle}>Date of Birth</label>
                       {isEditing ? (
                         <input
                           type="date"
@@ -404,35 +404,35 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         />
                       ) : (
                         <div style={valueStyle}>
-                          {employeeDetails?.dateOfBirth ? new Date(employeeDetails.dateOfBirth).toLocaleDateString('vi-VN') : "-"}
+                          {employeeDetails?.dateOfBirth ? new Date(employeeDetails.dateOfBirth).toLocaleDateString('en-US') : "-"}
                         </div>
                       )}
                     </div>
 
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Giới tính</label>
+                      <label style={labelStyle}>Gender</label>
                       {isEditing ? (
                         <select
                           value={editForm.gender}
                           onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
                           style={inputStyle}
                         >
-                          <option value="">Chọn giới tính</option>
-                          <option value="male">Nam</option>
-                          <option value="female">Nữ</option>
-                          <option value="other">Khác</option>
+                          <option value="">Select gender</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
                         </select>
                       ) : (
                         <div style={valueStyle}>
-                          {employeeDetails?.gender === "male" ? "Nam" : 
-                           employeeDetails?.gender === "female" ? "Nữ" : 
-                           employeeDetails?.gender === "other" ? "Khác" : "-"}
+                          {employeeDetails?.gender === "male" ? "Male" : 
+                           employeeDetails?.gender === "female" ? "Female" : 
+                           employeeDetails?.gender === "other" ? "Other" : "-"}
                         </div>
                       )}
                     </div>
 
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>CMND/CCCD</label>
+                      <label style={labelStyle}>ID Number</label>
                       {isEditing ? (
                         <input
                           type="text"
@@ -446,7 +446,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                     </div>
 
                     <div style={{ ...infoCardStyle, gridColumn: "1 / -1" }}>
-                      <label style={labelStyle}>Địa chỉ</label>
+                      <label style={labelStyle}>Address</label>
                       {isEditing ? (
                         <textarea
                           value={editForm.address}
@@ -461,7 +461,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
 
                     <div style={{ ...infoCardStyle, gridColumn: "1 / -1", backgroundColor: newPassword ? "#d4edda" : "#fff3cd", border: `2px solid ${newPassword ? "#28a745" : "#ffc107"}` }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing.xs }}>
-                        <label style={labelStyle}>Mật khẩu</label>
+                        <label style={labelStyle}>Password</label>
                         <button
                           onClick={handleResetPassword}
                           disabled={resettingPassword}
@@ -476,7 +476,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                             fontWeight: 600
                           }}
                         >
-                          {resettingPassword ? "⏳ Đang reset..." : "🔄 Reset mật khẩu"}
+                          {resettingPassword ? "⏳ Resetting..." : "🔄 Reset Password"}
                         </button>
                       </div>
                       {newPassword ? (
@@ -503,7 +503,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                             </span>
                           ) : (
                             <span style={{ color: theme.neutral.gray500 }}>
-                              {employeeDetails?.password ? "••••••••••••••••••••••••••••••••" : "Chưa có mật khẩu"}
+                              {employeeDetails?.password ? "••••••••••••••••••••••••••••••••" : "No password set"}
                             </span>
                           )}
                         </div>
@@ -511,10 +511,10 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                       <div style={{ fontSize: "11px", color: theme.neutral.gray600, marginTop: theme.spacing.xs, fontStyle: "italic" }}>
                         {newPassword ? (
                           <span style={{ color: theme.success.main, fontWeight: 600 }}>
-                            ✅ Mật khẩu mới đã được tạo! Vui lòng lưu lại thông tin này.
+                            ✅ New password has been generated! Please save this information.
                           </span>
                         ) : (
-                          "Mật khẩu được hash bằng bcrypt, không thể hiển thị dạng plain text. Sử dụng nút Reset để tạo mật khẩu mới (mặc định: Password123!)"
+                          "Password is hashed with bcrypt, cannot be displayed as plain text. Use Reset to create a new password (default: Password123!)"
                         )}
                       </div>
                       {!newPassword && employeeDetails?.password && (
@@ -531,7 +531,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                             fontWeight: 600
                           }}
                         >
-                          {showPassword ? "👁️ Ẩn hash" : "👁️ Hiện hash"}
+                          {showPassword ? "👁️ Hide hash" : "👁️ Show hash"}
                         </button>
                       )}
                     </div>
@@ -553,7 +553,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           fontSize: "16px"
                         }}
                       >
-                        {loading ? "Đang lưu..." : "💾 Lưu thay đổi"}
+                        {loading ? "Saving..." : "💾 Save Changes"}
                       </button>
                       <button
                         onClick={() => {
@@ -571,34 +571,34 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           fontSize: "16px"
                         }}
                       >
-                        Hủy
+                        Cancel
                       </button>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Tab: Thông tin công việc */}
+              {/* Tab: Work Info */}
               {activeTab === "work" && (
                 <div>
                   <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
-                    Thông tin công việc
+                    Work Information
                   </h3>
                   <div style={infoGridStyle}>
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Mã nhân viên</label>
+                      <label style={labelStyle}>Employee Code</label>
                       <div style={valueStyle}>{employeeDetails?.employeeCode || "-"}</div>
                     </div>
 
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Phòng ban</label>
+                      <label style={labelStyle}>Department</label>
                       {isEditing ? (
                         <select
                           value={editForm.departmentId || ""}
                           onChange={(e) => setEditForm({ ...editForm, departmentId: e.target.value ? parseInt(e.target.value) : null })}
                           style={inputStyle}
                         >
-                          <option value="">Chọn phòng ban</option>
+                          <option value="">Select department</option>
                           {departments.map(dept => (
                             <option key={dept.id} value={dept.id}>{dept.name}</option>
                           ))}
@@ -609,14 +609,14 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                     </div>
 
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Chức vụ</label>
+                      <label style={labelStyle}>Job Title</label>
                       {isEditing ? (
                         <select
                           value={editForm.jobTitleId || ""}
                           onChange={(e) => setEditForm({ ...editForm, jobTitleId: e.target.value ? parseInt(e.target.value) : null })}
                           style={inputStyle}
                         >
-                          <option value="">Chọn chức vụ</option>
+                          <option value="">Select job title</option>
                           {jobTitles.map(job => (
                             <option key={job.id} value={job.id}>{job.name}</option>
                           ))}
@@ -627,7 +627,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                     </div>
 
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Lương cơ bản (VNĐ)</label>
+                      <label style={labelStyle}>Base Salary (VND)</label>
                       {isEditing ? (
                         <input
                           type="number"
@@ -637,13 +637,13 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         />
                       ) : (
                         <div style={valueStyle}>
-                          {employeeDetails?.baseSalary ? new Intl.NumberFormat('vi-VN').format(employeeDetails.baseSalary) + " VNĐ" : "-"}
+                          {employeeDetails?.baseSalary ? new Intl.NumberFormat('en-US').format(employeeDetails.baseSalary) + " VND" : "-"}
                         </div>
                       )}
                     </div>
 
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Ngày vào làm</label>
+                      <label style={labelStyle}>Start Date</label>
                       {isEditing ? (
                         <input
                           type="date"
@@ -653,13 +653,13 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         />
                       ) : (
                         <div style={valueStyle}>
-                          {employeeDetails?.startDate ? new Date(employeeDetails.startDate).toLocaleDateString('vi-VN') : "-"}
+                          {employeeDetails?.startDate ? new Date(employeeDetails.startDate).toLocaleDateString('en-US') : "-"}
                         </div>
                       )}
                     </div>
 
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Trạng thái</label>
+                      <label style={labelStyle}>Status</label>
                       {isEditing ? (
                         <label style={{ display: "flex", alignItems: "center", gap: theme.spacing.sm }}>
                           <input
@@ -667,7 +667,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                             checked={editForm.isActive}
                             onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })}
                           />
-                          <span>Đang làm việc</span>
+                          <span>Active</span>
                         </label>
                       ) : (
                         <div style={valueStyle}>
@@ -679,14 +679,14 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                             fontSize: "12px",
                             fontWeight: 600
                           }}>
-                            {employeeDetails?.isActive ? "Đang làm việc" : "Đã nghỉ"}
+                            {employeeDetails?.isActive ? "Active" : "Inactive"}
                           </span>
                         </div>
                       )}
                     </div>
 
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Số tài khoản ngân hàng</label>
+                      <label style={labelStyle}>Bank Account</label>
                       {isEditing ? (
                         <input
                           type="text"
@@ -700,7 +700,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                     </div>
 
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Tên ngân hàng</label>
+                      <label style={labelStyle}>Bank Name</label>
                       {isEditing ? (
                         <input
                           type="text"
@@ -714,7 +714,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                     </div>
 
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Mã số thuế</label>
+                      <label style={labelStyle}>Tax Code</label>
                       {isEditing ? (
                         <input
                           type="text"
@@ -744,7 +744,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           fontSize: "16px"
                         }}
                       >
-                        {loading ? "Đang lưu..." : "💾 Lưu thay đổi"}
+                        {loading ? "Saving..." : "💾 Save Changes"}
                       </button>
                       <button
                         onClick={() => {
@@ -762,18 +762,18 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           fontSize: "16px"
                         }}
                       >
-                        Hủy
+                        Cancel
                       </button>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Tab: Gia đình */}
+              {/* Tab: Family */}
               {activeTab === "family" && (
                 <div>
                   <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
-                    Người phụ thuộc
+                    Dependents
                   </h3>
                   {employeeDetails?.Dependents && employeeDetails.Dependents.length > 0 ? (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: theme.spacing.md }}>
@@ -788,17 +788,17 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                             {dep.fullName}
                           </div>
                           <div style={{ fontSize: "14px", color: theme.neutral.gray600 }}>
-                            <div>Quan hệ: {dep.relationship}</div>
+                            <div>Relationship: {dep.relationship}</div>
                             {dep.dateOfBirth && (
-                              <div>Ngày sinh: {new Date(dep.dateOfBirth).toLocaleDateString('vi-VN')}</div>
+                              <div>Date of Birth: {new Date(dep.dateOfBirth).toLocaleDateString('en-US')}</div>
                             )}
-                            {dep.gender && <div>Giới tính: {dep.gender}</div>}
+                            {dep.gender && <div>Gender: {dep.gender}</div>}
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>Chưa có người phụ thuộc</p>
+                    <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No dependents</p>
                   )}
                 </div>
               )}
@@ -807,7 +807,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
               {activeTab === "qualifications" && (
                 <div>
                   <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
-                    Bằng cấp và chứng chỉ
+                    Qualifications and Certificates
                   </h3>
                   {employeeDetails?.Qualifications && employeeDetails.Qualifications.length > 0 ? (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: theme.spacing.md }}>
@@ -822,10 +822,10 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                             {qual.name}
                           </div>
                           <div style={{ fontSize: "14px", color: theme.neutral.gray600 }}>
-                            <div>Loại: {qual.type}</div>
-                            {qual.issuedBy && <div>Cấp bởi: {qual.issuedBy}</div>}
+                            <div>Type: {qual.type}</div>
+                            {qual.issuedBy && <div>Issued by: {qual.issuedBy}</div>}
                             {qual.issuedDate && (
-                              <div>Cấp ngày: {new Date(qual.issuedDate).toLocaleDateString('vi-VN')}</div>
+                              <div>Issued date: {new Date(qual.issuedDate).toLocaleDateString('en-US')}</div>
                             )}
                             {qual.documentPath && (
                               <a
@@ -834,7 +834,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                                 rel="noopener noreferrer"
                                 style={{ color: theme.primary.main, textDecoration: "underline", fontSize: "12px" }}
                               >
-                                Xem tài liệu
+                                View document
                               </a>
                             )}
                           </div>
@@ -842,46 +842,46 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                       ))}
                     </div>
                   ) : (
-                    <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>Chưa có bằng cấp hoặc chứng chỉ</p>
+                    <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No qualifications or certificates</p>
                   )}
                 </div>
               )}
 
-              {/* Tab: Chuyên cần */}
+              {/* Tab: Attendance */}
               {activeTab === "attendance" && (
                 <div>
                   <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
-                    Thống kê chuyên cần
+                    Attendance Statistics
                   </h3>
                   {employeeDetails?.attendanceStats ? (
                     <div style={infoGridStyle}>
                       <div style={infoCardStyle}>
-                        <label style={labelStyle}>Tổng ngày làm việc</label>
+                        <label style={labelStyle}>Total Days Worked</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.primary.main }}>
                           {employeeDetails.attendanceStats.totalDaysWorked || 0}
                         </div>
                       </div>
                       <div style={infoCardStyle}>
-                        <label style={labelStyle}>Số lần muộn</label>
+                        <label style={labelStyle}>Late Count</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.warning.main }}>
                           {employeeDetails.attendanceStats.totalLate || 0}
                         </div>
                       </div>
                       <div style={infoCardStyle}>
-                        <label style={labelStyle}>Số lần về sớm</label>
+                        <label style={labelStyle}>Early Leave Count</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.warning.main }}>
                           {employeeDetails.attendanceStats.totalEarlyLeave || 0}
                         </div>
                       </div>
                       <div style={infoCardStyle}>
-                        <label style={labelStyle}>Số ngày vắng</label>
+                        <label style={labelStyle}>Absent Days</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.error.main }}>
                           {employeeDetails.attendanceStats.totalAbsent || 0}
                         </div>
                       </div>
                     </div>
                   ) : (
-                    <p style={{ color: theme.neutral.gray500 }}>Chưa có dữ liệu chuyên cần</p>
+                    <p style={{ color: theme.neutral.gray500 }}>No attendance data</p>
                   )}
                 </div>
               )}

@@ -1,5 +1,4 @@
 import React, { useCallback, useState } from 'react';
-import { theme, commonStyles } from "../styles/theme.js";
 
 export default function ShiftAdmin() {
   const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
@@ -19,7 +18,7 @@ export default function ShiftAdmin() {
         setShift(null);
       }
     } catch (e) { 
-      setMessage('Lỗi tải cấu hình: '+e.message); 
+      setMessage('Error loading configuration: '+e.message); 
     } finally { 
       setLoading(false); 
     }
@@ -36,7 +35,7 @@ export default function ShiftAdmin() {
     const overtimeThresholdMinutes = parseInt(form.overtimeThresholdMinutes?.value) || 15;
     
     if (!startTime || !endTime) {
-      setMessage('Vui lòng điền Giờ bắt đầu và Giờ kết thúc');
+      setMessage('Please fill in Start time and End time');
       return;
     }
 
@@ -57,15 +56,15 @@ export default function ShiftAdmin() {
       });
       const data = await res.json();
       if (res.ok) {
-        setMessage('Lưu cấu hình thời gian làm việc thành công');
+        setMessage('Work schedule saved successfully');
         await fetchShift();
         setEditing(false);
         setTimeout(() => setMessage(''), 3000);
       } else {
-        setMessage('Lỗi: ' + (data.message || 'Không rõ'));
+        setMessage('Error: ' + (data.message || 'Unknown error'));
       }
     } catch (e) {
-      setMessage('❌ Lỗi: ' + e.message);
+      setMessage('Error: ' + e.message);
     } finally {
       setLoading(false);
     }
@@ -97,30 +96,30 @@ export default function ShiftAdmin() {
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
-        <h2 style={{ marginBottom: '8px', color: '#333' }}>Quản Lý Thời Gian Làm Việc</h2>
-        <p style={{ color: '#666', fontSize: '14px' }}>Cấu hình thời gian bắt đầu và kết thúc làm việc cho toàn công ty</p>
+        <h2 style={{ marginBottom: '8px', color: '#333' }}>Work Schedule Management</h2>
+        <p style={{ color: '#666', fontSize: '14px' }}>Configure start and end work times for the entire company</p>
       </div>
 
-      {message && <div style={message.includes('thành công') ? messageSuccess : messageError}>{message}</div>}
+      {message && <div style={(message.includes('successfully') || message.includes('thành công')) ? messageSuccess : messageError}>{message}</div>}
 
       {/* Display Current Settings */}
       {shift && !editing && (
         <div style={displayBox}>
           <div style={displayItem}>
-            <span style={{ fontSize: '13px', fontWeight: '600', color: '#333' }}>Giờ bắt đầu</span>
+            <span style={{ fontSize: '13px', fontWeight: '600', color: '#333' }}>Start Time</span>
             <span style={valueStyle}>{shift.startTime}</span>
           </div>
           <div style={displayItem}>
-            <span style={{ fontSize: '13px', fontWeight: '600', color: '#333' }}>Giờ kết thúc</span>
+            <span style={{ fontSize: '13px', fontWeight: '600', color: '#333' }}>End Time</span>
             <span style={valueStyle}>{shift.endTime}</span>
           </div>
           <div style={displayItem}>
-            <span style={{ fontSize: '13px', fontWeight: '600', color: '#333' }}>Thời gian cho phép muộn</span>
-            <span style={valueStyle}>{shift.gracePeriodMinutes} phút</span>
+            <span style={{ fontSize: '13px', fontWeight: '600', color: '#333' }}>Allowed Late Time</span>
+            <span style={valueStyle}>{shift.gracePeriodMinutes} min</span>
           </div>
           <div style={displayItemLast}>
-            <span style={{ fontSize: '13px', fontWeight: '600', color: '#333' }}>Ngưỡng tính OT</span>
-            <span style={valueStyle}>{shift.overtimeThresholdMinutes} phút</span>
+            <span style={{ fontSize: '13px', fontWeight: '600', color: '#333' }}>OT Threshold</span>
+            <span style={valueStyle}>{shift.overtimeThresholdMinutes} min</span>
           </div>
         </div>
       )}
@@ -129,28 +128,28 @@ export default function ShiftAdmin() {
       {editing || !shift ? (
         <form onSubmit={handleCreate} style={formStyle}>
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={labelStyle}>Giờ bắt đầu làm việc *</label>
+            <label style={labelStyle}>Start Time *</label>
             <input type="time" name="startTime" defaultValue={shift?.startTime || '08:00'} style={inputStyle} required />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={labelStyle}>Giờ kết thúc làm việc *</label>
+            <label style={labelStyle}>End Time *</label>
             <input type="time" name="endTime" defaultValue={shift?.endTime || '17:00'} style={inputStyle} required />
           </div>
           <div>
-            <label style={labelStyle}>Thời gian cho phép muộn (phút)</label>
+            <label style={labelStyle}>Allowed Late Time (minutes)</label>
             <input type="number" name="gracePeriodMinutes" defaultValue={shift?.gracePeriodMinutes || 5} min="0" max="60" style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>Ngưỡng tính tăng ca (phút)</label>
+            <label style={labelStyle}>OT Threshold (minutes)</label>
             <input type="number" name="overtimeThresholdMinutes" defaultValue={shift?.overtimeThresholdMinutes || 15} min="0" max="120" style={inputStyle} />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <button type="submit" style={buttonStyle} disabled={loading}>
-              {loading ? 'Đang lưu...' : (shift ? 'Cập nhật' : 'Tạo cấu hình')}
+              {loading ? 'Saving...' : (shift ? 'Update' : 'Create Configuration')}
             </button>
             {shift && editing && (
               <button type="button" style={buttonSecondary} onClick={() => setEditing(false)} disabled={loading}>
-                Hủy
+                Cancel
               </button>
             )}
           </div>
@@ -161,19 +160,19 @@ export default function ShiftAdmin() {
       {shift && !editing && (
         <div style={{ marginBottom: '24px' }}>
           <button style={buttonStyle} onClick={() => setEditing(true)} disabled={loading}>
-            Sửa cấu hình
+            Edit Configuration
           </button>
         </div>
       )}
 
       {/* Info Box */}
       <div style={{ backgroundColor: '#fff3cd', border: '1px solid #ffeaa7', color: '#856404', padding: '16px', borderRadius: '6px', fontSize: '13px' }}>
-        <div style={{ fontWeight: '600', marginBottom: '8px' }}>Ghi chú:</div>
+        <div style={{ fontWeight: '600', marginBottom: '8px' }}>Notes:</div>
         <ul style={{ margin: '0', paddingLeft: '20px' }}>
-          <li>Cấu hình thời gian này áp dụng cho tất cả nhân viên</li>
-          <li>Thời gian "cho phép muộn" dùng để đánh dấu "muộn" khi check-in</li>
-          <li>Thời gian "ngưỡng tính OT" dùng để đánh dấu "tăng ca" khi check-out</li>
-          <li>Sau này sẽ hỗ trợ cấu hình theo từng bộ phận/người</li>
+          <li>This time configuration applies to all employees</li>
+          <li>"Allowed late time" is used to mark "late" when checking in</li>
+          <li>"OT threshold" is used to mark "overtime" when checking out</li>
+          <li>Configuration by department/person will be supported in the future</li>
         </ul>
       </div>
     </div>
