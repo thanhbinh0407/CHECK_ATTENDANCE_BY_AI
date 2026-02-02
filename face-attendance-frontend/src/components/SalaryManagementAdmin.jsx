@@ -215,14 +215,14 @@ export default function SalaryManagementAdmin() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ backgroundColor: theme.primary.main, color: theme.neutral.white }}>
-                <th style={{ padding: theme.spacing.md, textAlign: "left" }}>Nhân viên</th>
-                <th style={{ padding: theme.spacing.md, textAlign: "left" }}>Mã NV</th>
-                <th style={{ padding: theme.spacing.md, textAlign: "right" }}>Lương cơ bản</th>
-                <th style={{ padding: theme.spacing.md, textAlign: "right" }}>Thưởng</th>
-                <th style={{ padding: theme.spacing.md, textAlign: "right" }}>Khấu trừ</th>
-                <th style={{ padding: theme.spacing.md, textAlign: "right" }}>Thực nhận</th>
-                <th style={{ padding: theme.spacing.md, textAlign: "center" }}>Trạng thái</th>
-                <th style={{ padding: theme.spacing.md, textAlign: "center" }}>Thao tác</th>
+                <th style={{ padding: theme.spacing.md, textAlign: "left" }}>Employee</th>
+                <th style={{ padding: theme.spacing.md, textAlign: "left" }}>Code</th>
+                <th style={{ padding: theme.spacing.md, textAlign: "right" }}>Base Salary</th>
+                <th style={{ padding: theme.spacing.md, textAlign: "right" }}>Bonus</th>
+                <th style={{ padding: theme.spacing.md, textAlign: "right" }}>Deduction</th>
+                <th style={{ padding: theme.spacing.md, textAlign: "right" }}>Net Pay</th>
+                <th style={{ padding: theme.spacing.md, textAlign: "center" }}>Status</th>
+                <th style={{ padding: theme.spacing.md, textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
             <tbody>

@@ -10,7 +10,7 @@ export default function LoginForm({ onLoginSuccess }) {
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) {
-      setMessage("Vui lòng nhập email và mật khẩu");
+      setMessage("Please enter email and password");
       return;
     }
 
@@ -29,13 +29,13 @@ export default function LoginForm({ onLoginSuccess }) {
       if (res.ok && data.token) {
         localStorage.setItem("authToken", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
-        setMessage("Đăng nhập thành công!");
+        setMessage("Login successful!");
         setTimeout(() => onLoginSuccess(data.token, data.user), 500);
       } else {
-        setMessage("Đăng nhập thất bại: " + (data.message || "Email hoặc mật khẩu không đúng"));
+        setMessage("Login failed: " + (data.message || "Invalid email or password"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -101,16 +101,16 @@ export default function LoginForm({ onLoginSuccess }) {
   return (
     <div style={containerStyle}>
       <div style={cardStyle}>
-        <div style={titleStyle}>Đăng Nhập</div>
-        <div style={subtitleStyle}>Hệ thống Quản lý Lương - Kế toán</div>
+        <div style={titleStyle}>Login</div>
+        <div style={subtitleStyle}>Payroll Management System - Accountant</div>
 
         {message && (
           <div style={{
             padding: "12px 16px",
-            backgroundColor: message.includes("thành công") ? "#d4edda" : "#f8d7da",
-            border: `1px solid ${message.includes("thành công") ? "#c3e6cb" : "#f5c6cb"}`,
+            backgroundColor: message.includes("success") ? "#d4edda" : "#f8d7da",
+            border: `1px solid ${message.includes("success") ? "#c3e6cb" : "#f5c6cb"}`,
             borderRadius: theme.radius.md,
-            color: message.includes("thành công") ? "#155724" : "#721c24",
+            color: message.includes("success") ? "#155724" : "#721c24",
             marginBottom: theme.spacing.lg,
             fontSize: "14px"
           }}>
@@ -128,27 +128,27 @@ export default function LoginForm({ onLoginSuccess }) {
               style={inputStyle}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Nhập email của bạn"
+              placeholder="Enter your email"
               required
             />
           </div>
 
           <div style={{ marginBottom: theme.spacing.xl }}>
             <label style={{ display: "block", marginBottom: theme.spacing.sm, fontWeight: "600", color: theme.neutral.gray700, fontSize: "14px" }}>
-              Mật khẩu
+              Password
             </label>
             <input
               type="password"
               style={inputStyle}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Nhập mật khẩu"
+              placeholder="Enter password"
               required
             />
           </div>
 
           <button type="submit" style={buttonStyle} disabled={loading}>
-            {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+            {loading ? "Signing in..." : "Login"}
           </button>
         </form>
       </div>

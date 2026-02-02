@@ -700,42 +700,67 @@ function AttendanceScanner() {
   };
 
   const containerStyle = {
-    display: "flex",
+    maxWidth: "1400px",
+    margin: "0 auto",
+    padding: "32px 24px",
+    backgroundColor: "#f5f7fa",
+    minHeight: "100vh"
+  };
+
+  const headerStyle = {
+    marginBottom: "32px",
+    textAlign: "center"
+  };
+
+  const mainContentStyle = {
+    display: "grid",
+    gridTemplateColumns: "1fr",
     gap: "24px",
-    flexWrap: "wrap"
+    maxWidth: "900px",
+    margin: "0 auto"
   };
 
   const cameraSection = {
-    flex: "1 1 100%",
-    minWidth: "300px",
-    backgroundColor: "#fff",
-    borderRadius: "8px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-    padding: "16px",
+    backgroundColor: "#ffffff",
+    borderRadius: "16px",
+    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
+    overflow: "hidden",
+    border: "1px solid #e1e8ed"
+  };
+
+  const cameraSectionHeader = {
+    padding: "24px 28px",
+    backgroundColor: "#ffffff",
+    borderBottom: "2px solid #f0f3f7",
     display: "flex",
-    flexDirection: "column",
-    gap: "12px"
+    justifyContent: "space-between",
+    alignItems: "center"
+  };
+
+  const cameraBody = {
+    padding: "28px"
   };
 
   const logsSection = {
-    flex: "1 1 100%",
-    minWidth: "300px",
-    backgroundColor: "#fff",
-    borderRadius: "8px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-    padding: "16px"
+    backgroundColor: "#ffffff",
+    borderRadius: "16px",
+    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
+    padding: "28px",
+    border: "1px solid #e1e8ed"
   };
 
   const cameraContainerStyle = {
     position: "relative",
     width: "100%",
-    backgroundColor: "#000",
-    borderRadius: "6px",
+    backgroundColor: "#000000",
+    borderRadius: "12px",
     overflow: "hidden",
     aspectRatio: "4/3",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    border: "3px solid #e1e8ed",
+    boxShadow: "inset 0 2px 8px rgba(0,0,0,0.2)"
   };
 
   const videoStyle = {
@@ -755,24 +780,48 @@ function AttendanceScanner() {
 
   return (
     <div style={containerStyle}>
+      {/* Header */}
+      <div style={headerStyle}>
+        <h1 style={{ 
+          fontSize: "36px", 
+          fontWeight: "700", 
+          color: "#1a1f36",
+          marginBottom: "8px",
+          letterSpacing: "-0.5px"
+        }}>
+          Face Attendance System
+        </h1>
+        <p style={{ 
+          fontSize: "16px", 
+          color: "#697386",
+          margin: 0 
+        }}>
+          Secure and accurate facial recognition attendance
+        </p>
+      </div>
+
       {/* No Face Warning */}
       {noFaceWarning && (
         <div style={{
           position: "fixed",
-          top: "20px",
+          top: "24px",
           left: "50%",
           transform: "translateX(-50%)",
-          backgroundColor: "#fff3cd",
-          color: "#856404",
-          padding: "12px 20px",
-          borderRadius: "8px",
-          border: "1px solid #ffeaa7",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          backgroundColor: "#fff7e6",
+          color: "#d46b08",
+          padding: "16px 28px",
+          borderRadius: "12px",
+          border: "2px solid #ffd591",
+          boxShadow: "0 8px 24px rgba(212, 107, 8, 0.15)",
           zIndex: 1999,
-          fontSize: "14px",
-          fontWeight: "600"
+          fontSize: "15px",
+          fontWeight: "600",
+          maxWidth: "500px"
         }}>
-          Không phát hiện khuôn mặt. Vui lòng nhìn vào camera.
+          <div style={{ fontWeight: "700", marginBottom: "4px" }}>NO FACE DETECTED</div>
+          <div style={{ fontSize: "13px", fontWeight: "400", opacity: 0.9 }}>
+            Please position your face within the camera frame
+          </div>
         </div>
       )}
 
@@ -780,20 +829,24 @@ function AttendanceScanner() {
       {multiFaceWarning && (
         <div style={{
           position: "fixed",
-          top: "20px",
+          top: "24px",
           left: "50%",
           transform: "translateX(-50%)",
-          backgroundColor: "#f8d7da",
-          color: "#721c24",
-          padding: "14px 20px",
-          borderRadius: "8px",
-          border: "1px solid #f5c6cb",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          backgroundColor: "#fff2e8",
+          color: "#d4380d",
+          padding: "16px 28px",
+          borderRadius: "12px",
+          border: "2px solid #ffbb96",
+          boxShadow: "0 8px 24px rgba(212, 56, 13, 0.15)",
           zIndex: 1999,
-          fontSize: "14px",
-          fontWeight: "600"
+          fontSize: "15px",
+          fontWeight: "600",
+          maxWidth: "500px"
         }}>
-          ⚠️ Phát hiện {detectedFaces} khuôn mặt. Vui lòng chỉ cho 1 khuôn mặt trong khung hình.
+          <div style={{ fontWeight: "700", marginBottom: "4px" }}>MULTIPLE FACES DETECTED</div>
+          <div style={{ fontSize: "13px", fontWeight: "400", opacity: 0.9 }}>
+            {detectedFaces} faces found. Only one person should be in frame
+          </div>
         </div>
       )}
 
@@ -801,20 +854,24 @@ function AttendanceScanner() {
       {spoofWarning && (
         <div style={{
           position: "fixed",
-          top: "20px",
+          top: "24px",
           left: "50%",
           transform: "translateX(-50%)",
-          backgroundColor: "#fff3cd",
-          color: "#856404",
-          padding: "14px 20px",
-          borderRadius: "8px",
-          border: "1px solid #ffeaa7",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          backgroundColor: "#fff7e6",
+          color: "#d46b08",
+          padding: "16px 28px",
+          borderRadius: "12px",
+          border: "2px solid #ffd591",
+          boxShadow: "0 8px 24px rgba(212, 107, 8, 0.15)",
           zIndex: 1999,
-          fontSize: "14px",
-          fontWeight: "600"
+          fontSize: "15px",
+          fontWeight: "600",
+          maxWidth: "500px"
         }}>
-          Vui lòng không sử dụng hình ảnh. Hãy dùng khuôn mặt thật của bạn.
+          <div style={{ fontWeight: "700", marginBottom: "4px" }}>SPOOFING DETECTED</div>
+          <div style={{ fontSize: "13px", fontWeight: "400", opacity: 0.9 }}>
+            Please use your real face, not a photo or video
+          </div>
         </div>
       )}
 
@@ -822,20 +879,23 @@ function AttendanceScanner() {
       {successMsg && (
         <div style={{
           position: "fixed",
-          top: "20px",
-          right: "20px",
-          backgroundColor: "#d4edda",
-          color: "#155724",
-          padding: "16px 24px",
-          borderRadius: "8px",
-          border: "1px solid #c3e6cb",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          top: "24px",
+          right: "24px",
+          backgroundColor: "#f6ffed",
+          color: "#389e0d",
+          padding: "18px 28px",
+          borderRadius: "12px",
+          border: "2px solid #b7eb8f",
+          boxShadow: "0 8px 24px rgba(56, 158, 13, 0.15)",
           zIndex: 2000,
-          fontSize: "16px",
+          fontSize: "15px",
           fontWeight: "600",
-          maxWidth: "400px"
+          maxWidth: "420px"
         }}>
-          {successMsg}
+          <div style={{ fontWeight: "700", marginBottom: "4px" }}>SUCCESS</div>
+          <div style={{ fontSize: "14px", fontWeight: "400" }}>
+            {successMsg}
+          </div>
         </div>
       )}
 
@@ -843,28 +903,88 @@ function AttendanceScanner() {
       {antiInfo && (
         <div style={{
           position: "fixed",
-          bottom: "20px",
-          right: "20px",
-          backgroundColor: "rgba(0,0,0,0.75)",
-          color: "#fff",
-          padding: "10px 12px",
-          borderRadius: "8px",
+          bottom: "24px",
+          right: "24px",
+          backgroundColor: "rgba(26, 31, 54, 0.95)",
+          backdropFilter: "blur(10px)",
+          color: "#ffffff",
+          padding: "16px 20px",
+          borderRadius: "12px",
           zIndex: 2000,
-          fontSize: "12px",
-          maxWidth: "280px"
+          fontSize: "13px",
+          maxWidth: "320px",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)"
         }}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>Anti-spoof: {antiInfo.score || 0}/100 {serverAntiLoading ? '(server...)' : ''}</div>
-          <div style={{ fontSize: 11, opacity: 0.9 }}>
-            Texture: {antiInfo.details?.texture?.textureScore?.toFixed(1) || 'N/A'} • Frequency: {antiInfo.details?.frequency?.frequencyScore?.toFixed(1) || 'N/A'} • Color: {antiInfo.details?.color?.colorScore?.toFixed(2) || 'N/A'}
+          <div style={{ 
+            fontWeight: 700, 
+            marginBottom: 10,
+            fontSize: "14px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}>
+            <span>Anti-Spoofing Score</span>
+            <span style={{ 
+              color: antiInfo.score >= antiThreshold ? "#52c41a" : "#ff4d4f",
+              fontSize: "16px"
+            }}>
+              {antiInfo.score || 0}/100
+            </span>
           </div>
-          <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-            <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="checkbox" checked={useServerAnti} onChange={(e) => setUseServerAnti(e.target.checked)} /> Server anti
+          {serverAntiLoading && (
+            <div style={{ 
+              fontSize: 11, 
+              color: "#91d5ff",
+              marginBottom: 8
+            }}>
+              Processing on server...
+            </div>
+          )}
+          <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 12, lineHeight: 1.6 }}>
+            <div>Texture: <strong>{antiInfo.details?.texture?.textureScore?.toFixed(1) || 'N/A'}</strong></div>
+            <div>Frequency: <strong>{antiInfo.details?.frequency?.frequencyScore?.toFixed(1) || 'N/A'}</strong></div>
+            <div>Color: <strong>{antiInfo.details?.color?.colorScore?.toFixed(2) || 'N/A'}</strong></div>
+          </div>
+          <div style={{ 
+            paddingTop: 12,
+            borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+            display: 'flex', 
+            flexDirection: "column",
+            gap: 10 
+          }}>
+            <label style={{ 
+              fontSize: 12, 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 8,
+              cursor: "pointer"
+            }}>
+              <input 
+                type="checkbox" 
+                checked={useServerAnti} 
+                onChange={(e) => setUseServerAnti(e.target.checked)}
+                style={{ cursor: "pointer" }}
+              />
+              <span>Enable Server-side Detection</span>
             </label>
-            <div style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>Threshold</span>
-              <input type="range" min={40} max={95} value={antiThreshold} onChange={(e) => setAntiThreshold(Number(e.target.value))} />
-              <strong style={{ marginLeft: 6 }}>{antiThreshold}</strong>
+            <div style={{ fontSize: 12, display: 'flex', flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Detection Threshold</span>
+                <strong>{antiThreshold}</strong>
+              </div>
+              <input 
+                type="range" 
+                min={40} 
+                max={95} 
+                value={antiThreshold} 
+                onChange={(e) => setAntiThreshold(Number(e.target.value))}
+                style={{ 
+                  width: "100%",
+                  accentColor: "#1890ff",
+                  cursor: "pointer"
+                }}
+              />
             </div>
           </div>
         </div>
@@ -878,226 +998,525 @@ function AttendanceScanner() {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.5)",
+          backgroundColor: "rgba(0, 0, 0, 0.65)",
+          backdropFilter: "blur(4px)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          zIndex: 1000
+          zIndex: 1000,
+          padding: "20px"
         }}>
           <div style={{
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            padding: "32px",
-            maxWidth: "400px",
-            textAlign: "center",
-            boxShadow: "0 10px 40px rgba(0,0,0,0.3)"
+            backgroundColor: "#ffffff",
+            borderRadius: "16px",
+            padding: "0",
+            maxWidth: "480px",
+            width: "100%",
+            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
+            overflow: "hidden"
           }}>
-            <div style={{ fontSize: "48px", marginBottom: "16px" }}></div>
-            <h2 style={{ marginBottom: "8px", color: "#333" }}>Xác nhận điểm danh?</h2>
-            
-            {/* Debug: Log matched status */}
+            {/* Debug info */}
             {process.env.NODE_ENV === 'development' && (
-              <div style={{ fontSize: "10px", color: "#999", marginBottom: "8px", padding: "4px", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
+              <div style={{ 
+                fontSize: "10px", 
+                color: "#999", 
+                padding: "8px 12px", 
+                backgroundColor: "#f5f5f5",
+                borderBottom: "1px solid #e8e8e8",
+                fontFamily: "monospace"
+              }}>
                 matched={String(confirmDialog.matchData?.matched)} | name={confirmDialog.matchData?.detectedName}
               </div>
             )}
             
+            {/* Workday Completed */}
             {confirmDialog.matchData?.finished === true ? (
               <>
-                <div style={{ fontSize: "64px", marginBottom: "16px" }}>✅</div>
-                <h2 style={{ marginBottom: "16px", color: "#28a745", fontSize: "24px" }}>Bạn đã kết thúc 1 ngày công</h2>
                 <div style={{
-                  backgroundColor: "#d4edda",
-                  border: "2px solid #c3e6cb",
-                  color: "#155724",
-                  padding: "16px",
-                  borderRadius: "6px",
-                  marginBottom: "16px",
-                  textAlign: "left"
+                  backgroundColor: "#f6ffed",
+                  padding: "32px 32px 24px",
+                  borderBottom: "2px solid #b7eb8f",
+                  textAlign: "center"
                 }}>
-                  <div style={{ fontSize: "16px", fontWeight: "700", marginBottom: "8px" }}>
-                    {confirmDialog.matchData.detectedName}
+                  <div style={{
+                    width: "72px",
+                    height: "72px",
+                    borderRadius: "50%",
+                    backgroundColor: "#52c41a",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    margin: "0 auto 20px",
+                    fontSize: "36px",
+                    color: "#ffffff"
+                  }}>
+                    ✓
                   </div>
-                  <div style={{ fontSize: "13px", marginBottom: "6px" }}>
-                    🕐 Điểm danh vào: <strong>{confirmDialog.matchData.logsToday?.[0]?.timestamp ? new Date(confirmDialog.matchData.logsToday[0].timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</strong>
-                  </div>
-                  <div style={{ fontSize: "13px" }}>
-                    🕑 Điểm danh ra: <strong>{confirmDialog.matchData.logsToday?.[1]?.timestamp ? new Date(confirmDialog.matchData.logsToday[1].timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Vừa xong'}</strong>
-                  </div>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setConfirmDialog(null);
-                    setSpoofWarning(false);
-                    setAntiInfo(null);
-                    antiBufferRef.current = [];
-                    centerBufferRef.current = [];
-                    landmarkBufferRef.current = [];
-                    spoofDetectedRef.current = false;
-                    noFaceCountRef.current = 0;
-                    if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
-                    setIsScanning(false);
-                  }}
-                  type="button"
-                  style={{
-                    width: "100%",
-                    padding: "14px",
-                    backgroundColor: "#28a745",
-                    color: "#fff",
+                  <h2 style={{ 
+                    margin: 0,
+                    fontSize: "24px",
                     fontWeight: "700",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
+                    color: "#135200",
+                    marginBottom: "8px"
+                  }}>
+                    Workday Complete
+                  </h2>
+                  <p style={{
+                    margin: 0,
                     fontSize: "14px",
-                    marginTop: "12px"
-                  }}
-                >
-                  ✓ Đã hiểu
-                </button>
+                    color: "#389e0d",
+                    opacity: 0.9
+                  }}>
+                    You have successfully completed today's attendance
+                  </p>
+                </div>
+                
+                <div style={{ padding: "24px 32px 32px" }}>
+                  <div style={{
+                    backgroundColor: "#f6ffed",
+                    border: "2px solid #b7eb8f",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    marginBottom: "24px"
+                  }}>
+                    <div style={{ 
+                      fontSize: "18px", 
+                      fontWeight: "700",
+                      color: "#135200",
+                      marginBottom: "16px"
+                    }}>
+                      {confirmDialog.matchData.detectedName}
+                    </div>
+                    <div style={{
+                      display: "grid",
+                      gap: "12px"
+                    }}>
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "10px 12px",
+                        backgroundColor: "#ffffff",
+                        borderRadius: "8px",
+                        border: "1px solid #d9f7be"
+                      }}>
+                        <span style={{ fontSize: "13px", color: "#389e0d", fontWeight: "600" }}>
+                          CHECK IN
+                        </span>
+                        <span style={{ fontSize: "14px", fontWeight: "700", color: "#135200" }}>
+                          {confirmDialog.matchData.logsToday?.[0]?.timestamp 
+                            ? new Date(confirmDialog.matchData.logsToday[0].timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) 
+                            : 'N/A'}
+                        </span>
+                      </div>
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "10px 12px",
+                        backgroundColor: "#ffffff",
+                        borderRadius: "8px",
+                        border: "1px solid #d9f7be"
+                      }}>
+                        <span style={{ fontSize: "13px", color: "#389e0d", fontWeight: "600" }}>
+                          CHECK OUT
+                        </span>
+                        <span style={{ fontSize: "14px", fontWeight: "700", color: "#135200" }}>
+                          {confirmDialog.matchData.logsToday?.[1]?.timestamp 
+                            ? new Date(confirmDialog.matchData.logsToday[1].timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) 
+                            : 'Just Now'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setConfirmDialog(null);
+                      setSpoofWarning(false);
+                      setAntiInfo(null);
+                      antiBufferRef.current = [];
+                      centerBufferRef.current = [];
+                      landmarkBufferRef.current = [];
+                      spoofDetectedRef.current = false;
+                      noFaceCountRef.current = 0;
+                      if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
+                      setIsScanning(false);
+                    }}
+                    type="button"
+                    style={{
+                      width: "100%",
+                      padding: "16px",
+                      backgroundColor: "#52c41a",
+                      color: "#ffffff",
+                      fontWeight: "700",
+                      border: "none",
+                      borderRadius: "10px",
+                      cursor: "pointer",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = "#389e0d";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = "#52c41a";
+                    }}
+                  >
+                    CONTINUE
+                  </button>
+                </div>
               </>
             ) : confirmDialog.matchData?.matched === true ? (
               <>
-                <div style={{ fontSize: "48px", marginBottom: "16px", fontWeight: "700" }}>
-                  {confirmDialog.matchData.logsToday?.length === 0 ? '🔵' : '🟠'}
-                </div>
+                {/* Matched Face - Confirm Attendance */}
                 <div style={{
-                  backgroundColor: confirmDialog.matchData.logsToday?.length === 0 ? "#d4edda" : "#fff3cd",
-                  border: confirmDialog.matchData.logsToday?.length === 0 ? "2px solid #c3e6cb" : "2px solid #ffeaa7",
-                  color: confirmDialog.matchData.logsToday?.length === 0 ? "#155724" : "#856404",
-                  padding: "16px",
-                  borderRadius: "6px",
-                  marginBottom: "16px",
-                  textAlign: "left"
+                  backgroundColor: confirmDialog.matchData.logsToday?.length === 0 ? "#e6f7ff" : "#fff7e6",
+                  padding: "32px 32px 24px",
+                  borderBottom: `2px solid ${confirmDialog.matchData.logsToday?.length === 0 ? "#91d5ff" : "#ffd591"}`,
+                  textAlign: "center"
                 }}>
-                  <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "8px" }}>
-                    {confirmDialog.matchData.logsToday?.length === 0 ? "🟢 ĐIỂM DANH VÀO" : "🔴 ĐIỂM DANH RA"}
+                  <div style={{
+                    width: "72px",
+                    height: "72px",
+                    borderRadius: "50%",
+                    backgroundColor: confirmDialog.matchData.logsToday?.length === 0 ? "#1890ff" : "#fa8c16",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    margin: "0 auto 20px",
+                    fontSize: "36px",
+                    color: "#ffffff",
+                    fontWeight: "700"
+                  }}>
+                    {confirmDialog.matchData.logsToday?.length === 0 ? "IN" : "OUT"}
                   </div>
-                  <div style={{ fontSize: "18px", fontWeight: "700", marginBottom: "8px" }}>
-                    {confirmDialog.matchData.detectedName}
-                  </div>
-                  {confirmDialog.matchData.logsToday?.length === 0 ? (
-                    <div style={{ fontSize: "12px" }}>Bắt đầu ngày làm việc</div>
-                  ) : (
-                    <div style={{ fontSize: "12px" }}>Kết thúc ngày làm việc</div>
-                  )}
-                  <div style={{ fontSize: "11px", marginTop: "8px", opacity: 0.8 }}>
-                    Khoảng cách: {confirmDialog.matchData.distance.toFixed(3)} | Độ tin cậy: {(confirmDialog.confidence * 100).toFixed(1)}%
-                  </div>
+                  <h2 style={{ 
+                    margin: 0,
+                    fontSize: "24px",
+                    fontWeight: "700",
+                    color: "#1a1f36",
+                    marginBottom: "8px"
+                  }}>
+                    Confirm Attendance
+                  </h2>
+                  <p style={{
+                    margin: 0,
+                    fontSize: "14px",
+                    color: "#697386"
+                  }}>
+                    Verify your {confirmDialog.matchData.logsToday?.length === 0 ? "check-in" : "check-out"} record
+                  </p>
                 </div>
+                
+                <div style={{ padding: "24px 32px 32px" }}>
+                  <div style={{
+                    backgroundColor: confirmDialog.matchData.logsToday?.length === 0 ? "#e6f7ff" : "#fff7e6",
+                    border: `2px solid ${confirmDialog.matchData.logsToday?.length === 0 ? "#91d5ff" : "#ffd591"}`,
+                    borderRadius: "12px",
+                    padding: "20px",
+                    marginBottom: "24px",
+                    textAlign: "left"
+                  }}>
+                    <div style={{
+                      display: "inline-block",
+                      padding: "6px 14px",
+                      backgroundColor: confirmDialog.matchData.logsToday?.length === 0 ? "#1890ff" : "#fa8c16",
+                      color: "#ffffff",
+                      borderRadius: "20px",
+                      fontSize: "12px",
+                      fontWeight: "700",
+                      letterSpacing: "0.5px",
+                      marginBottom: "12px"
+                    }}>
+                      {confirmDialog.matchData.logsToday?.length === 0 ? "CHECK IN" : "CHECK OUT"}
+                    </div>
+                    <div style={{ 
+                      fontSize: "20px", 
+                      fontWeight: "700",
+                      color: "#1a1f36",
+                      marginBottom: "12px"
+                    }}>
+                      {confirmDialog.matchData.detectedName}
+                    </div>
+                    <div style={{ 
+                      fontSize: "13px",
+                      color: "#697386",
+                      marginBottom: "16px",
+                      lineHeight: "1.6"
+                    }}>
+                      {confirmDialog.matchData.logsToday?.length === 0 
+                        ? "Starting your workday" 
+                        : "Ending your workday"}
+                    </div>
+                    <div style={{
+                      padding: "12px",
+                      backgroundColor: "rgba(255, 255, 255, 0.6)",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                      color: "#697386",
+                      display: "flex",
+                      justifyContent: "space-between"
+                    }}>
+                      <span>Match Distance:</span>
+                      <strong style={{ color: "#1a1f36" }}>{confirmDialog.matchData.distance.toFixed(3)}</strong>
+                    </div>
+                    <div style={{
+                      padding: "12px",
+                      backgroundColor: "rgba(255, 255, 255, 0.6)",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                      color: "#697386",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginTop: "8px"
+                    }}>
+                      <span>Confidence Level:</span>
+                      <strong style={{ color: "#1a1f36" }}>{(confirmDialog.confidence * 100).toFixed(1)}%</strong>
+                    </div>
+                  </div>
 
-                <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
-                  <button
-                    onClick={(e) => {
-                      console.log("NO button clicked");
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleConfirmAttendance(false);
-                    }}
-                    disabled={isSubmitting}
-                    type="button"
-                    style={{
-                      flex: 1,
-                      padding: "12px",
-                      backgroundColor: "#6c757d",
-                      color: "#fff",
-                      fontWeight: "600",
-                      opacity: isSubmitting ? 0.6 : 1,
-                      cursor: isSubmitting ? "not-allowed" : "pointer",
-                      border: "none",
-                      borderRadius: "6px",
-                      fontSize: "14px"
-                    }}
-                  >
-                    ✕ Không
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      console.log("YES button clicked");
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleConfirmAttendance(true);
-                    }}
-                    disabled={isSubmitting}
-                    type="button"
-                    style={{
-                      flex: 1,
-                      padding: "12px",
-                      backgroundColor: "#28a745",
-                      color: "#fff",
-                      fontWeight: "600",
-                      opacity: isSubmitting ? 0.6 : 1,
-                      cursor: isSubmitting ? "not-allowed" : "pointer",
-                      border: "none",
-                      borderRadius: "6px",
-                      fontSize: "14px"
-                    }}
-                  >
-                    {isSubmitting ? "⏳ Đang ghi..." : "✓ Xác nhận"}
-                  </button>
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <button
+                      onClick={(e) => {
+                        console.log("CANCEL button clicked");
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleConfirmAttendance(false);
+                      }}
+                      disabled={isSubmitting}
+                      type="button"
+                      style={{
+                        flex: 1,
+                        padding: "16px",
+                        backgroundColor: "#ffffff",
+                        color: "#697386",
+                        fontWeight: "700",
+                        opacity: isSubmitting ? 0.5 : 1,
+                        cursor: isSubmitting ? "not-allowed" : "pointer",
+                        border: "2px solid #d9d9d9",
+                        borderRadius: "10px",
+                        fontSize: "15px",
+                        transition: "all 0.3s ease"
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSubmitting) {
+                          e.target.style.borderColor = "#8c8c8c";
+                          e.target.style.color = "#1a1f36";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.borderColor = "#d9d9d9";
+                        e.target.style.color = "#697386";
+                      }}
+                    >
+                      CANCEL
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        console.log("CONFIRM button clicked");
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleConfirmAttendance(true);
+                      }}
+                      disabled={isSubmitting}
+                      type="button"
+                      style={{
+                        flex: 1,
+                        padding: "16px",
+                        backgroundColor: confirmDialog.matchData.logsToday?.length === 0 ? "#1890ff" : "#fa8c16",
+                        color: "#ffffff",
+                        fontWeight: "700",
+                        opacity: isSubmitting ? 0.6 : 1,
+                        cursor: isSubmitting ? "not-allowed" : "pointer",
+                        border: "none",
+                        borderRadius: "10px",
+                        fontSize: "15px",
+                        transition: "all 0.3s ease",
+                        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)"
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSubmitting) {
+                          e.target.style.backgroundColor = confirmDialog.matchData.logsToday?.length === 0 ? "#096dd9" : "#d46b08";
+                          e.target.style.transform = "translateY(-2px)";
+                          e.target.style.boxShadow = "0 6px 16px rgba(0, 0, 0, 0.2)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = confirmDialog.matchData.logsToday?.length === 0 ? "#1890ff" : "#fa8c16";
+                        e.target.style.transform = "translateY(0)";
+                        e.target.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.15)";
+                      }}
+                    >
+                      {isSubmitting ? "PROCESSING..." : "CONFIRM"}
+                    </button>
+                  </div>
                 </div>
               </>
             ) : confirmDialog.matchData?.matched === false || confirmDialog.matchData?.isUnknown ? (
               <>
+                {/* Unknown Face Warning */}
                 <div style={{
-                  backgroundColor: "#fff3cd",
-                  border: "1px solid #ffeaa7",
-                  color: "#856404",
-                  padding: "12px 16px",
-                  borderRadius: "6px",
-                  marginBottom: "16px"
+                  backgroundColor: "#fff7e6",
+                  padding: "32px 32px 24px",
+                  borderBottom: "2px solid #ffd591",
+                  textAlign: "center"
                 }}>
-                  <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                    ⚠️ Khuôn mặt không khớp - Unknown
+                  <div style={{
+                    width: "72px",
+                    height: "72px",
+                    borderRadius: "50%",
+                    backgroundColor: "#fa8c16",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    margin: "0 auto 20px",
+                    fontSize: "36px",
+                    color: "#ffffff",
+                    fontWeight: "700"
+                  }}>
+                    !
                   </div>
-                  <div style={{ fontSize: "12px" }}>
-                    Khoảng cách: {confirmDialog.matchData?.distance?.toFixed(3) || "N/A"} (Ngưỡng: {confirmDialog.matchData?.threshold || "0.6"})
-                  </div>
-                  <div style={{ fontSize: "12px", marginTop: "4px" }}>
-                    Khuôn mặt này <strong>không có trong hệ thống</strong>. Vui lòng quét lại.
-                  </div>
+                  <h2 style={{ 
+                    margin: 0,
+                    fontSize: "24px",
+                    fontWeight: "700",
+                    color: "#ad4e00",
+                    marginBottom: "8px"
+                  }}>
+                    Face Not Recognized
+                  </h2>
+                  <p style={{
+                    margin: 0,
+                    fontSize: "14px",
+                    color: "#d46b08"
+                  }}>
+                    Unknown face profile detected
+                  </p>
                 </div>
+                
+                <div style={{ padding: "24px 32px 32px" }}>
+                  <div style={{
+                    backgroundColor: "#fff7e6",
+                    border: "2px solid #ffd591",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    marginBottom: "24px"
+                  }}>
+                    <div style={{
+                      fontWeight: "700",
+                      fontSize: "15px",
+                      color: "#ad4e00",
+                      marginBottom: "12px"
+                    }}>
+                      Verification Failed
+                    </div>
+                    <div style={{
+                      fontSize: "13px",
+                      color: "#d46b08",
+                      lineHeight: "1.6",
+                      marginBottom: "16px"
+                    }}>
+                      This face is <strong>not registered</strong> in the system. Please try again or contact your administrator.
+                    </div>
+                    <div style={{
+                      padding: "12px",
+                      backgroundColor: "rgba(255, 255, 255, 0.6)",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                      color: "#8c8c8c",
+                      marginBottom: "8px"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                        <span>Match Distance:</span>
+                        <strong style={{ color: "#d46b08" }}>
+                          {confirmDialog.matchData?.distance?.toFixed(3) || "N/A"}
+                        </strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>Required Threshold:</span>
+                        <strong style={{ color: "#d46b08" }}>
+                          {confirmDialog.matchData?.threshold || "0.6"}
+                        </strong>
+                      </div>
+                    </div>
+                    <div style={{
+                      fontSize: "11px",
+                      color: "#8c8c8c",
+                      textAlign: "center",
+                      fontStyle: "italic"
+                    }}>
+                      Distance exceeds recognition threshold
+                    </div>
+                  </div>
 
-                <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
-                    <button
-                      onClick={(e) => {
-                        console.log("Rescan button clicked");
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setConfirmDialog(null);
-                        setSpoofWarning(false);
-                        setAntiInfo(null);
-                        antiBufferRef.current = [];
-                        centerBufferRef.current = [];
-                        landmarkBufferRef.current = [];
-                        spoofDetectedRef.current = false;
-                        noFaceCountRef.current = 0;
-                        // Ensure detection is running
-                        if (!detectionIntervalRef.current) {
-                          setIsScanning(true);
-                          detectionIntervalRef.current = setInterval(detectFace, 300);
-                        }
-                      }}
+                  <button
+                    onClick={(e) => {
+                      console.log("SCAN AGAIN button clicked");
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setConfirmDialog(null);
+                      setSpoofWarning(false);
+                      setAntiInfo(null);
+                      antiBufferRef.current = [];
+                      centerBufferRef.current = [];
+                      landmarkBufferRef.current = [];
+                      spoofDetectedRef.current = false;
+                      noFaceCountRef.current = 0;
+                      if (!detectionIntervalRef.current) {
+                        setIsScanning(true);
+                        detectionIntervalRef.current = setInterval(detectFace, 300);
+                      }
+                    }}
                     type="button"
                     style={{
-                      flex: 1,
-                      padding: "12px",
-                      backgroundColor: "#007bff",
-                      color: "#fff",
-                      fontWeight: "600",
+                      width: "100%",
+                      padding: "16px",
+                      backgroundColor: "#1890ff",
+                      color: "#ffffff",
+                      fontWeight: "700",
                       cursor: "pointer",
                       border: "none",
-                      borderRadius: "6px"
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      boxShadow: "0 4px 12px rgba(24, 144, 255, 0.2)"
                     }}
-                    >
-                    Quét lại
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = "#096dd9";
+                      e.target.style.transform = "translateY(-2px)";
+                      e.target.style.boxShadow = "0 6px 16px rgba(24, 144, 255, 0.3)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = "#1890ff";
+                      e.target.style.transform = "translateY(0)";
+                      e.target.style.boxShadow = "0 4px 12px rgba(24, 144, 255, 0.2)";
+                    }}
+                  >
+                    SCAN AGAIN
                   </button>
                 </div>
               </>
             ) : (
-              <div style={{ color: "#999", textAlign: "center", padding: "16px" }}>
-                Đang tải thông tin...
+              <div style={{ 
+                padding: "60px 32px",
+                textAlign: "center",
+                color: "#8c8c8c"
+              }}>
+                <div style={{
+                  width: "48px",
+                  height: "48px",
+                  border: "3px solid #f0f0f0",
+                  borderTop: "3px solid #1890ff",
+                  borderRadius: "50%",
+                  animation: "spin 1s linear infinite",
+                  margin: "0 auto 16px"
+                }}></div>
+                <div style={{ fontSize: "15px", fontWeight: "600" }}>
+                  Processing Recognition...
+                </div>
               </div>
             )}
           </div>
@@ -1105,109 +1524,302 @@ function AttendanceScanner() {
       )}
 
       {isLoading ? (
-        <div
-          style={{
-            width: "100%",
-            padding: "40px",
-            textAlign: "center",
-            backgroundColor: "#fff",
-            borderRadius: "8px"
-          }}
-        >
-          <div style={{ fontSize: "28px", marginBottom: "16px" }}> </div>
-          <p style={{ color: "#666", marginBottom: "8px" }}>{loadingStatus}</p>
-          <div style={{ fontSize: "12px", color: "#999" }}>Đang khởi tạo...</div>
+        <div style={mainContentStyle}>
+          <div style={{
+            ...cameraSection,
+            padding: "60px 40px",
+            textAlign: "center"
+          }}>
+            <div style={{ 
+              width: "80px",
+              height: "80px",
+              border: "4px solid #e1e8ed",
+              borderTop: "4px solid #1890ff",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite",
+              margin: "0 auto 24px"
+            }}></div>
+            <h3 style={{ 
+              fontSize: "20px", 
+              fontWeight: "600",
+              color: "#1a1f36",
+              marginBottom: "12px"
+            }}>
+              Initializing System
+            </h3>
+            <p style={{ 
+              color: "#697386",
+              fontSize: "15px",
+              marginBottom: "8px"
+            }}>
+              {loadingStatus}
+            </p>
+            <div style={{ 
+              fontSize: "13px", 
+              color: "#8f9bb3",
+              marginTop: "16px"
+            }}>
+              Loading facial recognition models...
+            </div>
+          </div>
         </div>
       ) : errorMsg ? (
-        <div
-          style={{
-            width: "100%",
-            padding: "24px",
-            backgroundColor: "#f8d7da",
-            borderRadius: "8px",
-            color: "#721c24",
-            border: "1px solid #f5c6cb"
-          }}
-        >
-          <strong>Lỗi:</strong> {errorMsg}
+        <div style={mainContentStyle}>
+          <div style={{
+            ...cameraSection,
+            padding: "60px 40px",
+            textAlign: "center",
+            backgroundColor: "#fff2f0",
+            border: "2px solid #ffccc7"
+          }}>
+            <div style={{ 
+              fontSize: "56px",
+              marginBottom: "20px",
+              color: "#cf1322"
+            }}>
+              ERROR
+            </div>
+            <h3 style={{ 
+              fontSize: "20px", 
+              fontWeight: "600",
+              color: "#cf1322",
+              marginBottom: "12px"
+            }}>
+              System Error
+            </h3>
+            <p style={{ 
+              color: "#cf1322",
+              fontSize: "15px"
+            }}>
+              {errorMsg}
+            </p>
+          </div>
         </div>
       ) : (
-        <>
+        <div style={mainContentStyle}>
           {/* Camera Section */}
           <div style={cameraSection}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ margin: 0 }}>Quét Khuôn Mặt</h3>
-              <div
-                style={{
-                  fontSize: "12px",
-                  padding: "4px 12px",
-                  backgroundColor: detectedFaces > 0 ? "#d4edda" : "#e2e3e5",
-                  color: detectedFaces > 0 ? "#155724" : "#383d41",
-                  borderRadius: "12px"
-                }}
-              >
-                {isScanning ? `Phát hiện: ${detectedFaces || 0} khuôn mặt` : "Chưa quét"}
+            <div style={cameraSectionHeader}>
+              <div>
+                <h2 style={{ 
+                  margin: 0,
+                  fontSize: "22px",
+                  fontWeight: "700",
+                  color: "#1a1f36",
+                  marginBottom: "4px"
+                }}>
+                  Face Recognition Scanner
+                </h2>
+                <p style={{ 
+                  margin: 0,
+                  fontSize: "14px",
+                  color: "#697386"
+                }}>
+                  Position your face within the frame for detection
+                </p>
+              </div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px"
+              }}>
+                <div style={{
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  padding: "8px 16px",
+                  backgroundColor: detectedFaces > 0 ? "#f6ffed" : "#f5f5f5",
+                  color: detectedFaces > 0 ? "#389e0d" : "#8c8c8c",
+                  borderRadius: "20px",
+                  border: `2px solid ${detectedFaces > 0 ? "#b7eb8f" : "#d9d9d9"}`,
+                  minWidth: "140px",
+                  textAlign: "center"
+                }}>
+                  {isScanning ? `${detectedFaces || 0} Face${detectedFaces !== 1 ? 's' : ''} Detected` : "Scanner Inactive"}
+                </div>
               </div>
             </div>
 
-            <div style={cameraContainerStyle}>
-              <video ref={videoRef} style={videoStyle} />
-              <canvas ref={canvasRef} style={canvasStyle} />
-            </div>
+            <div style={cameraBody}>
+              <div style={cameraContainerStyle}>
+                <video ref={videoRef} style={videoStyle} />
+                <canvas ref={canvasRef} style={canvasStyle} />
+                
+                {/* Scanning Overlay */}
+                {isScanning && (
+                  <div style={{
+                    position: "absolute",
+                    top: "20px",
+                    left: "20px",
+                    right: "20px",
+                    bottom: "20px",
+                    border: "2px solid rgba(24, 144, 255, 0.6)",
+                    borderRadius: "8px",
+                    pointerEvents: "none",
+                    zIndex: 5
+                  }}>
+                    {/* Corner indicators */}
+                    <div style={{ position: "absolute", top: "-2px", left: "-2px", width: "40px", height: "40px", borderTop: "4px solid #1890ff", borderLeft: "4px solid #1890ff", borderRadius: "8px 0 0 0" }}></div>
+                    <div style={{ position: "absolute", top: "-2px", right: "-2px", width: "40px", height: "40px", borderTop: "4px solid #1890ff", borderRight: "4px solid #1890ff", borderRadius: "0 8px 0 0" }}></div>
+                    <div style={{ position: "absolute", bottom: "-2px", left: "-2px", width: "40px", height: "40px", borderBottom: "4px solid #1890ff", borderLeft: "4px solid #1890ff", borderRadius: "0 0 0 8px" }}></div>
+                    <div style={{ position: "absolute", bottom: "-2px", right: "-2px", width: "40px", height: "40px", borderBottom: "4px solid #1890ff", borderRight: "4px solid #1890ff", borderRadius: "0 0 8px 0" }}></div>
+                  </div>
+                )}
+              </div>
 
-            <div style={{ display: "flex", gap: "8px" }}>
-              {isScanning ? (
-                <button
-                  onClick={stopScanning}
-                  style={{
-                    flex: 1,
-                    padding: "12px",
-                    backgroundColor: "#dc3545",
-                    color: "#fff",
-                    fontWeight: "600"
-                  }}
-                >
-                  Dừng Quét
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    startScanning();
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: "12px",
-                    backgroundColor: "#28a745",
-                    color: "#fff",
-                    fontWeight: "600"
-                  }}
-                >
-                  ▶️ Bắt Đầu Quét
-                </button>
-              )}
-            </div>
+              <div style={{ 
+                display: "flex", 
+                gap: "12px",
+                marginTop: "24px"
+              }}>
+                {isScanning ? (
+                  <button
+                    onClick={stopScanning}
+                    style={{
+                      flex: 1,
+                      padding: "16px 24px",
+                      backgroundColor: "#ff4d4f",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "15px",
+                      border: "none",
+                      borderRadius: "10px",
+                      cursor: "pointer",
+                      transition: "all 0.3s ease",
+                      boxShadow: "0 4px 12px rgba(255, 77, 79, 0.2)"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = "#cf1322";
+                      e.target.style.transform = "translateY(-2px)";
+                      e.target.style.boxShadow = "0 6px 16px rgba(255, 77, 79, 0.3)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = "#ff4d4f";
+                      e.target.style.transform = "translateY(0)";
+                      e.target.style.boxShadow = "0 4px 12px rgba(255, 77, 79, 0.2)";
+                    }}
+                  >
+                    STOP SCANNING
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      startScanning();
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: "16px 24px",
+                      backgroundColor: "#52c41a",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "15px",
+                      border: "none",
+                      borderRadius: "10px",
+                      cursor: "pointer",
+                      transition: "all 0.3s ease",
+                      boxShadow: "0 4px 12px rgba(82, 196, 26, 0.2)"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = "#389e0d";
+                      e.target.style.transform = "translateY(-2px)";
+                      e.target.style.boxShadow = "0 6px 16px rgba(82, 196, 26, 0.3)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = "#52c41a";
+                      e.target.style.transform = "translateY(0)";
+                      e.target.style.boxShadow = "0 4px 12px rgba(82, 196, 26, 0.2)";
+                    }}
+                  >
+                    START SCANNING
+                  </button>
+                )}
+              </div>
 
-            <div style={{ fontSize: "12px", color: "#666", textAlign: "center" }}>
-              💡 Hãy nhìn trực tiếp vào camera, giữ khuôn mặt trong khung
+              <div style={{ 
+                marginTop: "20px",
+                padding: "16px",
+                backgroundColor: "#f5f7fa",
+                borderRadius: "10px",
+                border: "1px solid #e1e8ed"
+              }}>
+                <div style={{ 
+                  fontSize: "13px", 
+                  color: "#697386",
+                  lineHeight: "1.6",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px"
+                }}>
+                  <span style={{ 
+                    fontSize: "18px",
+                    flexShrink: 0,
+                    marginTop: "-2px"
+                  }}>
+                    INFO
+                  </span>
+                  <span>
+                    Look directly at the camera and keep your face within the scanning frame for accurate detection
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Attendance Logs Section */}
           <div style={logsSection}>
-            <h3 style={{ marginTop: 0, marginBottom: "12px" }}>📋 Lịch Sử Điểm Danh (Hôm Nay)</h3>
+            <div style={{ marginBottom: "24px" }}>
+              <h2 style={{ 
+                margin: 0,
+                fontSize: "22px",
+                fontWeight: "700",
+                color: "#1a1f36",
+                marginBottom: "4px"
+              }}>
+                Today's Attendance Log
+              </h2>
+              <p style={{ 
+                margin: 0,
+                fontSize: "14px",
+                color: "#697386"
+              }}>
+                View your check-in and check-out records
+              </p>
+            </div>
 
             {attendanceLogs.length === 0 ? (
-              <div style={{ textAlign: "center", color: "#999", padding: "32px 16px" }}>
-                <div style={{ fontSize: "32px", marginBottom: "8px" }}>😴</div>
-                <p>Chưa có lần điểm danh nào</p>
+              <div style={{ 
+                textAlign: "center", 
+                padding: "60px 24px",
+                backgroundColor: "#fafafa",
+                borderRadius: "12px",
+                border: "2px dashed #d9d9d9"
+              }}>
+                <div style={{ 
+                  fontSize: "56px",
+                  marginBottom: "16px",
+                  opacity: 0.3
+                }}>
+                  NO RECORDS
+                </div>
+                <p style={{ 
+                  fontSize: "16px",
+                  color: "#8c8c8c",
+                  margin: 0
+                }}>
+                  No attendance records found for today
+                </p>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ 
+                display: "flex", 
+                flexDirection: "column", 
+                gap: "12px" 
+              }}>
                 {attendanceLogs.map((log) => {
                   const isIn = log.type === 'IN';
-                  const borderColor = isIn ? "#28a745" : "#ff9800";
-                  const bgColor = isIn ? "#d4edda" : "#fff3cd";
-                  const textColor = isIn ? "#155724" : "#856404";
+                  const bgColor = isIn ? "#f6ffed" : "#fff7e6";
+                  const borderColor = isIn ? "#52c41a" : "#fa8c16";
+                  const textColor = isIn ? "#389e0d" : "#d46b08";
+                  
                   return (
                     <div
                       key={log.id}
@@ -1215,32 +1827,61 @@ function AttendanceScanner() {
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
-                        padding: "12px",
+                        padding: "20px 24px",
                         backgroundColor: bgColor,
-                        borderRadius: "6px",
-                        borderLeft: "4px solid " + borderColor,
-                        border: `1px solid ${borderColor}`
+                        borderRadius: "12px",
+                        border: `2px solid ${borderColor}`,
+                        transition: "all 0.3s ease"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = "translateX(4px)";
+                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.08)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "translateX(0)";
+                        e.currentTarget.style.boxShadow = "none";
                       }}
                     >
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: "600", color: textColor }}>
-                          {isIn ? "🟢" : "🔴"} {log.name}
-                        </div>
-                        <div style={{ fontSize: "12px", color: textColor, opacity: 0.8 }}>{log.time}</div>
-                      </div>
-                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                        <span style={{
-                          padding: "4px 12px",
-                          backgroundColor: borderColor,
-                          color: "#fff",
-                          borderRadius: "12px",
-                          fontSize: "12px",
-                          fontWeight: "600"
+                        <div style={{ 
+                          fontWeight: "700",
+                          fontSize: "17px",
+                          color: textColor,
+                          marginBottom: "6px"
                         }}>
-                          {isIn ? "VÀO" : "RA"}
+                          {log.name}
+                        </div>
+                        <div style={{ 
+                          fontSize: "14px",
+                          color: textColor,
+                          opacity: 0.8,
+                          fontWeight: "500"
+                        }}>
+                          {log.time}
+                        </div>
+                      </div>
+                      <div style={{ 
+                        display: "flex",
+                        gap: "16px",
+                        alignItems: "center" 
+                      }}>
+                        <span style={{
+                          padding: "8px 20px",
+                          backgroundColor: borderColor,
+                          color: "#ffffff",
+                          borderRadius: "20px",
+                          fontSize: "13px",
+                          fontWeight: "700",
+                          letterSpacing: "0.5px"
+                        }}>
+                          {isIn ? "CHECK IN" : "CHECK OUT"}
                         </span>
-                        <div style={{ fontSize: "18px", color: log.status === "✓" ? "#28a745" : "#dc3545" }}>
-                          {log.status}
+                        <div style={{ 
+                          fontSize: "24px",
+                          color: log.status === "✓" ? "#52c41a" : "#ff4d4f",
+                          fontWeight: "700"
+                        }}>
+                          {log.status === "✓" ? "VERIFIED" : "WARNING"}
                         </div>
                       </div>
                     </div>
@@ -1249,7 +1890,7 @@ function AttendanceScanner() {
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

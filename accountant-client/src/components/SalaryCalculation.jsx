@@ -2,6 +2,25 @@ import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
 import SalaryBreakdownModal from "./SalaryBreakdownModal.jsx";
 
+// Add keyframe animation for notification popup
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
+  @keyframes slideInRight {
+    from {
+      transform: translateX(400px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+`;
+if (!document.head.querySelector('style[data-notification-animation]')) {
+  styleSheet.setAttribute('data-notification-animation', 'true');
+  document.head.appendChild(styleSheet);
+}
+
 export default function SalaryCalculation() {
   const [employees, setEmployees] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -9,6 +28,7 @@ export default function SalaryCalculation() {
   const [calculatedSalaries, setCalculatedSalaries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [toastPopup, setToastPopup] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [salaryBreakdown, setSalaryBreakdown] = useState(null);
   const [showRules, setShowRules] = useState(false);
@@ -17,16 +37,20 @@ export default function SalaryCalculation() {
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
+  // Auto-hide message after 5 seconds
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => {
+        setMessage("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
+
   useEffect(() => {
     fetchEmployees();
     fetchRules();
   }, []);
-
-  useEffect(() => {
-    if (employees.length > 0) {
-      calculateSalaries();
-    }
-  }, [selectedMonth, selectedYear, employees]);
 
   const fetchEmployees = async () => {
     try {
@@ -42,7 +66,6 @@ export default function SalaryCalculation() {
       }
     } catch (error) {
       console.error("Error fetching employees:", error);
-      setMessage("Lỗi khi tải danh sách nhân viên");
     }
   };
 
@@ -71,7 +94,7 @@ export default function SalaryCalculation() {
       if (!token) return;
 
       if (employees.length === 0) {
-        setMessage("Không có nhân viên để tính lương");
+        setMessage("No employees to calculate salary");
         return;
       }
 
@@ -110,10 +133,12 @@ export default function SalaryCalculation() {
       }
 
       setCalculatedSalaries(calculatedSalariesList);
-      setMessage(`Tính lương thành công cho ${successCount} nhân viên${errorCount > 0 ? ` (${errorCount} lỗi)` : ''}`);
+      const successMsg = `Salary calculated for ${successCount} employee(s)${errorCount > 0 ? ` (${errorCount} error(s))` : ''}`;
+      setToastPopup(successMsg);
+      setTimeout(() => setToastPopup(""), 5000);
     } catch (error) {
       console.error("Error calculating salaries:", error);
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -137,36 +162,71 @@ export default function SalaryCalculation() {
       });
 
       if (res.ok) {
-        setMessage("Phê duyệt lương thành công");
+        setToastPopup("Salary approved successfully");
+        setTimeout(() => setToastPopup(""), 5000);
         calculateSalaries();
       }
     } catch (error) {
       console.error("Error approving salary:", error);
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     }
   };
 
   return (
-    <div style={{ padding: "20px", backgroundColor: theme.colors.light }}>
-      <h1 style={{ color: theme.colors.primary }}>💰 Tính Lương Tháng</h1>
+    <div>
+      <h1 style={{ color: theme.primary.main, marginTop: 0 }}>💰 Monthly Salary Calculation</h1>
 
-      {message && (
+      {toastPopup && (
         <div
           style={{
-            padding: "10px",
-            marginBottom: "15px",
-            backgroundColor: message.includes("thành công") ? "#d4edda" : "#f8d7da",
-            color: message.includes("thành công") ? "#155724" : "#721c24",
-            borderRadius: "5px"
+            position: "fixed",
+            top: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            padding: "12px 24px",
+            backgroundColor: "#059669",
+            color: "#fff",
+            borderRadius: "8px",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+            fontWeight: "600",
+            fontSize: "15px",
+            zIndex: 9999
           }}
         >
-          {message}
+          {toastPopup}
+        </div>
+      )}
+
+      {message && message.includes("Error") && (
+        <div
+          style={{
+            position: "fixed",
+            top: "80px",
+            right: "20px",
+            padding: "15px 20px",
+            backgroundColor: message.includes("thành công") ? "#d4edda" : "#f8d7da",
+            color: message.includes("thành công") ? "#155724" : "#721c24",
+            borderRadius: "8px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            zIndex: 9999,
+            minWidth: "300px",
+            maxWidth: "400px",
+            animation: "slideInRight 0.3s ease-out",
+            border: message.includes("thành công") ? "2px solid #28a745" : "2px solid #dc3545"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "1.2em" }}>
+              {message.includes("thành công") ? "✅" : "❌"}
+            </span>
+            <span style={{ flex: 1, fontWeight: "500" }}>{message}</span>
+          </div>
         </div>
       )}
 
       <div style={{ marginBottom: "20px", display: "flex", gap: "20px", alignItems: "center" }}>
         <div>
-          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Tháng:</label>
+          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Month:</label>
           <input
             type="number"
             min="1"
@@ -175,23 +235,23 @@ export default function SalaryCalculation() {
             onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
             style={{
               padding: "8px",
-              borderRadius: "5px",
-              border: `1px solid ${theme.colors.border}`,
+              border: "1px solid #ccc",
+              borderRadius: "4px",
               width: "80px"
             }}
           />
         </div>
 
         <div>
-          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Năm:</label>
+          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Year:</label>
           <input
             type="number"
             value={selectedYear}
             onChange={(e) => setSelectedYear(parseInt(e.target.value))}
             style={{
               padding: "8px",
-              borderRadius: "5px",
-              border: `1px solid ${theme.colors.border}`,
+              border: "1px solid #ccc",
+              borderRadius: "4px",
               width: "100px"
             }}
           />
@@ -202,7 +262,7 @@ export default function SalaryCalculation() {
           disabled={loading}
           style={{
             padding: "8px 20px",
-            backgroundColor: theme.colors.primary,
+            backgroundColor: "#047857",
             color: "white",
             border: "none",
             borderRadius: "5px",
@@ -210,87 +270,185 @@ export default function SalaryCalculation() {
             opacity: loading ? 0.6 : 1
           }}
         >
-          {loading ? "Đang tính..." : "Tính lương"}
+          {loading ? "Calculating..." : "Calculate"}
         </button>
 
         <button
           onClick={() => setShowRules(!showRules)}
           style={{
             padding: "8px 20px",
-            backgroundColor: theme.colors.secondary,
+            backgroundColor: "#6b7280",
             color: "white",
             border: "none",
             borderRadius: "5px",
             cursor: "pointer"
           }}
         >
-          {showRules ? "Ẩn" : "Xem"} Quy tắc
+          {showRules ? "Hide" : "Show"} Rules
         </button>
       </div>
 
-      {/* Rules Section */}
+      {/* Rules Modal */}
       {showRules && (
-        <div style={{ marginBottom: "20px", backgroundColor: "white", padding: "15px", borderRadius: "8px", border: `1px solid ${theme.colors.border}` }}>
-          <h3 style={{ color: theme.colors.primary }}>📋 Quy Tắc Tính Lương (Không Thể Chỉnh Sửa)</h3>
+        <div style={{ marginBottom: "20px", backgroundColor: "white", padding: "15px", borderRadius: "8px", border: `1px solid ${theme.neutral.gray200}` }}>
+          <h3 style={{ color: theme.primary.main }}>📋 Salary Calculation Rules (Read-only)</h3>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl }}>
             {/* Deductions */}
             <div>
-              <h4 style={{ color: "#dc3545" }}>📉 Khấu Trừ:</h4>
-              {rules.filter(r => r.type === "deduction").map(rule => (
-                <div
-                  key={rule.id}
-                  style={{
-                    padding: "10px",
-                    marginBottom: "8px",
-                    backgroundColor: "#fff5f5",
-                    borderLeft: `4px solid #dc3545`,
-                    borderRadius: "4px"
-                  }}
-                >
-                  <div style={{ fontWeight: "bold" }}>{rule.name}</div>
-                  <div style={{ fontSize: "0.9em", color: "#666" }}>
-                    {rule.amountType === "percentage"
-                      ? `${rule.amount}% lương cơ bản`
-                      : `₫${rule.amount.toLocaleString("vi-VN")}`}
-                  </div>
-                  <div style={{ fontSize: "0.85em", color: "#999", marginTop: "4px" }}>
-                    {rule.description}
-                  </div>
+              <h4 style={{ color: "#dc3545" }}>📉 Deductions:</h4>
+              {rules.filter(r => r.type === "deduction").length === 0 ? (
+                <div style={{
+                  padding: theme.spacing.lg,
+                  textAlign: "center",
+                  color: theme.neutral.gray400,
+                  fontStyle: "italic"
+                }}>
+                  Không có quy tắc khấu trừ
                 </div>
-              ))}
+              ) : (
+                rules.filter(r => r.type === "deduction").map(rule => (
+                  <div
+                    key={rule.id}
+                    style={{
+                      padding: theme.spacing.lg,
+                      marginBottom: theme.spacing.md,
+                      backgroundColor: "#fff5f5",
+                      borderLeft: `5px solid #dc3545`,
+                      borderRadius: theme.radius.md,
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      boxShadow: theme.shadows.sm,
+                      border: `1px solid #ffebee`,
+                      position: "relative",
+                      overflow: "hidden"
+                    }}
+                  >
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: theme.spacing.sm
+                    }}>
+                      <div style={{ 
+                        fontWeight: "700", 
+                        fontSize: "16px",
+                        color: theme.neutral.gray900 
+                      }}>
+                        {rule.name}
+                      </div>
+                      <div style={{
+                        padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+                        backgroundColor: "#ffebee",
+                        borderRadius: theme.radius.sm,
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#dc3545",
+                        textTransform: "uppercase"
+                      }}>
+                        Khấu Trừ
+                      </div>
+                    </div>
+                    <div style={{ 
+                      fontSize: "15px", 
+                      color: theme.neutral.gray700, 
+                      marginBottom: theme.spacing.xs,
+                      fontWeight: "500"
+                    }}>
+                      {rule.amountType === "percentage"
+                        ? `${rule.amount}% lương cơ bản`
+                        : `₫${rule.amount.toLocaleString("vi-VN")}`}
+                    </div>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: theme.neutral.gray600,
+                      lineHeight: "1.5"
+                    }}>
+                      {rule.description}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
             {/* Bonuses */}
             <div>
-              <h4 style={{ color: "#28a745" }}>📈 Thưởng:</h4>
-              {rules.filter(r => r.type === "bonus").map(rule => (
-                <div
-                  key={rule.id}
-                  style={{
-                    padding: "10px",
-                    marginBottom: "8px",
-                    backgroundColor: "#f5fff5",
-                    borderLeft: `4px solid #28a745`,
-                    borderRadius: "4px"
-                  }}
-                >
-                  <div style={{ fontWeight: "bold" }}>{rule.name}</div>
-                  <div style={{ fontSize: "0.9em", color: "#666" }}>
-                    {rule.amountType === "percentage"
-                      ? `${rule.amount}% lương cơ bản`
-                      : `₫${rule.amount.toLocaleString("vi-VN")}`}
-                  </div>
-                  <div style={{ fontSize: "0.85em", color: "#999", marginTop: "4px" }}>
-                    {rule.description}
-                  </div>
+              <h4 style={{ color: "#28a745" }}>📈 Bonuses:</h4>
+              {rules.filter(r => r.type === "bonus").length === 0 ? (
+                <div style={{
+                  padding: theme.spacing.lg,
+                  textAlign: "center",
+                  color: theme.neutral.gray400,
+                  fontStyle: "italic"
+                }}>
+                  Không có quy tắc thưởng
                 </div>
-              ))}
+              ) : (
+                rules.filter(r => r.type === "bonus").map(rule => (
+                  <div
+                    key={rule.id}
+                    style={{
+                      padding: theme.spacing.lg,
+                      marginBottom: theme.spacing.md,
+                      backgroundColor: "#f0fdf4",
+                      borderLeft: `5px solid #28a745`,
+                      borderRadius: theme.radius.md,
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      boxShadow: theme.shadows.sm,
+                      border: `1px solid #dcfce7`,
+                      position: "relative",
+                      overflow: "hidden"
+                    }}
+                  >
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: theme.spacing.sm
+                    }}>
+                      <div style={{ 
+                        fontWeight: "700", 
+                        fontSize: "16px",
+                        color: theme.neutral.gray900 
+                      }}>
+                        {rule.name}
+                      </div>
+                      <div style={{
+                        padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+                        backgroundColor: "#dcfce7",
+                        borderRadius: theme.radius.sm,
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "#28a745",
+                        textTransform: "uppercase"
+                      }}>
+                        Thưởng
+                      </div>
+                    </div>
+                    <div style={{ 
+                      fontSize: "15px", 
+                      color: theme.neutral.gray700, 
+                      marginBottom: theme.spacing.xs,
+                      fontWeight: "500"
+                    }}>
+                      {rule.amountType === "percentage"
+                        ? `${rule.amount}% lương cơ bản`
+                        : `₫${rule.amount.toLocaleString("vi-VN")}`}
+                    </div>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: theme.neutral.gray600,
+                      lineHeight: "1.5"
+                    }}>
+                      {rule.description}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
           <div style={{ marginTop: "15px", padding: "10px", backgroundColor: "#fffbea", borderRadius: "4px", fontSize: "0.9em", color: "#666" }}>
-            <strong>⚠️ Lưu ý:</strong> Các quy tắc này được thiết lập theo tiêu chuẩn của công ty chuyên nghiệp. Để thay đổi, vui lòng liên hệ với quản trị viên hệ thống.
+            <strong>⚠️ Note:</strong> These rules are set by company policy. Contact system administrator to change.
           </div>
         </div>
       )}
@@ -298,34 +456,34 @@ export default function SalaryCalculation() {
       {/* Calculated Salaries Table */}
       <div style={{ backgroundColor: "white", borderRadius: "8px", overflow: "hidden", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ backgroundColor: theme.colors.primary, color: "white" }}>
+          <thead style={{ backgroundColor: theme.primary.main, color: "white" }}>
             <tr>
-              <th style={{ padding: "12px", textAlign: "left", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Mã NV
+              <th style={{ padding: "12px", textAlign: "left", borderBottom: `2px solid ${theme.neutral.gray200}` }}>
+                Emp. ID
               </th>
-              <th style={{ padding: "12px", textAlign: "left", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Tên Nhân Viên
+              <th style={{ padding: "12px", textAlign: "left", borderBottom: `2px solid ${theme.neutral.gray200}` }}>
+                Employee Name
               </th>
-              <th style={{ padding: "12px", textAlign: "left", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Phòng Ban
+              <th style={{ padding: "12px", textAlign: "left", borderBottom: `2px solid ${theme.neutral.gray200}` }}>
+                Department
               </th>
-              <th style={{ padding: "12px", textAlign: "right", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Lương Cơ Bản
+              <th style={{ padding: "12px", textAlign: "right", borderBottom: `2px solid ${theme.neutral.gray200}` }}>
+                Base Salary
               </th>
-              <th style={{ padding: "12px", textAlign: "right", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Thưởng
+              <th style={{ padding: "12px", textAlign: "right", borderBottom: `2px solid ${theme.neutral.gray200}` }}>
+                Bonus
               </th>
-              <th style={{ padding: "12px", textAlign: "right", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Khấu Trừ
+              <th style={{ padding: "12px", textAlign: "right", borderBottom: `2px solid ${theme.neutral.gray200}` }}>
+                Deduction
               </th>
-              <th style={{ padding: "12px", textAlign: "right", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Lương Thực
+              <th style={{ padding: "12px", textAlign: "right", borderBottom: `2px solid ${theme.neutral.gray200}` }}>
+                Net Salary
               </th>
-              <th style={{ padding: "12px", textAlign: "center", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Trạng Thái
+              <th style={{ padding: "12px", textAlign: "center", borderBottom: `2px solid ${theme.neutral.gray200}` }}>
+                Status
               </th>
-              <th style={{ padding: "12px", textAlign: "center", borderBottom: `2px solid ${theme.colors.border}` }}>
-                Hành Động
+              <th style={{ padding: "12px", textAlign: "center", borderBottom: `2px solid ${theme.neutral.gray200}` }}>
+                Actions
               </th>
             </tr>
           </thead>
@@ -333,22 +491,26 @@ export default function SalaryCalculation() {
             {calculatedSalaries.length === 0 ? (
               <tr>
                 <td colSpan="9" style={{ padding: "20px", textAlign: "center", color: "#999" }}>
-                  Chưa có dữ liệu. Nhấn "Tính lương" để bắt đầu.
+                  No data yet. Click "Calculate" to start.
                 </td>
               </tr>
             ) : (
-              calculatedSalaries.map((salary) => {
+              [...calculatedSalaries]
+                .sort((a, b) => {
+                  const order = { paid: 0, approved: 1, pending: 2 };
+                  return (order[a.status] ?? 2) - (order[b.status] ?? 2);
+                })
+                .map((salary) => {
                 const employee = employees.find(e => e.id === salary.userId);
                 return (
                   <tr
                     key={salary.id}
                     style={{
-                      borderBottom: `1px solid ${theme.colors.border}`,
-                      backgroundColor: salary.status === "paid" ? "#f0fff4" : "white",
-                      "&:hover": { backgroundColor: "#f9f9f9" }
+                      borderBottom: `1px solid ${theme.neutral.gray200}`,
+                      backgroundColor: salary.status === "paid" ? "#f0fff4" : "white"
                     }}
                   >
-                    <td style={{ padding: "12px" }}>{employee?.employeeCode || "N/A"}</td>
+                    <td style={{ padding: "12px", fontWeight: "bold" }}>{employee?.employeeCode || "N/A"}</td>
                     <td style={{ padding: "12px" }}>{employee?.name || "N/A"}</td>
                     <td style={{ padding: "12px" }}>{employee?.department || "N/A"}</td>
                     <td style={{ padding: "12px", textAlign: "right" }}>
@@ -360,7 +522,7 @@ export default function SalaryCalculation() {
                     <td style={{ padding: "12px", textAlign: "right", color: "#dc3545" }}>
                       -₫{(salary.deduction || 0).toLocaleString("vi-VN")}
                     </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontWeight: "bold", color: theme.colors.primary }}>
+                    <td style={{ padding: "12px", textAlign: "right", fontWeight: "bold", color: theme.primary.main }}>
                       ₫{salary.finalSalary?.toLocaleString("vi-VN") || "0"}
                     </td>
                     <td style={{ padding: "12px", textAlign: "center" }}>
@@ -386,10 +548,10 @@ export default function SalaryCalculation() {
                         }}
                       >
                         {salary.status === "paid"
-                          ? "Đã thanh toán"
+                          ? "Paid"
                           : salary.status === "approved"
-                          ? "Đã duyệt"
-                          : "Chưa duyệt"}
+                          ? "Approved"
+                          : "Pending"}
                       </span>
                     </td>
                     <td style={{ padding: "12px", textAlign: "center" }}>
@@ -406,9 +568,9 @@ export default function SalaryCalculation() {
                           fontSize: "0.9em"
                         }}
                       >
-                        Chi tiết
+                        Details
                       </button>
-                      {salary.status !== "paid" && (
+                      {salary.status !== "paid" && salary.status !== "approved" && (
                         <button
                           onClick={() => approveSalary(salary.id)}
                           style={{
@@ -421,7 +583,7 @@ export default function SalaryCalculation() {
                             fontSize: "0.9em"
                           }}
                         >
-                          Duyệt
+                          Approve
                         </button>
                       )}
                     </td>
@@ -442,11 +604,11 @@ export default function SalaryCalculation() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
+            backgroundColor: "rgba(0,0,0,0.6)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 1000
+            zIndex: 1000,
           }}
           onClick={() => {
             setSalaryBreakdown(null);
@@ -455,59 +617,65 @@ export default function SalaryCalculation() {
         >
           <div
             style={{
-              backgroundColor: "white",
-              padding: "30px",
-              borderRadius: "8px",
+              backgroundColor: theme.neutral.white,
+              padding: theme.spacing.xl,
+              borderRadius: theme.radius.xl,
               maxWidth: "600px",
+              width: "90%",
               maxHeight: "90vh",
               overflowY: "auto",
-              boxShadow: "0 5px 15px rgba(0,0,0,0.3)"
+              boxShadow: theme.shadows.lg,
+              border: `1px solid ${theme.neutral.gray200}`
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ color: theme.colors.primary, marginBottom: "20px" }}>
-              📊 Chi Tiết Tính Lương
+            <h2 style={{ color: theme.primary.main, marginBottom: "20px" }}>
+              📊 Salary Breakdown
             </h2>
 
             <div style={{ marginBottom: "15px" }}>
-              <strong>Nhân viên:</strong> {selectedEmployee.name}
+              <strong>Employee:</strong> {selectedEmployee.name}
             </div>
             <div style={{ marginBottom: "15px" }}>
-              <strong>Mã NV:</strong> {selectedEmployee.employeeCode}
+              <strong>Mã NV:</strong> <span style={{ fontWeight: "bold" }}>{selectedEmployee.employeeCode}</span>
             </div>
             <div style={{ marginBottom: "20px" }}>
-              <strong>Tháng/Năm:</strong> {selectedMonth}/{selectedYear}
+              <strong>Month/Year:</strong> {selectedMonth}/{selectedYear}
             </div>
 
-            <div style={{ borderTop: `1px solid ${theme.colors.border}`, paddingTop: "15px" }}>
-              <h4 style={{ color: "#28a745" }}>Thu Nhập:</h4>
+            <div style={{ borderTop: `1px solid ${theme.neutral.gray200}`, paddingTop: "15px" }}>
+              <h4 style={{ color: "#28a745" }}>Income:</h4>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                <span>Lương cơ bản:</span>
+                <span>Base salary:</span>
                 <strong>₫{salaryBreakdown.baseSalary?.toLocaleString("vi-VN") || "0"}</strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px" }}>
-                <span>Thưởng:</span>
+                <span>Bonus:</span>
                 <strong style={{ color: "#28a745" }}>+₫{(salaryBreakdown.bonus || 0).toLocaleString("vi-VN")}</strong>
               </div>
 
-              <h4 style={{ color: "#dc3545", marginTop: "15px" }}>Khấu Trừ:</h4>
+              <h4 style={{ color: "#dc3545", marginTop: "15px" }}>Deductions:</h4>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px" }}>
-                <span>Tổng khấu trừ:</span>
+                <span>Total deduction:</span>
                 <strong style={{ color: "#dc3545" }}>-₫{(salaryBreakdown.deduction || 0).toLocaleString("vi-VN")}</strong>
               </div>
 
               <div
                 style={{
-                  borderTop: `2px solid ${theme.colors.primary}`,
+                  borderTop: `2px solid ${theme.primary.main}`,
                   paddingTop: "15px",
                   marginTop: "15px",
                   display: "flex",
                   justifyContent: "space-between",
-                  fontSize: "1.1em"
+                  fontSize: "18px",
+                  fontWeight: "700",
+                  padding: "10px",
+                  backgroundColor: theme.neutral.gray50,
+                  borderRadius: "5px"
                 }}
               >
-                <strong>Lương thực nhận:</strong>
-                <strong style={{ color: theme.colors.primary }}>
+                <strong>Net pay:</strong>
+                <strong style={{ color: theme.primary.main }}>
                   ₫{salaryBreakdown.finalSalary?.toLocaleString("vi-VN") || "0"}
                 </strong>
               </div>
@@ -519,18 +687,21 @@ export default function SalaryCalculation() {
                 setSelectedEmployee(null);
               }}
               style={{
-                marginTop: "20px",
+                marginTop: theme.spacing.xl,
                 width: "100%",
-                padding: "10px",
-                backgroundColor: theme.colors.primary,
-                color: "white",
+                padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                backgroundColor: theme.primary.main,
+                color: theme.neutral.white,
                 border: "none",
-                borderRadius: "5px",
+                borderRadius: theme.radius.md,
                 cursor: "pointer",
-                fontWeight: "bold"
+                fontWeight: "600",
+                fontSize: "15px",
+                transition: "all 0.2s",
+                boxShadow: theme.shadows.sm
               }}
             >
-              Đóng
+              Close
             </button>
           </div>
         </div>
@@ -558,3 +729,4 @@ export default function SalaryCalculation() {
     </div>
   );
 }
+

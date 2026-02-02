@@ -79,16 +79,16 @@ function App() {
   }
 
   const navigationItems = [
-    { id: "enrollment", label: "Đăng ký nhân viên", shortcut: "1" },
-    { id: "dashboard", label: "Quản lý nhân viên", shortcut: "2" },
-    { id: "logs", label: "Lịch sử điểm danh", shortcut: "3" },
-    { id: "shifts", label: "Ca làm việc", shortcut: "4" },
-    { id: "salary", label: "Quản lý lương", shortcut: "5" },
-    { id: "leave", label: "Nghỉ phép", shortcut: "6" },
-    { id: "approvals", label: "Duyệt yêu cầu", shortcut: "7" },
-    { id: "departments", label: "Phòng ban", shortcut: "8" },
-    { id: "job-titles", label: "Chức vụ", shortcut: "9" },
-    { id: "analytics", label: "Phân tích", shortcut: "0" },
+    { id: "enrollment", label: "Enroll Employee", shortcut: "1" },
+    { id: "dashboard", label: "Employee Management", shortcut: "2" },
+    { id: "logs", label: "Attendance History", shortcut: "3" },
+    { id: "shifts", label: "Work Schedule", shortcut: "4" },
+    { id: "salary", label: "Payroll Management", shortcut: "5" },
+    { id: "leave", label: "Leave Management", shortcut: "6" },
+    { id: "approvals", label: "Approval Management", shortcut: "7" },
+    { id: "departments", label: "Department Management", shortcut: "8" },
+    { id: "job-titles", label: "Job Title Management", shortcut: "9" },
+    { id: "analytics", label: "Analytics Dashboard", shortcut: "0" },
   ];
 
   // Layout styles
@@ -167,12 +167,25 @@ function App() {
     padding: theme.spacing.xl,
   };
 
-  const getNavItemStyle = (itemId) => ({
-    ...commonStyles.sidebarItem,
-    ...(activeTab === itemId ? commonStyles.sidebarItemActive : {}),
-    justifyContent: sidebarCollapsed ? "center" : "flex-start",
-    padding: sidebarCollapsed ? theme.spacing.md : `${theme.spacing.md} ${theme.spacing.lg}`,
-  });
+  const getNavItemStyle = (itemId) => {
+    const isActive = activeTab === itemId;
+    return {
+      ...commonStyles.sidebarItem,
+      ...(isActive ? {
+        ...commonStyles.sidebarItemActive,
+        backgroundColor: "#f0f9ff",
+        color: "#667eea",
+        fontWeight: "700",
+        borderLeft: "4px solid #667eea",
+        boxShadow: "0 4px 12px rgba(102, 126, 234, 0.15)",
+        transform: "translateX(4px)",
+        position: "relative",
+      } : {}),
+      justifyContent: sidebarCollapsed ? "center" : "flex-start",
+      padding: sidebarCollapsed ? theme.spacing.md : `${theme.spacing.md} ${theme.spacing.lg}`,
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    };
+  };
 
   return (
     <div style={appContainerStyle}>
@@ -215,22 +228,47 @@ function App() {
         </div>
 
         <nav style={{ padding: theme.spacing.md, flex: 1 }}>
-          {user?.role === "admin" && navigationItems.map((item) => (
+          {user?.role === "admin" && navigationItems.map((item) => {
+            const isActive = activeTab === item.id;
+            return (
             <div
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               style={getNavItemStyle(item.id)}
               title={sidebarCollapsed ? `${item.label} (Ctrl+${item.shortcut})` : `Ctrl+${item.shortcut}`}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.backgroundColor = theme.neutral.gray100;
+                  e.currentTarget.style.color = theme.primary.main;
+                  e.currentTarget.style.transform = "translateX(2px)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = theme.neutral.gray700;
+                  e.currentTarget.style.transform = "translateX(0)";
+                }
+              }}
             >
               {!sidebarCollapsed && (
                 <>
-                  <span style={{ flex: 1, fontWeight: activeTab === item.id ? "600" : "500" }}>{item.label}</span>
+                  <span style={{ 
+                    flex: 1, 
+                    fontWeight: activeTab === item.id ? "700" : "500",
+                    color: activeTab === item.id ? "#667eea" : "inherit"
+                  }}>
+                    {item.label}
+                  </span>
                   <span style={{ 
                     fontSize: theme.typography.tiny.fontSize, 
-                    color: theme.neutral.gray400,
-                    backgroundColor: theme.neutral.gray100,
-                    padding: `2px ${theme.spacing.xs}`,
+                    color: activeTab === item.id ? "#667eea" : theme.neutral.gray400,
+                    backgroundColor: activeTab === item.id ? "#e0e7ff" : theme.neutral.gray100,
+                    padding: `4px ${theme.spacing.xs}`,
                     borderRadius: theme.radius.sm,
+                    fontWeight: activeTab === item.id ? "700" : "500",
+                    border: activeTab === item.id ? "1px solid #667eea" : "none",
+                    transition: "all 0.2s"
                   }}>
                     {item.shortcut}
                   </span>
@@ -242,7 +280,8 @@ function App() {
                 </span>
               )}
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         {/* User section */}
@@ -285,7 +324,7 @@ function App() {
                 fontSize: theme.typography.small.fontSize, 
                 color: theme.neutral.gray500,
               }}>
-                {user?.role === "admin" ? "Quản trị viên" : "Nhân viên"}
+                {user?.role === "admin" ? "Admin" : "Employee"}
               </div>
             </div>
           )}
@@ -311,7 +350,7 @@ function App() {
               color: theme.neutral.gray500 
             }}>
               {navigationItems.find(item => item.id === activeTab)?.icon} 
-              {sidebarCollapsed ? "" : ` Quản lý hệ thống điểm danh`}
+              {sidebarCollapsed ? "" : ` Attendance Management System`}
             </p>
           </div>
           <div style={userInfoStyle}>
@@ -340,7 +379,7 @@ function App() {
                 e.target.style.boxShadow = theme.shadows.sm;
               }}
             >
-              Đăng xuất
+              Logout
             </button>
           </div>
         </header>
