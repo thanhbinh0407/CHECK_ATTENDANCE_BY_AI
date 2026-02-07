@@ -170,7 +170,12 @@ export const updateEmployee = async (req, res) => {
       responsibilityAllowance,
       socialInsuranceNumber,
       healthInsuranceProvider,
-      dependentCount
+      dependentCount,
+      educationLevel,
+      major,
+      emergencyContactName,
+      emergencyContactRelationship,
+      emergencyContactPhone
     } = req.body;
 
     const employee = await User.findOne({
@@ -206,7 +211,7 @@ export const updateEmployee = async (req, res) => {
     if (permanentAddress !== undefined) updateData.permanentAddress = permanentAddress;
     if (temporaryAddress !== undefined) updateData.temporaryAddress = temporaryAddress;
     if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
-    if (gender !== undefined) updateData.gender = gender;
+    if (gender !== undefined) updateData.gender = gender || null;
     if (idNumber !== undefined) updateData.idNumber = idNumber;
     if (idIssueDate !== undefined) updateData.idIssueDate = idIssueDate ? new Date(idIssueDate) : null;
     if (idIssuePlace !== undefined) updateData.idIssuePlace = idIssuePlace;
@@ -220,8 +225,8 @@ export const updateEmployee = async (req, res) => {
     if (bankBranch !== undefined) updateData.bankBranch = bankBranch;
     if (taxCode !== undefined) updateData.taxCode = taxCode;
     if (idNumber !== undefined) updateData.idNumber = idNumber;
-    if (contractType !== undefined) updateData.contractType = contractType;
-    if (employmentStatus !== undefined) updateData.employmentStatus = employmentStatus;
+    if (contractType !== undefined) updateData.contractType = contractType || null;
+    if (employmentStatus !== undefined) updateData.employmentStatus = employmentStatus || null;
     if (managerId !== undefined) updateData.managerId = managerId ? parseInt(managerId) : null;
     if (branchName !== undefined) updateData.branchName = branchName;
     if (lunchAllowance !== undefined) updateData.lunchAllowance = parseFloat(lunchAllowance) || 0;
@@ -231,7 +236,7 @@ export const updateEmployee = async (req, res) => {
     if (socialInsuranceNumber !== undefined) updateData.socialInsuranceNumber = socialInsuranceNumber;
     if (healthInsuranceProvider !== undefined) updateData.healthInsuranceProvider = healthInsuranceProvider;
     if (dependentCount !== undefined) updateData.dependentCount = parseInt(dependentCount) || 0;
-    if (educationLevel !== undefined) updateData.educationLevel = educationLevel;
+    if (educationLevel !== undefined) updateData.educationLevel = educationLevel || null;
     if (major !== undefined) updateData.major = major;
     if (emergencyContactName !== undefined) updateData.emergencyContactName = emergencyContactName;
     if (emergencyContactRelationship !== undefined) updateData.emergencyContactRelationship = emergencyContactRelationship;
@@ -839,6 +844,14 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         department: employee.Department?.name || 'N/A',
         jobTitle: employee.JobTitle?.name || 'N/A',
         salaryGrade: employee.SalaryGrade?.name || 'N/A',
+        contractType: employee.contractType,
+        employmentStatus: employee.employmentStatus,
+        managerId: employee.managerId,
+        branchName: employee.branchName,
+        Manager: employee.Manager ? { id: employee.Manager.id, name: employee.Manager.name, employeeCode: employee.Manager.employeeCode } : null,
+        Department: employee.Department,
+        JobTitle: employee.JobTitle,
+        SalaryGrade: employee.SalaryGrade,
         bankAccount: employee.bankAccount,
         bankName: employee.bankName,
         taxCode: employee.taxCode,

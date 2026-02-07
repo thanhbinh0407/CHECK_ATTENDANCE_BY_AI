@@ -685,9 +685,11 @@ export default function AdminDashboard() {
                           </div>
                         )}
                         <div style={{ gridColumn: "1 / -1", padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
-                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Created</div>
-                          <div style={{ fontSize: "14px", color: "#667eea", fontWeight: "700" }}>
-                            {new Date(emp.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Ngày bắt đầu làm việc</div>
+                          <div style={{ fontSize: "14px", color: emp.startDate ? "#667eea" : "#999", fontWeight: "700" }}>
+                            {emp.startDate
+                              ? new Date(emp.startDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })
+                              : "Chưa cập nhật"}
                           </div>
                         </div>
                   </div>
