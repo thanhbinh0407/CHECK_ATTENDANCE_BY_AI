@@ -14,6 +14,7 @@ export default function EmployeeDetailView() {
   const [editForm, setEditForm] = useState({});
   const [departments, setDepartments] = useState([]);
   const [jobTitles, setJobTitles] = useState([]);
+  const [managers, setManagers] = useState([]);
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
@@ -21,6 +22,7 @@ export default function EmployeeDetailView() {
     fetchEmployees();
     fetchDepartments();
     fetchJobTitles();
+    fetchManagers();
   }, []);
 
   const fetchDepartments = async () => {
@@ -50,6 +52,24 @@ export default function EmployeeDetailView() {
       }
     } catch (error) {
       console.error("Error fetching job titles:", error);
+    }
+  };
+
+  const fetchManagers = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/admin/employees`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const managerList = (data.employees || []).filter(emp =>
+          (emp.role === "admin" || emp.role === "accountant" || emp.isActive)
+        );
+        setManagers(managerList);
+      }
+    } catch (error) {
+      console.error("Error fetching managers:", error);
     }
   };
 
@@ -113,7 +133,12 @@ export default function EmployeeDetailView() {
       departmentId: selectedEmployeeForModal.departmentId || null,
       jobTitleId: selectedEmployeeForModal.jobTitleId || null,
       baseSalary: selectedEmployeeForModal.baseSalary || 0,
-      isActive: selectedEmployeeForModal.isActive !== undefined ? selectedEmployeeForModal.isActive : true
+      isActive: selectedEmployeeForModal.isActive !== undefined ? selectedEmployeeForModal.isActive : true,
+      startDate: selectedEmployeeForModal.startDate ? new Date(selectedEmployeeForModal.startDate).toISOString().split('T')[0] : "",
+      contractType: selectedEmployeeForModal.contractType || "",
+      employmentStatus: selectedEmployeeForModal.employmentStatus || "active",
+      managerId: selectedEmployeeForModal.managerId || null,
+      branchName: selectedEmployeeForModal.branchName || ""
     });
   };
 
@@ -121,13 +146,19 @@ export default function EmployeeDetailView() {
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
+      const payload = {
+        ...editForm,
+        contractType: editForm.contractType || null,
+        startDate: editForm.startDate || null,
+        managerId: editForm.managerId ? parseInt(editForm.managerId) : null
+      };
       const res = await fetch(`${apiBase}/api/admin/employees/${selectedEmployeeForModal.id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(editForm)
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
@@ -496,6 +527,97 @@ export default function EmployeeDetailView() {
                             />
                           </div>
                           <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày bắt đầu làm việc</label>
+                            <input
+                              type="date"
+                              value={editForm.startDate}
+                              onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                            <p style={{ margin: theme.spacing.xs, fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500 }}>
+                              Dùng để tính thâm niên và ngày phép năm
+                            </p>
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Loại hợp đồng</label>
+                            <select
+                              value={editForm.contractType || ""}
+                              onChange={(e) => setEditForm({ ...editForm, contractType: e.target.value || null })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            >
+                              <option value="">Chọn loại hợp đồng</option>
+                              <option value="probation">Thử việc</option>
+                              <option value="1_year">Hợp đồng 1 năm</option>
+                              <option value="3_year">Hợp đồng 3 năm</option>
+                              <option value="indefinite">Không xác định thời hạn</option>
+                              <option value="other">Khác</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Trạng thái lao động</label>
+                            <select
+                              value={editForm.employmentStatus || "active"}
+                              onChange={(e) => setEditForm({ ...editForm, employmentStatus: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            >
+                              <option value="active">Đang làm việc</option>
+                              <option value="maternity_leave">Đang nghỉ thai sản</option>
+                              <option value="unpaid_leave">Nghỉ không lương</option>
+                              <option value="terminated">Đã nghỉ việc</option>
+                              <option value="resigned">Đã từ chức</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chi nhánh</label>
+                            <input
+                              type="text"
+                              value={editForm.branchName}
+                              onChange={(e) => setEditForm({ ...editForm, branchName: e.target.value })}
+                              placeholder="Tên chi nhánh/văn phòng"
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Quản lý trực tiếp</label>
+                            <select
+                              value={editForm.managerId || ""}
+                              onChange={(e) => setEditForm({ ...editForm, managerId: e.target.value ? parseInt(e.target.value) : null })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            >
+                              <option value="">Chọn quản lý (duyệt đơn chấm công, nghỉ phép)</option>
+                              {managers.filter(m => m.id !== selectedEmployeeForModal?.id).map(mgr => (
+                                <option key={mgr.id} value={mgr.id}>
+                                  {mgr.name} ({mgr.employeeCode || mgr.email})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
                             <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Địa chỉ</label>
                             <textarea
                               value={editForm.address}
@@ -680,50 +802,95 @@ export default function EmployeeDetailView() {
                       )}
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl, marginTop: theme.spacing.xl }}>
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Phòng ban:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.Department?.name || "N/A"}</p>
-                      </div>
+                    <div style={{ borderTop: `1px solid ${theme.neutral.gray200}`, paddingTop: theme.spacing.xl, marginTop: theme.spacing.xl }}>
+                      <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>💼 Thông tin Công việc</h3>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl }}>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Phòng ban/Bộ phận:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.Department?.name || selectedEmployeeForModal.department || "Chưa cập nhật"}</p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chức vụ:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.JobTitle?.name || "N/A"}</p>
-                      </div>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chi nhánh:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.branchName || "Chưa cập nhật"}</p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Bậc lương:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.SalaryGrade?.name || "Chưa cập nhật"}</p>
-                      </div>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chức danh/Vị trí:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.JobTitle?.name || selectedEmployeeForModal.jobTitle || "Chưa cập nhật"}</p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Lương cơ bản:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600, fontWeight: "600" }}>
-                          ₫{selectedEmployeeForModal.baseSalary?.toLocaleString("vi-VN") || "0"}
-                        </p>
-                      </div>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Loại hợp đồng:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>
+                            {selectedEmployeeForModal.contractType === "probation" ? "Thử việc" :
+                             selectedEmployeeForModal.contractType === "1_year" ? "Hợp đồng 1 năm" :
+                             selectedEmployeeForModal.contractType === "3_year" ? "Hợp đồng 3 năm" :
+                             selectedEmployeeForModal.contractType === "indefinite" ? "Không xác định thời hạn" :
+                             selectedEmployeeForModal.contractType === "other" ? "Khác" : "Chưa cập nhật"}
+                          </p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày vào công ty:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>
-                          {selectedEmployeeForModal.startDate ? new Date(selectedEmployeeForModal.startDate).toLocaleDateString('vi-VN') : "Chưa cập nhật"}
-                        </p>
-                      </div>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Trạng thái lao động:</label>
+                          <p
+                            style={{
+                              margin: 0,
+                              display: "inline-block",
+                              padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+                              borderRadius: theme.radius.full,
+                              backgroundColor: (selectedEmployeeForModal.employmentStatus || selectedEmployeeForModal.isActive) === "active" ? theme.success.bg :
+                                selectedEmployeeForModal.employmentStatus === "maternity_leave" ? theme.info.bg :
+                                selectedEmployeeForModal.employmentStatus === "unpaid_leave" ? "#fff3cd" :
+                                theme.error.bg,
+                              color: (selectedEmployeeForModal.employmentStatus || selectedEmployeeForModal.isActive) === "active" ? theme.success.text :
+                                selectedEmployeeForModal.employmentStatus === "maternity_leave" ? theme.info.text :
+                                selectedEmployeeForModal.employmentStatus === "unpaid_leave" ? "#856404" :
+                                theme.error.text
+                            }}
+                          >
+                            {selectedEmployeeForModal.employmentStatus === "active" ? "Đang làm việc" :
+                             selectedEmployeeForModal.employmentStatus === "maternity_leave" ? "Đang nghỉ thai sản" :
+                             selectedEmployeeForModal.employmentStatus === "unpaid_leave" ? "Nghỉ không lương" :
+                             selectedEmployeeForModal.employmentStatus === "terminated" ? "Đã nghỉ việc" :
+                             selectedEmployeeForModal.employmentStatus === "resigned" ? "Đã từ chức" :
+                             selectedEmployeeForModal.isActive ? "Đang làm việc" : "Đã nghỉ việc"}
+                          </p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Trạng thái:</label>
-                        <p
-                          style={{
-                            margin: 0,
-                            display: "inline-block",
-                            padding: `${theme.spacing.xs} ${theme.spacing.md}`,
-                            borderRadius: theme.radius.full,
-                            backgroundColor: selectedEmployeeForModal.isActive ? theme.success.bg : theme.error.bg,
-                            color: selectedEmployeeForModal.isActive ? theme.success.text : theme.error.text
-                          }}
-                        >
-                          {selectedEmployeeForModal.isActive ? "Đang làm việc" : "Đã nghỉ"}
-                        </p>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày bắt đầu làm việc:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>
+                            {selectedEmployeeForModal.startDate ? new Date(selectedEmployeeForModal.startDate).toLocaleDateString('vi-VN') : "Chưa cập nhật"}
+                          </p>
+                          <p style={{ margin: theme.spacing.xs, fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500 }}>
+                            (Dùng để tính thâm niên và ngày phép năm)
+                          </p>
+                        </div>
+
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Quản lý trực tiếp:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>
+                            {selectedEmployeeForModal.Manager?.name
+                              ? `${selectedEmployeeForModal.Manager.name}${selectedEmployeeForModal.Manager.employeeCode ? ` (${selectedEmployeeForModal.Manager.employeeCode})` : ""}`
+                              : "Chưa cập nhật"}
+                          </p>
+                          <p style={{ margin: theme.spacing.xs, fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500 }}>
+                            Người duyệt đơn chấm công, nghỉ phép
+                          </p>
+                        </div>
+
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Bậc lương:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.SalaryGrade?.name || selectedEmployeeForModal.salaryGrade || "Chưa cập nhật"}</p>
+                        </div>
+
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Lương cơ bản:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600, fontWeight: "600" }}>
+                            ₫{selectedEmployeeForModal.baseSalary?.toLocaleString("vi-VN") || "0"}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
