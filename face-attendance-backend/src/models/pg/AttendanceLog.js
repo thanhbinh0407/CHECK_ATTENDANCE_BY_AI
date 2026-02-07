@@ -66,6 +66,6 @@ const AttendanceLog = sequelize.define('AttendanceLog', {
   tableName: 'attendance_logs'
 });
 
-AttendanceLog.belongsTo(User, { foreignKey: 'userId' });
+// Associations are defined in index.js
 
 export default AttendanceLog;

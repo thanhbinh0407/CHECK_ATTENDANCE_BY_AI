@@ -8,6 +8,7 @@ import JobTitle from "../models/pg/JobTitle.js";
 import SalaryGrade from "../models/pg/SalaryGrade.js";
 import Dependent from "../models/pg/Dependent.js";
 import Qualification from "../models/pg/Qualification.js";
+import WorkExperience from "../models/pg/WorkExperience.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
 
@@ -17,12 +18,30 @@ export const getAllEmployees = async (req, res) => {
     const employees = await User.findAll({
       where: { role: "employee" },
       attributes: { exclude: ["password"] },
-      include: [{ 
-        model: FaceProfile,
-        as: "FaceProfiles",
-        attributes: ["id", "createdAt"],
-        required: false
-      }]
+      include: [
+        { 
+          model: FaceProfile,
+          as: "FaceProfiles",
+          attributes: ["id", "createdAt"],
+          required: false
+        },
+        { 
+          model: Department, 
+          attributes: ['id', 'name'],
+          required: false
+        },
+        { 
+          model: JobTitle, 
+          attributes: ['id', 'name'],
+          required: false
+        },
+        { 
+          model: User, 
+          as: 'Manager', 
+          attributes: ['id', 'name', 'employeeCode', 'email'],
+          required: false
+        }
+      ]
     });
 
     return res.json({
@@ -125,15 +144,33 @@ export const updateEmployee = async (req, res) => {
       baseSalary,
       phoneNumber,
       address,
+      permanentAddress,
+      temporaryAddress,
       dateOfBirth,
       gender,
+      idNumber,
+      idIssueDate,
+      idIssuePlace,
+      personalEmail,
+      companyEmail,
       departmentId,
       jobTitleId,
       startDate,
       bankAccount,
       bankName,
+      bankBranch,
       taxCode,
-      idNumber
+      contractType,
+      employmentStatus,
+      managerId,
+      branchName,
+      lunchAllowance,
+      transportAllowance,
+      phoneAllowance,
+      responsibilityAllowance,
+      socialInsuranceNumber,
+      healthInsuranceProvider,
+      dependentCount
     } = req.body;
 
     const employee = await User.findOne({
@@ -166,15 +203,39 @@ export const updateEmployee = async (req, res) => {
     if (baseSalary !== undefined) updateData.baseSalary = parseFloat(baseSalary) || 0;
     if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
     if (address !== undefined) updateData.address = address;
+    if (permanentAddress !== undefined) updateData.permanentAddress = permanentAddress;
+    if (temporaryAddress !== undefined) updateData.temporaryAddress = temporaryAddress;
     if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
     if (gender !== undefined) updateData.gender = gender;
+    if (idNumber !== undefined) updateData.idNumber = idNumber;
+    if (idIssueDate !== undefined) updateData.idIssueDate = idIssueDate ? new Date(idIssueDate) : null;
+    if (idIssuePlace !== undefined) updateData.idIssuePlace = idIssuePlace;
+    if (personalEmail !== undefined) updateData.personalEmail = personalEmail;
+    if (companyEmail !== undefined) updateData.companyEmail = companyEmail;
     if (departmentId !== undefined) updateData.departmentId = departmentId;
     if (jobTitleId !== undefined) updateData.jobTitleId = jobTitleId;
     if (startDate !== undefined) updateData.startDate = startDate ? new Date(startDate) : null;
     if (bankAccount !== undefined) updateData.bankAccount = bankAccount;
     if (bankName !== undefined) updateData.bankName = bankName;
+    if (bankBranch !== undefined) updateData.bankBranch = bankBranch;
     if (taxCode !== undefined) updateData.taxCode = taxCode;
     if (idNumber !== undefined) updateData.idNumber = idNumber;
+    if (contractType !== undefined) updateData.contractType = contractType;
+    if (employmentStatus !== undefined) updateData.employmentStatus = employmentStatus;
+    if (managerId !== undefined) updateData.managerId = managerId ? parseInt(managerId) : null;
+    if (branchName !== undefined) updateData.branchName = branchName;
+    if (lunchAllowance !== undefined) updateData.lunchAllowance = parseFloat(lunchAllowance) || 0;
+    if (transportAllowance !== undefined) updateData.transportAllowance = parseFloat(transportAllowance) || 0;
+    if (phoneAllowance !== undefined) updateData.phoneAllowance = parseFloat(phoneAllowance) || 0;
+    if (responsibilityAllowance !== undefined) updateData.responsibilityAllowance = parseFloat(responsibilityAllowance) || 0;
+    if (socialInsuranceNumber !== undefined) updateData.socialInsuranceNumber = socialInsuranceNumber;
+    if (healthInsuranceProvider !== undefined) updateData.healthInsuranceProvider = healthInsuranceProvider;
+    if (dependentCount !== undefined) updateData.dependentCount = parseInt(dependentCount) || 0;
+    if (educationLevel !== undefined) updateData.educationLevel = educationLevel;
+    if (major !== undefined) updateData.major = major;
+    if (emergencyContactName !== undefined) updateData.emergencyContactName = emergencyContactName;
+    if (emergencyContactRelationship !== undefined) updateData.emergencyContactRelationship = emergencyContactRelationship;
+    if (emergencyContactPhone !== undefined) updateData.emergencyContactPhone = emergencyContactPhone;
 
     await employee.update(updateData);
 
@@ -182,7 +243,8 @@ export const updateEmployee = async (req, res) => {
     await employee.reload({
       include: [
         { model: Department, attributes: ['id', 'name'] },
-        { model: JobTitle, attributes: ['id', 'name'] }
+        { model: JobTitle, attributes: ['id', 'name'] },
+        { model: User, as: 'Manager', attributes: ['id', 'name', 'employeeCode', 'email'] }
       ]
     });
 
@@ -196,22 +258,47 @@ export const updateEmployee = async (req, res) => {
         name: employee.name,
         email: employee.email,
         employeeCode: employee.employeeCode,
+        personalEmail: employee.personalEmail,
+        companyEmail: employee.companyEmail,
         role: employee.role,
         isActive: employee.isActive,
         baseSalary: employee.baseSalary,
         phoneNumber: employee.phoneNumber,
         address: employee.address,
+        permanentAddress: employee.permanentAddress,
+        temporaryAddress: employee.temporaryAddress,
         dateOfBirth: employee.dateOfBirth,
         gender: employee.gender,
+        idNumber: employee.idNumber,
+        idIssueDate: employee.idIssueDate,
+        idIssuePlace: employee.idIssuePlace,
         departmentId: employee.departmentId,
         jobTitleId: employee.jobTitleId,
         startDate: employee.startDate,
         bankAccount: employee.bankAccount,
         bankName: employee.bankName,
+        bankBranch: employee.bankBranch,
         taxCode: employee.taxCode,
         idNumber: employee.idNumber,
+        contractType: employee.contractType,
+        employmentStatus: employee.employmentStatus,
+        managerId: employee.managerId,
+        branchName: employee.branchName,
+        lunchAllowance: employee.lunchAllowance,
+        transportAllowance: employee.transportAllowance,
+        phoneAllowance: employee.phoneAllowance,
+        responsibilityAllowance: employee.responsibilityAllowance,
+        socialInsuranceNumber: employee.socialInsuranceNumber,
+        healthInsuranceProvider: employee.healthInsuranceProvider,
+        dependentCount: employee.dependentCount,
+        educationLevel: employee.educationLevel,
+        major: employee.major,
+        emergencyContactName: employee.emergencyContactName,
+        emergencyContactRelationship: employee.emergencyContactRelationship,
+        emergencyContactPhone: employee.emergencyContactPhone,
         Department: employee.Department,
-        JobTitle: employee.JobTitle
+        JobTitle: employee.JobTitle,
+        Manager: employee.Manager
       }
     });
   } catch (err) {
@@ -346,6 +433,256 @@ export const resetEmployeePassword = async (req, res) => {
   }
 };
 
+// Create employee (for single or bulk import)
+export const createEmployee = async (req, res) => {
+  try {
+    const { 
+      name, 
+      email, 
+      employeeCode, 
+      baseSalary,
+      phoneNumber,
+      address,
+      permanentAddress,
+      temporaryAddress,
+      dateOfBirth,
+      gender,
+      idNumber,
+      idIssueDate,
+      idIssuePlace,
+      personalEmail,
+      companyEmail,
+      departmentId,
+      jobTitleId,
+      startDate,
+      contractType,
+      employmentStatus,
+      managerId,
+      branchName,
+      bankAccount,
+      bankName,
+      bankBranch,
+      taxCode,
+      lunchAllowance,
+      transportAllowance,
+      phoneAllowance,
+      responsibilityAllowance,
+      socialInsuranceNumber,
+      healthInsuranceProvider,
+      dependentCount,
+      educationLevel,
+      major,
+      emergencyContactName,
+      emergencyContactRelationship,
+      emergencyContactPhone
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !employeeCode) {
+      return res.status(400).json({
+        status: "error",
+        message: "Name, email, and employee code are required"
+      });
+    }
+
+    // Check if employee code already exists
+    const existingByCode = await User.findOne({
+      where: { employeeCode }
+    });
+    if (existingByCode) {
+      return res.status(400).json({
+        status: "error",
+        message: `Employee code ${employeeCode} already exists`
+      });
+    }
+
+    // Check if email already exists
+    const existingByEmail = await User.findOne({
+      where: { email }
+    });
+    if (existingByEmail) {
+      return res.status(400).json({
+        status: "error",
+        message: `Email ${email} already exists`
+      });
+    }
+
+    // Generate default password
+    const defaultPassword = "Password123!";
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+    // Create employee
+    const employee = await User.create({
+      name,
+      email,
+      employeeCode,
+      password: hashedPassword,
+      role: "employee",
+      isActive: true,
+      baseSalary: parseFloat(baseSalary) || 0,
+      phoneNumber: phoneNumber || null,
+      address: address || null,
+      permanentAddress: permanentAddress || null,
+      temporaryAddress: temporaryAddress || null,
+      dateOfBirth: dateOfBirth || null,
+      gender: gender || null,
+      idNumber: idNumber || null,
+      idIssueDate: idIssueDate || null,
+      idIssuePlace: idIssuePlace || null,
+      personalEmail: personalEmail || null,
+      companyEmail: companyEmail || null,
+      departmentId: departmentId || null,
+      jobTitleId: jobTitleId || null,
+      startDate: startDate || new Date(),
+      contractType: contractType || null,
+      employmentStatus: employmentStatus || 'active',
+      managerId: managerId ? parseInt(managerId) : null,
+      branchName: branchName || null,
+      bankAccount: bankAccount || null,
+      bankName: bankName || null,
+      bankBranch: bankBranch || null,
+      taxCode: taxCode || null,
+      lunchAllowance: parseFloat(lunchAllowance) || 0,
+      transportAllowance: parseFloat(transportAllowance) || 0,
+      phoneAllowance: parseFloat(phoneAllowance) || 0,
+      responsibilityAllowance: parseFloat(responsibilityAllowance) || 0,
+      socialInsuranceNumber: socialInsuranceNumber || null,
+      healthInsuranceProvider: healthInsuranceProvider || null,
+      dependentCount: parseInt(dependentCount) || 0,
+      educationLevel: educationLevel || null,
+      major: major || null,
+      emergencyContactName: emergencyContactName || null,
+      emergencyContactRelationship: emergencyContactRelationship || null,
+      emergencyContactPhone: emergencyContactPhone || null,
+      educationLevel: educationLevel || null,
+      major: major || null
+    });
+
+    console.log(`Employee created: ${name} (${employeeCode})`);
+
+    return res.json({
+      status: "success",
+      message: "Employee created successfully",
+      employee: {
+        id: employee.id,
+        name: employee.name,
+        email: employee.email,
+        employeeCode: employee.employeeCode,
+        baseSalary: employee.baseSalary
+      }
+    });
+  } catch (err) {
+    console.error("Error creating employee:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+};
+
+// Bulk create employees (for Excel import)
+export const bulkCreateEmployees = async (req, res) => {
+  try {
+    const { employees } = req.body;
+
+    if (!employees || !Array.isArray(employees) || employees.length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "Employees array is required"
+      });
+    }
+
+    const results = {
+      success: [],
+      failed: []
+    };
+
+    const defaultPassword = "Password123!";
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+    for (const empData of employees) {
+      try {
+        const { employeeCode, name, email, baseSalary } = empData;
+
+        // Validate required fields
+        if (!employeeCode || !name || !email) {
+          results.failed.push({
+            employeeCode: employeeCode || 'N/A',
+            name: name || 'N/A',
+            reason: "Missing required fields (employeeCode, name, email)"
+          });
+          continue;
+        }
+
+        // Check if employee code already exists
+        const existingByCode = await User.findOne({
+          where: { employeeCode }
+        });
+        if (existingByCode) {
+          results.failed.push({
+            employeeCode,
+            name,
+            reason: `Employee code ${employeeCode} already exists`
+          });
+          continue;
+        }
+
+        // Check if email already exists
+        const existingByEmail = await User.findOne({
+          where: { email }
+        });
+        if (existingByEmail) {
+          results.failed.push({
+            employeeCode,
+            name,
+            reason: `Email ${email} already exists`
+          });
+          continue;
+        }
+
+        // Create employee
+        const employee = await User.create({
+          name,
+          email,
+          employeeCode,
+          password: hashedPassword,
+          role: "employee",
+          isActive: true,
+          baseSalary: parseFloat(baseSalary) || 0
+        });
+
+        results.success.push({
+          id: employee.id,
+          employeeCode: employee.employeeCode,
+          name: employee.name,
+          email: employee.email
+        });
+
+        console.log(`Employee created: ${name} (${employeeCode})`);
+      } catch (err) {
+        results.failed.push({
+          employeeCode: empData.employeeCode || 'N/A',
+          name: empData.name || 'N/A',
+          reason: err.message
+        });
+        console.error(`Error creating employee ${empData.employeeCode}:`, err);
+      }
+    }
+
+    return res.json({
+      status: "success",
+      message: `Created ${results.success.length} employees, ${results.failed.length} failed`,
+      results
+    });
+  } catch (err) {
+    console.error("Error in bulk create:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+};
+
 // Get employee attendance statistics for current month
 export const getEmployeeAttendanceStats = async (req, res) => {
   try {
@@ -425,8 +762,10 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         { model: Department, attributes: ['id', 'name'] },
         { model: JobTitle, attributes: ['id', 'name'] },
         { model: SalaryGrade, attributes: ['id', 'name', 'baseSalary'] },
+        { model: User, as: 'Manager', attributes: ['id', 'name', 'employeeCode', 'email'] },
         { model: Dependent, as: 'Dependents', attributes: ['id', 'fullName', 'relationship', 'dateOfBirth', 'gender', 'idNumber', 'phoneNumber', 'email', 'occupation', 'approvalStatus'] },
-        { model: Qualification, as: 'Qualifications', attributes: ['id', 'type', 'name', 'issuedBy', 'issuedDate', 'expiryDate', 'certificateNumber', 'documentPath', 'description', 'approvalStatus'] }
+        { model: Qualification, as: 'Qualifications', attributes: ['id', 'type', 'name', 'issuedBy', 'issuedDate', 'expiryDate', 'certificateNumber', 'documentPath', 'description', 'approvalStatus'] },
+        { model: WorkExperience, as: 'WorkExperiences', attributes: ['id', 'companyName', 'position', 'startDate', 'endDate', 'description', 'responsibilities', 'achievements', 'isCurrent'], order: [['startDate', 'DESC']] }
       ]
       // Note: password is included by default, not excluded
     });
