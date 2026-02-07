@@ -26,6 +26,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
     isCurrent: false
   });
   const [savingWorkExp, setSavingWorkExp] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
   useEffect(() => {
@@ -90,8 +91,9 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
           emergencyContactPhone: emp.emergencyContactPhone || ""
         });
       }
-    } catch (error) {
+    } catch (err) {
       setMessage("Error loading employee information");
+      console.error("Error loading employee details:", err);
     } finally {
       setLoading(false);
     }
@@ -147,28 +149,203 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
     }
   };
 
+  // Validation functions
+  const validateField = (fieldName, value) => {
+    let error = "";
+    
+    switch (fieldName) {
+      case "name":
+        if (!value || value.trim().length < 2) {
+          error = "Full Name must be at least 2 characters";
+        } else if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(value)) {
+          error = "Full Name can only contain letters and spaces";
+        }
+        break;
+      case "idNumber":
+        if (!value || value.trim().length === 0) {
+          error = "ID Number is required";
+        } else if (!/^\d{12}$/.test(value)) {
+          error = "ID Number must be exactly 12 digits";
+        }
+        break;
+      case "idIssuePlace":
+        // Only validate if ID Number is provided and valid (12 digits)
+        if (editForm.idNumber && editForm.idNumber.trim().length === 12) {
+          if (!value || value.trim().length < 3) {
+            error = "ID Issue Place must be at least 3 characters";
+          }
+        }
+        break;
+      case "permanentAddress":
+        if (!value || value.trim().length < 10) {
+          error = "Permanent Address must be at least 10 characters";
+        }
+        break;
+      case "temporaryAddress":
+        if (!value || value.trim().length < 10) {
+          error = "Temporary Address must be at least 10 characters";
+        }
+        break;
+      case "phoneNumber":
+        if (!value || value.trim().length === 0) {
+          error = "Personal Phone Number is required";
+        } else if (!/^0\d{9,10}$/.test(value)) {
+          error = "Personal Phone Number must be a valid Vietnamese phone number (10-11 digits, starts with 0)";
+        }
+        break;
+      case "personalEmail":
+        if (!value || value.trim().length === 0) {
+          error = "Personal Email is required";
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          error = "Personal Email must be a valid email address";
+        }
+        break;
+      case "emergencyContactName":
+        if (!value || value.trim().length < 2) {
+          error = "Emergency Contact Name must be at least 2 characters";
+        } else if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(value)) {
+          error = "Emergency Contact Name can only contain letters and spaces";
+        }
+        break;
+      case "emergencyContactPhone":
+        if (!value || value.trim().length === 0) {
+          error = "Emergency Contact Phone is required";
+        } else if (!/^0\d{9,10}$/.test(value)) {
+          error = "Emergency Contact Phone must be a valid Vietnamese phone number (10-11 digits, starts with 0)";
+        }
+        break;
+      default:
+        break;
+    }
+    
+    return error;
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    
+    // Validate all required fields
+    const nameError = validateField("name", editForm.name);
+    if (nameError) errors.name = nameError;
+    
+    const idNumberError = validateField("idNumber", editForm.idNumber);
+    if (idNumberError) errors.idNumber = idNumberError;
+    
+    // Only validate idIssuePlace if idNumber exists and is valid
+    if (editForm.idNumber && editForm.idNumber.trim().length === 12) {
+      const idIssuePlaceError = validateField("idIssuePlace", editForm.idIssuePlace);
+      if (idIssuePlaceError) errors.idIssuePlace = idIssuePlaceError;
+    }
+    
+    const permanentAddressError = validateField("permanentAddress", editForm.permanentAddress);
+    if (permanentAddressError) errors.permanentAddress = permanentAddressError;
+    
+    const temporaryAddressError = validateField("temporaryAddress", editForm.temporaryAddress);
+    if (temporaryAddressError) errors.temporaryAddress = temporaryAddressError;
+    
+    const phoneNumberError = validateField("phoneNumber", editForm.phoneNumber);
+    if (phoneNumberError) errors.phoneNumber = phoneNumberError;
+    
+    const personalEmailError = validateField("personalEmail", editForm.personalEmail);
+    if (personalEmailError) errors.personalEmail = personalEmailError;
+    
+    const emergencyContactNameError = validateField("emergencyContactName", editForm.emergencyContactName);
+    if (emergencyContactNameError) errors.emergencyContactName = emergencyContactNameError;
+    
+    const emergencyContactPhoneError = validateField("emergencyContactPhone", editForm.emergencyContactPhone);
+    if (emergencyContactPhoneError) errors.emergencyContactPhone = emergencyContactPhoneError;
+    
+    setValidationErrors(errors);
+    const isValid = Object.keys(errors).length === 0;
+    
+    // Debug: log validation errors if any
+    if (!isValid) {
+      console.log("Validation errors:", errors);
+    }
+    
+    // Return both isValid and errors for scroll functionality
+    return { isValid, errors };
+  };
+
   const handleSave = async () => {
+    // Validate form before saving
+    const { isValid, errors } = validateForm();
+    if (!isValid) {
+      const errorCount = Object.keys(errors).length;
+      setMessage(`Please correct the ${errorCount} error${errorCount > 1 ? 's' : ''} before saving`);
+      console.log("Validation errors preventing save:", errors);
+      
+      // Scroll to first error field
+      const firstErrorField = Object.keys(errors)[0];
+      if (firstErrorField) {
+        // Wait a bit for validation errors to render and state to update
+        setTimeout(() => {
+          const errorElement = document.querySelector(`[data-field="${firstErrorField}"]`);
+          if (errorElement) {
+            // Scroll to the element
+            errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Add a highlight effect
+            const originalBoxShadow = errorElement.style.boxShadow;
+            errorElement.style.transition = 'box-shadow 0.3s';
+            errorElement.style.boxShadow = '0 0 0 3px rgba(220, 53, 69, 0.3)';
+            setTimeout(() => {
+              errorElement.style.boxShadow = originalBoxShadow;
+            }, 2000);
+            
+            // Focus on the input field if it exists
+            const inputElement = errorElement.querySelector('input, textarea, select');
+            if (inputElement) {
+              inputElement.focus();
+              // Select text if it's an input (not textarea)
+              if (inputElement.tagName === 'INPUT' && inputElement.type !== 'date') {
+                inputElement.select();
+              }
+            }
+          }
+        }, 200);
+      }
+      
+      setTimeout(() => setMessage(""), 5000);
+      return;
+    }
+
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
+      
+      // Sync email and companyEmail - they are the same (company email)
+      const companyEmail = editForm.email || editForm.companyEmail || employeeDetails?.email || employeeDetails?.companyEmail;
+      const formData = {
+        ...editForm,
+        email: companyEmail,
+        companyEmail: companyEmail
+      };
+      
+      console.log("Saving form data:", formData);
+      
       const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(editForm)
+        body: JSON.stringify(formData)
       });
 
       const data = await res.json();
+      console.log("Save response:", data);
       if (res.ok) {
-        setMessage("Information updated successfully!");
+        setMessage("Updated successfully");
+        setValidationErrors({});
         setIsEditing(false);
         fetchEmployeeDetails();
         if (onUpdate) onUpdate();
         setTimeout(() => setMessage(""), 3000);
       } else {
+        console.error("Save error:", data);
         setMessage("Error: " + (data.message || "Unable to update"));
+        setTimeout(() => setMessage(""), 5000);
       }
     } catch (error) {
       setMessage("Error: " + error.message);
@@ -506,34 +683,71 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                   <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
                     Personal Information
                   </h3>
-                  <div style={infoGridStyle}>
+                  <div style={infoGridStyle} onClick={(e) => e.stopPropagation()}>
+                    {/* Employee ID - Read-only */}
                     <div style={infoCardStyle}>
+                      <label style={labelStyle}>Employee ID</label>
+                      <div style={valueStyle}>{employeeDetails?.employeeCode || employee?.employeeCode || "-"}</div>
+                    </div>
+
+                    {/* Full Name */}
+                    <div style={infoCardStyle} data-field="name">
                       <label style={labelStyle}>Full Name *</label>
                       {isEditing ? (
-                        <input
-                          type="text"
-                          value={editForm.name}
-                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                          style={inputStyle}
-                          required
-                        />
+                        <>
+                          <input
+                            type="text"
+                            value={editForm.name}
+                            onChange={(e) => {
+                              let value = e.target.value;
+                              // Auto-capitalize first letter of each word and filter non-alphabetic
+                              value = value.replace(/[^a-zA-ZÀ-ỹ\s]/g, '');
+                              value = value.split(' ').map(word => 
+                                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                              ).join(' ');
+                              setEditForm({ ...editForm, name: value });
+                              const error = validateField("name", value);
+                              setValidationErrors({ ...validationErrors, name: error });
+                            }}
+                            onBlur={(e) => {
+                              const error = validateField("name", e.target.value);
+                              setValidationErrors({ ...validationErrors, name: error });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              ...inputStyle,
+                              borderColor: validationErrors.name ? theme.error.main : inputStyle.border
+                            }}
+                            placeholder="Enter full name"
+                          />
+                          {validationErrors.name && (
+                            <div style={{ color: theme.error.main, fontSize: "12px", marginTop: "4px" }}>
+                              {validationErrors.name}
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <div style={valueStyle}>{employeeDetails?.name || "-"}</div>
                       )}
                     </div>
 
+                    {/* Company Email (Login) - Read-only */}
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Email *</label>
+                      <label style={labelStyle}>Company Email (Login) *</label>
                       {isEditing ? (
                         <input
                           type="email"
-                          value={editForm.email}
-                          onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                          style={inputStyle}
-                          required
+                          value={editForm.email || editForm.companyEmail || employeeDetails?.email || employeeDetails?.companyEmail || ""}
+                          readOnly
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            ...inputStyle,
+                            backgroundColor: theme.neutral.gray100,
+                            cursor: "not-allowed"
+                          }}
                         />
                       ) : (
-                        <div style={valueStyle}>{employeeDetails?.email || "-"}</div>
+                        <div style={valueStyle}>{employeeDetails?.email || employeeDetails?.companyEmail || "-"}</div>
                       )}
                     </div>
 
@@ -548,20 +762,6 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         />
                       ) : (
                         <div style={valueStyle}>{employeeDetails?.personalEmail || "-"}</div>
-                      )}
-                    </div>
-
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Company Email</label>
-                      {isEditing ? (
-                        <input
-                          type="email"
-                          value={editForm.companyEmail}
-                          onChange={(e) => setEditForm({ ...editForm, companyEmail: e.target.value })}
-                          style={inputStyle}
-                        />
-                      ) : (
-                        <div style={valueStyle}>{employeeDetails?.companyEmail || "-"}</div>
                       )}
                     </div>
 
@@ -617,20 +817,43 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>ID Number</label>
+                    {/* ID Number CCCD */}
+                    <div style={infoCardStyle} data-field="idNumber">
+                      <label style={labelStyle}>ID Number CCCD *</label>
                       {isEditing ? (
-                        <input
-                          type="text"
-                          value={editForm.idNumber}
-                          onChange={(e) => setEditForm({ ...editForm, idNumber: e.target.value })}
-                          style={inputStyle}
-                        />
+                        <>
+                          <input
+                            type="text"
+                            value={editForm.idNumber}
+                            onChange={(e) => {
+                              let value = e.target.value.replace(/\D/g, '').slice(0, 12);
+                              setEditForm({ ...editForm, idNumber: value });
+                              const error = validateField("idNumber", value);
+                              setValidationErrors({ ...validationErrors, idNumber: error });
+                            }}
+                            onBlur={(e) => {
+                              const error = validateField("idNumber", e.target.value);
+                              setValidationErrors({ ...validationErrors, idNumber: error });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              ...inputStyle,
+                              borderColor: validationErrors.idNumber ? theme.error.main : inputStyle.border
+                            }}
+                            placeholder="Enter 12-digit CCCD number"
+                          />
+                          {validationErrors.idNumber && (
+                            <div style={{ color: theme.error.main, fontSize: "12px", marginTop: "4px" }}>
+                              {validationErrors.idNumber}
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <div style={valueStyle}>{employeeDetails?.idNumber || "-"}</div>
                       )}
                     </div>
 
+                    {/* ID Issue Date */}
                     <div style={infoCardStyle}>
                       <label style={labelStyle}>ID Issue Date</label>
                       {isEditing ? (
@@ -638,6 +861,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           type="date"
                           value={editForm.idIssueDate}
                           onChange={(e) => setEditForm({ ...editForm, idIssueDate: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
                           style={inputStyle}
                         />
                       ) : (
@@ -647,15 +871,36 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>ID Issue Place</label>
+                    {/* ID Issue Place */}
+                    <div style={infoCardStyle} data-field="idIssuePlace">
+                      <label style={labelStyle}>ID Issue Place *</label>
                       {isEditing ? (
-                        <input
-                          type="text"
-                          value={editForm.idIssuePlace}
-                          onChange={(e) => setEditForm({ ...editForm, idIssuePlace: e.target.value })}
-                          style={inputStyle}
-                        />
+                        <>
+                          <input
+                            type="text"
+                            value={editForm.idIssuePlace}
+                            onChange={(e) => {
+                              setEditForm({ ...editForm, idIssuePlace: e.target.value });
+                              const error = validateField("idIssuePlace", e.target.value);
+                              setValidationErrors({ ...validationErrors, idIssuePlace: error });
+                            }}
+                            onBlur={(e) => {
+                              const error = validateField("idIssuePlace", e.target.value);
+                              setValidationErrors({ ...validationErrors, idIssuePlace: error });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              ...inputStyle,
+                              borderColor: validationErrors.idIssuePlace ? theme.error.main : inputStyle.border
+                            }}
+                            placeholder="Enter ID issue place"
+                          />
+                          {validationErrors.idIssuePlace && (
+                            <div style={{ color: theme.error.main, fontSize: "12px", marginTop: "4px" }}>
+                              {validationErrors.idIssuePlace}
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <div style={valueStyle}>{employeeDetails?.idIssuePlace || "-"}</div>
                       )}
@@ -667,26 +912,27 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         <select
                           value={editForm.educationLevel || ""}
                           onChange={(e) => setEditForm({ ...editForm, educationLevel: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
                           style={inputStyle}
                         >
                           <option value="">Select education level</option>
-                          <option value="high_school">Trung học phổ thông</option>
-                          <option value="vocational">Trung cấp</option>
-                          <option value="college">Cao đẳng</option>
-                          <option value="university">Đại học</option>
-                          <option value="master">Thạc sĩ</option>
-                          <option value="phd">Tiến sĩ</option>
-                          <option value="other">Khác</option>
+                          <option value="high_school">High School</option>
+                          <option value="vocational">Vocational</option>
+                          <option value="college">College</option>
+                          <option value="university">University</option>
+                          <option value="master">Master's Degree</option>
+                          <option value="phd">PhD</option>
+                          <option value="other">Other</option>
                         </select>
                       ) : (
                         <div style={valueStyle}>
-                          {employeeDetails?.educationLevel === "high_school" ? "Trung học phổ thông" :
-                           employeeDetails?.educationLevel === "vocational" ? "Trung cấp" :
-                           employeeDetails?.educationLevel === "college" ? "Cao đẳng" :
-                           employeeDetails?.educationLevel === "university" ? "Đại học" :
-                           employeeDetails?.educationLevel === "master" ? "Thạc sĩ" :
-                           employeeDetails?.educationLevel === "phd" ? "Tiến sĩ" :
-                           employeeDetails?.educationLevel === "other" ? "Khác" : "-"}
+                          {employeeDetails?.educationLevel === "high_school" ? "High School" :
+                           employeeDetails?.educationLevel === "vocational" ? "Vocational" :
+                           employeeDetails?.educationLevel === "college" ? "College" :
+                           employeeDetails?.educationLevel === "university" ? "University" :
+                           employeeDetails?.educationLevel === "master" ? "Master's Degree" :
+                           employeeDetails?.educationLevel === "phd" ? "PhD" :
+                           employeeDetails?.educationLevel === "other" ? "Other" : "-"}
                         </div>
                       )}
                     </div>
@@ -706,31 +952,144 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                       )}
                     </div>
 
-                    <div style={{ ...infoCardStyle, gridColumn: "1 / -1" }}>
-                      <label style={labelStyle}>Permanent Address</label>
+                    {/* Permanent Address */}
+                    <div style={{ ...infoCardStyle, gridColumn: "1 / -1" }} data-field="permanentAddress">
+                      <label style={labelStyle}>Permanent Address *</label>
                       {isEditing ? (
-                        <textarea
-                          value={editForm.permanentAddress}
-                          onChange={(e) => setEditForm({ ...editForm, permanentAddress: e.target.value })}
-                          rows={3}
-                          style={inputStyle}
-                        />
+                        <>
+                          <textarea
+                            value={editForm.permanentAddress}
+                            onChange={(e) => {
+                              setEditForm({ ...editForm, permanentAddress: e.target.value });
+                              const error = validateField("permanentAddress", e.target.value);
+                              setValidationErrors({ ...validationErrors, permanentAddress: error });
+                            }}
+                            onBlur={(e) => {
+                              const error = validateField("permanentAddress", e.target.value);
+                              setValidationErrors({ ...validationErrors, permanentAddress: error });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            rows={3}
+                            style={{
+                              ...inputStyle,
+                              borderColor: validationErrors.permanentAddress ? theme.error.main : inputStyle.border
+                            }}
+                            placeholder="Enter permanent address (according to household registration)"
+                          />
+                          {validationErrors.permanentAddress && (
+                            <div style={{ color: theme.error.main, fontSize: "12px", marginTop: "4px" }}>
+                              {validationErrors.permanentAddress}
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <div style={valueStyle}>{employeeDetails?.permanentAddress || "-"}</div>
                       )}
                     </div>
 
-                    <div style={{ ...infoCardStyle, gridColumn: "1 / -1" }}>
-                      <label style={labelStyle}>Temporary Address</label>
+                    {/* Temporary Address */}
+                    <div style={{ ...infoCardStyle, gridColumn: "1 / -1" }} data-field="temporaryAddress">
+                      <label style={labelStyle}>Temporary Address *</label>
                       {isEditing ? (
-                        <textarea
-                          value={editForm.temporaryAddress}
-                          onChange={(e) => setEditForm({ ...editForm, temporaryAddress: e.target.value })}
-                          rows={3}
-                          style={inputStyle}
-                        />
+                        <>
+                          <textarea
+                            value={editForm.temporaryAddress}
+                            onChange={(e) => {
+                              setEditForm({ ...editForm, temporaryAddress: e.target.value });
+                              const error = validateField("temporaryAddress", e.target.value);
+                              setValidationErrors({ ...validationErrors, temporaryAddress: error });
+                            }}
+                            onBlur={(e) => {
+                              const error = validateField("temporaryAddress", e.target.value);
+                              setValidationErrors({ ...validationErrors, temporaryAddress: error });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            rows={3}
+                            style={{
+                              ...inputStyle,
+                              borderColor: validationErrors.temporaryAddress ? theme.error.main : inputStyle.border
+                            }}
+                            placeholder="Enter temporary address (current address)"
+                          />
+                          {validationErrors.temporaryAddress && (
+                            <div style={{ color: theme.error.main, fontSize: "12px", marginTop: "4px" }}>
+                              {validationErrors.temporaryAddress}
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <div style={valueStyle}>{employeeDetails?.temporaryAddress || "-"}</div>
+                      )}
+                    </div>
+
+                    {/* Personal Phone Number */}
+                    <div style={infoCardStyle} data-field="phoneNumber">
+                      <label style={labelStyle}>Personal Phone Number *</label>
+                      {isEditing ? (
+                        <>
+                          <input
+                            type="tel"
+                            value={editForm.phoneNumber}
+                            onChange={(e) => {
+                              let value = e.target.value.replace(/\D/g, '').slice(0, 11);
+                              setEditForm({ ...editForm, phoneNumber: value });
+                              const error = validateField("phoneNumber", value);
+                              setValidationErrors({ ...validationErrors, phoneNumber: error });
+                            }}
+                            onBlur={(e) => {
+                              const error = validateField("phoneNumber", e.target.value);
+                              setValidationErrors({ ...validationErrors, phoneNumber: error });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              ...inputStyle,
+                              borderColor: validationErrors.phoneNumber ? theme.error.main : inputStyle.border
+                            }}
+                            placeholder="Enter phone number (10-11 digits, starts with 0)"
+                          />
+                          {validationErrors.phoneNumber && (
+                            <div style={{ color: theme.error.main, fontSize: "12px", marginTop: "4px" }}>
+                              {validationErrors.phoneNumber}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div style={valueStyle}>{employeeDetails?.phoneNumber || "-"}</div>
+                      )}
+                    </div>
+
+                    {/* Personal Email */}
+                    <div style={infoCardStyle} data-field="personalEmail">
+                      <label style={labelStyle}>Personal Email *</label>
+                      {isEditing ? (
+                        <>
+                          <input
+                            type="email"
+                            value={editForm.personalEmail}
+                            onChange={(e) => {
+                              setEditForm({ ...editForm, personalEmail: e.target.value });
+                              const error = validateField("personalEmail", e.target.value);
+                              setValidationErrors({ ...validationErrors, personalEmail: error });
+                            }}
+                            onBlur={(e) => {
+                              const error = validateField("personalEmail", e.target.value);
+                              setValidationErrors({ ...validationErrors, personalEmail: error });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              ...inputStyle,
+                              borderColor: validationErrors.personalEmail ? theme.error.main : inputStyle.border
+                            }}
+                            placeholder="Enter personal email"
+                          />
+                          {validationErrors.personalEmail && (
+                            <div style={{ color: theme.error.main, fontSize: "12px", marginTop: "4px" }}>
+                              {validationErrors.personalEmail}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div style={valueStyle}>{employeeDetails?.personalEmail || "-"}</div>
                       )}
                     </div>
 
@@ -740,17 +1099,42 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                   <h3 style={{ marginTop: theme.spacing.xl, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
                     🚨 Emergency Contact
                   </h3>
-                  <div style={infoGridStyle}>
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Emergency Contact Name</label>
+                  <div style={infoGridStyle} onClick={(e) => e.stopPropagation()}>
+                    <div style={infoCardStyle} data-field="emergencyContactName">
+                      <label style={labelStyle}>Emergency Contact Name *</label>
                       {isEditing ? (
-                        <input
-                          type="text"
-                          value={editForm.emergencyContactName}
-                          onChange={(e) => setEditForm({ ...editForm, emergencyContactName: e.target.value })}
-                          style={inputStyle}
-                          placeholder="Tên người liên hệ khẩn cấp"
-                        />
+                        <>
+                          <input
+                            type="text"
+                            value={editForm.emergencyContactName}
+                            onChange={(e) => {
+                              let value = e.target.value;
+                              // Auto-capitalize first letter of each word and filter non-alphabetic (including Vietnamese)
+                              value = value.replace(/[^a-zA-ZÀ-ỹ\s]/g, '');
+                              value = value.split(' ').map(word => 
+                                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                              ).join(' ');
+                              setEditForm({ ...editForm, emergencyContactName: value });
+                              const error = validateField("emergencyContactName", value);
+                              setValidationErrors({ ...validationErrors, emergencyContactName: error });
+                            }}
+                            onBlur={(e) => {
+                              const error = validateField("emergencyContactName", e.target.value);
+                              setValidationErrors({ ...validationErrors, emergencyContactName: error });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              ...inputStyle,
+                              borderColor: validationErrors.emergencyContactName ? theme.error.main : inputStyle.border
+                            }}
+                            placeholder="Enter emergency contact name"
+                          />
+                          {validationErrors.emergencyContactName && (
+                            <div style={{ color: theme.error.main, fontSize: "12px", marginTop: "4px" }}>
+                              {validationErrors.emergencyContactName}
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <div style={valueStyle}>{employeeDetails?.emergencyContactName || "-"}</div>
                       )}
@@ -762,31 +1146,60 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         <select
                           value={editForm.emergencyContactRelationship || ""}
                           onChange={(e) => setEditForm({ ...editForm, emergencyContactRelationship: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
                           style={inputStyle}
                         >
                           <option value="">Select relationship</option>
-                          <option value="Spouse">Vợ/Chồng</option>
-                          <option value="Parent">Bố/Mẹ</option>
-                          <option value="Sibling">Anh/Chị/Em</option>
-                          <option value="Friend">Bạn bè</option>
-                          <option value="Colleague">Đồng nghiệp</option>
-                          <option value="Other">Khác</option>
+                          <option value="Spouse">Spouse</option>
+                          <option value="Parent">Parent</option>
+                          <option value="Sibling">Sibling</option>
+                          <option value="Friend">Friend</option>
+                          <option value="Colleague">Colleague</option>
+                          <option value="Other">Other</option>
                         </select>
                       ) : (
-                        <div style={valueStyle}>{employeeDetails?.emergencyContactRelationship || "-"}</div>
+                        <div style={valueStyle}>
+                          {employeeDetails?.emergencyContactRelationship === "Spouse" ? "Spouse" :
+                           employeeDetails?.emergencyContactRelationship === "Parent" ? "Parent" :
+                           employeeDetails?.emergencyContactRelationship === "Sibling" ? "Sibling" :
+                           employeeDetails?.emergencyContactRelationship === "Friend" ? "Friend" :
+                           employeeDetails?.emergencyContactRelationship === "Colleague" ? "Colleague" :
+                           employeeDetails?.emergencyContactRelationship === "Other" ? "Other" :
+                           employeeDetails?.emergencyContactRelationship || "-"}
+                        </div>
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
+                    <div style={infoCardStyle} data-field="emergencyContactPhone">
                       <label style={labelStyle}>Emergency Contact Phone *</label>
                       {isEditing ? (
-                        <input
-                          type="tel"
-                          value={editForm.emergencyContactPhone}
-                          onChange={(e) => setEditForm({ ...editForm, emergencyContactPhone: e.target.value })}
-                          style={inputStyle}
-                          placeholder="Số điện thoại liên hệ khẩn cấp"
-                        />
+                        <>
+                          <input
+                            type="tel"
+                            value={editForm.emergencyContactPhone}
+                            onChange={(e) => {
+                              let value = e.target.value.replace(/\D/g, '').slice(0, 11);
+                              setEditForm({ ...editForm, emergencyContactPhone: value });
+                              const error = validateField("emergencyContactPhone", value);
+                              setValidationErrors({ ...validationErrors, emergencyContactPhone: error });
+                            }}
+                            onBlur={(e) => {
+                              const error = validateField("emergencyContactPhone", e.target.value);
+                              setValidationErrors({ ...validationErrors, emergencyContactPhone: error });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              ...inputStyle,
+                              borderColor: validationErrors.emergencyContactPhone ? theme.error.main : inputStyle.border
+                            }}
+                            placeholder="Enter emergency contact phone (10-11 digits, starts with 0)"
+                          />
+                          {validationErrors.emergencyContactPhone && (
+                            <div style={{ color: theme.error.main, fontSize: "12px", marginTop: "4px" }}>
+                              {validationErrors.emergencyContactPhone}
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <div style={valueStyle}>
                           {employeeDetails?.emergencyContactPhone ? (
