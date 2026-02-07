@@ -211,7 +211,6 @@ export const updateEmployee = async (req, res) => {
     if (permanentAddress !== undefined) updateData.permanentAddress = permanentAddress;
     if (temporaryAddress !== undefined) updateData.temporaryAddress = temporaryAddress;
     if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
-    if (gender !== undefined) updateData.gender = gender || null;
     if (idNumber !== undefined) updateData.idNumber = idNumber;
     if (idIssueDate !== undefined) updateData.idIssueDate = idIssueDate ? new Date(idIssueDate) : null;
     if (idIssuePlace !== undefined) updateData.idIssuePlace = idIssuePlace;
@@ -224,7 +223,6 @@ export const updateEmployee = async (req, res) => {
     if (bankName !== undefined) updateData.bankName = bankName;
     if (bankBranch !== undefined) updateData.bankBranch = bankBranch;
     if (taxCode !== undefined) updateData.taxCode = taxCode;
-    if (idNumber !== undefined) updateData.idNumber = idNumber;
     if (contractType !== undefined) updateData.contractType = contractType || null;
     if (employmentStatus !== undefined) updateData.employmentStatus = employmentStatus || null;
     if (managerId !== undefined) updateData.managerId = managerId ? parseInt(managerId) : null;
@@ -236,11 +234,19 @@ export const updateEmployee = async (req, res) => {
     if (socialInsuranceNumber !== undefined) updateData.socialInsuranceNumber = socialInsuranceNumber;
     if (healthInsuranceProvider !== undefined) updateData.healthInsuranceProvider = healthInsuranceProvider;
     if (dependentCount !== undefined) updateData.dependentCount = parseInt(dependentCount) || 0;
-    if (educationLevel !== undefined) updateData.educationLevel = educationLevel || null;
+    if (educationLevel !== undefined) {
+      // Convert empty string to null for enum fields
+      updateData.educationLevel = educationLevel === "" ? null : educationLevel;
+    }
     if (major !== undefined) updateData.major = major;
     if (emergencyContactName !== undefined) updateData.emergencyContactName = emergencyContactName;
     if (emergencyContactRelationship !== undefined) updateData.emergencyContactRelationship = emergencyContactRelationship;
     if (emergencyContactPhone !== undefined) updateData.emergencyContactPhone = emergencyContactPhone;
+    
+    // Convert empty strings to null for enum fields to avoid PostgreSQL enum errors
+    if (gender !== undefined) updateData.gender = gender === "" ? null : gender;
+    if (contractType !== undefined) updateData.contractType = contractType === "" ? null : contractType;
+    if (employmentStatus !== undefined) updateData.employmentStatus = employmentStatus === "" ? null : employmentStatus;
 
     await employee.update(updateData);
 
@@ -833,9 +839,15 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         employeeCode: employee.employeeCode,
         phoneNumber: employee.phoneNumber,
         address: employee.address,
+        permanentAddress: employee.permanentAddress,
+        temporaryAddress: employee.temporaryAddress,
         dateOfBirth: employee.dateOfBirth,
         gender: employee.gender,
         idNumber: employee.idNumber,
+        idIssueDate: employee.idIssueDate,
+        idIssuePlace: employee.idIssuePlace,
+        personalEmail: employee.personalEmail,
+        companyEmail: employee.companyEmail,
         startDate: employee.startDate,
         baseSalary: employee.baseSalary,
         isActive: employee.isActive,
@@ -854,7 +866,24 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         SalaryGrade: employee.SalaryGrade,
         bankAccount: employee.bankAccount,
         bankName: employee.bankName,
+        bankBranch: employee.bankBranch,
         taxCode: employee.taxCode,
+        contractType: employee.contractType,
+        employmentStatus: employee.employmentStatus,
+        managerId: employee.managerId,
+        branchName: employee.branchName,
+        lunchAllowance: employee.lunchAllowance,
+        transportAllowance: employee.transportAllowance,
+        phoneAllowance: employee.phoneAllowance,
+        responsibilityAllowance: employee.responsibilityAllowance,
+        socialInsuranceNumber: employee.socialInsuranceNumber,
+        healthInsuranceProvider: employee.healthInsuranceProvider,
+        dependentCount: employee.dependentCount,
+        educationLevel: employee.educationLevel,
+        major: employee.major,
+        emergencyContactName: employee.emergencyContactName,
+        emergencyContactRelationship: employee.emergencyContactRelationship,
+        emergencyContactPhone: employee.emergencyContactPhone,
         password: employee.password, // Include password for admin viewing
         attendanceStats: {
           totalDaysWorked: workingDaysCount,
@@ -904,7 +933,8 @@ export const getEmployeeDetailedInfo = async (req, res) => {
           name: qual.name,
           issuedBy: qual.issuedBy,
           issuedDate: qual.issuedDate
-        })) : []
+        })) : [],
+        WorkExperiences: employee.WorkExperiences || []
       }
     });
   } catch (err) {
