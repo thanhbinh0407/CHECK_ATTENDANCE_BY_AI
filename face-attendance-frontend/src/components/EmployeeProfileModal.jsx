@@ -90,8 +90,9 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
           emergencyContactPhone: emp.emergencyContactPhone || ""
         });
       }
-    } catch (error) {
+    } catch (err) {
       setMessage("Error loading employee information");
+      console.error("Error loading employee details:", err);
     } finally {
       setLoading(false);
     }
@@ -151,16 +152,28 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
+      
+      // Sync email and companyEmail - they are the same (company email)
+      const companyEmail = editForm.email || editForm.companyEmail || employeeDetails?.email || employeeDetails?.companyEmail;
+      const formData = {
+        ...editForm,
+        email: companyEmail,
+        companyEmail: companyEmail
+      };
+      
+      console.log("Saving form data:", formData);
+      
       const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(editForm)
+        body: JSON.stringify(formData)
       });
 
       const data = await res.json();
+      console.log("Save response:", data);
       if (res.ok) {
         setMessage("Information updated successfully!");
         setIsEditing(false);
@@ -168,7 +181,9 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         if (onUpdate) onUpdate();
         setTimeout(() => setMessage(""), 3000);
       } else {
+        console.error("Save error:", data);
         setMessage("Error: " + (data.message || "Unable to update"));
+        setTimeout(() => setMessage(""), 5000);
       }
     } catch (error) {
       setMessage("Error: " + error.message);
@@ -523,17 +538,21 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                     </div>
 
                     <div style={infoCardStyle}>
-                      <label style={labelStyle}>Email *</label>
+                      <label style={labelStyle}>Company Email (Login) *</label>
                       {isEditing ? (
                         <input
                           type="email"
-                          value={editForm.email}
-                          onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                          style={inputStyle}
-                          required
+                          value={editForm.email || editForm.companyEmail || employeeDetails?.email || employeeDetails?.companyEmail || ""}
+                          readOnly
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            ...inputStyle,
+                            backgroundColor: theme.neutral.gray100,
+                            cursor: "not-allowed"
+                          }}
                         />
                       ) : (
-                        <div style={valueStyle}>{employeeDetails?.email || "-"}</div>
+                        <div style={valueStyle}>{employeeDetails?.email || employeeDetails?.companyEmail || "-"}</div>
                       )}
                     </div>
 
@@ -548,20 +567,6 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         />
                       ) : (
                         <div style={valueStyle}>{employeeDetails?.personalEmail || "-"}</div>
-                      )}
-                    </div>
-
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Company Email</label>
-                      {isEditing ? (
-                        <input
-                          type="email"
-                          value={editForm.companyEmail}
-                          onChange={(e) => setEditForm({ ...editForm, companyEmail: e.target.value })}
-                          style={inputStyle}
-                        />
-                      ) : (
-                        <div style={valueStyle}>{employeeDetails?.companyEmail || "-"}</div>
                       )}
                     </div>
 
@@ -667,26 +672,27 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         <select
                           value={editForm.educationLevel || ""}
                           onChange={(e) => setEditForm({ ...editForm, educationLevel: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
                           style={inputStyle}
                         >
                           <option value="">Select education level</option>
-                          <option value="high_school">Trung học phổ thông</option>
-                          <option value="vocational">Trung cấp</option>
-                          <option value="college">Cao đẳng</option>
-                          <option value="university">Đại học</option>
-                          <option value="master">Thạc sĩ</option>
-                          <option value="phd">Tiến sĩ</option>
-                          <option value="other">Khác</option>
+                          <option value="high_school">High School</option>
+                          <option value="vocational">Vocational</option>
+                          <option value="college">College</option>
+                          <option value="university">University</option>
+                          <option value="master">Master's Degree</option>
+                          <option value="phd">PhD</option>
+                          <option value="other">Other</option>
                         </select>
                       ) : (
                         <div style={valueStyle}>
-                          {employeeDetails?.educationLevel === "high_school" ? "Trung học phổ thông" :
-                           employeeDetails?.educationLevel === "vocational" ? "Trung cấp" :
-                           employeeDetails?.educationLevel === "college" ? "Cao đẳng" :
-                           employeeDetails?.educationLevel === "university" ? "Đại học" :
-                           employeeDetails?.educationLevel === "master" ? "Thạc sĩ" :
-                           employeeDetails?.educationLevel === "phd" ? "Tiến sĩ" :
-                           employeeDetails?.educationLevel === "other" ? "Khác" : "-"}
+                          {employeeDetails?.educationLevel === "high_school" ? "High School" :
+                           employeeDetails?.educationLevel === "vocational" ? "Vocational" :
+                           employeeDetails?.educationLevel === "college" ? "College" :
+                           employeeDetails?.educationLevel === "university" ? "University" :
+                           employeeDetails?.educationLevel === "master" ? "Master's Degree" :
+                           employeeDetails?.educationLevel === "phd" ? "PhD" :
+                           employeeDetails?.educationLevel === "other" ? "Other" : "-"}
                         </div>
                       )}
                     </div>
@@ -762,18 +768,27 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         <select
                           value={editForm.emergencyContactRelationship || ""}
                           onChange={(e) => setEditForm({ ...editForm, emergencyContactRelationship: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
                           style={inputStyle}
                         >
                           <option value="">Select relationship</option>
-                          <option value="Spouse">Vợ/Chồng</option>
-                          <option value="Parent">Bố/Mẹ</option>
-                          <option value="Sibling">Anh/Chị/Em</option>
-                          <option value="Friend">Bạn bè</option>
-                          <option value="Colleague">Đồng nghiệp</option>
-                          <option value="Other">Khác</option>
+                          <option value="Spouse">Spouse</option>
+                          <option value="Parent">Parent</option>
+                          <option value="Sibling">Sibling</option>
+                          <option value="Friend">Friend</option>
+                          <option value="Colleague">Colleague</option>
+                          <option value="Other">Other</option>
                         </select>
                       ) : (
-                        <div style={valueStyle}>{employeeDetails?.emergencyContactRelationship || "-"}</div>
+                        <div style={valueStyle}>
+                          {employeeDetails?.emergencyContactRelationship === "Spouse" ? "Spouse" :
+                           employeeDetails?.emergencyContactRelationship === "Parent" ? "Parent" :
+                           employeeDetails?.emergencyContactRelationship === "Sibling" ? "Sibling" :
+                           employeeDetails?.emergencyContactRelationship === "Friend" ? "Friend" :
+                           employeeDetails?.emergencyContactRelationship === "Colleague" ? "Colleague" :
+                           employeeDetails?.emergencyContactRelationship === "Other" ? "Other" :
+                           employeeDetails?.emergencyContactRelationship || "-"}
+                        </div>
                       )}
                     </div>
 
