@@ -10,8 +10,9 @@ export default function SalaryRulesManagement() {
     type: "bonus",
     name: "",
     description: "",
-    percentage: 0,
-    amount: 0
+    amountType: "fixed", // "fixed" or "percentage"
+    amount: 0,
+    triggerType: "custom" // default trigger type
   });
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
@@ -55,20 +56,33 @@ export default function SalaryRulesManagement() {
 
       const method = editingRule ? "PUT" : "POST";
 
+      // Prepare data for backend: convert percentage/amount to amount based on amountType
+      const requestData = {
+        type: formData.type,
+        name: formData.name,
+        description: formData.description,
+        triggerType: formData.triggerType || "custom",
+        amountType: formData.amountType,
+        amount: formData.amountType === "percentage" 
+          ? parseFloat(formData.amount) || 0  // If percentage, use amount field for percentage value
+          : parseFloat(formData.amount) || 0, // If fixed, use amount field for VND value
+        isActive: true
+      };
+
       const res = await fetch(url, {
         method,
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(requestData)
       });
 
       const data = await res.json();
       if (res.ok) {
         setMessage(editingRule ? "Rule updated successfully!" : "Rule created successfully!");
         setEditingRule(null);
-        setFormData({ type: "bonus", name: "", description: "", percentage: 0, amount: 0 });
+        setFormData({ type: "bonus", name: "", description: "", amountType: "fixed", amount: 0, triggerType: "custom" });
         fetchRules();
         setTimeout(() => setMessage(""), 3000);
       } else {
@@ -115,14 +129,15 @@ export default function SalaryRulesManagement() {
       type: rule.type,
       name: rule.name,
       description: rule.description || "",
-      percentage: rule.percentage || 0,
-      amount: rule.amount || 0
+      amountType: rule.amountType || "fixed",
+      amount: rule.amount || 0,
+      triggerType: rule.triggerType || "custom"
     });
   };
 
   const handleCancel = () => {
     setEditingRule(null);
-    setFormData({ type: "bonus", name: "", description: "", percentage: 0, amount: 0 });
+    setFormData({ type: "bonus", name: "", description: "", amountType: "fixed", amount: 0, triggerType: "custom" });
   };
 
   const containerStyle = {
@@ -247,29 +262,37 @@ export default function SalaryRulesManagement() {
 
         <div>
           <label style={{ display: "block", marginBottom: "5px", fontWeight: "600" }}>
-            Percentage (%)
+            Amount Type
           </label>
-          <input
-            type="number"
-            value={formData.percentage}
-            onChange={(e) => setFormData({ ...formData, percentage: parseFloat(e.target.value) || 0 })}
-            placeholder="0"
+          <select
+            value={formData.amountType}
+            onChange={(e) => {
+              setFormData({ 
+                ...formData, 
+                amountType: e.target.value,
+                amount: 0 // Reset amount when switching type
+              });
+            }}
             style={inputStyle}
-            step="0.01"
-          />
+          >
+            <option value="fixed">Fixed Amount (VND)</option>
+            <option value="percentage">Percentage (%)</option>
+          </select>
         </div>
 
         <div>
           <label style={{ display: "block", marginBottom: "5px", fontWeight: "600" }}>
-            Fixed Amount (VND)
+            {formData.amountType === "percentage" ? "Percentage (%)" : "Fixed Amount (VND)"}
           </label>
           <input
             type="number"
             value={formData.amount}
             onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
-            placeholder="0"
+            placeholder={formData.amountType === "percentage" ? "0.00" : "0"}
             style={inputStyle}
-            step="1000"
+            step={formData.amountType === "percentage" ? "0.01" : "1000"}
+            min="0"
+            required
           />
         </div>
 
@@ -299,61 +322,76 @@ export default function SalaryRulesManagement() {
               <th style={thStyle}>Type</th>
               <th style={thStyle}>Rule Name</th>
               <th style={thStyle}>Description</th>
-              <th style={thStyle}>%</th>
-              <th style={thStyle}>Amount (VND)</th>
+              <th style={thStyle}>Amount</th>
               <th style={thStyle}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {rules.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{ ...tdStyle, textAlign: "center", color: "#999" }}>
+                <td colSpan="5" style={{ ...tdStyle, textAlign: "center", color: "#999" }}>
                   No rules yet
                 </td>
               </tr>
             ) : (
-              rules.map((rule) => (
-                <tr key={rule.id}>
-                  <td style={tdStyle}>
-                    {rule.type === "bonus" ? "🎁 Bonus" : "📉 Deduction"}
-                  </td>
-                  <td style={tdStyle}>{rule.name}</td>
-                  <td style={tdStyle}>{rule.description || "-"}</td>
-                  <td style={tdStyle}>{rule.percentage}%</td>
-                  <td style={tdStyle}>{rule.amount?.toLocaleString("vi-VN") || "-"}</td>
-                  <td style={tdStyle}>
-                    <button
-                      onClick={() => handleEdit(rule)}
-                      style={{
-                        padding: "5px 10px",
-                        marginRight: "5px",
-                        backgroundColor: theme.colors.primary,
-                        color: "white",
-                        border: "none",
-                        borderRadius: "3px",
-                        cursor: "pointer",
-                        fontSize: "12px"
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(rule.id)}
-                      style={{
-                        padding: "5px 10px",
-                        backgroundColor: "#c33",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "3px",
-                        cursor: "pointer",
-                        fontSize: "12px"
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))
+              rules.map((rule) => {
+                // Use amountType from backend to determine display
+                const amountType = rule.amountType || 'fixed';
+                const amountValue = parseFloat(rule.amount) || 0;
+                
+                let amountDisplay = "-";
+                if (amountValue > 0) {
+                  if (amountType === 'percentage') {
+                    amountDisplay = `${amountValue.toFixed(2)}%`;
+                  } else {
+                    amountDisplay = `${amountValue.toLocaleString("vi-VN")} VND`;
+                  }
+                }
+                
+                return (
+                  <tr key={rule.id}>
+                    <td style={tdStyle}>
+                      {rule.type === "bonus" ? "↑ Bonus" : "↘ Deduction"}
+                    </td>
+                    <td style={tdStyle}>{rule.name}</td>
+                    <td style={tdStyle}>{rule.description || "-"}</td>
+                    <td style={{ ...tdStyle, fontWeight: "600", color: amountDisplay.includes("%") ? theme.colors.primary : "#333" }}>
+                      {amountDisplay}
+                    </td>
+                    <td style={tdStyle}>
+                      <button
+                        onClick={() => handleEdit(rule)}
+                        style={{
+                          padding: "5px 10px",
+                          marginRight: "5px",
+                          backgroundColor: theme.colors.primary,
+                          color: "white",
+                          border: "none",
+                          borderRadius: "3px",
+                          cursor: "pointer",
+                          fontSize: "12px"
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(rule.id)}
+                        style={{
+                          padding: "5px 10px",
+                          backgroundColor: "#c33",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "3px",
+                          cursor: "pointer",
+                          fontSize: "12px"
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

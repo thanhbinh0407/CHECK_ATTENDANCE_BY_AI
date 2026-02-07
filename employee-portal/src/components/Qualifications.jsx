@@ -177,17 +177,17 @@ export default function Qualifications({ userId }) {
         showMessage(data.message || "Submitted successfully! Awaiting approval.", "success");
         await fetchQualifications();
         setTimeout(() => {
-          setShowForm(false);
-          setEditingId(null);
-          setFormData({
-            type: "certificate",
-            name: "",
-            issuedBy: "",
-            issuedDate: "",
-            expiryDate: "",
-            certificateNumber: "",
-            description: ""
-          });
+        setShowForm(false);
+        setEditingId(null);
+        setFormData({
+          type: "certificate",
+          name: "",
+          issuedBy: "",
+          issuedDate: "",
+          expiryDate: "",
+          certificateNumber: "",
+          description: ""
+        });
           setDocumentFile(null);
           setDocumentPreview(null);
           setDocumentPath(null);
@@ -303,17 +303,17 @@ export default function Qualifications({ userId }) {
             Manage your professional qualifications and certifications
           </p>
         </div>
-        
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            style={{
+
+      {!showForm && (
+        <button
+          onClick={() => setShowForm(true)}
+          style={{
               padding: "12px 24px",
               backgroundColor: "#2196F3",
-              color: "white",
-              border: "none",
+            color: "white",
+            border: "none",
               borderRadius: "8px",
-              cursor: "pointer",
+            cursor: "pointer",
               fontSize: "14px",
               fontWeight: "600",
               display: "flex",
@@ -335,8 +335,8 @@ export default function Qualifications({ userId }) {
           >
             <span style={{ fontSize: "18px" }}>+</span>
             ADD QUALIFICATION
-          </button>
-        )}
+        </button>
+      )}
       </div>
 
       {/* Statistics Cards */}
@@ -640,8 +640,8 @@ export default function Qualifications({ userId }) {
                   <option value="degree">Degree</option>
                   <option value="license">License</option>
                   <option value="training">Training</option>
-                </select>
-              </div>
+            </select>
+          </div>
 
               {/* Name */}
               <div style={{ marginBottom: "20px" }}>
@@ -656,12 +656,12 @@ export default function Qualifications({ userId }) {
                 }}>
                   Name <span style={{ color: "#dc3545" }}>*</span>
                 </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              required
                   placeholder="e.g., ISO 9001 Certification"
                   style={{
                     width: "100%",
@@ -673,8 +673,8 @@ export default function Qualifications({ userId }) {
                   }}
                   onFocus={(e) => e.target.style.borderColor = "#2196F3"}
                   onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
-                />
-              </div>
+            />
+          </div>
 
               {/* Issued By */}
               <div style={{ marginBottom: "20px" }}>
@@ -689,11 +689,11 @@ export default function Qualifications({ userId }) {
                 }}>
                   Issued By
                 </label>
-                <input
-                  type="text"
-                  name="issuedBy"
-                  value={formData.issuedBy}
-                  onChange={handleInputChange}
+            <input
+              type="text"
+              name="issuedBy"
+              value={formData.issuedBy}
+              onChange={handleInputChange}
                   placeholder="e.g., Company, Institution"
                   style={{
                     width: "100%",
@@ -705,8 +705,8 @@ export default function Qualifications({ userId }) {
                   }}
                   onFocus={(e) => e.target.style.borderColor = "#2196F3"}
                   onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
-                />
-              </div>
+            />
+          </div>
 
               {/* Dates */}
               <div style={{ 
@@ -715,7 +715,7 @@ export default function Qualifications({ userId }) {
                 gap: "16px", 
                 marginBottom: "20px" 
               }}>
-                <div>
+            <div>
                   <label style={{ 
                     display: "block", 
                     fontSize: "13px", 
@@ -727,11 +727,11 @@ export default function Qualifications({ userId }) {
                   }}>
                     Issue Date
                   </label>
-                  <input
-                    type="date"
-                    name="issuedDate"
-                    value={formData.issuedDate}
-                    onChange={handleInputChange}
+              <input
+                type="date"
+                name="issuedDate"
+                value={formData.issuedDate}
+                onChange={handleInputChange}
                     style={{
                       width: "100%",
                       padding: "12px 16px",
@@ -742,9 +742,9 @@ export default function Qualifications({ userId }) {
                     }}
                     onFocus={(e) => e.target.style.borderColor = "#2196F3"}
                     onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
-                  />
-                </div>
-                <div>
+              />
+            </div>
+            <div>
                   <label style={{ 
                     display: "block", 
                     fontSize: "13px", 
@@ -756,11 +756,11 @@ export default function Qualifications({ userId }) {
                   }}>
                     Expiry Date
                   </label>
-                  <input
-                    type="date"
-                    name="expiryDate"
-                    value={formData.expiryDate}
-                    onChange={handleInputChange}
+              <input
+                type="date"
+                name="expiryDate"
+                value={formData.expiryDate}
+                onChange={handleInputChange}
                     style={{
                       width: "100%",
                       padding: "12px 16px",
@@ -771,9 +771,9 @@ export default function Qualifications({ userId }) {
                     }}
                     onFocus={(e) => e.target.style.borderColor = "#2196F3"}
                     onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
-                  />
-                </div>
-              </div>
+              />
+            </div>
+          </div>
 
               {/* Certificate Number */}
               <div style={{ marginBottom: "20px" }}>
@@ -788,11 +788,11 @@ export default function Qualifications({ userId }) {
                 }}>
                   Certificate Number
                 </label>
-                <input
-                  type="text"
-                  name="certificateNumber"
-                  value={formData.certificateNumber}
-                  onChange={handleInputChange}
+            <input
+              type="text"
+              name="certificateNumber"
+              value={formData.certificateNumber}
+              onChange={handleInputChange}
                   placeholder="e.g., CERT-2025-001"
                   style={{
                     width: "100%",
@@ -804,8 +804,8 @@ export default function Qualifications({ userId }) {
                   }}
                   onFocus={(e) => e.target.style.borderColor = "#2196F3"}
                   onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
-                />
-              </div>
+            />
+          </div>
 
               {/* Description */}
               <div style={{ marginBottom: "24px" }}>
@@ -820,10 +820,10 @@ export default function Qualifications({ userId }) {
                 }}>
                   Description
                 </label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleInputChange}
                   placeholder="Additional notes or details..."
                   style={{
                     width: "100%",
@@ -838,8 +838,8 @@ export default function Qualifications({ userId }) {
                   }}
                   onFocus={(e) => e.target.style.borderColor = "#2196F3"}
                   onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
-                />
-              </div>
+            />
+          </div>
 
               {/* Document Upload */}
               <div style={{ 
@@ -868,7 +868,7 @@ export default function Qualifications({ userId }) {
                 </div>
                 
                 {!documentPath && (
-                  <div>
+          <div>
                     <input
                       type="file"
                       accept="image/jpeg,image/jpg,image/png,application/pdf"
@@ -894,7 +894,7 @@ export default function Qualifications({ userId }) {
                           }}
                         >
                           {uploading ? "⏳ Uploading..." : "📤 Upload Document"}
-                        </button>
+            </button>
                         <span style={{ marginLeft: "12px", fontSize: "12px", color: "#495057" }}>
                           {documentFile.name} ({(documentFile.size / 1024 / 1024).toFixed(2)} MB)
                         </span>
@@ -991,11 +991,11 @@ export default function Qualifications({ userId }) {
 
               {/* Action Buttons */}
               <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingId(null);
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(false);
+                setEditingId(null);
                     setFormData({ 
                       type: "certificate", 
                       name: "", 
@@ -1053,9 +1053,9 @@ export default function Qualifications({ userId }) {
                   }}
                 >
                   {editingId ? "Update" : "Submit"}
-                </button>
-              </div>
-            </form>
+            </button>
+          </div>
+        </form>
           </div>
         </div>
       )}
@@ -1076,7 +1076,7 @@ export default function Qualifications({ userId }) {
           Qualifications History
         </h3>
 
-        {loading ? (
+      {loading ? (
           <div style={{ 
             textAlign: "center", 
             padding: "40px", 
@@ -1202,7 +1202,7 @@ export default function Qualifications({ userId }) {
                         fontWeight: "600"
                       }}>
                         {getTypeLabel(qual.type)}
-                      </td>
+                    </td>
                       <td style={{ 
                         padding: "16px", 
                         borderBottom: "1px solid #e9ecef",
@@ -1262,8 +1262,8 @@ export default function Qualifications({ userId }) {
                         textAlign: "center"
                       }}>
                         <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
-                          <button
-                            onClick={() => handleEdit(qual)}
+                      <button
+                        onClick={() => handleEdit(qual)}
                             style={{ 
                               padding: "6px 14px", 
                               backgroundColor: "#FFC107", 
@@ -1285,8 +1285,8 @@ export default function Qualifications({ userId }) {
                             }}
                           >
                             EDIT
-                          </button>
-                          <button
+                      </button>
+                      <button
                             onClick={() => {
                               setDeleteId(qual.id);
                               setShowDeleteConfirm(true);
@@ -1312,10 +1312,10 @@ export default function Qualifications({ userId }) {
                             }}
                           >
                             DELETE
-                          </button>
+                      </button>
                         </div>
-                      </td>
-                    </tr>
+                    </td>
+                  </tr>
                   );
                 })}
               </tbody>

@@ -203,7 +203,7 @@ export function ViewPayrollModal({ isOpen, payroll, onClose }) {
     setIsLoadingPassword(true);
     setPasswordError(null);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const response = await fetch(
         `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/admin/employees/${payroll.userId}/with-password`,
         {

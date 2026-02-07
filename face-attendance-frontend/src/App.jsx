@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import LoginForm from "./components/LoginForm.jsx";
 import EnrollmentForm from "./components/EnrollmentForm.jsx";
 import AdminDashboard from "./components/AdminDashboard.jsx";
 import ShiftAdmin from "./components/ShiftAdmin.jsx";
@@ -10,21 +9,81 @@ import AnalyticsDashboard from "./components/AnalyticsDashboard.jsx";
 import DepartmentManagement from "./components/DepartmentManagement.jsx";
 import JobTitleManagement from "./components/JobTitleManagement.jsx";
 import ApprovalManagement from "./components/ApprovalManagement.jsx";
+import DocumentManagement from "./components/DocumentManagement.jsx";
+import OvertimeManagement from "./components/OvertimeManagement.jsx";
+import BusinessTripManagement from "./components/BusinessTripManagement.jsx";
+import SalaryAdvanceManagement from "./components/SalaryAdvanceManagement.jsx";
+import ReportsDashboard from "./components/ReportsDashboard.jsx";
 import { theme, commonStyles } from "./styles/theme.js";
 import "./App.css";
 
 function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
   
   // Use lazy initialization to read from localStorage only once on mount
   const [authToken, setAuthToken] = useState(() => {
     return localStorage.getItem("authToken");
   });
   const [user, setUser] = useState(() => {
-    const userData = localStorage.getItem("user");
-    return userData ? JSON.parse(userData) : null;
+    try {
+      const userData = localStorage.getItem("user");
+      return userData ? JSON.parse(userData) : null;
+    } catch (error) {
+      console.error("Error reading user from localStorage:", error);
+      return null;
+    }
   });
+
+  useEffect(() => {
+    // Check URL parameters first (from login portal redirect)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get('token');
+    const userFromUrl = urlParams.get('user');
+    
+    console.log('[AUTH] Checking authentication...', { tokenFromUrl: !!tokenFromUrl, userFromUrl: !!userFromUrl });
+    
+    if (tokenFromUrl && userFromUrl) {
+      try {
+        const decodedToken = decodeURIComponent(tokenFromUrl);
+        const decodedUser = JSON.parse(decodeURIComponent(userFromUrl));
+        console.log('[AUTH] Token and user found in URL, saving to localStorage');
+        // Save to localStorage
+        localStorage.setItem('authToken', decodedToken);
+        localStorage.setItem('user', JSON.stringify(decodedUser));
+        setAuthToken(decodedToken);
+        setUser(decodedUser);
+        // Clean URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        setIsChecking(false);
+        console.log('[AUTH] Authentication successful from URL params');
+        return;
+      } catch (error) {
+        console.error("[AUTH] Error parsing token/user from URL:", error);
+      }
+    }
+    
+    // Fallback to localStorage
+    const token = localStorage.getItem("authToken");
+    const userData = localStorage.getItem("user");
+    if (token && userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        setAuthToken(token);
+        setUser(parsedUser);
+        console.log('[AUTH] Authentication found in localStorage');
+      } catch (error) {
+        console.error("[AUTH] Error parsing user data:", error);
+      }
+    } else {
+      console.log('[AUTH] No authentication found, redirecting to login portal');
+      // Redirect to login portal if no auth found
+      window.location.href = "http://localhost:3000/";
+      return;
+    }
+    setIsChecking(false);
+  }, []);
 
   const handleLoginSuccess = (token, userData) => {
     setAuthToken(token);
@@ -37,6 +96,8 @@ function App() {
     setAuthToken(null);
     setUser(null);
     setActiveTab("dashboard");
+    // Redirect to login portal
+    window.location.href = "http://localhost:3000/";
   };
 
   // Keyboard shortcuts
@@ -74,21 +135,39 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [authToken, user, sidebarCollapsed]);
 
-  if (!authToken) {
-    return <LoginForm onLoginSuccess={handleLoginSuccess} />;
+  // Redirect to login portal if not authenticated (only after checking is complete)
+  useEffect(() => {
+    if (!isChecking && !authToken && !user) {
+      console.log('[AUTH] No authentication found after check, redirecting to login portal');
+      window.location.href = "http://localhost:3000/";
+    }
+  }, [isChecking, authToken, user]);
+
+  // Show loading while checking
+  if (isChecking) {
+    return null;
+  }
+
+  if (!authToken || !user) {
+    return null; // Return null while redirecting
   }
 
   const navigationItems = [
-    { id: "enrollment", label: "Enroll Employee", shortcut: "1" },
-    { id: "dashboard", label: "Employee Management", shortcut: "2" },
-    { id: "logs", label: "Attendance History", shortcut: "3" },
-    { id: "shifts", label: "Work Schedule", shortcut: "4" },
-    { id: "salary", label: "Payroll Management", shortcut: "5" },
-    { id: "leave", label: "Leave Management", shortcut: "6" },
-    { id: "approvals", label: "Approval Management", shortcut: "7" },
-    { id: "departments", label: "Department Management", shortcut: "8" },
-    { id: "job-titles", label: "Job Title Management", shortcut: "9" },
-    { id: "analytics", label: "Analytics Dashboard", shortcut: "0" },
+    { id: "enrollment", label: "Enroll Employee", shortcut: "1", icon: "👤" },
+    { id: "dashboard", label: "Employee Management", shortcut: "2", icon: "👥" },
+    { id: "logs", label: "Attendance History", shortcut: "3", icon: "📋" },
+    { id: "shifts", label: "Work Schedule", shortcut: "4", icon: "🕐" },
+    { id: "salary", label: "Payroll Management", shortcut: "5", icon: "💰" },
+    { id: "leave", label: "Leave Management", shortcut: "6", icon: "🏖️" },
+    { id: "approvals", label: "Approval Management", shortcut: "7", icon: "✅" },
+    { id: "departments", label: "Department Management", shortcut: "8", icon: "🏢" },
+    { id: "job-titles", label: "Job Title Management", shortcut: "9", icon: "💼" },
+    { id: "analytics", label: "Analytics Dashboard", shortcut: "0", icon: "📈" },
+    { id: "documents", label: "Document Management", shortcut: "", icon: "📄" },
+    { id: "overtime", label: "Overtime Requests", shortcut: "", icon: "⏱️" },
+    { id: "business-trips", label: "Business Trip Requests", shortcut: "", icon: "🧳" },
+    { id: "salary-advances", label: "Salary Advances", shortcut: "", icon: "💸" },
+    { id: "reports", label: "Reporting", shortcut: "", icon: "📊" },
   ];
 
   // Layout styles
@@ -235,7 +314,7 @@ function App() {
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               style={getNavItemStyle(item.id)}
-              title={sidebarCollapsed ? `${item.label} (Ctrl+${item.shortcut})` : `Ctrl+${item.shortcut}`}
+              title={item.shortcut ? (sidebarCollapsed ? `${item.label} (Ctrl+${item.shortcut})` : `Ctrl+${item.shortcut}`) : item.label}
               onMouseEnter={(e) => {
                 if (!isActive) {
                   e.currentTarget.style.backgroundColor = theme.neutral.gray100;
@@ -254,29 +333,37 @@ function App() {
               {!sidebarCollapsed && (
                 <>
                   <span style={{ 
+                    marginRight: theme.spacing.sm,
+                    fontSize: "18px"
+                  }}>
+                    {item.icon || "•"}
+                  </span>
+                  <span style={{ 
                     flex: 1, 
                     fontWeight: activeTab === item.id ? "700" : "500",
                     color: activeTab === item.id ? "#667eea" : "inherit"
                   }}>
                     {item.label}
                   </span>
-                  <span style={{ 
-                    fontSize: theme.typography.tiny.fontSize, 
-                    color: activeTab === item.id ? "#667eea" : theme.neutral.gray400,
-                    backgroundColor: activeTab === item.id ? "#e0e7ff" : theme.neutral.gray100,
-                    padding: `4px ${theme.spacing.xs}`,
-                    borderRadius: theme.radius.sm,
-                    fontWeight: activeTab === item.id ? "700" : "500",
-                    border: activeTab === item.id ? "1px solid #667eea" : "none",
-                    transition: "all 0.2s"
-                  }}>
-                    {item.shortcut}
-                  </span>
+                  {item.shortcut ? (
+                    <span style={{ 
+                      fontSize: theme.typography.tiny.fontSize, 
+                      color: activeTab === item.id ? "#667eea" : theme.neutral.gray400,
+                      backgroundColor: activeTab === item.id ? "#e0e7ff" : theme.neutral.gray100,
+                      padding: `4px ${theme.spacing.xs}`,
+                      borderRadius: theme.radius.sm,
+                      fontWeight: activeTab === item.id ? "700" : "500",
+                      border: activeTab === item.id ? "1px solid #667eea" : "none",
+                      transition: "all 0.2s"
+                    }}>
+                      {item.shortcut}
+                    </span>
+                  ) : null}
                 </>
               )}
               {sidebarCollapsed && (
-                <span style={{ fontSize: theme.typography.tiny.fontSize, color: theme.neutral.gray400 }}>
-                  {item.shortcut}
+                <span style={{ fontSize: "20px" }}>
+                  {item.icon || "•"}
                 </span>
               )}
             </div>
@@ -396,6 +483,11 @@ function App() {
         {activeTab === "departments" && user?.role === "admin" && <DepartmentManagement />}
         {activeTab === "job-titles" && user?.role === "admin" && <JobTitleManagement />}
         {activeTab === "analytics" && user?.role === "admin" && <AnalyticsDashboard />}
+        {activeTab === "documents" && user?.role === "admin" && <DocumentManagement />}
+        {activeTab === "overtime" && user?.role === "admin" && <OvertimeManagement />}
+        {activeTab === "business-trips" && user?.role === "admin" && <BusinessTripManagement />}
+        {activeTab === "salary-advances" && user?.role === "admin" && <SalaryAdvanceManagement />}
+        {activeTab === "reports" && user?.role === "admin" && <ReportsDashboard />}
       </div>
       </main>
     </div>

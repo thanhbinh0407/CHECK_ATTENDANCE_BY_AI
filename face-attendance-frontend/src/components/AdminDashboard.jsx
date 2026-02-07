@@ -185,7 +185,7 @@ export default function AdminDashboard() {
 
       {/* Main Content */}
       <div style={contentCardStyle}>
-        {message && (
+          {message && (
           <div style={{
             padding: "16px 20px",
             backgroundColor: message.includes("successfully") || message.includes("thành công") ? "#d4edda" : "#f8d7da",
@@ -305,24 +305,24 @@ export default function AdminDashboard() {
                 <option value="withoutFace">Not Registered ({employees.filter(e => !e.FaceProfiles || e.FaceProfiles.length === 0).length})</option>
               </select>
             </div>
-            <button
+              <button
               onClick={() => { setSearchQuery(""); setFilterStatus("all"); }}
-              style={{
-                padding: "12px 20px",
-                backgroundColor: "#6c757d",
-                color: "#fff",
-                border: "none",
+                style={{
+                  padding: "12px 20px",
+                  backgroundColor: "#6c757d",
+                  color: "#fff",
+                  border: "none",
                 borderRadius: "10px",
-                cursor: "pointer",
+                  cursor: "pointer",
                 fontWeight: "700",
-                fontSize: "14px",
-                transition: "all 0.2s"
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#5a6268"}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#6c757d"}
-            >
-              Reset
-            </button>
+                  fontSize: "14px",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#5a6268"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#6c757d"}
+              >
+                Reset
+              </button>
           </div>
 
           {/* Export/Import Buttons */}
@@ -416,32 +416,53 @@ export default function AdminDashboard() {
                   const file = e.target.files[0];
                   if (!file) return;
                   try {
+                    setLoading(true);
                     const employees = await importEmployeesFromExcel(file);
                     const token = localStorage.getItem("authToken");
                     
-                    let successCount = 0;
-                    let failCount = 0;
-                    for (const emp of employees) {
-                      try {
+                    if (!token) {
+                      throw new Error("Không có token xác thực");
+                    }
+
+                    // Use bulk endpoint
                         const res = await fetch(`${apiBase}/api/admin/employees/bulk`, {
                           method: "POST",
                           headers: {
                             "Authorization": `Bearer ${token}`,
                             "Content-Type": "application/json"
                           },
-                          body: JSON.stringify(emp)
-                        });
-                        if (res.ok) successCount++;
-                        else failCount++;
-                      } catch (err) {
-                        failCount++;
+                      body: JSON.stringify({ employees })
+                    });
+
+                    const data = await res.json();
+                    
+                    if (res.ok && data.status === "success") {
+                      const { results } = data;
+                      const successCount = results.success.length;
+                      const failCount = results.failed.length;
+                      
+                      if (failCount > 0) {
+                        const failedDetails = results.failed.slice(0, 5).map(f => 
+                          `- ${f.name} (${f.employeeCode}): ${f.reason}`
+                        ).join('\n');
+                        const moreFailed = failCount > 5 ? `\n... và ${failCount - 5} lỗi khác` : '';
+                        alert(`Import hoàn tất!\n\n✅ Thành công: ${successCount} nhân viên\n❌ Thất bại: ${failCount} nhân viên\n\nChi tiết lỗi:\n${failedDetails}${moreFailed}`);
+                      } else {
+                        setMessage(`✅ Import thành công: ${successCount} nhân viên`);
                       }
+                      
+                      fetchEmployees();
+                    } else {
+                      throw new Error(data.message || "Lỗi khi import nhân viên");
                     }
-                    setMessage(`Import successful: ${successCount}/${employees.length} employees${failCount > 0 ? ` (${failCount} errors)` : ''}`);
-                    fetchEmployees();
+                    
                     e.target.value = "";
                   } catch (error) {
-                    setMessage("Import error: " + error.message);
+                    console.error("Import error:", error);
+                    setMessage(`❌ Lỗi import: ${error.message}`);
+                    alert(`Lỗi khi import: ${error.message}`);
+                  } finally {
+                    setLoading(false);
                     e.target.value = "";
                   }
                 }}
@@ -569,34 +590,34 @@ export default function AdminDashboard() {
                   <div style={{ padding: "28px" }} onClick={() => setSelectedEmployee(emp)}>
                     {/* Employee Info */}
                     <div style={{ marginBottom: "24px", display: "flex", alignItems: "center", gap: "16px" }}>
-                      <div style={{
-                        width: "64px",
-                        height: "64px",
-                        borderRadius: "16px",
-                        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "28px",
-                        fontWeight: "700",
-                        color: "#fff",
+                  <div style={{
+                    width: "64px",
+                    height: "64px",
+                    borderRadius: "16px",
+                    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "28px",
+                    fontWeight: "700",
+                    color: "#fff",
                         boxShadow: "0 6px 16px rgba(102, 126, 234, 0.4)",
                         flexShrink: 0
-                      }}>
+                  }}>
                         {emp.name?.charAt(0)?.toUpperCase() || "?"}
-                      </div>
+                  </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <h3 style={{ margin: "0 0 6px 0", fontSize: "20px", fontWeight: "700", color: "#1a1a1a", lineHeight: "1.3" }}>
                           {emp.name || "N/A"}
-                        </h3>
+                  </h3>
                         <div style={{ fontSize: "14px", color: "#667eea", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
                           <span>👤</span> {emp.employeeCode || "N/A"}
                         </div>
                       </div>
-                    </div>
+                  </div>
 
                     {/* Details Box - Leave Management style */}
-                    <div style={{
+                  <div style={{
                       backgroundColor: "#f8f9fa",
                       borderRadius: "16px",
                       padding: "20px",
@@ -612,53 +633,104 @@ export default function AdminDashboard() {
                           <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Role</div>
                           <div style={{ fontSize: "14px", color: "#1a1a1a", fontWeight: "700" }}>{emp.role || "Employee"}</div>
                         </div>
+                        <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Department</div>
+                          <div style={{ fontSize: "13px", color: "#667eea", fontWeight: "700" }}>{emp.Department?.name || "N/A"}</div>
+                        </div>
+                        <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Job Title</div>
+                          <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "700" }}>{emp.JobTitle?.name || "N/A"}</div>
+                        </div>
+                        {emp.contractType && (
+                          <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                            <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Contract</div>
+                            <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600" }}>
+                              {emp.contractType === "probation" ? "Thử việc" :
+                               emp.contractType === "1_year" ? "1 năm" :
+                               emp.contractType === "3_year" ? "3 năm" :
+                               emp.contractType === "indefinite" ? "Không xác định" :
+                               emp.contractType === "other" ? "Khác" : emp.contractType}
+                            </div>
+                          </div>
+                        )}
+                        {emp.employmentStatus && (
+                          <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                            <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Status</div>
+                            <div style={{ fontSize: "13px", color: 
+                              emp.employmentStatus === "active" ? "#28a745" :
+                              emp.employmentStatus === "maternity_leave" ? "#ffc107" :
+                              emp.employmentStatus === "unpaid_leave" ? "#ff9800" :
+                              emp.employmentStatus === "suspended" ? "#ff5722" :
+                              emp.employmentStatus === "terminated" || emp.employmentStatus === "resigned" ? "#dc3545" : "#666",
+                              fontWeight: "700" }}>
+                              {emp.employmentStatus === "active" ? "Đang làm việc" :
+                               emp.employmentStatus === "maternity_leave" ? "Nghỉ thai sản" :
+                               emp.employmentStatus === "unpaid_leave" ? "Nghỉ không lương" :
+                               emp.employmentStatus === "suspended" ? "Tạm nghỉ" :
+                               emp.employmentStatus === "terminated" ? "Đã nghỉ việc" :
+                               emp.employmentStatus === "resigned" ? "Đã từ chức" : emp.employmentStatus}
+                            </div>
+                          </div>
+                        )}
+                        {emp.Manager && (
+                          <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                            <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Manager</div>
+                            <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600" }}>{emp.Manager.name || "N/A"}</div>
+                          </div>
+                        )}
+                        {emp.branchName && (
+                          <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                            <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Branch</div>
+                            <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600" }}>{emp.branchName}</div>
+                          </div>
+                        )}
                         <div style={{ gridColumn: "1 / -1", padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
                           <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Created</div>
                           <div style={{ fontSize: "14px", color: "#667eea", fontWeight: "700" }}>
                             {new Date(emp.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                           </div>
                         </div>
-                      </div>
-                    </div>
+                  </div>
+                  </div>
 
-                    {/* Action Buttons */}
+                  {/* Action Buttons */}
                     <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-                      <button
+                    <button
                         onClick={(e) => { e.stopPropagation(); setSelectedEmployee(emp); }}
-                        style={{
-                          flex: 1,
+                      style={{
+                        flex: 1,
                           padding: "14px 24px",
                           backgroundColor: "#28a745",
-                          color: "#fff",
-                          border: "none",
+                        color: "#fff",
+                        border: "none",
                           borderRadius: "12px",
-                          cursor: "pointer",
+                        cursor: "pointer",
                           fontWeight: "700",
                           fontSize: "14px",
                           transition: "all 0.3s",
                           boxShadow: "0 4px 12px rgba(40, 167, 69, 0.3)"
-                        }}
-                        onMouseEnter={(e) => {
+                      }}
+                      onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = "#218838";
-                          e.currentTarget.style.transform = "translateY(-2px)";
-                        }}
-                        onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                      }}
+                      onMouseLeave={(e) => {
                           e.currentTarget.style.backgroundColor = "#28a745";
-                          e.currentTarget.style.transform = "translateY(0)";
-                        }}
-                      >
+                        e.currentTarget.style.transform = "translateY(0)";
+                      }}
+                    >
                         Details
-                      </button>
-                      <button
+                    </button>
+                    <button
                         onClick={(e) => { e.stopPropagation(); deleteEmployee(emp.id); }}
-                        style={{
+                      style={{
                           flex: 1,
                           padding: "14px 24px",
-                          backgroundColor: "#dc3545",
-                          color: "#fff",
-                          border: "none",
+                        backgroundColor: "#dc3545",
+                        color: "#fff",
+                        border: "none",
                           borderRadius: "12px",
-                          cursor: "pointer",
+                        cursor: "pointer",
                           fontWeight: "700",
                           fontSize: "14px",
                           transition: "all 0.3s",
@@ -674,7 +746,7 @@ export default function AdminDashboard() {
                         }}
                       >
                         Delete
-                      </button>
+                    </button>
                     </div>
                   </div>
                 </div>

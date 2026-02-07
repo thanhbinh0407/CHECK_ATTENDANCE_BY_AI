@@ -35,7 +35,9 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('authToken');
-      window.location.href = '/login';
+      localStorage.removeItem('user');
+      // Redirect to login portal
+      window.location.href = 'http://localhost:3000/';
     }
     return Promise.reject(error);
   }

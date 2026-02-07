@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import LoginForm from "./components/LoginForm.jsx";
 import AttendanceHistory from "./components/AttendanceHistory.jsx";
 import SalaryHistory from "./components/SalaryHistory.jsx";
 import LeaveRequest from "./components/LeaveRequest.jsx";
@@ -10,18 +9,48 @@ import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
 import "./App.css";
 
 function App() {
-  const [authToken, setAuthToken] = useState(null);
-  const [user, setUser] = useState(null);
+  const [authToken, setAuthToken] = useState(() => {
+    return localStorage.getItem("authToken");
+  });
+  const [user, setUser] = useState(() => {
+    const userData = localStorage.getItem("user");
+    return userData ? JSON.parse(userData) : null;
+  });
   const [activeTab, setActiveTab] = useState("attendance");
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // Check if already logged in
+    // Check URL parameters first (from login portal redirect)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get('token');
+    const userFromUrl = urlParams.get('user');
+    
+    if (tokenFromUrl && userFromUrl) {
+      try {
+        const decodedToken = decodeURIComponent(tokenFromUrl);
+        const decodedUser = JSON.parse(decodeURIComponent(userFromUrl));
+        // Save to localStorage
+        localStorage.setItem('authToken', decodedToken);
+        localStorage.setItem('user', JSON.stringify(decodedUser));
+        setAuthToken(decodedToken);
+        setUser(decodedUser);
+        // Clean URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        setIsChecking(false);
+        return;
+      } catch (error) {
+        console.error("Error parsing token/user from URL:", error);
+      }
+    }
+    
+    // Fallback to localStorage
     const token = localStorage.getItem("authToken");
     const userData = localStorage.getItem("user");
     if (token && userData) {
       setAuthToken(token);
       setUser(JSON.parse(userData));
     }
+    setIsChecking(false);
   }, []);
 
   const handleLoginSuccess = (token, userData) => {
@@ -35,10 +64,28 @@ function App() {
     setAuthToken(null);
     setUser(null);
     setActiveTab("attendance");
+    // Redirect to login portal
+    window.location.href = "http://localhost:3000/";
   };
 
+  // Redirect to login portal if not authenticated (only after checking localStorage)
+  useEffect(() => {
+    if (!isChecking) {
+      const token = localStorage.getItem("authToken");
+      const userData = localStorage.getItem("user");
+      if (!token || !userData) {
+        window.location.href = "http://localhost:3000/";
+      }
+    }
+  }, [isChecking]);
+
+  // Show loading while checking
+  if (isChecking) {
+    return null;
+  }
+
   if (!authToken || !user) {
-    return <LoginForm onLoginSuccess={handleLoginSuccess} />;
+    return null; // Return null while redirecting
   }
 
   const headerStyle = {

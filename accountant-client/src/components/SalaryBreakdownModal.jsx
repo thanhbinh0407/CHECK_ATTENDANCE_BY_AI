@@ -275,14 +275,14 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
 
         {/* Breakdown Table */}
         <div style={sectionStyle}>
-
-          </div>
+          {/* Breakdown content will go here */}
         </div>
 
         {/* Edit Mode */}
         {editMode && (
           <div style={editFormStyle}>
-
+            <div style={formGroupStyle}>
+              <label style={labelFormStyle}>Base Salary Adjustment</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -298,7 +298,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
             </div>
 
             <div style={formGroupStyle}>
-
+              <label style={labelFormStyle}>Bonus Adjustment</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -314,7 +314,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
             </div>
 
             <div style={formGroupStyle}>
-
+              <label style={labelFormStyle}>Deduction Adjustment</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -379,7 +379,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                 disabled={saving}
                 title="Lưu điều chỉnh"
               >
-
+                {saving ? "Saving..." : "Save"}
               </button>
             </>
           )}
@@ -390,7 +390,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
               style={iconButtonStyle("#ffc107")}
               title="Điều chỉnh lương"
             >
-
+              Edit
             </button>
           )}
         </div>
