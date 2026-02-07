@@ -833,9 +833,15 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         employeeCode: employee.employeeCode,
         phoneNumber: employee.phoneNumber,
         address: employee.address,
+        permanentAddress: employee.permanentAddress,
+        temporaryAddress: employee.temporaryAddress,
         dateOfBirth: employee.dateOfBirth,
         gender: employee.gender,
         idNumber: employee.idNumber,
+        idIssueDate: employee.idIssueDate,
+        idIssuePlace: employee.idIssuePlace,
+        personalEmail: employee.personalEmail,
+        companyEmail: employee.companyEmail,
         startDate: employee.startDate,
         baseSalary: employee.baseSalary,
         isActive: employee.isActive,
@@ -854,7 +860,20 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         SalaryGrade: employee.SalaryGrade,
         bankAccount: employee.bankAccount,
         bankName: employee.bankName,
+        bankBranch: employee.bankBranch,
         taxCode: employee.taxCode,
+        lunchAllowance: employee.lunchAllowance,
+        transportAllowance: employee.transportAllowance,
+        phoneAllowance: employee.phoneAllowance,
+        responsibilityAllowance: employee.responsibilityAllowance,
+        socialInsuranceNumber: employee.socialInsuranceNumber,
+        healthInsuranceProvider: employee.healthInsuranceProvider,
+        dependentCount: employee.dependentCount,
+        educationLevel: employee.educationLevel,
+        major: employee.major,
+        emergencyContactName: employee.emergencyContactName,
+        emergencyContactRelationship: employee.emergencyContactRelationship,
+        emergencyContactPhone: employee.emergencyContactPhone,
         password: employee.password, // Include password for admin viewing
         attendanceStats: {
           totalDaysWorked: workingDaysCount,
@@ -904,7 +923,8 @@ export const getEmployeeDetailedInfo = async (req, res) => {
           name: qual.name,
           issuedBy: qual.issuedBy,
           issuedDate: qual.issuedDate
-        })) : []
+        })) : [],
+        WorkExperiences: employee.WorkExperiences || []
       }
     });
   } catch (err) {
