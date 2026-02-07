@@ -9,8 +9,9 @@ export default function SalaryRulesManagement() {
     type: "bonus",
     name: "",
     description: "",
-    percentage: 0,
-    amount: 0
+    amountType: "fixed", // "fixed" or "percentage"
+    amount: 0,
+    triggerType: "custom" // default trigger type
   });
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
@@ -54,20 +55,33 @@ export default function SalaryRulesManagement() {
 
       const method = editingRule ? "PUT" : "POST";
 
+      // Prepare data for backend: convert percentage/amount to amount based on amountType
+      const requestData = {
+        type: formData.type,
+        name: formData.name,
+        description: formData.description,
+        triggerType: formData.triggerType || "custom",
+        amountType: formData.amountType,
+        amount: formData.amountType === "percentage" 
+          ? parseFloat(formData.amount) || 0  // If percentage, use amount field for percentage value
+          : parseFloat(formData.amount) || 0, // If fixed, use amount field for VND value
+        isActive: true
+      };
+
       const res = await fetch(url, {
         method,
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(requestData)
       });
 
       const data = await res.json();
       if (res.ok) {
         setMessage(editingRule ? "Cập nhật quy tắc thành công!" : "Tạo quy tắc thành công!");
         setEditingRule(null);
-        setFormData({ type: "bonus", name: "", description: "", percentage: 0, amount: 0 });
+        setFormData({ type: "bonus", name: "", description: "", amountType: "fixed", amount: 0, triggerType: "custom" });
         fetchRules();
         setTimeout(() => setMessage(""), 3000);
       } else {
@@ -114,14 +128,15 @@ export default function SalaryRulesManagement() {
       type: rule.type,
       name: rule.name,
       description: rule.description || "",
-      percentage: rule.percentage || 0,
-      amount: rule.amount || 0
+      amountType: rule.amountType || "fixed",
+      amount: rule.amount || 0,
+      triggerType: rule.triggerType || "custom"
     });
   };
 
   const handleCancel = () => {
     setEditingRule(null);
-    setFormData({ type: "bonus", name: "", description: "", percentage: 0, amount: 0 });
+    setFormData({ type: "bonus", name: "", description: "", amountType: "fixed", amount: 0, triggerType: "custom" });
   };
 
   const containerStyle = {
@@ -298,61 +313,76 @@ export default function SalaryRulesManagement() {
               <th style={thStyle}>Loại</th>
               <th style={thStyle}>Tên Quy Tắc</th>
               <th style={thStyle}>Mô Tả</th>
-              <th style={thStyle}>%</th>
-              <th style={thStyle}>Số Tiền (VND)</th>
+              <th style={thStyle}>Số Tiền</th>
               <th style={thStyle}>Hành Động</th>
             </tr>
           </thead>
           <tbody>
             {rules.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{ ...tdStyle, textAlign: "center", color: "#999" }}>
+                <td colSpan="5" style={{ ...tdStyle, textAlign: "center", color: "#999" }}>
                   Chưa có quy tắc nào
                 </td>
               </tr>
             ) : (
-              rules.map((rule) => (
-                <tr key={rule.id}>
-                  <td style={tdStyle}>
-                    {rule.type === "bonus" ? "🎁 Phụ cấp" : "📉 Khấu trừ"}
-                  </td>
-                  <td style={tdStyle}>{rule.name}</td>
-                  <td style={tdStyle}>{rule.description || "-"}</td>
-                  <td style={tdStyle}>{rule.percentage}%</td>
-                  <td style={tdStyle}>{rule.amount?.toLocaleString("vi-VN") || "-"}</td>
-                  <td style={tdStyle}>
-                    <button
-                      onClick={() => handleEdit(rule)}
-                      style={{
-                        padding: "5px 10px",
-                        marginRight: "5px",
-                        backgroundColor: "#2196F3",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "3px",
-                        cursor: "pointer",
-                        fontSize: "12px"
-                      }}
-                    >
-                      Sửa
-                    </button>
-                    <button
-                      onClick={() => handleDelete(rule.id)}
-                      style={{
-                        padding: "5px 10px",
-                        backgroundColor: "#c33",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "3px",
-                        cursor: "pointer",
-                        fontSize: "12px"
-                      }}
-                    >
-                      Xóa
-                    </button>
-                  </td>
-                </tr>
-              ))
+              rules.map((rule) => {
+                // Use amountType from backend to determine display
+                const amountType = rule.amountType || 'fixed';
+                const amountValue = parseFloat(rule.amount) || 0;
+                
+                let amountDisplay = "-";
+                if (amountValue > 0) {
+                  if (amountType === 'percentage') {
+                    amountDisplay = `${amountValue.toFixed(2)}%`;
+                  } else {
+                    amountDisplay = `${amountValue.toLocaleString("vi-VN")} VND`;
+                  }
+                }
+                
+                return (
+                  <tr key={rule.id}>
+                    <td style={tdStyle}>
+                      {rule.type === "bonus" ? "↑ Phụ cấp" : "↘ Khấu trừ"}
+                    </td>
+                    <td style={tdStyle}>{rule.name}</td>
+                    <td style={tdStyle}>{rule.description || "-"}</td>
+                    <td style={{ ...tdStyle, fontWeight: "600", color: amountDisplay.includes("%") ? "#2196F3" : "#333" }}>
+                      {amountDisplay}
+                    </td>
+                    <td style={tdStyle}>
+                      <button
+                        onClick={() => handleEdit(rule)}
+                        style={{
+                          padding: "5px 10px",
+                          marginRight: "5px",
+                          backgroundColor: "#2196F3",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "3px",
+                          cursor: "pointer",
+                          fontSize: "12px"
+                        }}
+                      >
+                        Sửa
+                      </button>
+                      <button
+                        onClick={() => handleDelete(rule.id)}
+                        style={{
+                          padding: "5px 10px",
+                          backgroundColor: "#c33",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "3px",
+                          cursor: "pointer",
+                          fontSize: "12px"
+                        }}
+                      >
+                        Xóa
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

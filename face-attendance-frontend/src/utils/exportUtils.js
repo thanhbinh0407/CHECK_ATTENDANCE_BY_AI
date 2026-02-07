@@ -110,39 +110,34 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
     }
 
     return {
-      'Nhân viên': salary.User?.name || '',
-      'Mã NV': salary.User?.employeeCode || '',
-      'Chức vụ': salary.User?.jobTitle || '',
-      'Tháng': salary.month || '',
-      'Năm': salary.year || '',
-      // Thu nhập
-      'Lương cơ sở': baseSalary,
-      'Tổng hệ số': totalCoefficient.toFixed(2),
-      'Lương gộp': salaryCalc?.grossSalary || (baseSalary * totalCoefficient),
-      'Thưởng': bonus,
-      // Bảo hiểm
+      'Employee': salary.User?.name || '',
+      'Code': salary.User?.employeeCode || '',
+      'Job Title': salary.User?.jobTitle || '',
+      'Month': salary.month || '',
+      'Year': salary.year || '',
+      'Base Salary': baseSalary,
+      'Coefficient': totalCoefficient.toFixed(2),
+      'Gross Salary': salaryCalc?.grossSalary || (baseSalary * totalCoefficient),
+      'Bonus': bonus,
       'BHXH (8%)': salaryCalc?.insurance?.bhxh || 0,
       'BHYT (1.5%)': salaryCalc?.insurance?.bhyt || 0,
       'BHTN (1%)': salaryCalc?.insurance?.bhtn || 0,
-      'Tổng BH': salaryCalc?.insurance?.total || 0,
-      // Thuế
-      'Thu nhập chịu thuế': salaryCalc?.tax?.taxableIncome || 0,
-      'Giảm trừ gia cảnh': salaryCalc?.tax?.personalDeduction || 0,
-      'Thuế TNCN': salaryCalc?.tax?.pit || 0,
-      // Khác
-      'Khấu trừ khác': deduction,
-      // Kết quả
-      'Thực nhận': salaryCalc?.netSalary || salary.finalSalary || 0,
-      'Người phụ thuộc': dependents,
-      'Trạng thái': salary.status === 'paid' ? 'Đã thanh toán' : 
-                     salary.status === 'approved' ? 'Đã duyệt' : 'Chờ duyệt',
-      'Ngày tính': salary.calculatedAt ? new Date(salary.calculatedAt).toLocaleDateString('vi-VN') : ''
+      'Total Insurance': salaryCalc?.insurance?.total || 0,
+      'Taxable Income': salaryCalc?.tax?.taxableIncome || 0,
+      'Deduction': salaryCalc?.tax?.personalDeduction || 0,
+      'PIT': salaryCalc?.tax?.pit || 0,
+      'Other Deduction': deduction,
+      'Net Pay': salaryCalc?.netSalary || salary.finalSalary || 0,
+      'Dependents': dependents,
+      'Status': salary.status === 'paid' ? 'Paid' : 
+                salary.status === 'approved' ? 'Approved' : 'Pending',
+      'Calculated At': salary.calculatedAt ? new Date(salary.calculatedAt).toLocaleDateString('en-US') : ''
     };
   });
 
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Bảng lương');
+  XLSX.utils.book_append_sheet(wb, ws, 'Payroll');
   
   // Auto-size columns
   const colWidths = [
@@ -216,10 +211,10 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
 
   // Title
   doc.setFontSize(18);
-  doc.text('Bảng Lương Chi Tiết', 14, 20);
+  doc.text('Payroll Details', 14, 20);
   doc.setFontSize(12);
-  doc.text(`Xuất ngày: ${new Date().toLocaleDateString('vi-VN')}`, 14, 28);
-  doc.text(`Tổng số: ${salaries.length} nhân viên`, 14, 34);
+  doc.text(`Exported: ${new Date().toLocaleDateString('en-US')}`, 14, 28);
+  doc.text(`Total: ${salaries.length} employees`, 14, 34);
 
   // Prepare table data with detailed breakdown
   const tableData = salaries.map(salary => {
@@ -259,15 +254,15 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
       formatNumber(salaryCalc?.tax?.pit || 0),
       formatNumber(deduction),
       formatNumber(salaryCalc?.netSalary || salary.finalSalary || 0),
-      salary.status === 'paid' ? 'Đã thanh toán' : 
-      salary.status === 'approved' ? 'Đã duyệt' : 'Chờ duyệt'
+      salary.status === 'paid' ? 'Paid' : 
+      salary.status === 'approved' ? 'Approved' : 'Pending'
     ];
   });
 
   doc.autoTable({
     head: [[
-      'Mã NV', 'Nhân viên', 'Lương cơ sở', 'Hệ số', 'Lương gộp', 'Thưởng',
-      'BHXH', 'BHYT', 'BHTN', 'Tổng BH', 'Thuế TNCN', 'Khấu trừ', 'Thực nhận', 'Trạng thái'
+      'Code', 'Employee', 'Base Salary', 'Coeff', 'Gross', 'Bonus',
+      'BHXH', 'BHYT', 'BHTN', 'Total Ins', 'PIT', 'Deduction', 'Net Pay', 'Status'
     ]],
     body: tableData,
     startY: 42,
@@ -318,55 +313,179 @@ export const exportAttendanceToPDF = (logs, employees, filename = 'lich-su-diem-
 
 // Download Excel template for bulk import
 export const downloadEmployeeTemplate = () => {
-  const template = [
-    {
-      'Mã NV': 'NV001',
-      'Tên': 'Nguyễn Văn A',
-      'Email': 'nguyenvana@example.com',
-      'Lương cơ bản': 10000000
-    }
-  ];
+  try {
+    // Create template with example rows
+    const template = [
+      {
+        'Mã NV': 'NV001',
+        'Tên': 'Nguyễn Văn A',
+        'Email': 'nguyenvana@example.com',
+        'Lương cơ bản': 10000000
+      },
+      {
+        'Mã NV': 'NV002',
+        'Tên': 'Trần Thị B',
+        'Email': 'tranthib@example.com',
+        'Lương cơ bản': 12000000
+      }
+    ];
 
-  const ws = XLSX.utils.json_to_sheet(template);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Mẫu');
-  
-  XLSX.writeFile(wb, 'mau-nhap-nhan-vien.xlsx');
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Mẫu');
+    
+    // Set column widths
+    const colWidths = [
+      { wch: 12 }, // Mã NV
+      { wch: 25 }, // Tên
+      { wch: 30 }, // Email
+      { wch: 15 }  // Lương cơ bản
+    ];
+    ws['!cols'] = colWidths;
+
+    // Add number formatting for salary column
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    for (let row = 1; row <= range.e.r; row++) {
+      const salaryCell = XLSX.utils.encode_cell({ r: row, c: 3 });
+      if (ws[salaryCell]) {
+        ws[salaryCell].z = '#,##0';
+      }
+    }
+    
+    XLSX.writeFile(wb, 'mau-nhap-nhan-vien.xlsx');
+    console.log('✅ Template downloaded successfully');
+  } catch (error) {
+    console.error('Error downloading template:', error);
+    alert(`Lỗi khi tải template: ${error.message}`);
+  }
 };
 
 // Import employees from Excel file
 export const importEmployeesFromExcel = async (file) => {
   return new Promise((resolve, reject) => {
+    // Validate file type
+    const validExtensions = ['.xlsx', '.xls'];
+    const fileName = file.name.toLowerCase();
+    const isValidFile = validExtensions.some(ext => fileName.endsWith(ext));
+    
+    if (!isValidFile) {
+      reject(new Error('File không hợp lệ! Vui lòng chọn file Excel (.xlsx hoặc .xls)'));
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      reject(new Error('File quá lớn! Kích thước tối đa là 5MB'));
+      return;
+    }
+
     const reader = new FileReader();
     
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
+        
+        // Check if workbook has sheets
+        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+          throw new Error('File Excel không có dữ liệu!');
+        }
+        
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(firstSheet);
         
+        // Check if sheet has data
+        if (!jsonData || jsonData.length === 0) {
+          throw new Error('File Excel không có dữ liệu nhân viên!');
+        }
+        
         // Validate and format data
-        const employees = jsonData.map((row, index) => {
-          if (!row['Mã NV'] || !row['Tên'] || !row['Email']) {
-            throw new Error(`Dòng ${index + 2}: Thiếu thông tin bắt buộc (Mã NV, Tên, Email)`);
-          }
+        const employees = [];
+        const errors = [];
+        
+        jsonData.forEach((row, index) => {
+          const rowNumber = index + 2; // +2 because index starts at 0 and header is row 1
           
-          return {
-            employeeCode: String(row['Mã NV']).trim(),
-            name: String(row['Tên']).trim(),
-            email: String(row['Email']).trim(),
-            baseSalary: parseFloat(row['Lương cơ bản']) || 0
-          };
+          try {
+            // Check required fields
+            if (!row['Mã NV'] || String(row['Mã NV']).trim() === '') {
+              errors.push(`Dòng ${rowNumber}: Thiếu "Mã NV"`);
+              return;
+            }
+            
+            if (!row['Tên'] || String(row['Tên']).trim() === '') {
+              errors.push(`Dòng ${rowNumber}: Thiếu "Tên"`);
+              return;
+            }
+            
+            if (!row['Email'] || String(row['Email']).trim() === '') {
+              errors.push(`Dòng ${rowNumber}: Thiếu "Email"`);
+              return;
+            }
+            
+            // Validate email format
+            const email = String(row['Email']).trim();
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+              errors.push(`Dòng ${rowNumber}: Email không hợp lệ: ${email}`);
+              return;
+            }
+            
+            // Validate employee code format (should not be empty and should be string)
+            const employeeCode = String(row['Mã NV']).trim();
+            if (employeeCode.length === 0) {
+              errors.push(`Dòng ${rowNumber}: Mã NV không được để trống`);
+              return;
+            }
+            
+            // Parse base salary
+            let baseSalary = 0;
+            if (row['Lương cơ bản']) {
+              const salaryValue = parseFloat(row['Lương cơ bản']);
+              if (!isNaN(salaryValue) && salaryValue >= 0) {
+                baseSalary = salaryValue;
+              } else {
+                errors.push(`Dòng ${rowNumber}: Lương cơ bản không hợp lệ, sẽ đặt mặc định là 0`);
+              }
+            }
+            
+            employees.push({
+              employeeCode: employeeCode,
+              name: String(row['Tên']).trim(),
+              email: email,
+              baseSalary: baseSalary
+            });
+          } catch (rowError) {
+            errors.push(`Dòng ${rowNumber}: ${rowError.message}`);
+          }
         });
+        
+        // If there are errors, show them but still return valid employees
+        if (errors.length > 0) {
+          console.warn('Import warnings:', errors);
+          // Show warnings but don't fail if there are valid employees
+          if (employees.length === 0) {
+            reject(new Error(`Không có dữ liệu hợp lệ!\n${errors.join('\n')}`));
+            return;
+          }
+          // Show warnings but continue with valid data
+          alert(`Cảnh báo:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n... và ${errors.length - 5} cảnh báo khác` : ''}\n\nSẽ import ${employees.length} nhân viên hợp lệ.`);
+        }
+        
+        if (employees.length === 0) {
+          reject(new Error('Không có dữ liệu nhân viên hợp lệ trong file!'));
+          return;
+        }
         
         resolve(employees);
       } catch (error) {
-        reject(error);
+        reject(new Error(`Lỗi khi đọc file Excel: ${error.message}`));
       }
     };
     
-    reader.onerror = () => reject(new Error('Lỗi đọc file'));
+    reader.onerror = () => reject(new Error('Lỗi đọc file. Vui lòng thử lại!'));
+    reader.onabort = () => reject(new Error('Đã hủy đọc file!'));
     reader.readAsArrayBuffer(file);
   });
 };

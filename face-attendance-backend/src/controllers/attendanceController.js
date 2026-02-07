@@ -194,7 +194,7 @@ export const getTodayAttendance = async (req, res) => {
           [Op.lt]: tomorrow
         }
       },
-      include: [{ model: User, attributes: ['name', 'email', 'employeeCode'] }],
+      include: [{ model: User, as: "User", attributes: ['name', 'email', 'employeeCode'] }],
       order: [['timestamp', 'DESC']]
     });
 

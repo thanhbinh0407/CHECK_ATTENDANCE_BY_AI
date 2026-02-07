@@ -1,24 +1,17 @@
 import express from "express";
 import {
-  getOverview,
-  getAttendanceTrend,
-  getEmployeeStats,
-  getSalaryStats,
-  getAttendanceDistribution
+  getDashboardAnalyticsController
 } from "../controllers/analyticsController.js";
-import { authMiddleware, adminOnly } from "../middleware/authMiddleware.js";
+import { authMiddleware, adminOrAccountant } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// All routes require authentication and admin access
+// All routes require authentication and admin/accountant access
 router.use(authMiddleware);
-router.use(adminOnly);
+router.use(adminOrAccountant);
 
-router.get("/overview", getOverview);
-router.get("/attendance-trend", getAttendanceTrend);
-router.get("/employee-stats", getEmployeeStats);
-router.get("/salary-stats", getSalaryStats);
-router.get("/attendance-distribution", getAttendanceDistribution);
+// Advanced analytics dashboard
+router.get("/dashboard", getDashboardAnalyticsController);
 
 export default router;
 

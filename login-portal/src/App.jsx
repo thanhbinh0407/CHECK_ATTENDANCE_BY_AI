@@ -3,10 +3,10 @@ import './App.css'
 
 // Cấu hình các port cho từng role
 const ROLE_PORTS = {
-  admin: 5173,              // face-attendance-frontend
-  employee: 5175,           // employee-portal
-  accountant: 5174,         // accountant-client
-  'payroll-admin': 5177     // payroll-frontend (nếu có)
+  admin: 5174,              // face-attendance-frontend
+  employee: 5178,           // employee-portal (5176 is for face-attendance-employee)
+  accountant: 5175,         // accountant-client
+  'payroll-admin': 5177     // payroll-frontend
 }
 
 const ROLE_LABELS = {
@@ -75,14 +75,17 @@ function App() {
           return
         }
 
-        // Lưu token vào localStorage
-        localStorage.setItem('token', data.token)
+        // Lưu token vào localStorage (dùng 'authToken' để nhất quán với các frontend apps)
+        localStorage.setItem('authToken', data.token)
         localStorage.setItem('user', JSON.stringify(data.user))
 
-        // Redirect đến port tương ứng
+        // Redirect đến port tương ứng với token trong URL (để share giữa các origin)
         const port = ROLE_PORTS[selectedRole]
         if (port) {
-          window.location.href = `http://localhost:${port}`
+          // Encode token và user data để truyền qua URL
+          const tokenParam = encodeURIComponent(data.token)
+          const userParam = encodeURIComponent(JSON.stringify(data.user))
+          window.location.href = `http://localhost:${port}?token=${tokenParam}&user=${userParam}`
         } else {
           setError('Không tìm thấy ứng dụng cho vai trò này')
         }
