@@ -8,7 +8,9 @@ import {
   permanentlyDeleteEmployee,
   resetEmployeePassword,
   getEmployeeAttendanceStats,
-  getEmployeeDetailedInfo
+  getEmployeeDetailedInfo,
+  createEmployee,
+  bulkCreateEmployees
 } from "../controllers/adminController.js";
 import { authMiddleware, adminOnly, adminOrAccountant } from "../middleware/authMiddleware.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
@@ -22,6 +24,7 @@ router.get("/logs", async (req, res) => {
     const logs = await AttendanceLog.findAll({
       include: [{
         model: User,
+        as: "User",
         attributes: ['id', 'name', 'email', 'employeeCode']
       }],
       order: [["timestamp", "DESC"]],
@@ -42,6 +45,8 @@ router.get("/employees/:id", getEmployeeById);
 router.get("/employees/:id/details", getEmployeeDetailedInfo);
 
 // Admin only endpoints
+router.post("/employees", adminOnly, createEmployee);
+router.post("/employees/bulk", adminOnly, bulkCreateEmployees);
 router.get("/employees/:id/with-password", adminOnly, getEmployeeWithPassword);
 router.put("/employees/:id", adminOnly, updateEmployee);
 router.delete("/employees/:id", adminOnly, deleteEmployee);

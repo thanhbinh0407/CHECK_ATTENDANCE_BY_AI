@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { exportEmployeesToExcel, exportEmployeesToPDF, importEmployeesFromExcel, downloadEmployeeTemplate } from "../utils/exportUtils.js";
-import { theme, commonStyles } from "../styles/theme.js";
 import EmployeeProfileModal from "./EmployeeProfileModal.jsx";
 
 export default function AdminDashboard() {
@@ -85,7 +84,7 @@ export default function AdminDashboard() {
         setMessage(""); // Clear any previous error messages
       } else {
         if (res.status === 401) {
-          setMessage("Lỗi xác thực: Token không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.");
+          setMessage("Authentication error: Invalid or expired token. Please log in again.");
           // Clear invalid token and reload
           setTimeout(() => {
             localStorage.removeItem("authToken");
@@ -97,7 +96,7 @@ export default function AdminDashboard() {
         }
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
       console.error("Fetch employees error:", error);
     } finally {
       setLoading(false);
@@ -105,7 +104,7 @@ export default function AdminDashboard() {
   };
 
   const deleteEmployee = async (employeeId) => {
-    if (!window.confirm("Bạn chắc chắn muốn xóa nhân viên này?")) return;
+    if (!window.confirm("Are you sure you want to delete this employee?")) return;
 
     try {
       const token = localStorage.getItem("authToken");
@@ -136,19 +135,19 @@ export default function AdminDashboard() {
         setEmployees(prev => prev.filter(e => e.id !== employeeId));
       } else {
         if (res.status === 401) {
-          setMessage("Lỗi xác thực: Token không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.");
+          setMessage("Authentication error: Invalid or expired token. Please log in again.");
           setTimeout(() => {
             localStorage.removeItem("authToken");
             localStorage.removeItem("user");
             window.location.reload();
           }, 2000);
         } else {
-          setMessage("Lỗi xóa nhân viên: " + (data.message || "Unknown error"));
+          setMessage("Error deleting employee: " + (data.message || "Unknown error"));
           console.error("Delete error:", data);
         }
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
       console.error("Delete exception:", error);
     }
   };
@@ -159,14 +158,6 @@ export default function AdminDashboard() {
     padding: "0"
   };
 
-  const welcomeStyle = {
-    background: theme.gradients.primary,
-    color: theme.neutral.white,
-    padding: `${theme.spacing.xxl} ${theme.spacing.xl}`,
-    borderRadius: `${theme.radius.xl} ${theme.radius.xl} 0 0`,
-    marginBottom: "0"
-  };
-
   const contentCardStyle = {
     backgroundColor: "#ffffff",
     borderRadius: "0 0 16px 16px",
@@ -174,214 +165,156 @@ export default function AdminDashboard() {
     boxShadow: "0 4px 24px rgba(0,0,0,0.1)"
   };
 
-  const statsGridStyle = {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: "24px",
-    marginBottom: "32px"
-  };
-
-  const statCardStyle = {
-    ...commonStyles.card,
-    padding: theme.spacing.lg,
-    borderRadius: theme.radius.lg,
-    transition: theme.transitions.slow,
-    cursor: "pointer"
-  };
-
-  const tableStyle = {
-    width: "100%",
-    borderCollapse: "separate",
-    borderSpacing: "0",
-    marginBottom: "32px",
-    backgroundColor: "#fff",
-    borderRadius: "12px",
-    overflow: "hidden",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
-  };
-
-  const thStyle = {
-    backgroundColor: "#f8f9fa",
-    padding: "16px",
-    textAlign: "left",
-    fontWeight: "700",
-    fontSize: "13px",
-    color: "#495057",
-    textTransform: "uppercase",
-    letterSpacing: "0.5px",
-    borderBottom: "2px solid #dee2e6"
-  };
-
-  const tdStyle = {
-    padding: "16px",
-    borderBottom: "1px solid #f0f0f0",
-    fontSize: "14px"
-  };
-
-  const buttonStyle = {
-    padding: "8px 16px",
-    fontSize: "13px",
-    fontWeight: "600",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer",
-    marginRight: "8px",
-    transition: "all 0.3s ease"
-  };
-
-                    const deleteButtonStyle = {
-                      ...buttonStyle,
-                      backgroundColor: theme.error.main,
-                      color: theme.neutral.white
-                    };
-
-  const viewButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: "#007bff",
-    color: "#fff"
-  };
-
-  const totalEmployees = employees.length;
-  const employeesWithFace = employees.filter(e => e.FaceProfiles?.length > 0).length;
-  const employeesWithoutFace = totalEmployees - employeesWithFace;
-  
-  const filteredTotal = filteredEmployees.length;
-  const filteredWithFace = filteredEmployees.filter(e => e.FaceProfiles?.length > 0).length;
-  const filteredWithoutFace = filteredTotal - filteredWithFace;
-
   return (
     <div style={containerStyle}>
       {/* Welcome Header */}
-      <div style={welcomeStyle}>
+      <div style={{
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        color: "#fff",
+        padding: "48px 40px",
+        borderRadius: "16px 16px 0 0",
+        boxShadow: "0 4px 20px rgba(102, 126, 234, 0.3)"
+      }}>
         <h1 style={{ margin: "0 0 12px 0", fontSize: "36px", fontWeight: "700" }}>
-          Quản Lý Nhân Viên
+          👥 Employee Management
         </h1>
         <p style={{ margin: 0, fontSize: "16px", opacity: 0.95 }}>
-          Chào mừng bạn đến với hệ thống quản lý nhân viên! Tại đây bạn có thể xem, quản lý và cập nhật thông tin của tất cả nhân viên trong hệ thống.
+          View, manage, and update information for all employees. Search, filter, and export employee data.
         </p>
       </div>
 
       {/* Main Content */}
       <div style={contentCardStyle}>
-        {/* Statistics Cards */}
-        <div style={statsGridStyle}>
-          <div style={statCardStyle}>
-            <div style={{ fontSize: "14px", color: "#666", marginBottom: "8px", fontWeight: "500" }}>
-              Tổng số nhân viên
-            </div>
-            <div style={{ fontSize: "32px", fontWeight: "700", color: "#667eea" }}>
-              {totalEmployees}
-            </div>
-          </div>
-          <div style={statCardStyle}>
-            <div style={{ fontSize: theme.typography.body.fontSize, color: theme.neutral.gray600, marginBottom: theme.spacing.sm, fontWeight: "500" }}>
-              Đã đăng ký khuôn mặt
-            </div>
-            <div style={{ fontSize: "32px", fontWeight: "700", color: theme.success.main }}>
-              {employeesWithFace}
-            </div>
-          </div>
-          <div style={statCardStyle}>
-            <div style={{ fontSize: theme.typography.body.fontSize, color: theme.neutral.gray600, marginBottom: theme.spacing.sm, fontWeight: "500" }}>
-              Chưa đăng ký khuôn mặt
-            </div>
-            <div style={{ fontSize: "32px", fontWeight: "700", color: theme.warning.main }}>
-              {employeesWithoutFace}
-            </div>
-          </div>
-        </div>
-
           {message && (
           <div style={{
             padding: "16px 20px",
-            backgroundColor: message.includes("thành công") ? "#d4edda" : "#f8d7da",
-            border: `2px solid ${message.includes("thành công") ? "#c3e6cb" : "#f5c6cb"}`,
-            borderRadius: "8px",
-            color: message.includes("thành công") ? "#155724" : "#721c24",
+            backgroundColor: message.includes("successfully") || message.includes("thành công") ? "#d4edda" : "#f8d7da",
+            border: `2px solid ${message.includes("successfully") || message.includes("thành công") ? "#c3e6cb" : "#f5c6cb"}`,
+            borderRadius: "12px",
+            color: message.includes("successfully") || message.includes("thành công") ? "#155724" : "#721c24",
             marginBottom: "24px",
             fontSize: "14px",
             fontWeight: "500",
             display: "flex",
             alignItems: "center",
-            gap: "8px"
+            gap: "8px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
           }}>
-            {message}
+            {(message.includes("successfully") || message.includes("thành công")) ? "✅" : "❌"} {message}
           </div>
         )}
 
-        {/* Advanced Search & Filters */}
+        {/* Filters - Leave Management style */}
         <div style={{
           backgroundColor: "#fff",
-          borderRadius: "12px",
-          padding: "24px",
+          borderRadius: "16px",
+          padding: "20px 24px",
           marginBottom: "32px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+          boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+          border: "1px solid #e8e8e8",
+          display: "inline-block",
+          width: "100%"
         }}>
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "flex-end" }}>
-            {/* Search Input */}
-            <div style={{ flex: "1", minWidth: "300px" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "14px", color: "#495057" }}>
-                Tìm kiếm
+          <div style={{ 
+            display: "flex", 
+            gap: "20px", 
+            alignItems: "center",
+            flexWrap: "wrap"
+          }}>
+            <div style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              gap: "12px",
+              flex: "1",
+              minWidth: "200px"
+            }}>
+              <label style={{ 
+                fontWeight: "700", 
+                fontSize: "15px", 
+                color: "#495057",
+                whiteSpace: "nowrap"
+              }}>
+                Search:
               </label>
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm theo tên, email, mã nhân viên..."
+                placeholder="Search by name, email, employee code..."
                 style={{
-                  width: "100%",
-                  padding: "12px 16px",
+                  flex: 1,
+                  padding: "12px 20px",
                   border: "2px solid #e0e0e0",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  transition: "all 0.2s"
+                  borderRadius: "10px",
+                  fontSize: "15px",
+                  fontWeight: "500",
+                  transition: "all 0.2s",
+                  outline: "none",
+                  minWidth: "200px"
                 }}
-                onFocus={(e) => e.target.style.borderColor = "#667eea"}
-                onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "#667eea";
+                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(102, 126, 234, 0.1)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "#e0e0e0";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
               />
             </div>
-
-            {/* Status Filter */}
-            <div style={{ minWidth: "200px" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "14px", color: "#495057" }}>
-                Lọc theo trạng thái
+            <div style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              gap: "12px"
+            }}>
+              <label style={{ 
+                fontWeight: "700", 
+                fontSize: "15px", 
+                color: "#495057",
+                whiteSpace: "nowrap"
+              }}>
+                Filter by Status:
               </label>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 style={{
-                  width: "100%",
-                  padding: "12px 16px",
+                  padding: "12px 20px",
                   border: "2px solid #e0e0e0",
-                  borderRadius: "8px",
-                  fontSize: "14px",
+                  borderRadius: "10px",
+                  fontSize: "15px",
+                  fontWeight: "500",
                   cursor: "pointer",
-                  transition: "all 0.2s"
+                  backgroundColor: "#fff",
+                  transition: "all 0.2s",
+                  outline: "none",
+                  width: "auto",
+                  minWidth: "180px"
                 }}
-                onMouseEnter={(e) => e.target.style.borderColor = "#667eea"}
-                onMouseLeave={(e) => e.target.style.borderColor = "#e0e0e0"}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "#667eea";
+                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(102, 126, 234, 0.1)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "#e0e0e0";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
               >
-                <option value="all">Tất cả ({employees.length})</option>
-                <option value="withFace">Đã đăng ký khuôn mặt ({employees.filter(e => e.FaceProfiles && e.FaceProfiles.length > 0).length})</option>
-                <option value="withoutFace">Chưa đăng ký ({employees.filter(e => !e.FaceProfiles || e.FaceProfiles.length === 0).length})</option>
+                <option value="all">All ({employees.length})</option>
+                <option value="withFace">Face Registered ({employees.filter(e => e.FaceProfiles && e.FaceProfiles.length > 0).length})</option>
+                <option value="withoutFace">Not Registered ({employees.filter(e => !e.FaceProfiles || e.FaceProfiles.length === 0).length})</option>
               </select>
             </div>
-
-            {/* Quick Filters */}
-            <div style={{ display: "flex", gap: "8px" }}>
               <button
-                onClick={() => {
-                  setSearchQuery("");
-                  setFilterStatus("all");
-                }}
+              onClick={() => { setSearchQuery(""); setFilterStatus("all"); }}
                 style={{
                   padding: "12px 20px",
                   backgroundColor: "#6c757d",
                   color: "#fff",
                   border: "none",
-                  borderRadius: "8px",
+                borderRadius: "10px",
                   cursor: "pointer",
-                  fontWeight: "600",
+                fontWeight: "700",
                   fontSize: "14px",
                   transition: "all 0.2s"
                 }}
@@ -390,13 +323,12 @@ export default function AdminDashboard() {
               >
                 Reset
               </button>
-            </div>
           </div>
 
           {/* Export/Import Buttons */}
-          <div style={{ marginTop: "20px", paddingTop: "20px", borderTop: "1px solid #e0e0e0", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <div style={{ marginTop: "20px", paddingTop: "20px", borderTop: "1px solid #e8e8e8", display: "flex", gap: "12px", flexWrap: "wrap" }}>
             <button
-              onClick={() => exportEmployeesToExcel(filteredEmployees, `danh-sach-nhan-vien-${new Date().toISOString().split('T')[0]}`)}
+              onClick={() => exportEmployeesToExcel(filteredEmployees, `employees-${new Date().toISOString().split('T')[0]}`)}
               style={{
                 padding: "10px 20px",
                 backgroundColor: "#28a745",
@@ -414,10 +346,10 @@ export default function AdminDashboard() {
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#218838"}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#28a745"}
             >
-              Xuất Excel
+              Export Excel
             </button>
             <button
-              onClick={() => exportEmployeesToPDF(filteredEmployees, `danh-sach-nhan-vien-${new Date().toISOString().split('T')[0]}`)}
+              onClick={() => exportEmployeesToPDF(filteredEmployees, `employees-${new Date().toISOString().split('T')[0]}`)}
               style={{
                 padding: "10px 20px",
                 backgroundColor: "#dc3545",
@@ -435,7 +367,7 @@ export default function AdminDashboard() {
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#c82333"}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#dc3545"}
             >
-              Xuất PDF
+              Export PDF
             </button>
             <button
               onClick={downloadEmployeeTemplate}
@@ -476,7 +408,7 @@ export default function AdminDashboard() {
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#e0a800"}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#ffc107"}
             >
-              Nhập từ Excel
+              Import from Excel
               <input
                 type="file"
                 accept=".xlsx,.xls"
@@ -484,32 +416,53 @@ export default function AdminDashboard() {
                   const file = e.target.files[0];
                   if (!file) return;
                   try {
+                    setLoading(true);
                     const employees = await importEmployeesFromExcel(file);
                     const token = localStorage.getItem("authToken");
                     
-                    let successCount = 0;
-                    let failCount = 0;
-                    for (const emp of employees) {
-                      try {
+                    if (!token) {
+                      throw new Error("Không có token xác thực");
+                    }
+
+                    // Use bulk endpoint
                         const res = await fetch(`${apiBase}/api/admin/employees/bulk`, {
                           method: "POST",
                           headers: {
                             "Authorization": `Bearer ${token}`,
                             "Content-Type": "application/json"
                           },
-                          body: JSON.stringify(emp)
-                        });
-                        if (res.ok) successCount++;
-                        else failCount++;
-                      } catch (err) {
-                        failCount++;
+                      body: JSON.stringify({ employees })
+                    });
+
+                    const data = await res.json();
+                    
+                    if (res.ok && data.status === "success") {
+                      const { results } = data;
+                      const successCount = results.success.length;
+                      const failCount = results.failed.length;
+                      
+                      if (failCount > 0) {
+                        const failedDetails = results.failed.slice(0, 5).map(f => 
+                          `- ${f.name} (${f.employeeCode}): ${f.reason}`
+                        ).join('\n');
+                        const moreFailed = failCount > 5 ? `\n... và ${failCount - 5} lỗi khác` : '';
+                        alert(`Import hoàn tất!\n\n✅ Thành công: ${successCount} nhân viên\n❌ Thất bại: ${failCount} nhân viên\n\nChi tiết lỗi:\n${failedDetails}${moreFailed}`);
+                      } else {
+                        setMessage(`✅ Import thành công: ${successCount} nhân viên`);
                       }
+                      
+                      fetchEmployees();
+                    } else {
+                      throw new Error(data.message || "Lỗi khi import nhân viên");
                     }
-                    setMessage(`Nhập thành công: ${successCount}/${employees.length} nhân viên${failCount > 0 ? ` (${failCount} lỗi)` : ''}`);
-                    fetchEmployees();
+                    
                     e.target.value = "";
                   } catch (error) {
-                    setMessage("Lỗi nhập file: " + error.message);
+                    console.error("Import error:", error);
+                    setMessage(`❌ Lỗi import: ${error.message}`);
+                    alert(`Lỗi khi import: ${error.message}`);
+                  } finally {
+                    setLoading(false);
                     e.target.value = "";
                   }
                 }}
@@ -520,105 +473,123 @@ export default function AdminDashboard() {
 
           {/* Results Count */}
           <div style={{ marginTop: "16px", fontSize: "14px", color: "#666" }}>
-            Hiển thị <strong>{filteredEmployees.length}</strong> / {employees.length} nhân viên
+            Showing <strong>{filteredEmployees.length}</strong> / {employees.length} employees
           </div>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: "60px", color: theme.neutral.gray600 }}>
-            <div style={{ fontSize: "16px", fontWeight: "500" }}>Đang tải danh sách nhân viên...</div>
+          <div style={{ textAlign: "center", padding: "60px", color: "#666" }}>
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏳</div>
+            <div style={{ fontSize: "16px", fontWeight: "500" }}>Loading employees...</div>
           </div>
         ) : filteredEmployees.length === 0 ? (
           <div style={{
             textAlign: "center",
             padding: "60px 40px",
             backgroundColor: "#f8f9fa",
-            borderRadius: "12px",
+            borderRadius: "16px",
             border: "2px dashed #dee2e6"
           }}>
+            <div style={{ fontSize: "64px", marginBottom: "16px" }}>📭</div>
             <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#333", marginBottom: "8px" }}>
-              {employees.length === 0 ? "Chưa có nhân viên nào" : "Không tìm thấy kết quả"}
+              {employees.length === 0 ? "No Employees" : "No Results"}
             </h3>
-            <p style={{ fontSize: "14px", color: "#666", marginBottom: "24px" }}>
+            <p style={{ fontSize: "14px", color: "#666" }}>
               {employees.length === 0 
-                ? "Hãy bắt đầu bằng cách đăng ký nhân viên mới"
-                : "Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc"
+                ? "No employees found. Start by registering new employees."
+                : `No employees match the current filters. Try adjusting your search or filters.`
               }
             </p>
             {employees.length > 0 && (
               <button
-                onClick={() => {
-                  setSearchQuery("");
-                  setFilterStatus("all");
-                }}
+                onClick={() => { setSearchQuery(""); setFilterStatus("all"); }}
                 style={{
-                  padding: "10px 20px",
+                  marginTop: "16px",
+                  padding: "12px 24px",
                   backgroundColor: "#667eea",
                   color: "#fff",
                   border: "none",
-                  borderRadius: "8px",
+                  borderRadius: "12px",
                   cursor: "pointer",
                   fontWeight: "600",
-                  fontSize: "14px"
+                  fontSize: "14px",
+                  transition: "all 0.2s"
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#5a67d8"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#667eea"}
               >
-                Xóa bộ lọc
+                Clear Filters
               </button>
             )}
           </div>
         ) : (
         <>
-          {/* Employee Cards Grid */}
+          {/* Employee Cards Grid - Leave Management style */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-            gap: "24px",
-            marginBottom: "32px"
+            gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))",
+            gap: "28px"
           }}>
-            {filteredEmployees.map((emp) => {
+            {filteredEmployees.map((emp, index) => {
               const hasFace = emp.FaceProfiles && emp.FaceProfiles.length > 0;
+              const statusStyle = hasFace
+                ? { bg: "#d4edda", color: "#155724", text: "✅ Registered" }
+                : { bg: "#fff3cd", color: "#856404", text: "⏳ Not Registered" };
               return (
                 <div
                   key={emp.id}
                   style={{
                     backgroundColor: "#fff",
-                    borderRadius: "16px",
-                    padding: "24px",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                    borderRadius: "20px",
+                    padding: "0",
+                    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
                     border: "1px solid #e8e8e8",
                     transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                    cursor: "pointer",
                     position: "relative",
                     overflow: "hidden"
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-4px)";
-                    e.currentTarget.style.boxShadow = "0 8px 32px rgba(0,0,0,0.12)";
+                    e.currentTarget.style.transform = "translateY(-6px)";
+                    e.currentTarget.style.boxShadow = "0 12px 40px rgba(0,0,0,0.15)";
+                    e.currentTarget.style.borderColor = "#667eea";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.08)";
+                    e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.08)";
+                    e.currentTarget.style.borderColor = "#e8e8e8";
                   }}
-                  onClick={() => setSelectedEmployee(emp)}
                 >
+                  <style>{`
+                    @keyframes fadeInUp {
+                      from { opacity: 0; transform: translateY(20px); }
+                      to { opacity: 1; transform: translateY(0); }
+                    }
+                  `}</style>
+
                   {/* Status Badge */}
                   <div style={{
                     position: "absolute",
-                    top: "16px",
-                    right: "16px",
-                    padding: "6px 12px",
-                    borderRadius: "20px",
-                    fontSize: "11px",
+                    top: "20px",
+                    right: "20px",
+                    padding: "8px 16px",
+                    borderRadius: "12px",
+                    fontSize: "12px",
                     fontWeight: "700",
                     textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    backgroundColor: hasFace ? "#d4edda" : "#fff3cd",
-                    color: hasFace ? "#155724" : "#856404"
+                    letterSpacing: "0.8px",
+                    backgroundColor: statusStyle.bg,
+                    color: statusStyle.color,
+                    border: `2px solid ${statusStyle.color}20`,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                    zIndex: 10
                   }}>
-                    {hasFace ? "Đã đăng ký" : "Chưa có"}
+                    {statusStyle.text}
                   </div>
 
-                  {/* Employee Avatar/Icon */}
+                  {/* Card Content */}
+                  <div style={{ padding: "28px" }} onClick={() => setSelectedEmployee(emp)}>
+                    {/* Employee Info */}
+                    <div style={{ marginBottom: "24px", display: "flex", alignItems: "center", gap: "16px" }}>
                   <div style={{
                     width: "64px",
                     height: "64px",
@@ -630,120 +601,158 @@ export default function AdminDashboard() {
                     fontSize: "28px",
                     fontWeight: "700",
                     color: "#fff",
-                    marginBottom: "16px"
+                        boxShadow: "0 6px 16px rgba(102, 126, 234, 0.4)",
+                        flexShrink: 0
                   }}>
-                    {emp.name.charAt(0).toUpperCase()}
+                        {emp.name?.charAt(0)?.toUpperCase() || "?"}
                   </div>
-
-                  {/* Employee Name */}
-                  <h3 style={{
-                    margin: "0 0 8px 0",
-                    fontSize: "20px",
-                    fontWeight: "700",
-                    color: "#1a1a1a",
-                    lineHeight: "1.3"
-                  }}>
-                    {emp.name}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <h3 style={{ margin: "0 0 6px 0", fontSize: "20px", fontWeight: "700", color: "#1a1a1a", lineHeight: "1.3" }}>
+                          {emp.name || "N/A"}
                   </h3>
-
-                  {/* Employee Code */}
-                  <div style={{
-                    fontSize: "13px",
-                    color: "#667eea",
-                    fontWeight: "600",
-                    marginBottom: "16px",
-                    letterSpacing: "0.5px"
-                  }}>
-                    {emp.employeeCode}
+                        <div style={{ fontSize: "14px", color: "#667eea", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span>👤</span> {emp.employeeCode || "N/A"}
+                        </div>
+                      </div>
                   </div>
 
-                  {/* Email */}
+                    {/* Details Box - Leave Management style */}
                   <div style={{
-                    fontSize: "13px",
-                    color: "#666",
-                    marginBottom: "20px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px"
-                  }}>
-                    <span style={{ wordBreak: "break-word" }}>{emp.email}</span>
+                      backgroundColor: "#f8f9fa",
+                      borderRadius: "16px",
+                      padding: "20px",
+                      marginBottom: "24px",
+                      border: "1px solid #e8e8e8"
+                    }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                        <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Email</div>
+                          <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600", wordBreak: "break-all" }}>{emp.email || "N/A"}</div>
+                        </div>
+                        <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Role</div>
+                          <div style={{ fontSize: "14px", color: "#1a1a1a", fontWeight: "700" }}>{emp.role || "Employee"}</div>
+                        </div>
+                        <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Department</div>
+                          <div style={{ fontSize: "13px", color: "#667eea", fontWeight: "700" }}>{emp.Department?.name || "N/A"}</div>
+                        </div>
+                        <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Job Title</div>
+                          <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "700" }}>{emp.JobTitle?.name || "N/A"}</div>
+                        </div>
+                        {emp.contractType && (
+                          <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                            <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Contract</div>
+                            <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600" }}>
+                              {emp.contractType === "probation" ? "Thử việc" :
+                               emp.contractType === "1_year" ? "1 năm" :
+                               emp.contractType === "3_year" ? "3 năm" :
+                               emp.contractType === "indefinite" ? "Không xác định" :
+                               emp.contractType === "other" ? "Khác" : emp.contractType}
+                            </div>
+                          </div>
+                        )}
+                        {emp.employmentStatus && (
+                          <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                            <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Status</div>
+                            <div style={{ fontSize: "13px", color: 
+                              emp.employmentStatus === "active" ? "#28a745" :
+                              emp.employmentStatus === "maternity_leave" ? "#ffc107" :
+                              emp.employmentStatus === "unpaid_leave" ? "#ff9800" :
+                              emp.employmentStatus === "suspended" ? "#ff5722" :
+                              emp.employmentStatus === "terminated" || emp.employmentStatus === "resigned" ? "#dc3545" : "#666",
+                              fontWeight: "700" }}>
+                              {emp.employmentStatus === "active" ? "Đang làm việc" :
+                               emp.employmentStatus === "maternity_leave" ? "Nghỉ thai sản" :
+                               emp.employmentStatus === "unpaid_leave" ? "Nghỉ không lương" :
+                               emp.employmentStatus === "suspended" ? "Tạm nghỉ" :
+                               emp.employmentStatus === "terminated" ? "Đã nghỉ việc" :
+                               emp.employmentStatus === "resigned" ? "Đã từ chức" : emp.employmentStatus}
+                            </div>
+                          </div>
+                        )}
+                        {emp.Manager && (
+                          <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                            <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Manager</div>
+                            <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600" }}>{emp.Manager.name || "N/A"}</div>
+                          </div>
+                        )}
+                        {emp.branchName && (
+                          <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                            <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Branch</div>
+                            <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600" }}>{emp.branchName}</div>
+                          </div>
+                        )}
+                        <div style={{ gridColumn: "1 / -1", padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Created</div>
+                          <div style={{ fontSize: "14px", color: "#667eea", fontWeight: "700" }}>
+                            {new Date(emp.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </div>
+                        </div>
                   </div>
-
-                  {/* Created Date */}
-                  <div style={{
-                    fontSize: "12px",
-                    color: "#999",
-                    marginBottom: "20px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px"
-                  }}>
-                    <span>Ngày tạo: {new Date(emp.createdAt).toLocaleDateString("vi-VN")}</span>
                   </div>
 
                   {/* Action Buttons */}
-                  <div style={{
-                    display: "flex",
-                    gap: "8px",
-                    marginTop: "20px",
-                    paddingTop: "20px",
-                    borderTop: "1px solid #f0f0f0"
-                  }}>
+                    <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedEmployee(emp);
-                      }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedEmployee(emp); }}
                       style={{
                         flex: 1,
-                        padding: "10px 16px",
-                        backgroundColor: "#007bff",
+                          padding: "14px 24px",
+                          backgroundColor: "#28a745",
                         color: "#fff",
                         border: "none",
-                        borderRadius: "8px",
+                          borderRadius: "12px",
                         cursor: "pointer",
-                        fontWeight: "600",
-                        fontSize: "13px",
-                        transition: "all 0.2s"
+                          fontWeight: "700",
+                          fontSize: "14px",
+                          transition: "all 0.3s",
+                          boxShadow: "0 4px 12px rgba(40, 167, 69, 0.3)"
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = theme.info.dark;
+                          e.currentTarget.style.backgroundColor = "#218838";
                         e.currentTarget.style.transform = "translateY(-2px)";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = theme.info.main;
+                          e.currentTarget.style.backgroundColor = "#28a745";
                         e.currentTarget.style.transform = "translateY(0)";
                       }}
                     >
-                      Chi tiết
+                        Details
                     </button>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteEmployee(emp.id);
-                      }}
+                        onClick={(e) => { e.stopPropagation(); deleteEmployee(emp.id); }}
                       style={{
-                        padding: "10px 16px",
+                          flex: 1,
+                          padding: "14px 24px",
                         backgroundColor: "#dc3545",
                         color: "#fff",
                         border: "none",
-                        borderRadius: "8px",
+                          borderRadius: "12px",
                         cursor: "pointer",
-                        fontWeight: "600",
-                        fontSize: "13px",
-                        transition: "all 0.2s"
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.error.dark}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.error.main}
-                    >
-                      Xóa
+                          fontWeight: "700",
+                          fontSize: "14px",
+                          transition: "all 0.3s",
+                          boxShadow: "0 4px 12px rgba(220, 53, 69, 0.3)"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#c82333";
+                          e.currentTarget.style.transform = "translateY(-2px)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "#dc3545";
+                          e.currentTarget.style.transform = "translateY(0)";
+                        }}
+                      >
+                        Delete
                     </button>
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
-
         </>
       )}
 

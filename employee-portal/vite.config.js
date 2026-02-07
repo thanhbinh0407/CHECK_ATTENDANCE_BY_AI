@@ -4,7 +4,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5175,
+    port: 5178,  // Fixed port for employee portal (5176 is used by face-attendance-employee)
     host: '0.0.0.0'
   }
 })

@@ -17,7 +17,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.7)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -27,67 +27,83 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
   };
 
   const contentStyle = {
-    backgroundColor: "white",
-    borderRadius: "12px",
-    padding: "30px",
-    maxWidth: "800px",
+    backgroundColor: theme.neutral.white,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.xl,
+    maxWidth: "900px",
     width: "100%",
     maxHeight: "90vh",
     overflowY: "auto",
-    boxShadow: "0 10px 40px rgba(0,0,0,0.3)"
+    boxShadow: theme.shadows.lg,
+    border: `1px solid ${theme.neutral.gray200}`
   };
 
   const headerStyle = {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "25px",
-    paddingBottom: "15px",
-    borderBottom: `2px solid ${theme.colors.border}`
+    alignItems: "flex-start",
+    marginBottom: theme.spacing.xl,
+    paddingBottom: theme.spacing.lg,
+    borderBottom: `2px solid ${theme.neutral.gray200}`
   };
 
   const titleStyle = {
-    fontSize: "22px",
+    fontSize: "26px",
     fontWeight: "700",
-    color: theme.colors.primary,
-    margin: 0
+    color: theme.primary.main,
+    margin: 0,
+    marginBottom: theme.spacing.xs,
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing.sm
   };
 
   const closeButtonStyle = {
     background: "none",
     border: "none",
-    fontSize: "24px",
     cursor: "pointer",
-    color: "#999",
-    transition: "color 0.2s"
+    color: theme.neutral.gray500,
+    transition: "all 0.2s",
+    padding: theme.spacing.sm,
+    borderRadius: theme.radius.md,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "36px",
+    height: "36px"
   };
 
   const sectionStyle = {
-    marginBottom: "25px",
-    paddingBottom: "20px",
-    borderBottom: `1px solid ${theme.colors.border}`
+    marginBottom: theme.spacing.xl,
+    paddingBottom: theme.spacing.lg,
+    borderBottom: `1px solid ${theme.neutral.gray200}`
   };
 
   const sectionTitleStyle = {
-    fontSize: "16px",
+    fontSize: "18px",
     fontWeight: "700",
-    color: theme.colors.primary,
-    marginBottom: "15px",
+    color: theme.primary.main,
+    marginBottom: theme.spacing.lg,
     display: "flex",
     alignItems: "center",
-    gap: "8px"
+    gap: theme.spacing.sm,
+    padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+    backgroundColor: theme.neutral.gray50,
+    borderRadius: theme.radius.md
   };
 
   const itemRowStyle = {
     display: "grid",
     gridTemplateColumns: "2fr 1fr 1fr",
-    gap: "15px",
-    padding: "12px",
-    backgroundColor: "#f9f9f9",
-    marginBottom: "8px",
-    borderRadius: "5px",
+    gap: theme.spacing.lg,
+    padding: theme.spacing.md,
+    backgroundColor: theme.neutral.gray50,
+    marginBottom: theme.spacing.sm,
+    borderRadius: theme.radius.md,
     alignItems: "center",
-    fontSize: "14px"
+    fontSize: "14px",
+    transition: "all 0.2s",
+    border: `1px solid ${theme.neutral.gray200}`
   };
 
   const labelStyle = {
@@ -98,7 +114,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
   const amountStyle = {
     textAlign: "right",
     fontWeight: "600",
-    color: theme.colors.primary
+    color: theme.primary.main
   };
 
   const percentStyle = {
@@ -122,73 +138,72 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
 
   const editFormStyle = {
     backgroundColor: "#f0f8ff",
-    padding: "20px",
-    borderRadius: "8px",
-    marginTop: "15px"
+    padding: theme.spacing.xl,
+    borderRadius: theme.radius.lg,
+    marginTop: theme.spacing.lg,
+    border: `2px solid #b3d9ff`,
+    boxShadow: theme.shadows.sm
   };
 
   const formGroupStyle = {
-    marginBottom: "15px"
+    marginBottom: theme.spacing.lg
   };
 
   const labelFormStyle = {
     display: "block",
     fontWeight: "600",
-    marginBottom: "5px",
-    color: theme.colors.primary,
-    fontSize: "14px"
+    marginBottom: theme.spacing.sm,
+    color: theme.primary.main,
+    fontSize: "14px",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px"
   };
 
   const inputStyle = {
     width: "100%",
-    padding: "10px",
-    border: `1px solid ${theme.colors.border}`,
-    borderRadius: "5px",
-    fontSize: "14px",
-    boxSizing: "border-box"
+    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+    border: `2px solid ${theme.neutral.gray300}`,
+    borderRadius: theme.radius.md,
+    fontSize: "15px",
+    boxSizing: "border-box",
+    transition: "all 0.2s",
+    outline: "none",
+    fontFamily: "inherit"
   };
 
   const textareaStyle = {
     ...inputStyle,
-    minHeight: "80px",
-    resize: "vertical"
+    minHeight: "100px",
+    resize: "vertical",
+    fontFamily: "inherit"
   };
 
   const buttonGroupStyle = {
     display: "flex",
-    gap: "10px",
-    marginTop: "20px",
-    justifyContent: "flex-end"
+    gap: theme.spacing.md,
+    marginTop: theme.spacing.xl,
+    justifyContent: "flex-end",
+    alignItems: "center"
   };
 
-  const buttonStyle = {
-    padding: "10px 20px",
+  const iconButtonStyle = (bgColor) => ({
+    padding: `${theme.spacing.sm} ${theme.spacing.md}`,
     border: "none",
-    borderRadius: "5px",
+    borderRadius: theme.radius.md,
     cursor: "pointer",
     fontWeight: "600",
     fontSize: "14px",
-    transition: "all 0.2s"
-  };
+    transition: "all 0.2s",
+    backgroundColor: bgColor,
+    color: theme.neutral.white,
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    boxShadow: theme.shadows.sm,
+    minWidth: "120px",
+    justifyContent: "center"
+  });
 
-  const primaryButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: theme.colors.primary,
-    color: "white"
-  };
-
-  const secondaryButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: "#6c757d",
-    color: "white"
-  };
-
-  const editButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: "#ffc107",
-    color: "#333",
-    marginLeft: "auto"
-  };
 
   const handleSaveAdjustments = async () => {
     try {
@@ -210,12 +225,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
         const updatedSalary = await res.json();
         if (onUpdate) onUpdate(updatedSalary);
         setEditMode(false);
-        alert("Cập nhật phiên bản lương thành công");
+        alert("Payroll version updated successfully");
       } else {
-        alert("Lỗi khi cập nhật");
+        alert("Error updating");
       }
     } catch (error) {
-      alert("Lỗi: " + error.message);
+      alert("Error: " + error.message);
     } finally {
       setSaving(false);
     }
@@ -236,11 +251,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
   };
 
   return (
-    <div style={modalStyle} onClick={onClose}>
-      <div style={contentStyle} onClick={(e) => e.stopPropagation()}>
+    <>
+      <div style={modalStyle} onClick={onClose}>
+        <div style={contentStyle} onClick={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <div>
-            <h2 style={titleStyle}>💰 Chi Tiết Tính Lương</h2>
+            <h2 style={titleStyle}>💰 Salary Breakdown</h2>
             <div style={{ fontSize: "14px", color: "#666", marginTop: "5px" }}>
               {employee?.name} - {new Date(salary?.month).toLocaleDateString("vi-VN", {
                 month: "long",
@@ -251,109 +267,22 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
           <button
             style={closeButtonStyle}
             onClick={onClose}
-            onMouseOver={(e) => (e.target.style.color = "#333")}
-            onMouseOut={(e) => (e.target.style.color = "#999")}
+            title="Đóng"
           >
-            ✕
+            ×
           </button>
         </div>
 
-        {/* Base Salary */}
+        {/* Breakdown Table */}
         <div style={sectionStyle}>
-          <div style={sectionTitleStyle}>📊 Lương Cơ Bản</div>
-          <div style={itemRowStyle}>
-            <div style={labelStyle}>Lương cơ bản tháng</div>
-            <div style={amountStyle}>
-              {((salary?.baseSalary || 0) / 1000000).toFixed(2)}M₫
-            </div>
-            <div style={percentStyle}>100%</div>
-          </div>
-        </div>
-
-        {/* Bonuses */}
-        {salary?.bonuses && salary.bonuses.length > 0 && (
-          <div style={sectionStyle}>
-            <div style={sectionTitleStyle}>🎁 Các Khoản Thưởng</div>
-            {salary.bonuses.map((bonus, idx) => {
-              const rule = rules.find((r) => r.id === bonus.ruleId);
-              return (
-                <div key={idx} style={itemRowStyle}>
-                  <div style={labelStyle}>{rule?.name || "Thưởng"}</div>
-                  <div style={amountStyle}>+{(bonus.amount / 1000000).toFixed(2)}M₫</div>
-                  <div style={percentStyle}>{rule?.description || ""}</div>
-                </div>
-              );
-            })}
-            <div style={{ ...itemRowStyle, backgroundColor: "#e8f5e9" }}>
-              <div style={labelStyle}>Tổng thưởng</div>
-              <div style={{ ...amountStyle, color: "#28a745" }}>
-                +{((salary?.totalBonus || 0) / 1000000).toFixed(2)}M₫
-              </div>
-              <div></div>
-            </div>
-          </div>
-        )}
-
-        {/* Deductions */}
-        {salary?.deductions && salary.deductions.length > 0 && (
-          <div style={sectionStyle}>
-            <div style={sectionTitleStyle}>📉 Các Khoản Khấu Trừ</div>
-            {salary.deductions.map((deduction, idx) => {
-              const rule = rules.find((r) => r.id === deduction.ruleId);
-              return (
-                <div key={idx} style={itemRowStyle}>
-                  <div style={labelStyle}>{rule?.name || "Khấu trừ"}</div>
-                  <div style={{ ...amountStyle, color: "#dc3545" }}>
-                    -{(deduction.amount / 1000000).toFixed(2)}M₫
-                  </div>
-                  <div style={percentStyle}>{rule?.description || ""}</div>
-                </div>
-              );
-            })}
-            <div style={{ ...itemRowStyle, backgroundColor: "#ffe5e5" }}>
-              <div style={labelStyle}>Tổng khấu trừ</div>
-              <div style={{ ...amountStyle, color: "#dc3545" }}>
-                -{((salary?.totalDeduction || 0) / 1000000).toFixed(2)}M₫
-              </div>
-              <div></div>
-            </div>
-          </div>
-        )}
-
-        {/* Summary */}
-        <div style={sectionStyle}>
-          <div style={sectionTitleStyle}>📈 Tổng Hợp</div>
-          <div style={summaryStyle}>
-            <div style={{ ...summaryItemStyle, backgroundColor: "#f0f8ff", borderLeft: `4px solid ${theme.colors.primary}` }}>
-              <div style={{ fontSize: "12px", color: "#666", marginBottom: "5px" }}>Tổng Gross</div>
-              <div style={{ fontSize: "20px", fontWeight: "700", color: theme.colors.primary }}>
-                {editMode
-                  ? (calculateGrossAdjusted() / 1000000).toFixed(2)
-                  : ((salary?.baseSalary || 0 + salary?.totalBonus || 0) / 1000000).toFixed(2)}
-                M₫
-              </div>
-            </div>
-            <div style={{ ...summaryItemStyle, backgroundColor: "#e8f5e9", borderLeft: "4px solid #28a745" }}>
-              <div style={{ fontSize: "12px", color: "#666", marginBottom: "5px" }}>Lương Net</div>
-              <div style={{ fontSize: "20px", fontWeight: "700", color: "#28a745" }}>
-                {editMode
-                  ? (calculateNetAdjusted() / 1000000).toFixed(2)
-                  : ((salary?.netSalary || salary?.baseSalary - salary?.totalDeduction || 0) / 1000000).toFixed(2)}
-                M₫
-              </div>
-            </div>
-          </div>
+          {/* Breakdown content will go here */}
         </div>
 
         {/* Edit Mode */}
         {editMode && (
           <div style={editFormStyle}>
-            <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>
-              ✏️ Điều Chỉnh Lương
-            </h3>
-
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Điều chỉnh lương cơ bản (đơn vị: đồng)</label>
+              <label style={labelFormStyle}>Base Salary Adjustment</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -364,12 +293,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     baseAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                placeholder="Nhập số điều chỉnh (âm để giảm, dương để tăng)"
+                placeholder="Enter adjustment (negative to decrease, positive to increase)"
               />
             </div>
 
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Điều chỉnh thưởng (đơn vị: đồng)</label>
+              <label style={labelFormStyle}>Bonus Adjustment</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -380,12 +309,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     bonusAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                placeholder="Nhập số điều chỉnh thưởng"
+                placeholder="Enter bonus adjustment amount"
               />
             </div>
 
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Điều chỉnh khấu trừ (đơn vị: đồng)</label>
+              <label style={labelFormStyle}>Deduction Adjustment</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -396,12 +325,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     deductionAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                placeholder="Nhập số điều chỉnh khấu trừ"
+                placeholder="Enter deduction adjustment amount"
               />
             </div>
 
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Ghi chú</label>
+              <label style={labelFormStyle}>Notes</label>
               <textarea
                 style={textareaStyle}
                 value={adjustments.notes}
@@ -411,7 +340,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     notes: e.target.value
                   })
                 }
-                placeholder="Ghi chú về điều chỉnh..."
+                placeholder="Notes about adjustment..."
               />
             </div>
           </div>
@@ -421,11 +350,10 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
         <div style={buttonGroupStyle}>
           <button
             onClick={onClose}
-            style={secondaryButtonStyle}
-            onMouseOver={(e) => (e.target.style.opacity = 0.9)}
-            onMouseOut={(e) => (e.target.style.opacity = 1)}
+            style={iconButtonStyle(theme.neutral.gray600)}
+            title="Đóng"
           >
-            Đóng
+            Close
           </button>
 
           {editMode && (
@@ -440,20 +368,18 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     notes: ""
                   });
                 }}
-                style={secondaryButtonStyle}
-                onMouseOver={(e) => (e.target.style.opacity = 0.9)}
-                onMouseOut={(e) => (e.target.style.opacity = 1)}
+                style={iconButtonStyle(theme.neutral.gray600)}
+                title="Hủy"
               >
-                Hủy
+                Cancel
               </button>
               <button
                 onClick={handleSaveAdjustments}
-                style={primaryButtonStyle}
+                style={iconButtonStyle(theme.primary.main)}
                 disabled={saving}
-                onMouseOver={(e) => !saving && (e.target.style.opacity = 0.9)}
-                onMouseOut={(e) => !saving && (e.target.style.opacity = 1)}
+                title="Lưu điều chỉnh"
               >
-                {saving ? "Đang lưu..." : "Lưu Điều Chỉnh"}
+                {saving ? "Saving..." : "Save"}
               </button>
             </>
           )}
@@ -461,15 +387,17 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
           {!editMode && (
             <button
               onClick={() => setEditMode(true)}
-              style={editButtonStyle}
-              onMouseOver={(e) => (e.target.style.opacity = 0.9)}
-              onMouseOut={(e) => (e.target.style.opacity = 1)}
+              style={iconButtonStyle("#ffc107")}
+              title="Điều chỉnh lương"
             >
-              ✏️ Điều Chỉnh
+              Edit
             </button>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
+
+
