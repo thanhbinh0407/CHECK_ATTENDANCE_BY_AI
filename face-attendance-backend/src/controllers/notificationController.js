@@ -246,6 +246,7 @@ export const checkLateArrivals = async () => {
       },
       include: [{
         model: User,
+        as: "User",
         attributes: ['id', 'name', 'email']
       }]
     });

@@ -1,0 +1,222 @@
+// Danh sách các quốc gia
+export const countries = [
+  { code: 'VN', name: 'Việt Nam' },
+  { code: 'US', name: 'Hoa Kỳ' },
+  { code: 'CN', name: 'Trung Quốc' },
+  { code: 'JP', name: 'Nhật Bản' },
+  { code: 'KR', name: 'Hàn Quốc' },
+  { code: 'TH', name: 'Thái Lan' },
+  { code: 'SG', name: 'Singapore' },
+  { code: 'MY', name: 'Malaysia' },
+  { code: 'ID', name: 'Indonesia' },
+  { code: 'PH', name: 'Philippines' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'NZ', name: 'New Zealand' },
+  { code: 'GB', name: 'Anh' },
+  { code: 'FR', name: 'Pháp' },
+  { code: 'DE', name: 'Đức' },
+  { code: 'IT', name: 'Ý' },
+  { code: 'ES', name: 'Tây Ban Nha' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'BR', name: 'Brazil' },
+  { code: 'IN', name: 'Ấn Độ' },
+  { code: 'RU', name: 'Nga' },
+  { code: 'MX', name: 'Mexico' },
+  { code: 'AR', name: 'Argentina' },
+  { code: 'ZA', name: 'Nam Phi' },
+  { code: 'EG', name: 'Ai Cập' },
+  { code: 'TR', name: 'Thổ Nhĩ Kỳ' },
+  { code: 'SA', name: 'Ả Rập Xê Út' },
+  { code: 'AE', name: 'Các Tiểu vương quốc Ả Rập Thống nhất' },
+  { code: 'IL', name: 'Israel' },
+  { code: 'PK', name: 'Pakistan' },
+  { code: 'BD', name: 'Bangladesh' },
+  { code: 'VN', name: 'Việt Nam' }
+];
+
+// Danh sách tỉnh/thành phố của Việt Nam
+export const vietnamProvinces = [
+  { code: 'HN', name: 'Hà Nội', type: 'Thành phố Trung ương' },
+  { code: 'HCM', name: 'Hồ Chí Minh', type: 'Thành phố Trung ương' },
+  { code: 'HP', name: 'Hải Phòng', type: 'Thành phố Trung ương' },
+  { code: 'DN', name: 'Đà Nẵng', type: 'Thành phố Trung ương' },
+  { code: 'CT', name: 'Cần Thơ', type: 'Thành phố Trung ương' },
+  { code: 'AG', name: 'An Giang', type: 'Tỉnh' },
+  { code: 'BR', name: 'Bà Rịa - Vũng Tàu', type: 'Tỉnh' },
+  { code: 'BL', name: 'Bạc Liêu', type: 'Tỉnh' },
+  { code: 'BK', name: 'Bắc Kạn', type: 'Tỉnh' },
+  { code: 'BG', name: 'Bắc Giang', type: 'Tỉnh' },
+  { code: 'BN', name: 'Bắc Ninh', type: 'Tỉnh' },
+  { code: 'BT', name: 'Bến Tre', type: 'Tỉnh' },
+  { code: 'BD', name: 'Bình Định', type: 'Tỉnh' },
+  { code: 'BP', name: 'Bình Dương', type: 'Tỉnh' },
+  { code: 'BP', name: 'Bình Phước', type: 'Tỉnh' },
+  { code: 'BT', name: 'Bình Thuận', type: 'Tỉnh' },
+  { code: 'CM', name: 'Cà Mau', type: 'Tỉnh' },
+  { code: 'CB', name: 'Cao Bằng', type: 'Tỉnh' },
+  { code: 'DL', name: 'Đắk Lắk', type: 'Tỉnh' },
+  { code: 'DN', name: 'Đắk Nông', type: 'Tỉnh' },
+  { code: 'DB', name: 'Điện Biên', type: 'Tỉnh' },
+  { code: 'DG', name: 'Đồng Nai', type: 'Tỉnh' },
+  { code: 'DT', name: 'Đồng Tháp', type: 'Tỉnh' },
+  { code: 'GL', name: 'Gia Lai', type: 'Tỉnh' },
+  { code: 'HG', name: 'Hà Giang', type: 'Tỉnh' },
+  { code: 'HD', name: 'Hà Nam', type: 'Tỉnh' },
+  { code: 'HT', name: 'Hà Tĩnh', type: 'Tỉnh' },
+  { code: 'HB', name: 'Hải Dương', type: 'Tỉnh' },
+  { code: 'HY', name: 'Hậu Giang', type: 'Tỉnh' },
+  { code: 'HB', name: 'Hòa Bình', type: 'Tỉnh' },
+  { code: 'HY', name: 'Hưng Yên', type: 'Tỉnh' },
+  { code: 'KH', name: 'Khánh Hòa', type: 'Tỉnh' },
+  { code: 'KG', name: 'Kiên Giang', type: 'Tỉnh' },
+  { code: 'LC', name: 'Lào Cai', type: 'Tỉnh' },
+  { code: 'LD', name: 'Lâm Đồng', type: 'Tỉnh' },
+  { code: 'LS', name: 'Lạng Sơn', type: 'Tỉnh' },
+  { code: 'LB', name: 'Lào Cai', type: 'Tỉnh' },
+  { code: 'LC', name: 'Long An', type: 'Tỉnh' },
+  { code: 'ND', name: 'Nam Định', type: 'Tỉnh' },
+  { code: 'NA', name: 'Nghệ An', type: 'Tỉnh' },
+  { code: 'NB', name: 'Ninh Bình', type: 'Tỉnh' },
+  { code: 'NT', name: 'Ninh Thuận', type: 'Tỉnh' },
+  { code: 'PT', name: 'Phú Thọ', type: 'Tỉnh' },
+  { code: 'PY', name: 'Phú Yên', type: 'Tỉnh' },
+  { code: 'QB', name: 'Quảng Bình', type: 'Tỉnh' },
+  { code: 'QN', name: 'Quảng Nam', type: 'Tỉnh' },
+  { code: 'QG', name: 'Quảng Ngãi', type: 'Tỉnh' },
+  { code: 'QN', name: 'Quảng Ninh', type: 'Tỉnh' },
+  { code: 'QT', name: 'Quảng Trị', type: 'Tỉnh' },
+  { code: 'ST', name: 'Sóc Trăng', type: 'Tỉnh' },
+  { code: 'SL', name: 'Sơn La', type: 'Tỉnh' },
+  { code: 'TN', name: 'Tây Ninh', type: 'Tỉnh' },
+  { code: 'TB', name: 'Thái Bình', type: 'Tỉnh' },
+  { code: 'TY', name: 'Thái Nguyên', type: 'Tỉnh' },
+  { code: 'TH', name: 'Thanh Hóa', type: 'Tỉnh' },
+  { code: 'HU', name: 'Thừa Thiên Huế', type: 'Tỉnh' },
+  { code: 'TG', name: 'Tiền Giang', type: 'Tỉnh' },
+  { code: 'TV', name: 'Trà Vinh', type: 'Tỉnh' },
+  { code: 'TQ', name: 'Tuyên Quang', type: 'Tỉnh' },
+  { code: 'VL', name: 'Vĩnh Long', type: 'Tỉnh' },
+  { code: 'VP', name: 'Vĩnh Phúc', type: 'Tỉnh' },
+  { code: 'YB', name: 'Yên Bái', type: 'Tỉnh' }
+];
+
+// Danh sách quận/huyện/thị xã theo tỉnh (mẫu - cần bổ sung đầy đủ)
+export const vietnamDistricts = {
+  'HN': [
+    { code: 'BD', name: 'Ba Đình' },
+    { code: 'HK', name: 'Hoàn Kiếm' },
+    { code: 'TB', name: 'Tây Hồ' },
+    { code: 'LB', name: 'Long Biên' },
+    { code: 'CG', name: 'Cầu Giấy' },
+    { code: 'DD', name: 'Đống Đa' },
+    { code: 'HB', name: 'Hai Bà Trưng' },
+    { code: 'HM', name: 'Hoàng Mai' },
+    { code: 'TH', name: 'Thanh Xuân' },
+    { code: 'ST', name: 'Sóc Sơn' },
+    { code: 'DG', name: 'Đông Anh' },
+    { code: 'GL', name: 'Gia Lâm' },
+    { code: 'NT', name: 'Nam Từ Liêm' },
+    { code: 'BT', name: 'Bắc Từ Liêm' },
+    { code: 'ML', name: 'Mê Linh' },
+    { code: 'HA', name: 'Hà Đông' },
+    { code: 'ST', name: 'Sơn Tây' },
+    { code: 'BL', name: 'Ba Vì' },
+    { code: 'PC', name: 'Phúc Thọ' },
+    { code: 'DT', name: 'Đan Phượng' },
+    { code: 'HT', name: 'Hoài Đức' },
+    { code: 'QL', name: 'Quốc Oai' },
+    { code: 'TT', name: 'Thạch Thất' },
+    { code: 'CT', name: 'Chương Mỹ' },
+    { code: 'TM', name: 'Thanh Oai' },
+    { code: 'TP', name: 'Thường Tín' },
+    { code: 'PL', name: 'Phú Xuyên' },
+    { code: 'US', name: 'Ứng Hòa' },
+    { code: 'ML', name: 'Mỹ Đức' }
+  ],
+  'HCM': [
+    { code: 'Q1', name: 'Quận 1' },
+    { code: 'Q2', name: 'Quận 2' },
+    { code: 'Q3', name: 'Quận 3' },
+    { code: 'Q4', name: 'Quận 4' },
+    { code: 'Q5', name: 'Quận 5' },
+    { code: 'Q6', name: 'Quận 6' },
+    { code: 'Q7', name: 'Quận 7' },
+    { code: 'Q8', name: 'Quận 8' },
+    { code: 'Q9', name: 'Quận 9' },
+    { code: 'Q10', name: 'Quận 10' },
+    { code: 'Q11', name: 'Quận 11' },
+    { code: 'Q12', name: 'Quận 12' },
+    { code: 'BT', name: 'Bình Thạnh' },
+    { code: 'TB', name: 'Tân Bình' },
+    { code: 'TP', name: 'Tân Phú' },
+    { code: 'PN', name: 'Phú Nhuận' },
+    { code: 'GV', name: 'Gò Vấp' },
+    { code: 'BC', name: 'Bình Tân' },
+    { code: 'TD', name: 'Tân Phú' },
+    { code: 'CC', name: 'Củ Chi' },
+    { code: 'HC', name: 'Hóc Môn' },
+    { code: 'BL', name: 'Bình Chánh' },
+    { code: 'NB', name: 'Nhà Bè' },
+    { code: 'CG', name: 'Cần Giờ' }
+  ],
+  'DN': [
+    { code: 'HL', name: 'Hải Châu' },
+    { code: 'TC', name: 'Thanh Khê' },
+    { code: 'SK', name: 'Sơn Trà' },
+    { code: 'NK', name: 'Ngũ Hành Sơn' },
+    { code: 'LS', name: 'Liên Chiểu' },
+    { code: 'CB', name: 'Cẩm Lệ' },
+    { code: 'HK', name: 'Hòa Vang' },
+    { code: 'HS', name: 'Hoàng Sa' }
+  ],
+  'HP': [
+    { code: 'HL', name: 'Hồng Bàng' },
+    { code: 'NK', name: 'Ngô Quyền' },
+    { code: 'LB', name: 'Lê Chân' },
+    { code: 'HK', name: 'Hải An' },
+    { code: 'KB', name: 'Kiến An' },
+    { code: 'DT', name: 'Đồ Sơn' },
+    { code: 'DT', name: 'Dương Kinh' },
+    { code: 'TB', name: 'Thủy Nguyên' },
+    { code: 'AD', name: 'An Dương' },
+    { code: 'AL', name: 'An Lão' },
+    { code: 'KB', name: 'Kiến Thụy' },
+    { code: 'TL', name: 'Tiên Lãng' },
+    { code: 'VL', name: 'Vĩnh Bảo' },
+    { code: 'CB', name: 'Cát Hải' },
+    { code: 'BH', name: 'Bạch Long Vĩ' }
+  ]
+  // Có thể bổ sung thêm các tỉnh khác
+};
+
+// Danh sách xã/phường/thị trấn (mẫu - cần bổ sung đầy đủ)
+export const vietnamWards = {
+  'HN_BD': [
+    { code: 'CVD', name: 'Cống Vị' },
+    { code: 'DD', name: 'Điện Biên' },
+    { code: 'GD', name: 'Giảng Võ' },
+    { code: 'KD', name: 'Kim Mã' },
+    { code: 'LD', name: 'Liễu Giai' },
+    { code: 'ND', name: 'Ngọc Hà' },
+    { code: 'ND', name: 'Ngọc Khánh' },
+    { code: 'ND', name: 'Nguyễn Trung Trực' },
+    { code: 'PD', name: 'Phúc Xá' },
+    { code: 'QD', name: 'Quán Thánh' },
+    { code: 'TD', name: 'Thành Công' },
+    { code: 'TD', name: 'Trúc Bạch' },
+    { code: 'VD', name: 'Vĩnh Phúc' }
+  ]
+  // Có thể bổ sung thêm
+};
+
+// Helper function để lấy districts theo province code
+export const getDistrictsByProvince = (provinceCode) => {
+  return vietnamDistricts[provinceCode] || [];
+};
+
+// Helper function để lấy wards theo province và district code
+export const getWardsByDistrict = (provinceCode, districtCode) => {
+  const key = `${provinceCode}_${districtCode}`;
+  return vietnamWards[key] || [];
+};
+
