@@ -19,13 +19,49 @@ export const getDashboardAnalytics = async (month, year) => {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0);
     
-    // Get current month data
-    const attendanceReport = await getAttendanceReport(month, year);
-    const payrollReport = await getPayrollCostReport(month, year);
-    const structureReport = await getEmployeeStructureReport();
-    const seniorityAgeReport = await getSeniorityAndAgeReport();
-    const educationReport = await getEducationAndSkillsReport();
-    const overtimeReport = await getOvertimeDetailReport(month, year);
+    // Get current month data with error handling for each service
+    let attendanceReport = { totalEmployees: 0, report: [] };
+    let payrollReport = { summary: { totalCost: 0, totalEmployees: 0, totalGrossSalary: 0, totalInsurance: 0, totalTax: 0 } };
+    let structureReport = { total: 0, byDepartment: [], byContractType: [], byJobTitle: [] };
+    let seniorityAgeReport = { ageDistribution: [], seniorityDistribution: [] };
+    let educationReport = { byEducationLevel: [] };
+    let overtimeReport = { summary: { totalHours: 0, totalRequests: 0, totalEmployees: 0 }, byDepartment: [], byEmployee: [] };
+
+    try {
+      attendanceReport = await getAttendanceReport(month, year);
+    } catch (error) {
+      console.error("[Analytics Service] Error getting attendance report:", error);
+    }
+
+    try {
+      payrollReport = await getPayrollCostReport(month, year);
+    } catch (error) {
+      console.error("[Analytics Service] Error getting payroll report:", error);
+    }
+
+    try {
+      structureReport = await getEmployeeStructureReport();
+    } catch (error) {
+      console.error("[Analytics Service] Error getting structure report:", error);
+    }
+
+    try {
+      seniorityAgeReport = await getSeniorityAndAgeReport();
+    } catch (error) {
+      console.error("[Analytics Service] Error getting seniority/age report:", error);
+    }
+
+    try {
+      educationReport = await getEducationAndSkillsReport();
+    } catch (error) {
+      console.error("[Analytics Service] Error getting education report:", error);
+    }
+
+    try {
+      overtimeReport = await getOvertimeDetailReport(month, year);
+    } catch (error) {
+      console.error("[Analytics Service] Error getting overtime report:", error);
+    }
 
     // Get last 6 months turnover data for trend
     const turnoverTrend = [];
@@ -121,53 +157,53 @@ export const getDashboardAnalytics = async (month, year) => {
       },
       charts: {
         // Pie chart: Structure by Department
-        structureByDepartment: structureReport.byDepartment.map(dept => ({
+        structureByDepartment: (structureReport.byDepartment || []).map(dept => ({
           name: dept.departmentName || 'Không xác định',
           value: parseInt(dept.count) || 0
         })),
         // Pie chart: Structure by Contract Type
-        structureByContractType: structureReport.byContractType.map(contract => ({
+        structureByContractType: (structureReport.byContractType || []).map(contract => ({
           name: contract.contractType === 'probation' ? 'Thử việc' :
                 contract.contractType === '1_year' ? '1 năm' :
                 contract.contractType === '3_year' ? '3 năm' :
                 contract.contractType === 'indefinite' ? 'Không xác định' :
-                contract.contractType === 'other' ? 'Khác' : contract.contractType,
+                contract.contractType === 'other' ? 'Khác' : contract.contractType || 'Không xác định',
           value: parseInt(contract.count) || 0
         })),
         // Pie chart: Age Distribution
-        ageDistribution: seniorityAgeReport.ageDistribution.map(age => ({
-          name: age.ageGroup,
-          value: age.count
+        ageDistribution: (seniorityAgeReport.ageDistribution || []).map(age => ({
+          name: age.ageGroup || 'Không xác định',
+          value: age.count || 0
         })),
         // Pie chart: Seniority Distribution
-        seniorityDistribution: seniorityAgeReport.seniorityDistribution.map(sen => ({
-          name: sen.seniorityGroup,
-          value: sen.count
+        seniorityDistribution: (seniorityAgeReport.seniorityDistribution || []).map(sen => ({
+          name: sen.seniorityGroup || 'Không xác định',
+          value: sen.count || 0
         })),
         // Pie chart: Education Level
-        educationLevel: educationReport.byEducationLevel.map(edu => ({
-          name: edu.level,
-          value: edu.count
+        educationLevel: (educationReport.byEducationLevel || []).map(edu => ({
+          name: edu.level || 'Không xác định',
+          value: edu.count || 0
         })),
         // Line chart: Turnover Rate Trend (6 months)
-        turnoverTrend: turnoverTrend,
+        turnoverTrend: turnoverTrend || [],
         // Line chart: Payroll Cost Trend (6 months)
-        payrollTrend: payrollTrend,
+        payrollTrend: payrollTrend || [],
         // Line chart: Attendance Rate Trend (6 months)
-        attendanceTrend: attendanceTrend,
+        attendanceTrend: attendanceTrend || [],
         // Bar chart: Overtime by Department
-        overtimeByDepartment: overtimeReport.byDepartment.map(dept => ({
-          name: dept.departmentName,
-          hours: dept.totalHours,
-          employees: dept.employeeCount
+        overtimeByDepartment: (overtimeReport.byDepartment || []).map(dept => ({
+          name: dept.departmentName || 'Không xác định',
+          hours: dept.totalHours || 0,
+          employees: dept.employeeCount || 0
         })),
         // Bar chart: Top 10 Employees by Overtime
-        topOvertimeEmployees: overtimeReport.byEmployee
-          .sort((a, b) => b.totalHours - a.totalHours)
+        topOvertimeEmployees: (overtimeReport.byEmployee || [])
+          .sort((a, b) => (b.totalHours || 0) - (a.totalHours || 0))
           .slice(0, 10)
           .map(emp => ({
-            name: emp.employeeName,
-            hours: emp.totalHours
+            name: emp.employeeName || 'Không xác định',
+            hours: emp.totalHours || 0
           }))
       }
     };

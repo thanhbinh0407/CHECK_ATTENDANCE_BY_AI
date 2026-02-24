@@ -6,6 +6,9 @@ import Qualifications from "./components/Qualifications.jsx";
 import Dependents from "./components/Dependents.jsx";
 import ApprovalManagement from "./components/ApprovalManagement.jsx";
 import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
+import SalaryAdvanceRequest from "./components/SalaryAdvanceRequest.jsx";
+import OvertimeRequest from "./components/OvertimeRequest.jsx";
+import BusinessTripRequest from "./components/BusinessTripRequest.jsx";
 import "./App.css";
 
 function App() {
@@ -223,6 +226,24 @@ function App() {
         >
           Dependents
         </button>
+        <button
+          onClick={() => setActiveTab("salary-advance")}
+          style={tabStyle(activeTab === "salary-advance")}
+        >
+          Salary Advance
+        </button>
+        <button
+          onClick={() => setActiveTab("overtime")}
+          style={tabStyle(activeTab === "overtime")}
+        >
+          Overtime
+        </button>
+        <button
+          onClick={() => setActiveTab("business-trip")}
+          style={tabStyle(activeTab === "business-trip")}
+        >
+          Business Trip
+        </button>
         {user?.role === "admin" && (
           <>
             <button
@@ -248,6 +269,9 @@ function App() {
         {activeTab === "leave" && <LeaveRequest userId={user?.id} />}
         {activeTab === "qualifications" && <Qualifications userId={user?.id} />}
         {activeTab === "dependents" && <Dependents userId={user?.id} />}
+        {activeTab === "salary-advance" && <SalaryAdvanceRequest userId={user?.id} />}
+        {activeTab === "overtime" && <OvertimeRequest userId={user?.id} />}
+        {activeTab === "business-trip" && <BusinessTripRequest userId={user?.id} />}
         {activeTab === "approval" && user?.role === "admin" && <ApprovalManagement />}
         {activeTab === "rules" && user?.role === "admin" && <SalaryRulesManagement />}
       </div>

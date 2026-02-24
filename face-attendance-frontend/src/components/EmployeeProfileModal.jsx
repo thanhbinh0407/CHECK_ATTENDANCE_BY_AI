@@ -1705,11 +1705,14 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                       ) : (
                         <div style={valueStyle}>
                           {employeeDetails?.dependentCount || 0} {employeeDetails?.dependentCount === 1 ? 'person' : 'people'}
-                          {employeeDetails?.Dependents && employeeDetails.Dependents.length > 0 && (
+                          {(() => {
+                            const dependents = employeeDetails?.Dependents || employeeDetails?.dependents || [];
+                            return dependents.length > 0 ? (
                             <span style={{ fontSize: "12px", color: theme.neutral.gray600, marginLeft: "8px" }}>
-                              ({employeeDetails.Dependents.length} in system)
+                              ({dependents.length} in system)
                             </span>
-                          )}
+                          ) : null;
+                          })()}
                         </div>
                       )}
                     </div>
@@ -1762,9 +1765,16 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                   <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
                     Dependents
                   </h3>
-                  {employeeDetails?.Dependents && employeeDetails.Dependents.length > 0 ? (
+                  {(() => {
+                    const dependents = employeeDetails?.Dependents || employeeDetails?.dependents || [];
+                    if (!dependents || dependents.length === 0) {
+                      return (
+                        <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No dependents</p>
+                      );
+                    }
+                    return (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: theme.spacing.md }}>
-                      {employeeDetails.Dependents.map((dep) => (
+                      {dependents.map((dep) => (
                         <div key={dep.id} style={{
                           padding: theme.spacing.md,
                           backgroundColor: theme.neutral.gray50,
@@ -1784,9 +1794,8 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No dependents</p>
-                  )}
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1796,9 +1805,16 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                   <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
                     Qualifications and Certificates
                   </h3>
-                  {employeeDetails?.Qualifications && employeeDetails.Qualifications.length > 0 ? (
+                  {(() => {
+                    const qualifications = employeeDetails?.Qualifications || employeeDetails?.qualifications || [];
+                    if (!qualifications || qualifications.length === 0) {
+                      return (
+                        <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No qualifications or certificates</p>
+                      );
+                    }
+                    return (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: theme.spacing.md }}>
-                      {employeeDetails.Qualifications.map((qual) => (
+                      {qualifications.map((qual) => (
                         <div key={qual.id} style={{
                           padding: theme.spacing.md,
                           backgroundColor: theme.neutral.gray50,
@@ -1828,9 +1844,8 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No qualifications or certificates</p>
-                  )}
+                    );
+                  })()}
                 </div>
               )}
 
@@ -2179,21 +2194,27 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                     Attendance Statistics
                   </h3>
                   {employeeDetails?.attendanceStats ? (
+                    <>
                     <div style={infoGridStyle}>
                       <div style={infoCardStyle}>
                         <label style={labelStyle}>Total Days Worked</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.primary.main }}>
                           {employeeDetails.attendanceStats.totalDaysWorked || 0}
+                            {employeeDetails.attendanceStats.totalDays ? (
+                              <span style={{ fontSize: 12, color: theme.neutral.gray600, marginLeft: 8 }}>
+                                / {employeeDetails.attendanceStats.totalDays}
+                              </span>
+                            ) : null}
                         </div>
                       </div>
                       <div style={infoCardStyle}>
-                        <label style={labelStyle}>Late Count</label>
+                          <label style={labelStyle}>Late Days</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.warning.main }}>
                           {employeeDetails.attendanceStats.totalLate || 0}
                         </div>
                       </div>
                       <div style={infoCardStyle}>
-                        <label style={labelStyle}>Early Leave Count</label>
+                          <label style={labelStyle}>Early Leave Days</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.warning.main }}>
                           {employeeDetails.attendanceStats.totalEarlyLeave || 0}
                         </div>
@@ -2204,7 +2225,72 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           {employeeDetails.attendanceStats.totalAbsent || 0}
                         </div>
                       </div>
+                      </div>
+
+                      {/* Recent attendance (grouped by day) */}
+                      <div style={{ marginTop: theme.spacing.xl }}>
+                        <h4 style={{ margin: 0, marginBottom: theme.spacing.md, color: theme.neutral.gray800 }}>
+                          Recent Attendance (This Month)
+                        </h4>
+                        {employeeDetails?.recentAttendance && employeeDetails.recentAttendance.length > 0 ? (
+                          <div style={{ overflowX: "auto", border: `1px solid ${theme.neutral.gray200}`, borderRadius: theme.radius.lg }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
+                              <thead>
+                                <tr style={{ backgroundColor: theme.neutral.gray50, borderBottom: `1px solid ${theme.neutral.gray200}` }}>
+                                  <th style={{ textAlign: "left", padding: theme.spacing.md, fontSize: 12, textTransform: "uppercase", color: theme.neutral.gray700 }}>Date</th>
+                                  <th style={{ textAlign: "left", padding: theme.spacing.md, fontSize: 12, textTransform: "uppercase", color: theme.neutral.gray700 }}>Check-in</th>
+                                  <th style={{ textAlign: "left", padding: theme.spacing.md, fontSize: 12, textTransform: "uppercase", color: theme.neutral.gray700 }}>Check-out</th>
+                                  <th style={{ textAlign: "left", padding: theme.spacing.md, fontSize: 12, textTransform: "uppercase", color: theme.neutral.gray700 }}>Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {employeeDetails.recentAttendance.map((row, idx) => {
+                                  const checkIn = row.checkIn ? new Date(row.checkIn) : null;
+                                  const checkOut = row.checkOut ? new Date(row.checkOut) : null;
+                                  const flags = row.flags || {};
+                                  const statusText = flags.isLate ? "Late" : flags.isEarlyLeave ? "Early Leave" : "Normal";
+                                  const statusColor = flags.isLate || flags.isEarlyLeave ? theme.warning.main : theme.success.main;
+                                  return (
+                                    <tr key={idx} style={{ borderBottom: `1px solid ${theme.neutral.gray100}` }}>
+                                      <td style={{ padding: theme.spacing.md, fontWeight: 700, color: theme.neutral.gray800 }}>
+                                        {row.date ? new Date(row.date).toLocaleDateString("vi-VN") : "-"}
+                                      </td>
+                                      <td style={{ padding: theme.spacing.md, color: theme.neutral.gray700 }}>
+                                        {checkIn ? checkIn.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "-"}
+                                      </td>
+                                      <td style={{ padding: theme.spacing.md, color: theme.neutral.gray700 }}>
+                                        {checkOut ? checkOut.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "-"}
+                                      </td>
+                                      <td style={{ padding: theme.spacing.md }}>
+                                        <span style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: 8,
+                                          padding: "6px 10px",
+                                          borderRadius: 999,
+                                          fontWeight: 800,
+                                          fontSize: 12,
+                                          color: statusColor,
+                                          backgroundColor: `${statusColor}15`,
+                                          border: `1px solid ${statusColor}30`
+                                        }}>
+                                          {statusText}
+                                          {flags.isOvertime ? (
+                                            <span style={{ fontWeight: 900, color: theme.secondary.main }}>OT</span>
+                                          ) : null}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
                     </div>
+                        ) : (
+                          <p style={{ color: theme.neutral.gray500, margin: 0, fontStyle: "italic" }}>No recent attendance records</p>
+                        )}
+                      </div>
+                    </>
                   ) : (
                     <p style={{ color: theme.neutral.gray500 }}>No attendance data</p>
                   )}

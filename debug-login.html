@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Admin Login</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .debug-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Admin Login</h1>
+    
+    <div class="debug-section">
+        <h2>1. Kiểm tra Backend Connection</h2>
+        <button onclick="testBackend()">Test Backend</button>
+        <div id="backend-result"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>2. Test Login API</h2>
+        <input type="email" id="email" placeholder="Email" value="admin@company.com">
+        <input type="password" id="password" placeholder="Password" value="Admin@12345">
+        <button onclick="testLogin()">Test Login</button>
+        <div id="login-result"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>3. Kiểm tra CORS</h2>
+        <button onclick="testCORS()">Test CORS</button>
+        <div id="cors-result"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>4. Kiểm tra LocalStorage</h2>
+        <button onclick="checkLocalStorage()">Check LocalStorage</button>
+        <button onclick="clearLocalStorage()">Clear LocalStorage</button>
+        <div id="storage-result"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>5. Test Redirect</h2>
+        <button onclick="testRedirect()">Test Redirect to Admin Portal</button>
+        <div id="redirect-result"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>6. Console Logs</h2>
+        <div id="console-logs"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000';
+        const ADMIN_PORT = 5174; // face-attendance-frontend
+
+        // Capture console logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const logContainer = document.getElementById('console-logs');
+
+        function addLog(message, type = 'log') {
+            const div = document.createElement('div');
+            div.className = type === 'error' ? 'error' : 'info';
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(div);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLog(args.join(' '), 'log');
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog(args.join(' '), 'error');
+        };
+
+        async function testBackend() {
+            const resultDiv = document.getElementById('backend-result');
+            resultDiv.innerHTML = '<p class="info">Đang kiểm tra...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/me`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                resultDiv.innerHTML = `
+                    <p class="success">✅ Backend đang chạy!</p>
+                    <p>Status: ${response.status}</p>
+                    <pre>${JSON.stringify(await response.json(), null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">❌ Lỗi: ${error.message}</p>
+                    <p>Kiểm tra xem backend có đang chạy không (port 5000)</p>
+                `;
+            }
+        }
+
+        async function testLogin() {
+            const resultDiv = document.getElementById('login-result');
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            resultDiv.innerHTML = '<p class="info">Đang đăng nhập...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok && data.status === 'success') {
+                    resultDiv.innerHTML = `
+                        <p class="success">✅ Đăng nhập thành công!</p>
+                        <p><strong>User:</strong> ${data.user.name} (${data.user.role})</p>
+                        <p><strong>Email:</strong> ${data.user.email}</p>
+                        <p><strong>Token:</strong> ${data.token.substring(0, 30)}...</p>
+                        <button onclick="saveToLocalStorage('${data.token}', ${JSON.stringify(data.user).replace(/'/g, "\\'")})">Save to LocalStorage</button>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">❌ Đăng nhập thất bại!</p>
+                        <p>Status: ${response.status}</p>
+                        <p>Message: ${data.message || 'Unknown error'}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">❌ Lỗi: ${error.message}</p>
+                    <p>Kiểm tra CORS hoặc kết nối mạng</p>
+                `;
+            }
+        }
+
+        async function testCORS() {
+            const resultDiv = document.getElementById('cors-result');
+            resultDiv.innerHTML = '<p class="info">Đang kiểm tra CORS...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type'
+                    }
+                });
+                
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': response.headers.get('access-control-allow-origin'),
+                    'Access-Control-Allow-Methods': response.headers.get('access-control-allow-methods'),
+                    'Access-Control-Allow-Headers': response.headers.get('access-control-allow-headers')
+                };
+                
+                let html = '<p class="success">✅ CORS Headers:</p><ul>';
+                Object.entries(corsHeaders).forEach(([key, value]) => {
+                    html += `<li><strong>${key}:</strong> ${value || 'Không có'}</li>`;
+                });
+                html += '</ul>';
+                
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ Lỗi: ${error.message}</p>`;
+            }
+        }
+
+        function checkLocalStorage() {
+            const resultDiv = document.getElementById('storage-result');
+            const token = localStorage.getItem('authToken');
+            const user = localStorage.getItem('user');
+            
+            let html = '<h3>LocalStorage Contents:</h3>';
+            html += `<p><strong>authToken:</strong> ${token ? token.substring(0, 30) + '...' : 'Không có'}</p>`;
+            html += `<p><strong>user:</strong> ${user || 'Không có'}</p>`;
+            
+            if (user) {
+                try {
+                    const userObj = JSON.parse(user);
+                    html += `<pre>${JSON.stringify(userObj, null, 2)}</pre>`;
+                } catch (e) {
+                    html += `<p class="error">Lỗi parse user data: ${e.message}</p>`;
+                }
+            }
+            
+            resultDiv.innerHTML = html;
+        }
+
+        function clearLocalStorage() {
+            localStorage.clear();
+            document.getElementById('storage-result').innerHTML = '<p class="success">✅ Đã xóa LocalStorage</p>';
+        }
+
+        function saveToLocalStorage(token, user) {
+            localStorage.setItem('authToken', token);
+            localStorage.setItem('user', JSON.stringify(user));
+            document.getElementById('storage-result').innerHTML = '<p class="success">✅ Đã lưu vào LocalStorage</p>';
+            checkLocalStorage();
+        }
+
+        function testRedirect() {
+            const resultDiv = document.getElementById('redirect-result');
+            const token = localStorage.getItem('authToken');
+            const user = localStorage.getItem('user');
+            
+            if (!token || !user) {
+                resultDiv.innerHTML = '<p class="error">❌ Chưa có token hoặc user trong LocalStorage. Hãy đăng nhập trước.</p>';
+                return;
+            }
+            
+            try {
+                const tokenParam = encodeURIComponent(token);
+                const userParam = encodeURIComponent(user);
+                const redirectUrl = `http://localhost:${ADMIN_PORT}?token=${tokenParam}&user=${userParam}`;
+                
+                resultDiv.innerHTML = `
+                    <p class="info">Đang redirect đến:</p>
+                    <p><a href="${redirectUrl}" target="_blank">${redirectUrl}</a></p>
+                    <button onclick="window.location.href='${redirectUrl}'">Redirect Now</button>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ Lỗi: ${error.message}</p>`;
+            }
+        }
+
+        // Auto check on load
+        window.addEventListener('load', () => {
+            checkLocalStorage();
+            testBackend();
+        });
+    </script>
+</body>
+</html>
+
