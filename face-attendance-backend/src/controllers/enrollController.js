@@ -13,6 +13,35 @@ function generateRandomPassword(length = 8) {
   return password;
 }
 
+// Map frontend education level (Tiếng Việt) to DB ENUM values
+function normalizeEducationLevel(educationLevel) {
+  if (!educationLevel) return null;
+
+  const mapping = {
+    "Trung cấp": "vocational",
+    "Cao đẳng": "college",
+    "Đại học": "university",
+    "Sau đại học (ThS/TS)": "master",
+  };
+
+  // If value is already an enum value, keep it
+  const allowed = new Set([
+    "high_school",
+    "vocational",
+    "college",
+    "university",
+    "master",
+    "phd",
+    "other",
+  ]);
+
+  if (allowed.has(educationLevel)) {
+    return educationLevel;
+  }
+
+  return mapping[educationLevel] || "other";
+}
+
 export const registerUser = async (req, res) => {
   try {
     const { name, email, employeeCode, descriptor, password, jobTitle, educationLevel, certificates, dependents, baseSalary } = req.body;
@@ -40,6 +69,9 @@ export const registerUser = async (req, res) => {
     const finalPassword = password || generateRandomPassword(10);
     const hashedPassword = await bcrypt.hash(finalPassword, 10);
 
+    // Normalize education level to match DB enum
+    const normalizedEducationLevel = normalizeEducationLevel(educationLevel);
+
     // Create user with password and job-related fields
     const user = await User.create({
       name,
@@ -49,9 +81,7 @@ export const registerUser = async (req, res) => {
       role: "employee",
       isActive: true,
       jobTitle: jobTitle || "Nhân viên",
-      educationLevel: educationLevel || "Đại học",
-      certificates: certificates || [],
-      dependents: dependents || 0,
+      educationLevel: normalizedEducationLevel,
       baseSalary: baseSalary || 1800000 // Default to state-owned base salary
     });
 
