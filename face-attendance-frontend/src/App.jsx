@@ -13,6 +13,10 @@ import DocumentManagement from "./components/DocumentManagement.jsx";
 import OvertimeManagement from "./components/OvertimeManagement.jsx";
 import BusinessTripManagement from "./components/BusinessTripManagement.jsx";
 import SalaryAdvanceManagement from "./components/SalaryAdvanceManagement.jsx";
+import SalaryGradeManagement from "./components/SalaryGradeManagement.jsx";
+import InsuranceConfigManagement from "./components/InsuranceConfigManagement.jsx";
+import InsuranceFormTK1TS from "./components/InsuranceFormTK1TS.jsx";
+import InsuranceFormD02LT from "./components/InsuranceFormD02LT.jsx";
 import ReportsDashboard from "./components/ReportsDashboard.jsx";
 import { theme, commonStyles } from "./styles/theme.js";
 import "./App.css";
@@ -167,7 +171,11 @@ function App() {
     { id: "overtime", label: "Overtime Requests", shortcut: "", icon: "⏱️" },
     { id: "business-trips", label: "Business Trip Requests", shortcut: "", icon: "🧳" },
     { id: "salary-advances", label: "Salary Advances", shortcut: "", icon: "💸" },
-    { id: "reports", label: "Reporting", shortcut: "", icon: "📊" },
+    { id: "salary-grades", label: "Salary Grade Management", shortcut: "", icon: "💰" },
+    { id: "insurance-configs", label: "Insurance & Cost Config", shortcut: "", icon: "🛡️" },
+    { id: "insurance-form", label: "BHXH/BHYT Form (TK1-TS)", shortcut: "", icon: "📋" },
+    { id: "insurance-report", label: "Báo Cáo D02-LT", shortcut: "", icon: "📊" },
+    { id: "reports", label: "Reporting", shortcut: "", icon: "📈" },
   ];
 
   // Layout styles
@@ -487,6 +495,10 @@ function App() {
         {activeTab === "overtime" && user?.role === "admin" && <OvertimeManagement />}
         {activeTab === "business-trips" && user?.role === "admin" && <BusinessTripManagement />}
         {activeTab === "salary-advances" && user?.role === "admin" && <SalaryAdvanceManagement />}
+        {activeTab === "salary-grades" && user?.role === "admin" && <SalaryGradeManagement />}
+        {activeTab === "insurance-configs" && user?.role === "admin" && <InsuranceConfigManagement />}
+        {activeTab === "insurance-form" && user?.role === "admin" && <InsuranceFormTK1TS />}
+        {activeTab === "insurance-report" && user?.role === "admin" && <InsuranceFormD02LT />}
         {activeTab === "reports" && user?.role === "admin" && <ReportsDashboard />}
       </div>
       </main>

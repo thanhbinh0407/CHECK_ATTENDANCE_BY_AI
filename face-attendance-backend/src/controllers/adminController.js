@@ -729,26 +729,64 @@ export const getEmployeeAttendanceStats = async (req, res) => {
       order: [['timestamp', 'ASC']]
     });
 
-    // Calculate statistics
-    const lateCount = logs.filter(log => log.isLate === true).length;
-    const absenceCount = 0; // TODO: Calculate based on working days vs attendance
-    const earlyLeaveCount = logs.filter(log => log.isEarlyLeave === true).length;
+    // Calculate statistics (group by local day, based on timestamp + IN/OUT)
+    const timeZone = 'Asia/Ho_Chi_Minh';
+    const dayKeyOf = (d) => new Date(d).toLocaleDateString('sv-SE', { timeZone }); // YYYY-MM-DD
+    const dayMap = new Map();
+
+    for (const log of logs) {
+      const key = dayKeyOf(log.timestamp);
+      if (!dayMap.has(key)) {
+        dayMap.set(key, { dateKey: key, checkIn: null, checkOut: null, logs: [] });
+      }
+      const day = dayMap.get(key);
+      day.logs.push(log);
+
+      if (log.type === 'IN') {
+        if (!day.checkIn || new Date(log.timestamp) < new Date(day.checkIn.timestamp)) {
+          day.checkIn = log;
+        }
+      } else if (log.type === 'OUT') {
+        if (!day.checkOut || new Date(log.timestamp) > new Date(day.checkOut.timestamp)) {
+          day.checkOut = log;
+        }
+      }
+    }
+
+    const daily = Array.from(dayMap.values()).sort((a, b) => a.dateKey.localeCompare(b.dateKey)); // oldest -> newest
+    const daysWorked = daily.filter(d => !!d.checkIn).length;
+    const lateCount = daily.filter(d => d.checkIn?.isLate === true).length;
+    const earlyLeaveCount = daily.filter(d => d.checkOut?.isEarlyLeave === true).length;
+    const totalDaysInMonth = new Date(targetYear, targetMonth, 0).getDate();
+    const absenceCount = Math.max(0, totalDaysInMonth - daysWorked);
 
     return res.json({
       status: "success",
       month: targetMonth,
       year: targetYear,
       statistics: {
-        totalDays: logs.length,
+        totalDays: totalDaysInMonth,
+        daysWorked,
         lateCount,
         absenceCount,
         earlyLeaveCount,
-        logs: logs.map(log => ({
+        recentAttendance: daily.slice(-31).map(d => ({
+          date: d.dateKey,
+          checkIn: d.checkIn ? d.checkIn.timestamp : null,
+          checkOut: d.checkOut ? d.checkOut.timestamp : null,
+          flags: {
+            isLate: d.checkIn?.isLate === true,
+            isEarlyLeave: d.checkOut?.isEarlyLeave === true,
+            isOvertime: (d.logs || []).some(l => l.isOvertime === true)
+          }
+        })),
+        rawLogs: logs.map(log => ({
           id: log.id,
           timestamp: log.timestamp,
           type: log.type,
           isLate: log.isLate,
-          isEarlyLeave: log.isEarlyLeave
+          isEarlyLeave: log.isEarlyLeave,
+          isOvertime: log.isOvertime
         }))
       }
     });
@@ -799,11 +837,11 @@ export const getEmployeeDetailedInfo = async (req, res) => {
     const attendanceLogs = await AttendanceLog.findAll({
       where: {
         userId: id,
-        createdAt: {
+        timestamp: {
           [Op.between]: [startDate, endDate]
         }
       },
-      order: [['createdAt', 'DESC']],
+      order: [['timestamp', 'DESC']],
       limit: 100
     });
 
@@ -825,10 +863,36 @@ export const getEmployeeDetailedInfo = async (req, res) => {
       limit: 12
     });
 
-    // Calculate attendance statistics
-    const workingDaysCount = attendanceLogs.length;
-    const lateCount = attendanceLogs.filter(log => log.isLate === true).length;
-    const earlyLeaveCount = attendanceLogs.filter(log => log.isEarlyLeave === true).length;
+    // Calculate attendance statistics (group by local day, based on timestamp + IN/OUT)
+    const timeZone = 'Asia/Ho_Chi_Minh';
+    const dayKeyOf = (d) => new Date(d).toLocaleDateString('sv-SE', { timeZone }); // YYYY-MM-DD
+    const dayMap = new Map();
+
+    for (const log of attendanceLogs) {
+      const key = dayKeyOf(log.timestamp);
+      if (!dayMap.has(key)) {
+        dayMap.set(key, { dateKey: key, checkIn: null, checkOut: null, logs: [] });
+      }
+      const day = dayMap.get(key);
+      day.logs.push(log);
+
+      if (log.type === 'IN') {
+        if (!day.checkIn || new Date(log.timestamp) < new Date(day.checkIn.timestamp)) {
+          day.checkIn = log;
+        }
+      } else if (log.type === 'OUT') {
+        if (!day.checkOut || new Date(log.timestamp) > new Date(day.checkOut.timestamp)) {
+          day.checkOut = log;
+        }
+      }
+    }
+
+    const daily = Array.from(dayMap.values()).sort((a, b) => b.dateKey.localeCompare(a.dateKey)); // newest -> oldest
+    const workingDaysCount = daily.filter(d => !!d.checkIn).length;
+    const lateCount = daily.filter(d => d.checkIn?.isLate === true).length;
+    const earlyLeaveCount = daily.filter(d => d.checkOut?.isEarlyLeave === true).length;
+    const totalDaysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+    const absentDaysCount = Math.max(0, totalDaysInMonth - workingDaysCount);
 
     return res.json({
       status: "success",
@@ -886,16 +950,24 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         emergencyContactPhone: employee.emergencyContactPhone,
         password: employee.password, // Include password for admin viewing
         attendanceStats: {
+          month: currentMonth,
+          year: currentYear,
+          totalDays: totalDaysInMonth,
           totalDaysWorked: workingDaysCount,
           totalLate: lateCount,
-          totalAbsent: 0,
+          totalAbsent: absentDaysCount,
           totalEarlyLeave: earlyLeaveCount
         },
-        recentAttendance: attendanceLogs.map(log => ({
-          date: new Date(log.createdAt).toLocaleDateString('vi-VN'),
-          checkIn: log.createdAt ? new Date(log.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null,
-          checkOut: log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null,
-          status: log.isLate ? 'Muộn' : log.isEarlyLeave ? 'Về sớm' : 'Bình thường'
+        recentAttendance: daily.slice(0, 31).map(d => ({
+          date: d.dateKey, // YYYY-MM-DD
+          checkIn: d.checkIn ? d.checkIn.timestamp : null,
+          checkOut: d.checkOut ? d.checkOut.timestamp : null,
+          flags: {
+            isLate: d.checkIn?.isLate === true,
+            isEarlyLeave: d.checkOut?.isEarlyLeave === true,
+            isOvertime: (d.logs || []).some(l => l.isOvertime === true)
+          },
+          status: d.checkIn?.isLate ? 'Muộn' : d.checkOut?.isEarlyLeave ? 'Về sớm' : 'Bình thường'
         })),
         leaveHistory: leaveRequests.map(leave => ({
           id: leave.id,

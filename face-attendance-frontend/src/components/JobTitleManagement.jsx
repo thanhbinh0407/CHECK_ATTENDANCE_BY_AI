@@ -50,6 +50,7 @@ const CancelIcon = ({ size = 18 }) => (
 
 export default function JobTitleManagement() {
   const [jobTitles, setJobTitles] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -86,9 +87,27 @@ export default function JobTitleManagement() {
     }
   }, [apiBase]);
 
+  const fetchDepartments = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/departments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDepartments(data.departments || []);
+      } else {
+        console.error("Error loading departments:", data.message);
+      }
+    } catch (err) {
+      console.error("Error connecting to server for departments:", err);
+    }
+  }, [apiBase]);
+
   useEffect(() => {
     fetchJobTitles();
-  }, [fetchJobTitles]);
+    fetchDepartments();
+  }, [fetchJobTitles, fetchDepartments]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -416,12 +435,10 @@ export default function JobTitleManagement() {
                   }}>
                     Job Title Code *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     required
                     value={formData.code}
                     onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    placeholder="e.g., DEV, MGR, HR"
                     style={{
                       width: "100%",
                       padding: `${theme.spacing.md} ${theme.spacing.lg}`,
@@ -442,7 +459,18 @@ export default function JobTitleManagement() {
                       e.currentTarget.style.boxShadow = "none";
                       e.currentTarget.style.backgroundColor = theme.neutral.gray50;
                     }}
-                  />
+                  >
+                    <option value="">
+                      {departments.length === 0
+                        ? "No departments available"
+                        : "Select department code"}
+                    </option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.code}>
+                        {dept.code} - {dept.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label style={{ 

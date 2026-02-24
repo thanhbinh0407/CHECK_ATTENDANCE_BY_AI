@@ -706,100 +706,113 @@ export default function EmployeeDetailView() {
                     <div style={{ borderTop: `1px solid ${theme.neutral.gray200}`, paddingTop: theme.spacing.xl, marginTop: theme.spacing.xl }}>
                       <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>👨‍👩‍👧‍👦 Người Phụ Thuộc</h3>
 
-                      {selectedEmployeeForModal.Dependents && selectedEmployeeForModal.Dependents.length > 0 ? (
-                        <div>
-                          <div style={{ marginBottom: theme.spacing.lg, padding: theme.spacing.md, backgroundColor: theme.info.bg, borderRadius: theme.radius.md }}>
-                            <strong>Tổng cộng: {selectedEmployeeForModal.Dependents.length} người</strong>
-                          </div>
+                      {(() => {
+                        const dependents = selectedEmployeeForModal.Dependents || selectedEmployeeForModal.dependents || [];
+                        if (!dependents || dependents.length === 0) {
+                          return (
+                            <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>Chưa có người phụ thuộc</p>
+                          );
+                        }
+                        return (
+                          <div>
+                            <div style={{ marginBottom: theme.spacing.lg, padding: theme.spacing.md, backgroundColor: theme.info.bg, borderRadius: theme.radius.md }}>
+                              <strong>Tổng cộng: {dependents.length} người</strong>
+                            </div>
 
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.lg }}>
-                            {selectedEmployeeForModal.Dependents.map((dep, idx) => (
-                              <div
-                                key={idx}
-                                style={{
-                                  padding: theme.spacing.md,
-                                  backgroundColor: theme.neutral.gray50,
-                                  borderLeft: `3px solid ${theme.info.main}`,
-                                  borderRadius: theme.radius.md
-                                }}
-                              >
-                                <div style={{ fontWeight: "600", marginBottom: theme.spacing.xs }}>{dep.fullName}</div>
-                                <div style={{ fontSize: theme.typography.small.fontSize, color: theme.neutral.gray600 }}>
-                                  <div>Quan hệ: {dep.relationship}</div>
-                                  <div>Ngày sinh: {dep.dateOfBirth ? new Date(dep.dateOfBirth).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}</div>
-                                  {dep.gender && <div>Giới tính: {dep.gender}</div>}
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.lg }}>
+                              {dependents.map((dep, idx) => (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    padding: theme.spacing.md,
+                                    backgroundColor: theme.neutral.gray50,
+                                    borderLeft: `3px solid ${theme.info.main}`,
+                                    borderRadius: theme.radius.md
+                                  }}
+                                >
+                                  <div style={{ fontWeight: "600", marginBottom: theme.spacing.xs }}>{dep.fullName}</div>
+                                  <div style={{ fontSize: theme.typography.small.fontSize, color: theme.neutral.gray600 }}>
+                                    <div>Quan hệ: {dep.relationship}</div>
+                                    <div>Ngày sinh: {dep.dateOfBirth ? new Date(dep.dateOfBirth).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}</div>
+                                    {dep.gender && <div>Giới tính: {dep.gender}</div>}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>Chưa có người phụ thuộc</p>
-                      )}
+                        );
+                      })()}
                     </div>
 
                     <div style={{ borderTop: `1px solid ${theme.neutral.gray200}`, paddingTop: theme.spacing.xl, marginTop: theme.spacing.xl }}>
                       <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>📜 Bằng Cấp & Chứng Chỉ</h3>
 
-                      {selectedEmployeeForModal.Qualifications && selectedEmployeeForModal.Qualifications.length > 0 ? (
-                        <div>
-                          <div style={{ marginBottom: theme.spacing.lg, padding: theme.spacing.md, backgroundColor: theme.info.bg, borderRadius: theme.radius.md }}>
-                            <strong>Tổng cộng: {selectedEmployeeForModal.Qualifications.length} bằng cấp</strong>
-                          </div>
+                      {(() => {
+                        const qualifications = selectedEmployeeForModal.Qualifications || selectedEmployeeForModal.qualifications || [];
+                        if (!qualifications || qualifications.length === 0) {
+                          return (
+                            <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>Chưa có bằng cấp hoặc chứng chỉ</p>
+                          );
+                        }
 
-                          {(() => {
-                            const grouped = {};
-                            selectedEmployeeForModal.Qualifications.forEach(q => {
-                              if (!grouped[q.type]) grouped[q.type] = [];
-                              grouped[q.type].push(q);
-                            });
-                            return Object.entries(grouped).map(([type, quals]) => (
-                              <div key={type} style={{ marginBottom: theme.spacing.lg }}>
-                                <div style={{
-                                  fontWeight: "600",
-                                  color: theme.primary.main,
-                                  padding: theme.spacing.md,
-                                  backgroundColor: theme.info.bg,
-                                  borderRadius: theme.radius.md,
-                                  marginBottom: theme.spacing.md
-                                }}>
-                                  {type === 'degree' && '🎓 Bằng Cấp'}
-                                  {type === 'certificate' && '🏅 Chứng Chỉ'}
-                                  {type === 'license' && '📋 Giấy Phép'}
-                                  {type === 'training' && '📚 Huấn Luyện'}
-                                  <span style={{ marginLeft: theme.spacing.sm, color: theme.neutral.gray600, fontWeight: "400" }}>({quals.length})</span>
+                        return (
+                          <div>
+                            <div style={{ marginBottom: theme.spacing.lg, padding: theme.spacing.md, backgroundColor: theme.info.bg, borderRadius: theme.radius.md }}>
+                              <strong>Tổng cộng: {qualifications.length} bằng cấp</strong>
+                            </div>
+
+                            {(() => {
+                              const grouped = {};
+                              qualifications.forEach(q => {
+                                if (!grouped[q.type]) grouped[q.type] = [];
+                                grouped[q.type].push(q);
+                              });
+                              return Object.entries(grouped).map(([type, quals]) => (
+                                <div key={type} style={{ marginBottom: theme.spacing.lg }}>
+                                  <div style={{
+                                    fontWeight: "600",
+                                    color: theme.primary.main,
+                                    padding: theme.spacing.md,
+                                    backgroundColor: theme.info.bg,
+                                    borderRadius: theme.radius.md,
+                                    marginBottom: theme.spacing.md
+                                  }}>
+                                    {type === 'degree' && '🎓 Bằng Cấp'}
+                                    {type === 'certificate' && '🏅 Chứng Chỉ'}
+                                    {type === 'license' && '📋 Giấy Phép'}
+                                    {type === 'training' && '📚 Huấn Luyện'}
+                                    <span style={{ marginLeft: theme.spacing.sm, color: theme.neutral.gray600, fontWeight: "400" }}>({quals.length})</span>
+                                  </div>
+                                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
+                                    {quals.map((qual, idx) => (
+                                      <div
+                                        key={idx}
+                                        style={{
+                                          padding: theme.spacing.md,
+                                          backgroundColor: theme.neutral.gray50,
+                                          borderLeft: `3px solid ${theme.info.main}`,
+                                          borderRadius: theme.radius.md,
+                                          fontSize: theme.typography.small.fontSize
+                                        }}
+                                      >
+                                        <div style={{ fontWeight: "600", marginBottom: theme.spacing.xs }}>{qual.name}</div>
+                                        {qual.issuedBy && (
+                                          <div style={{ color: theme.neutral.gray600, fontSize: theme.typography.tiny.fontSize }}>Cơ quan: {qual.issuedBy}</div>
+                                        )}
+                                        {qual.issuedDate && (
+                                          <div style={{ color: theme.neutral.gray600, fontSize: theme.typography.tiny.fontSize }}>
+                                            Cấp ngày: {new Date(qual.issuedDate).toLocaleDateString('vi-VN')}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
-                                  {quals.map((qual, idx) => (
-                                    <div
-                                      key={idx}
-                                      style={{
-                                        padding: theme.spacing.md,
-                                        backgroundColor: theme.neutral.gray50,
-                                        borderLeft: `3px solid ${theme.info.main}`,
-                                        borderRadius: theme.radius.md,
-                                        fontSize: theme.typography.small.fontSize
-                                      }}
-                                    >
-                                      <div style={{ fontWeight: "600", marginBottom: theme.spacing.xs }}>{qual.name}</div>
-                                      {qual.issuedBy && (
-                                        <div style={{ color: theme.neutral.gray600, fontSize: theme.typography.tiny.fontSize }}>Cơ quan: {qual.issuedBy}</div>
-                                      )}
-                                      {qual.issuedDate && (
-                                        <div style={{ color: theme.neutral.gray600, fontSize: theme.typography.tiny.fontSize }}>
-                                          Cấp ngày: {new Date(qual.issuedDate).toLocaleDateString('vi-VN')}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ));
-                          })()}
-                        </div>
-                      ) : (
-                        <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>Chưa có bằng cấp hoặc chứng chỉ</p>
-                      )}
+                              ));
+                            })()}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <div style={{ borderTop: `1px solid ${theme.neutral.gray200}`, paddingTop: theme.spacing.xl, marginTop: theme.spacing.xl }}>
