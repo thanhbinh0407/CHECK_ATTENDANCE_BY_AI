@@ -812,7 +812,24 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         { model: JobTitle, attributes: ['id', 'name'] },
         { model: SalaryGrade, attributes: ['id', 'name', 'baseSalary'] },
         { model: User, as: 'Manager', attributes: ['id', 'name', 'employeeCode', 'email'] },
-        { model: Dependent, as: 'Dependents', attributes: ['id', 'fullName', 'relationship', 'dateOfBirth', 'gender', 'idNumber', 'phoneNumber', 'email', 'occupation', 'approvalStatus'] },
+        // Family / Dependents - include address so frontend can display it
+        { 
+          model: Dependent, 
+          as: 'Dependents', 
+          attributes: [
+            'id',
+            'fullName',
+            'relationship',
+            'dateOfBirth',
+            'gender',
+            'idNumber',
+            'address',
+            'phoneNumber',
+            'email',
+            'occupation',
+            'approvalStatus'
+          ] 
+        },
         { model: Qualification, as: 'Qualifications', attributes: ['id', 'type', 'name', 'issuedBy', 'issuedDate', 'expiryDate', 'certificateNumber', 'documentPath', 'description', 'approvalStatus'] },
         { model: WorkExperience, as: 'WorkExperiences', attributes: ['id', 'companyName', 'position', 'startDate', 'endDate', 'description', 'responsibilities', 'achievements', 'isCurrent'], order: [['startDate', 'DESC']] }
       ]
@@ -830,6 +847,22 @@ export const getEmployeeDetailedInfo = async (req, res) => {
     const currentDate = new Date();
     const currentMonth = currentDate.getMonth() + 1;
     const currentYear = currentDate.getFullYear();
+
+    // Helper: split free-form address into hamlet / commune / province for frontend forms
+    // Examples:
+    //  - "Ấp 1 - Cái Bè - Tiền Giang"
+    //  - "Ấp 1, Cái Bè, Tiền Giang"
+    const parseAddressParts = (address) => {
+      if (!address) return { hamlet: "", commune: "", province: "" };
+      let parts = address.split("-").map(s => s.trim()).filter(Boolean);
+      if (parts.length < 3) {
+        parts = address.split(",").map(s => s.trim()).filter(Boolean);
+      }
+      const hamlet = parts[0] || "";
+      const commune = parts[1] || "";
+      const province = parts[2] || "";
+      return { hamlet, commune, province };
+    };
 
     const startDate = new Date(currentYear, currentMonth - 1, 1);
     const endDate = new Date(currentYear, currentMonth, 0, 23, 59, 59);
@@ -894,6 +927,11 @@ export const getEmployeeDetailedInfo = async (req, res) => {
     const totalDaysInMonth = new Date(currentYear, currentMonth, 0).getDate();
     const absentDaysCount = Math.max(0, totalDaysInMonth - workingDaysCount);
 
+    // Derive hamlet / commune / province from employee address (used by TK1-TS Appendix on frontend)
+    const addressSource =
+      employee.address || employee.permanentAddress || employee.temporaryAddress || "";
+    const addressParts = parseAddressParts(addressSource);
+
     return res.json({
       status: "success",
       employee: {
@@ -905,6 +943,9 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         address: employee.address,
         permanentAddress: employee.permanentAddress,
         temporaryAddress: employee.temporaryAddress,
+        addressHamlet: addressParts.hamlet,
+        addressCommune: addressParts.commune,
+        addressProvince: addressParts.province,
         dateOfBirth: employee.dateOfBirth,
         gender: employee.gender,
         idNumber: employee.idNumber,
@@ -1006,13 +1047,19 @@ export const getEmployeeDetailedInfo = async (req, res) => {
               email: dep.email
             }))
           : [],
-        qualifications: employee.Qualifications ? employee.Qualifications.map(qual => ({
-          id: qual.id,
-          type: qual.type,
-          name: qual.name,
-          issuedBy: qual.issuedBy,
-          issuedDate: qual.issuedDate
-        })) : [],
+        // Qualifications / Certificates for frontend (Qualifications tab)
+        qualifications: employee.Qualifications
+          ? employee.Qualifications.map(qual => ({
+              id: qual.id,
+              type: qual.type,
+              name: qual.name,
+              issuedBy: qual.issuedBy,
+              issuedDate: qual.issuedDate,
+              expiryDate: qual.expiryDate,
+              certificateNumber: qual.certificateNumber,
+              description: qual.description
+            }))
+          : [],
         WorkExperiences: employee.WorkExperiences || []
       }
     });
