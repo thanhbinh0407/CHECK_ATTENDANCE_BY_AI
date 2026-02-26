@@ -6,7 +6,7 @@ import User from '../models/pg/User.js';
  */
 export const saveInsuranceForm = async (req, res) => {
   try {
-    const { userId, formType, formData } = req.body;
+    const { userId, formType, formData, companyInfo, employeeList } = req.body;
 
     if (!userId || !formType || !formData) {
       return res.status(400).json({
@@ -38,6 +38,8 @@ export const saveInsuranceForm = async (req, res) => {
         userId,
         formType,
         formData,
+        companyInfo: companyInfo || null,
+        employeeList: employeeList || null,
         version: 1
       }
     });
@@ -45,6 +47,12 @@ export const saveInsuranceForm = async (req, res) => {
     if (!created) {
       // Cập nhật form hiện có
       form.formData = formData;
+      if (companyInfo !== undefined) {
+        form.companyInfo = companyInfo;
+      }
+      if (employeeList !== undefined) {
+        form.employeeList = employeeList;
+      }
       form.version += 1;
       await form.save();
     }
@@ -56,6 +64,9 @@ export const saveInsuranceForm = async (req, res) => {
         id: form.id,
         userId: form.userId,
         formType: form.formType,
+        formData: form.formData,
+        companyInfo: form.companyInfo,
+        employeeList: form.employeeList,
         version: form.version,
         updatedAt: form.updatedAt
       }
@@ -113,6 +124,8 @@ export const getInsuranceForm = async (req, res) => {
         userId: form.userId,
         formType: form.formType,
         formData: form.formData,
+        companyInfo: form.companyInfo,
+        employeeList: form.employeeList,
         version: form.version,
         createdAt: form.createdAt,
         updatedAt: form.updatedAt,
