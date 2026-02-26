@@ -251,9 +251,13 @@ export default function InsuranceFormTK1TS() {
       const data = await res.json();
       if (res.ok) {
         const emp = data.employee;
+        // Family / Dependents from backend (can be 'Dependents' or 'dependents')
         const dependents = emp?.Dependents || emp?.dependents || [];
         const householdHeadFromFamily = dependents && dependents.length > 0
           ? (dependents[0].fullName || dependents[0].name || "")
+          : "";
+        const householdHeadPhoneFromFamily = dependents && dependents.length > 0
+          ? (dependents[0].phoneNumber || "")
           : "";
 
         // Parse address
@@ -315,8 +319,9 @@ export default function InsuranceFormTK1TS() {
           socialInsuranceNumber: emp.socialInsuranceNumber || "",
           changeContent: "",
           attachedDocuments: "",
+          // Household head info pre-filled from first Dependent (Family tab)
           householdHeadName: householdHeadFromFamily,
-          householdHeadPhone: "",
+          householdHeadPhone: householdHeadPhoneFromFamily,
           householdAddressCountry: "VN",
           householdAddressCountryName: "Vietnam",
           householdAddressWard: "",
