@@ -81,7 +81,7 @@ export default function InsuranceFormD02LT() {
             }
           }
 
-          setMessage("Đã tải dữ liệu báo cáo D02-LT đã lưu");
+          setMessage("Loaded saved D02-LT report.");
         }
       } catch (err) {
         console.error("Error loading saved D02-LT report:", err);
@@ -105,7 +105,7 @@ export default function InsuranceFormD02LT() {
       const token = localStorage.getItem("authToken");
       
       if (!token) {
-        setMessage("Lỗi: Không tìm thấy token xác thực. Vui lòng đăng nhập lại.");
+        setMessage("Error: Auth token not found. Please sign in again.");
         return;
       }
 
@@ -118,14 +118,14 @@ export default function InsuranceFormD02LT() {
 
       if (!res.ok) {
         if (res.status === 401) {
-          setMessage("Lỗi xác thực: Token không hợp lệ. Vui lòng đăng nhập lại.");
+          setMessage("Authentication error: Invalid token. Please sign in again.");
           setTimeout(() => {
             window.location.href = "http://localhost:3000/";
           }, 2000);
           return;
         }
         const errorData = await res.json().catch(() => ({ message: "Unknown error" }));
-        setMessage(`Lỗi khi tải danh sách nhân viên: ${errorData.message || res.statusText}`);
+        setMessage(`Failed to load employee list: ${errorData.message || res.statusText}`);
         return;
       }
 
@@ -139,13 +139,13 @@ export default function InsuranceFormD02LT() {
         generateEmployeeList(activeEmployees);
         setMessage("");
       } else {
-        setMessage("Lỗi: Dữ liệu nhân viên không hợp lệ.");
+        setMessage("Error: Invalid employee data.");
         setEmployees([]);
         setEmployeeList([]);
       }
     } catch (err) {
       console.error("Error fetching employees:", err);
-      setMessage(`Lỗi khi tải danh sách nhân viên: ${err.message || "Lỗi kết nối"}`);
+      setMessage(`Failed to load employee list: ${err.message || "Connection error"}`);
       setEmployees([]);
       setEmployeeList([]);
     } finally {
@@ -273,7 +273,7 @@ export default function InsuranceFormD02LT() {
               name: emp.name || "",
               socialInsuranceNumber: emp.socialInsuranceNumber || "",
               dateOfBirth: dobStr,
-              gender: emp.gender === "male" ? "Nam" : emp.gender === "female" ? "Nữ" : "",
+              gender: emp.gender === "male" ? "Male" : emp.gender === "female" ? "Female" : "",
               idNumber: emp.idNumber || "",
               position: `${emp.JobTitle?.name || emp.jobTitle || ""} ${emp.Department?.name || emp.department || ""}`.trim() || "-",
               positionCategory,
@@ -284,9 +284,9 @@ export default function InsuranceFormD02LT() {
               seniorityJob: "", // Thâm niên nghề (%)
               salaryAllowance: "", // Phụ cấp lương
               otherAllowances: [
-                emp.lunchAllowance ? `Ăn trưa: ${formatNumber(emp.lunchAllowance)}` : "",
-                emp.transportAllowance ? `Đi lại: ${formatNumber(emp.transportAllowance)}` : "",
-                emp.phoneAllowance ? `Điện thoại: ${formatNumber(emp.phoneAllowance)}` : ""
+                emp.lunchAllowance ? `Lunch: ${formatNumber(emp.lunchAllowance)}` : "",
+                emp.transportAllowance ? `Transport: ${formatNumber(emp.transportAllowance)}` : "",
+                emp.phoneAllowance ? `Phone: ${formatNumber(emp.phoneAllowance)}` : ""
               ].filter(Boolean).join(", "),
               hazardousStartDate: "",
               hazardousEndDate: "",
@@ -297,8 +297,8 @@ export default function InsuranceFormD02LT() {
               insuranceStartDate,
               insuranceEndDate,
               note: [
-                emp.contractType ? `HĐLĐ: ${contractType}` : "",
-                emp.healthInsuranceProvider ? `KCB: ${emp.healthInsuranceProvider}` : ""
+                emp.contractType ? `Contract: ${contractType}` : "",
+                emp.healthInsuranceProvider ? `Clinic: ${emp.healthInsuranceProvider}` : ""
               ].filter(Boolean).join(" ") || ""
             };
           } catch (error) {
@@ -329,7 +329,7 @@ export default function InsuranceFormD02LT() {
               contractOtherEnd: "",
               insuranceStartDate: "",
               insuranceEndDate: "",
-              note: "Lỗi xử lý dữ liệu"
+              note: "Data processing error"
             };
           }
         });
@@ -337,7 +337,7 @@ export default function InsuranceFormD02LT() {
       setEmployeeList(list);
     } catch (error) {
       console.error("Error generating employee list:", error);
-      setMessage(`Lỗi khi xử lý danh sách nhân viên: ${error.message}`);
+      setMessage(`Failed to process employee list: ${error.message}`);
       setEmployeeList([]);
     }
   };
@@ -383,23 +383,23 @@ export default function InsuranceFormD02LT() {
       const userStr = localStorage.getItem("user");
 
       if (!token || !userStr) {
-        setMessage("Lỗi: Không tìm thấy thông tin đăng nhập. Vui lòng đăng nhập lại.");
+        setMessage("Error: Login information not found. Please sign in again.");
         return;
       }
 
       const currentUser = JSON.parse(userStr);
       if (!currentUser?.id) {
-        setMessage("Lỗi: Không xác định được người dùng hiện tại.");
+        setMessage("Error: Unable to determine current user.");
         return;
       }
 
       if (employeeList.length === 0) {
-        setMessage("Lỗi: Chưa có dữ liệu nhân viên để lưu báo cáo.");
+        setMessage("Error: No employee data to save the report.");
         return;
       }
 
       setIsSaving(true);
-      setMessage("Đang lưu báo cáo D02-LT...");
+      setMessage("Saving D02-LT report...");
 
       const res = await fetch(`${apiBase}/api/insurance-forms/save`, {
         method: "POST",
@@ -421,13 +421,13 @@ export default function InsuranceFormD02LT() {
 
       const data = await res.json();
       if (res.ok && data.status === "success") {
-        setMessage("✅ Đã lưu báo cáo D02-LT thành công!");
+        setMessage("✅ D02-LT report saved successfully!");
       } else {
-        setMessage("❌ Lỗi khi lưu báo cáo D02-LT: " + (data.message || "Unknown error"));
+        setMessage("❌ Failed to save D02-LT report: " + (data.message || "Unknown error"));
       }
     } catch (err) {
       console.error("Error saving D02-LT report:", err);
-      setMessage("❌ Lỗi khi lưu báo cáo D02-LT: " + err.message);
+      setMessage("❌ Failed to save D02-LT report: " + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -436,7 +436,7 @@ export default function InsuranceFormD02LT() {
   const exportToPDF = async () => {
     try {
       setLoading(true);
-      setMessage("Đang tạo PDF...");
+      setMessage("Generating PDF...");
 
       const printDiv = document.createElement('div');
       printDiv.style.position = 'absolute';
@@ -451,23 +451,23 @@ export default function InsuranceFormD02LT() {
       let htmlContent = `
         <div style="margin-bottom: 15px;">
           <div style="text-align: center; font-size: 10pt; margin-bottom: 10px;">
-            <strong>Mẫu D02-LT</strong><br/>
-            (Ban hành kèm theo Quyết định số 1040/QĐ-BHXH ngày 18/8/2020 của BHXH Việt Nam)
+            <strong>Form D02-LT</strong><br/>
+            (Issued with Decision No. 1040/QĐ-BHXH dated 18/08/2020 of Vietnam Social Security)
           </div>
           <div style="margin-bottom: 15px;">
-            <div><strong>TÊN ĐƠN VỊ SỬ DỤNG LAO ĐỘNG:</strong> ${companyInfo.name || "_________________"}</div>
-            <div>Số: ${companyInfo.reportNumber || "_____"} /………</div>
-            <div>Mã đơn vị: ${companyInfo.code || "_____"}; Mã số thuế: ${companyInfo.taxCode || "_____"}</div>
-            <div>Địa chỉ: ${companyInfo.address || "_____"}</div>
-            <div>Điện thoại: ${companyInfo.phone || "_____"}; Email: ${companyInfo.email || "_____"}</div>
+            <div><strong>EMPLOYER NAME:</strong> ${companyInfo.name || "_________________"}</div>
+            <div>No.: ${companyInfo.reportNumber || "_____"} /………</div>
+            <div>Unit code: ${companyInfo.code || "_____"}; Tax code: ${companyInfo.taxCode || "_____"}</div>
+            <div>Address: ${companyInfo.address || "_____"}</div>
+            <div>Phone: ${companyInfo.phone || "_____"}; Email: ${companyInfo.email || "_____"}</div>
           </div>
           <div style="text-align: center; margin-bottom: 15px;">
-            <div style="font-size: 11pt; font-weight: bold;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
-            <div style="font-size: 11pt; font-weight: bold;">Độc lập - Tự do - Hạnh phúc</div>
-            <div style="margin-top: 10px;">…., ngày … tháng … năm …</div>
+            <div style="font-size: 11pt; font-weight: bold;">SOCIALIST REPUBLIC OF VIETNAM</div>
+            <div style="font-size: 11pt; font-weight: bold;">Independence - Freedom - Happiness</div>
+            <div style="margin-top: 10px;">…., … / … / …</div>
           </div>
           <div style="text-align: center; font-size: 11pt; font-weight: bold; margin-bottom: 15px;">
-            BÁO CÁO TÌNH HÌNH SỬ DỤNG LAO ĐỘNG VÀ DANH SÁCH THAM GIA BHXH, BHYT, BHTN
+            EMPLOYMENT STATUS REPORT AND LIST OF PARTICIPATION IN SI, HI, UI
           </div>
         </div>
       `;
@@ -477,33 +477,33 @@ export default function InsuranceFormD02LT() {
         <table style="width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 20px;">
           <thead>
             <tr style="background-color: #f0f0f0;">
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">STT</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 6%;">Họ và tên</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 4%;">Mã số BHXH</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 3%;">Ngày sinh</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Giới tính</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 4%;">Số CCCD/CMND</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 5%;">Cấp bậc, chức vụ</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Nhà quản lý</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">CMKT bậc cao</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">CMKT bậc trung</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Khác</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 3%;">Tiền lương</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Phụ cấp CV</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Thâm niên VK (%)</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Thâm niên nghề (%)</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Phụ cấp lương</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 3%;">Các khoản bổ sung</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Ngày bắt đầu N/N</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Ngày kết thúc N/N</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Ngày bắt đầu HĐ không xác định</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Ngày bắt đầu HĐ xác định</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Ngày kết thúc HĐ xác định</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Ngày bắt đầu HĐ khác</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Ngày kết thúc HĐ khác</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Thời điểm bắt đầu đóng BHXH</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Thời điểm kết thúc đóng BHXH</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 4%;">Ghi chú</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">No.</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 6%;">Full name</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 4%;">Social Insurance No.</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 3%;">Date of birth</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Gender</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 4%;">Citizen ID/ID</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 5%;">Position/Title</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Manager</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">High-skilled</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Mid-skilled</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Other</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 3%;">Salary</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Position allowance</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Seniority VK (%)</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Job seniority (%)</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Salary allowance</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 3%;">Other allowances</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Hazard start</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Hazard end</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Indefinite contract start</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Fixed-term contract start</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Fixed-term contract end</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Other contract start</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Other contract end</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">SI start</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">SI end</th>
+              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 4%;">Notes</th>
             </tr>
           </thead>
           <tbody>
@@ -545,13 +545,13 @@ export default function InsuranceFormD02LT() {
 
       htmlContent += `
             <tr>
-              <td colspan="27" style="border: 1px solid #000; padding: 4px; text-align: center; font-weight: bold;">Tổng: ${employeeList.length}</td>
+              <td colspan="27" style="border: 1px solid #000; padding: 4px; text-align: center; font-weight: bold;">Total: ${employeeList.length}</td>
             </tr>
           </tbody>
         </table>
         <div style="margin-top: 30px; text-align: right;">
-          <div style="margin-bottom: 20px;"><strong>ĐẠI DIỆN ĐƠN VỊ SỬ DỤNG LAO ĐỘNG</strong></div>
-          <div>(Ký, ghi rõ họ tên, đóng dấu)</div>
+          <div style="margin-bottom: 20px;"><strong>EMPLOYER REPRESENTATIVE</strong></div>
+          <div>(Signature, full name, and seal)</div>
         </div>
       `;
 
@@ -588,10 +588,10 @@ export default function InsuranceFormD02LT() {
 
       const filename = `D02-LT-${companyInfo.name.replace(/\s+/g, "-")}-${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(filename);
-      setMessage("Đã xuất PDF thành công!");
+      setMessage("PDF exported successfully!");
     } catch (error) {
       console.error("Error generating PDF:", error);
-      setMessage("Lỗi khi xuất PDF: " + error.message);
+      setMessage("Failed to export PDF: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -600,7 +600,7 @@ export default function InsuranceFormD02LT() {
   const exportToWord = async () => {
     try {
       setLoadingWord(true);
-      setMessage("Đang tạo file Word...");
+      setMessage("Generating Word file...");
 
       const children = [];
 
@@ -609,7 +609,7 @@ export default function InsuranceFormD02LT() {
         new Paragraph({
           children: [
             new TextRun({
-              text: "Mẫu D02-LT",
+              text: "Form D02-LT",
               bold: true
             })
           ],
@@ -619,7 +619,7 @@ export default function InsuranceFormD02LT() {
         new Paragraph({
           children: [
             new TextRun({
-              text: "(Ban hành kèm theo Quyết định số 1040/QĐ-BHXH ngày 18/8/2020 của BHXH Việt Nam)",
+              text: "(Issued with Decision No. 1040/QĐ-BHXH dated 18/08/2020 of Vietnam Social Security)",
               italics: true
             })
           ],
@@ -628,33 +628,33 @@ export default function InsuranceFormD02LT() {
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: "TÊN ĐƠN VỊ SỬ DỤNG LAO ĐỘNG: ", bold: true }),
+            new TextRun({ text: "EMPLOYER NAME: ", bold: true }),
             new TextRun({ text: companyInfo.name || "_________________" })
           ],
           spacing: { after: 150 }
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: `Số: ${companyInfo.reportNumber || "_____"} /………` })
+            new TextRun({ text: `No.: ${companyInfo.reportNumber || "_____"} /………` })
           ],
           spacing: { after: 150 }
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: `Mã đơn vị: ${companyInfo.code || "_____"}; ` }),
-            new TextRun({ text: `Mã số thuế: ${companyInfo.taxCode || "_____"}` })
+            new TextRun({ text: `Unit code: ${companyInfo.code || "_____"}; ` }),
+            new TextRun({ text: `Tax code: ${companyInfo.taxCode || "_____"}` })
           ],
           spacing: { after: 150 }
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: `Địa chỉ: ${companyInfo.address || "_____"}` })
+            new TextRun({ text: `Address: ${companyInfo.address || "_____"}` })
           ],
           spacing: { after: 150 }
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: `Điện thoại: ${companyInfo.phone || "_____"}; ` }),
+            new TextRun({ text: `Phone: ${companyInfo.phone || "_____"}; ` }),
             new TextRun({ text: `Email: ${companyInfo.email || "_____"}` })
           ],
           spacing: { after: 300 }
@@ -662,7 +662,7 @@ export default function InsuranceFormD02LT() {
         new Paragraph({
           children: [
             new TextRun({
-              text: "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM",
+              text: "SOCIALIST REPUBLIC OF VIETNAM",
               bold: true
             })
           ],
@@ -672,7 +672,7 @@ export default function InsuranceFormD02LT() {
         new Paragraph({
           children: [
             new TextRun({
-              text: "Độc lập - Tự do - Hạnh phúc",
+              text: "Independence - Freedom - Happiness",
               bold: true
             })
           ],
@@ -681,7 +681,7 @@ export default function InsuranceFormD02LT() {
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: "…., ngày … tháng … năm …" })
+            new TextRun({ text: "…., … / … / …" })
           ],
           alignment: AlignmentType.CENTER,
           spacing: { after: 300 }
@@ -689,7 +689,7 @@ export default function InsuranceFormD02LT() {
         new Paragraph({
           children: [
             new TextRun({
-              text: "BÁO CÁO TÌNH HÌNH SỬ DỤNG LAO ĐỘNG VÀ DANH SÁCH THAM GIA BHXH, BHYT, BHTN",
+              text: "EMPLOYMENT STATUS REPORT AND LIST OF PARTICIPATION IN SI, HI, UI",
               bold: true
             })
           ],
@@ -702,33 +702,33 @@ export default function InsuranceFormD02LT() {
       const tableRows = [
         new TableRow({
           children: [
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "STT", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Họ và tên", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Mã số BHXH", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Ngày sinh", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Giới tính", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Số CCCD/CMND", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Cấp bậc, chức vụ", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Nhà quản lý", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "CMKT bậc cao", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "CMKT bậc trung", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Khác", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Tiền lương", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Phụ cấp CV", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Thâm niên VK", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Thâm niên nghề", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Phụ cấp lương", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Các khoản bổ sung", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Ngày bắt đầu N/N", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Ngày kết thúc N/N", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Ngày bắt đầu HĐ không xác định", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Ngày bắt đầu HĐ xác định", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Ngày kết thúc HĐ xác định", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Ngày bắt đầu HĐ khác", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Ngày kết thúc HĐ khác", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Thời điểm bắt đầu đóng BHXH", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Thời điểm kết thúc đóng BHXH", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Ghi chú", bold: true })] })] })
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "No.", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Full name", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Social Insurance No.", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Date of birth", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Gender", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Citizen ID/ID", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Position/Title", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Manager", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "High-skilled", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Mid-skilled", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Other", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Salary", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Position allowance", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Seniority VK", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Job seniority", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Salary allowance", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Other allowances", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Hazard start", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Hazard end", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Indefinite contract start", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Fixed-term contract start", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Fixed-term contract end", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Other contract start", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Other contract end", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "SI start", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "SI end", bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Notes", bold: true })] })] })
           ]
         })
       ];
@@ -774,7 +774,7 @@ export default function InsuranceFormD02LT() {
         new TableRow({
           children: [
             new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: `Tổng: ${employeeList.length}`, bold: true })] })],
+              children: [new Paragraph({ children: [new TextRun({ text: `Total: ${employeeList.length}`, bold: true })] })],
               columnSpan: 27
             })
           ]
@@ -788,14 +788,14 @@ export default function InsuranceFormD02LT() {
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: "ĐẠI DIỆN ĐƠN VỊ SỬ DỤNG LAO ĐỘNG", bold: true })
+            new TextRun({ text: "EMPLOYER REPRESENTATIVE", bold: true })
           ],
           alignment: AlignmentType.RIGHT,
           spacing: { before: 600, after: 200 }
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: "(Ký, ghi rõ họ tên, đóng dấu)" })
+            new TextRun({ text: "(Signature, full name, and seal)" })
           ],
           alignment: AlignmentType.RIGHT
         })
@@ -810,10 +810,10 @@ export default function InsuranceFormD02LT() {
       const blob = await Packer.toBlob(doc);
       const filename = `D02-LT-${companyInfo.name.replace(/\s+/g, "-")}-${new Date().toISOString().split('T')[0]}.docx`;
       saveAs(blob, filename);
-      setMessage("Đã xuất file Word thành công!");
+      setMessage("Word file exported successfully!");
     } catch (error) {
       console.error("Error generating Word document:", error);
-      setMessage("Lỗi khi xuất file Word: " + error.message);
+      setMessage("Failed to export Word file: " + error.message);
     } finally {
       setLoadingWord(false);
     }
@@ -865,84 +865,86 @@ export default function InsuranceFormD02LT() {
     marginRight: theme.spacing.md
   };
 
+  const isSuccessMessage = typeof message === "string" && message.trim().startsWith("✅");
+
   return (
     <div style={containerStyle}>
       <h2 style={{ marginBottom: theme.spacing.lg, color: theme.neutral.gray900 }}>
-        📊 Báo Cáo Tình Hình Sử Dụng Lao Động Và Danh Sách Tham Gia BHXH, BHYT, BHTN (Mẫu D02-LT)
+        📊 Employment Status & SI/HI/UI Participation Report (Form D02-LT)
       </h2>
 
       {/* Company Information */}
       <div style={formSectionStyle}>
         <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
-          Thông tin đơn vị sử dụng lao động
+          Employer information
         </h3>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
           <div>
-            <label style={labelStyle}>Tên đơn vị: *</label>
+            <label style={labelStyle}>Employer name: *</label>
             <input
               type="text"
               style={inputStyle}
               value={companyInfo.name}
               onChange={(e) => handleCompanyInfoChange("name", e.target.value)}
-              placeholder="Tên công ty/đơn vị"
+              placeholder="Company/organization name"
             />
           </div>
           <div>
-            <label style={labelStyle}>Mã đơn vị:</label>
+            <label style={labelStyle}>Unit code:</label>
             <input
               type="text"
               style={inputStyle}
               value={companyInfo.code}
               onChange={(e) => handleCompanyInfoChange("code", e.target.value)}
-              placeholder="Mã đơn vị do BHXH cấp"
+              placeholder="Unit code issued by VSS"
             />
           </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
           <div>
-            <label style={labelStyle}>Mã số thuế:</label>
+            <label style={labelStyle}>Tax code:</label>
             <input
               type="text"
               style={inputStyle}
               value={companyInfo.taxCode}
               onChange={(e) => handleCompanyInfoChange("taxCode", e.target.value)}
-              placeholder="Mã số thuế"
+              placeholder="Tax code"
             />
           </div>
           <div>
-            <label style={labelStyle}>Số báo cáo:</label>
+            <label style={labelStyle}>Report number:</label>
             <input
               type="text"
               style={inputStyle}
               value={companyInfo.reportNumber}
               onChange={(e) => handleCompanyInfoChange("reportNumber", e.target.value)}
-              placeholder="Số báo cáo"
+              placeholder="Report number"
             />
           </div>
         </div>
 
         <div style={{ marginBottom: theme.spacing.md }}>
-          <label style={labelStyle}>Địa chỉ:</label>
+          <label style={labelStyle}>Address:</label>
           <input
             type="text"
             style={inputStyle}
             value={companyInfo.address}
             onChange={(e) => handleCompanyInfoChange("address", e.target.value)}
-            placeholder="Địa chỉ trụ sở"
+            placeholder="Head office address"
           />
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
           <div>
-            <label style={labelStyle}>Điện thoại:</label>
+            <label style={labelStyle}>Phone:</label>
             <input
               type="text"
               style={inputStyle}
               value={companyInfo.phone}
               onChange={(e) => handleCompanyInfoChange("phone", e.target.value)}
-              placeholder="Số điện thoại"
+              placeholder="Phone number"
             />
           </div>
           <div>
@@ -952,7 +954,7 @@ export default function InsuranceFormD02LT() {
               style={inputStyle}
               value={companyInfo.email}
               onChange={(e) => handleCompanyInfoChange("email", e.target.value)}
-              placeholder="Email đơn vị"
+              placeholder="Company email"
             />
           </div>
         </div>
@@ -962,8 +964,8 @@ export default function InsuranceFormD02LT() {
       <div style={formSectionStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing.md }}>
           <h3 style={{ margin: 0, color: theme.primary.main }}>
-            Danh sách nhân viên ({selectedEmployees.length}/{employees.length})
-            {loading && <span style={{ marginLeft: theme.spacing.sm, fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500 }}>⏳ Đang tải...</span>}
+            Employees ({selectedEmployees.length}/{employees.length})
+            {loading && <span style={{ marginLeft: theme.spacing.sm, fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500 }}>⏳ Loading...</span>}
           </h3>
           <div style={{ display: "flex", gap: theme.spacing.sm }}>
             <button
@@ -976,7 +978,7 @@ export default function InsuranceFormD02LT() {
               onClick={selectAllEmployees}
               disabled={loading || employees.length === 0}
             >
-              Chọn tất cả
+              Select all
             </button>
             <button
               style={{
@@ -988,18 +990,18 @@ export default function InsuranceFormD02LT() {
               onClick={deselectAllEmployees}
               disabled={loading}
             >
-              Bỏ chọn tất cả
+              Deselect all
             </button>
           </div>
         </div>
 
         {loading ? (
           <div style={{ textAlign: "center", padding: theme.spacing.xl, color: theme.neutral.gray600 }}>
-            ⏳ Đang tải danh sách nhân viên...
+            ⏳ Loading employees...
           </div>
         ) : employees.length === 0 ? (
           <div style={{ textAlign: "center", padding: theme.spacing.xl, color: theme.error.main }}>
-            ❌ Không có nhân viên nào trong hệ thống
+            ❌ No employees found
           </div>
         ) : (
           <div style={{
@@ -1040,7 +1042,7 @@ export default function InsuranceFormD02LT() {
                   disabled={loading}
                 />
                 <span>
-                  <strong>{emp.employeeCode || "N/A"}</strong> - {emp.name || "N/A"} {emp.isActive === false ? "(Đã nghỉ)" : ""}
+                  <strong>{emp.employeeCode || "N/A"}</strong> - {emp.name || "N/A"} {emp.isActive === false ? "(Inactive)" : ""}
                 </span>
               </label>
             ))}
@@ -1052,7 +1054,7 @@ export default function InsuranceFormD02LT() {
       {employeeList.length > 0 && (
         <div style={formSectionStyle}>
           <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
-            Xem trước báo cáo ({employeeList.length} nhân viên)
+            Report preview ({employeeList.length} employees)
           </h3>
           <div style={{
             overflowX: "auto",
@@ -1062,16 +1064,16 @@ export default function InsuranceFormD02LT() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: theme.typography.tiny.fontSize }}>
               <thead>
                 <tr style={{ backgroundColor: theme.primary.main, color: theme.neutral.white }}>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>STT</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "left" }}>Họ và tên</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Mã số BHXH</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Ngày sinh</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Giới tính</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Số CCCD/CMND</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "left" }}>Cấp bậc, chức vụ</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Tiền lương</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Bắt đầu đóng BHXH</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "left" }}>Ghi chú</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>No.</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "left" }}>Full name</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Social Insurance No.</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Date of birth</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Gender</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Citizen ID/ID</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "left" }}>Position/Title</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Salary</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>SI start</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "left" }}>Notes</th>
                 </tr>
               </thead>
               <tbody>
@@ -1093,7 +1095,7 @@ export default function InsuranceFormD02LT() {
             </table>
             {employeeList.length > 10 && (
               <div style={{ padding: theme.spacing.sm, textAlign: "center", color: theme.neutral.gray600 }}>
-                ... và {employeeList.length - 10} nhân viên khác (sẽ hiển thị đầy đủ trong file xuất)
+                ... and {employeeList.length - 10} more employees (will be included in the exported file)
               </div>
             )}
           </div>
@@ -1112,7 +1114,7 @@ export default function InsuranceFormD02LT() {
           onClick={saveReport}
           disabled={isSaving || loading || employeeList.length === 0}
         >
-          {isSaving ? "⏳ Đang lưu..." : "💾 Lưu Form"}
+          {isSaving ? "⏳ Saving..." : "💾 Save"}
         </button>
         <button
           style={{
@@ -1124,7 +1126,7 @@ export default function InsuranceFormD02LT() {
           onClick={exportToWord}
           disabled={loadingWord || loading || employeeList.length === 0}
         >
-          {loadingWord ? "⏳ Đang tạo Word..." : "📝 Xuất Word"}
+          {loadingWord ? "⏳ Generating Word..." : "📝 Export Word"}
         </button>
         <button
           style={{
@@ -1136,7 +1138,7 @@ export default function InsuranceFormD02LT() {
           onClick={exportToPDF}
           disabled={loading || loadingWord || employeeList.length === 0}
         >
-          {loading ? "⏳ Đang tạo PDF..." : "📄 Xuất PDF"}
+          {loading ? "⏳ Generating PDF..." : "📄 Export PDF"}
         </button>
       </div>
 
@@ -1144,8 +1146,8 @@ export default function InsuranceFormD02LT() {
         <div style={{
           marginTop: theme.spacing.md,
           padding: theme.spacing.md,
-          backgroundColor: message.includes("thành công") ? theme.success.light : theme.error.light,
-          color: message.includes("thành công") ? theme.success.dark : theme.error.dark,
+          backgroundColor: isSuccessMessage ? theme.success.light : theme.error.light,
+          color: isSuccessMessage ? theme.success.dark : theme.error.dark,
           borderRadius: theme.radius.md
         }}>
           {message}
