@@ -1,11 +1,55 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { theme } from "../styles/theme.js";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import html2canvas from "html2canvas";
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel } from "docx";
 import { saveAs } from "file-saver";
-import { countries, vietnamProvinces, getDistrictsByProvince, getWardsByDistrict } from "../data/countries.js";
+import { countries, vietnamProvinces } from "../data/countries.js";
+
+// Trạng thái form mặc định dùng chung cho load lần đầu và khi đổi nhân viên
+const initialFormData = {
+  // Phần I: Người chưa có mã số BHXH
+  name: "",
+  dateOfBirth: "",
+  gender: "",
+  nationality: "VN",
+  nationalityName: "Vietnam",
+  ethnicity: "",
+  birthPlaceCountry: "VN",
+  birthPlaceCountryName: "Vietnam",
+  birthPlaceWard: "",
+  birthPlaceDistrict: "",
+  birthPlaceProvince: "",
+  birthPlaceProvinceCode: "",
+  addressCountry: "VN",
+  addressCountryName: "Vietnam",
+  addressStreet: "",
+  addressWard: "",
+  addressDistrict: "",
+  addressProvince: "",
+  addressProvinceCode: "",
+  idNumber: "",
+  phoneNumber: "",
+  parentGuardianName: "",
+  contributionAmount: "",
+  contributionMethod: "",
+  healthInsuranceProvider: "",
+  // Phần II: Người đã có mã số BHXH
+  socialInsuranceNumber: "",
+  changeContent: "",
+  attachedDocuments: "",
+  // Phụ lục: Thành viên hộ gia đình
+  householdHeadName: "",
+  householdHeadPhone: "",
+  householdAddressCountry: "VN",
+  householdAddressCountryName: "Vietnam",
+  householdAddressWard: "",
+  householdAddressDistrict: "",
+  householdAddressProvince: "",
+  householdAddressProvinceCode: "",
+  householdMembers: []
+};
 
 export default function InsuranceFormTK1TS() {
   const [employees, setEmployees] = useState([]);
@@ -14,49 +58,7 @@ export default function InsuranceFormTK1TS() {
   const [loadingWord, setLoadingWord] = useState(false);
   const [formType, setFormType] = useState("new"); // "new" or "update"
   const [message, setMessage] = useState("");
-  const pdfRef = useRef(null);
-  const [formData, setFormData] = useState({
-    // Phần I: Người chưa có mã số BHXH
-    name: "",
-    dateOfBirth: "",
-    gender: "",
-    nationality: "VN",
-    nationalityName: "Việt Nam",
-    ethnicity: "",
-    birthPlaceCountry: "VN",
-    birthPlaceCountryName: "Việt Nam",
-    birthPlaceWard: "",
-    birthPlaceDistrict: "",
-    birthPlaceProvince: "",
-    birthPlaceProvinceCode: "",
-    addressCountry: "VN",
-    addressCountryName: "Việt Nam",
-    addressStreet: "",
-    addressWard: "",
-    addressDistrict: "",
-    addressProvince: "",
-    addressProvinceCode: "",
-    idNumber: "",
-    phoneNumber: "",
-    parentGuardianName: "",
-    contributionAmount: "",
-    contributionMethod: "",
-    healthInsuranceProvider: "",
-    // Phần II: Người đã có mã số BHXH
-    socialInsuranceNumber: "",
-    changeContent: "",
-    attachedDocuments: "",
-    // Phụ lục: Thành viên hộ gia đình
-    householdHeadName: "",
-    householdHeadPhone: "",
-    householdAddressCountry: "VN",
-    householdAddressCountryName: "Việt Nam",
-    householdAddressWard: "",
-    householdAddressDistrict: "",
-    householdAddressProvince: "",
-    householdAddressProvinceCode: "",
-    householdMembers: []
-  });
+  const [formData, setFormData] = useState(initialFormData);
   const [householdMember, setHouseholdMember] = useState({
     name: "",
     socialInsuranceNumber: "",
@@ -69,6 +71,16 @@ export default function InsuranceFormTK1TS() {
   });
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+  const formatDateDDMMYYYY = (date) => {
+    if (!date) return "";
+    const d = new Date(date);
+    if (Number.isNaN(d.getTime())) return "";
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
 
   useEffect(() => {
     fetchEmployees();
@@ -108,7 +120,7 @@ export default function InsuranceFormTK1TS() {
             ...prev,
             ...data.data.formData
           }));
-          setMessage("Đã tải dữ liệu form đã lưu");
+          setMessage("Loaded saved form data.");
         }
       }
     } catch (err) {
@@ -117,16 +129,71 @@ export default function InsuranceFormTK1TS() {
     }
   };
 
+  // Basic form validation following TK1-TS required fields
+  const validateForm = () => {
+    if (!selectedEmployee) {
+      setMessage("Please select an employee first.");
+      return false;
+    }
+
+    const missing = [];
+
+    if (formType === "new") {
+      if (!formData.name.trim()) {
+        missing.push("[01] Full name");
+      }
+      if (!formData.dateOfBirth.trim()) {
+        missing.push("[02] Date of birth");
+      } else {
+        // Expect DD/MM/YYYY for the "new" declaration type
+        const datePattern = /^\d{2}\/\d{2}\/\d{4}$/;
+        if (!datePattern.test(formData.dateOfBirth.trim())) {
+          setMessage("Please enter date of birth in DD/MM/YYYY format.");
+          return false;
+        }
+      }
+      if (!formData.gender) {
+        missing.push("[03] Gender");
+      }
+      if (!formData.addressStreet.trim() ||
+          !formData.addressWard.trim() ||
+          !formData.addressDistrict.trim() ||
+          !formData.addressProvince.trim()) {
+        missing.push("[07] Address to receive results");
+      }
+    } else {
+      // update mode (has SI number)
+      if (!formData.name.trim()) {
+        missing.push("[01] Full name");
+      }
+      if (!formData.dateOfBirth) {
+        missing.push("[02] Date of birth");
+      }
+      if (!formData.socialInsuranceNumber.trim()) {
+        missing.push("[03] Social Insurance number");
+      }
+      if (!formData.changeContent.trim()) {
+        missing.push("[04] Requested changes");
+      }
+    }
+
+    if (missing.length > 0) {
+      setMessage("Please fill all required fields: " + missing.join(", "));
+      return false;
+    }
+
+    return true;
+  };
+
   // Save form data
   const saveFormData = async () => {
-    if (!selectedEmployee) {
-      setMessage("Vui lòng chọn nhân viên trước");
+    if (!validateForm()) {
       return;
     }
 
     try {
       setLoading(true);
-      setMessage("Đang lưu...");
+      setMessage("Saving...");
       const token = localStorage.getItem("authToken");
       const res = await fetch(`${apiBase}/api/insurance-forms/save`, {
         method: 'POST',
@@ -143,13 +210,13 @@ export default function InsuranceFormTK1TS() {
 
       const data = await res.json();
       if (res.ok && data.status === 'success') {
-        setMessage("✅ Đã lưu form thành công!");
+        setMessage("✅ Form saved successfully!");
       } else {
-        setMessage("❌ Lỗi khi lưu form: " + (data.message || "Unknown error"));
+        setMessage("❌ Failed to save form: " + (data.message || "Unknown error"));
       }
     } catch (err) {
       console.error("Error saving form:", err);
-      setMessage("❌ Lỗi khi lưu form: " + err.message);
+      setMessage("❌ Failed to save form: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -168,7 +235,7 @@ export default function InsuranceFormTK1TS() {
       }
     } catch (err) {
       console.error("Error fetching employees:", err);
-      setMessage("Lỗi khi tải danh sách nhân viên");
+      setMessage("Failed to load employee list.");
     } finally {
       setLoading(false);
     }
@@ -184,11 +251,7 @@ export default function InsuranceFormTK1TS() {
       const data = await res.json();
       if (res.ok) {
         const emp = data.employee;
-        
-        // Parse date
-        const dob = emp.dateOfBirth ? new Date(emp.dateOfBirth) : null;
-        const dobStr = dob ? `${String(dob.getDate()).padStart(2, '0')}/${String(dob.getMonth() + 1).padStart(2, '0')}/${dob.getFullYear()}` : "";
-        
+
         // Parse address
         const parseAddress = (address) => {
           if (!address) return { street: "", ward: "", district: "", province: "" };
@@ -202,30 +265,38 @@ export default function InsuranceFormTK1TS() {
           };
         };
 
-        const permanentAddr = parseAddress(emp.permanentAddress || emp.address);
         const tempAddr = parseAddress(emp.temporaryAddress || emp.address);
 
         // Parse province from address
-        const provinceCode = vietnamProvinces.find(p => 
+        const provinceCode = vietnamProvinces.find(p =>
           tempAddr.province && tempAddr.province.includes(p.name)
         )?.code || "";
 
-        setFormData(prev => ({
-          ...prev,
+        // Khi đổi nhân viên, luôn reset form về mặc định rồi mới fill dữ liệu nhân viên.
+        // Những field không có dữ liệu sẽ tự động để trống.
+        setFormData(() => ({
+          ...initialFormData,
           name: (emp.name || "").toUpperCase(),
-          dateOfBirth: emp.dateOfBirth ? new Date(emp.dateOfBirth).toISOString().split('T')[0] : "",
-          gender: emp.gender === "male" ? "Nam" : emp.gender === "female" ? "Nữ" : "",
+          // Hiển thị theo đúng thứ tự ngày/tháng/năm
+          // - Mode "new": dùng định dạng DD/MM/YYYY cho input text
+          // - Mode "update": dùng YYYY-MM-DD cho input type="date"
+          dateOfBirth: emp.dateOfBirth
+            ? (formType === "new"
+              ? formatDateDDMMYYYY(emp.dateOfBirth)
+              : new Date(emp.dateOfBirth).toISOString().split("T")[0])
+            : "",
+          gender: emp.gender === "male" ? "Male" : emp.gender === "female" ? "Female" : "",
           nationality: "VN",
-          nationalityName: "Việt Nam",
+          nationalityName: "Vietnam",
           ethnicity: "",
           birthPlaceCountry: "VN",
-          birthPlaceCountryName: "Việt Nam",
+          birthPlaceCountryName: "Vietnam",
           birthPlaceWard: "",
           birthPlaceDistrict: "",
           birthPlaceProvince: "",
           birthPlaceProvinceCode: "",
           addressCountry: "VN",
-          addressCountryName: "Việt Nam",
+          addressCountryName: "Vietnam",
           addressStreet: tempAddr.street,
           addressWard: tempAddr.ward,
           addressDistrict: tempAddr.district,
@@ -243,7 +314,7 @@ export default function InsuranceFormTK1TS() {
           householdHeadName: "",
           householdHeadPhone: "",
           householdAddressCountry: "VN",
-          householdAddressCountryName: "Việt Nam",
+          householdAddressCountryName: "Vietnam",
           householdAddressWard: "",
           householdAddressDistrict: "",
           householdAddressProvince: "",
@@ -253,7 +324,7 @@ export default function InsuranceFormTK1TS() {
       }
     } catch (err) {
       console.error("Error loading employee data:", err);
-      setMessage("Lỗi khi tải thông tin nhân viên");
+      setMessage("Failed to load employee details.");
     } finally {
       setLoading(false);
     }
@@ -268,7 +339,7 @@ export default function InsuranceFormTK1TS() {
 
   const addHouseholdMember = () => {
     if (!householdMember.name) {
-      setMessage("Vui lòng nhập tên thành viên");
+      setMessage("Please enter the member's name.");
       return;
     }
     setFormData(prev => ({
@@ -297,7 +368,7 @@ export default function InsuranceFormTK1TS() {
   const exportToPDF = async () => {
     try {
       setLoading(true);
-      setMessage("Đang tạo PDF...");
+      setMessage("Generating PDF...");
       
       // Tạo hidden div để render
       const printDiv = document.createElement('div');
@@ -313,49 +384,49 @@ export default function InsuranceFormTK1TS() {
       // Build HTML content
       let htmlContent = `
         <div style="text-align: center; margin-bottom: 20px;">
-          <div style="font-size: 14pt; font-weight: bold; margin-bottom: 5px;">BẢO HIỂM XÃ HỘI VIỆT NAM</div>
-          <div style="font-size: 11pt; margin-bottom: 3px;">CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
-          <div style="font-size: 10pt;">Độc lập - Tự do - Hạnh phúc</div>
+          <div style="font-size: 14pt; font-weight: bold; margin-bottom: 5px;">VIETNAM SOCIAL SECURITY</div>
+          <div style="font-size: 11pt; margin-bottom: 3px;">SOCIALIST REPUBLIC OF VIETNAM</div>
+          <div style="font-size: 10pt;">Independence - Freedom - Happiness</div>
         </div>
         <div style="text-align: center; margin-bottom: 20px;">
-          <div style="font-size: 12pt; font-weight: bold; margin-bottom: 5px;">TỜ KHAI</div>
-          <div style="font-size: 10pt; margin-bottom: 3px;">THAM GIA, ĐIỀU CHỈNH THÔNG TIN BẢO HIỂM XÃ HỘI, BẢO HIỂM Y TẾ</div>
-          <div style="font-size: 9pt;">(Áp dụng đối với người tham gia chưa được cấp mã số BHXH và thay đổi thông tin)</div>
+          <div style="font-size: 12pt; font-weight: bold; margin-bottom: 5px;">DECLARATION</div>
+          <div style="font-size: 10pt; margin-bottom: 3px;">SOCIAL INSURANCE &amp; HEALTH INSURANCE PARTICIPATION / INFORMATION UPDATE</div>
+          <div style="font-size: 9pt;">(For participants who have not been issued a social insurance number and for information changes)</div>
         </div>
       `;
       
       if (formType === "new") {
         htmlContent += `
           <div style="margin-bottom: 15px;">
-            <div style="font-weight: bold; margin-bottom: 10px;">I. Đối với người chưa được cấp mã số BHXH</div>
-            <div style="margin-bottom: 8px;"><strong>[01].</strong> Họ và tên (viết chữ in hoa): <strong>${formData.name || "_________________"}</strong></div>
-            <div style="margin-bottom: 8px;"><strong>[02].</strong> Ngày, tháng, năm sinh: ${formData.dateOfBirth || "___/___/_____"} <strong>[03].</strong> Giới tính: ${formData.gender || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[04].</strong> Quốc tịch: ${formData.nationality || "_____"} <strong>[05].</strong> Dân tộc: ${formData.ethnicity || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[06].</strong> Nơi đăng ký giấy khai sinh:</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[06.1].</strong> Xã (phường, thị trấn): ${formData.birthPlaceWard || "_____"}</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[06.2].</strong> Huyện (quận, thị xã, Tp thuộc tỉnh): ${formData.birthPlaceDistrict || "_____"}</div>
-            <div style="margin-left: 20px; margin-bottom: 8px;"><strong>[06.3].</strong> Tỉnh (Tp): ${formData.birthPlaceProvince || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[07].</strong> Địa chỉ nhận kết quả:</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.1].</strong> Số nhà, đường phố, thôn xóm: ${formData.addressStreet || "_____"}</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.2].</strong> Xã (phường, thị trấn): ${formData.addressWard || "_____"}</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.3].</strong> Huyện (quận, thị xã, Tp thuộc tỉnh): ${formData.addressDistrict || "_____"}</div>
-            <div style="margin-left: 20px; margin-bottom: 8px;"><strong>[07.4].</strong> Tỉnh (Tp): ${formData.addressProvince || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[08].</strong> Số CMND/ Hộ chiếu/ Thẻ căn cước: ${formData.idNumber || "_____"} <strong>[09].</strong> Số điện thoại liên hệ: ${formData.phoneNumber || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[10].</strong> Họ tên cha/ mẹ/ người giám hộ (đối với trẻ em dưới 6 tuổi): ${formData.parentGuardianName || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[11].</strong> Mức tiền đóng: ${formData.contributionAmount || "_____"} <strong>[12].</strong> Phương thức đóng: ${formData.contributionMethod || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[13].</strong> Nơi đăng ký khám bệnh, chữa bệnh ban đầu: ${formData.healthInsuranceProvider || "_____"}</div>
-            ${formData.householdMembers.length > 0 ? '<div style="margin-bottom: 8px;"><strong>[14].</strong> Phụ lục thành viên hộ gia đình (xem trang sau)</div>' : ''}
+            <div style="font-weight: bold; margin-bottom: 10px;">I. For participants without a Social Insurance number</div>
+            <div style="margin-bottom: 8px;"><strong>[01].</strong> Full name (UPPERCASE): <strong>${formData.name || "_________________"}</strong></div>
+            <div style="margin-bottom: 8px;"><strong>[02].</strong> Date of birth: ${formData.dateOfBirth || "___/___/_____"} <strong>[03].</strong> Gender: ${formData.gender || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[04].</strong> Nationality: ${formData.nationality || "_____"} <strong>[05].</strong> Ethnicity: ${formData.ethnicity || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[06].</strong> Birth certificate registration place:</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[06.1].</strong> Ward/Commune/Township: ${formData.birthPlaceWard || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[06.2].</strong> District: ${formData.birthPlaceDistrict || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 8px;"><strong>[06.3].</strong> Province/City: ${formData.birthPlaceProvince || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[07].</strong> Address to receive results:</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.1].</strong> House no./Street/Hamlet: ${formData.addressStreet || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.2].</strong> Ward/Commune/Township: ${formData.addressWard || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.3].</strong> District: ${formData.addressDistrict || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 8px;"><strong>[07.4].</strong> Province/City: ${formData.addressProvince || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[08].</strong> ID/Passport/Citizen ID: ${formData.idNumber || "_____"} <strong>[09].</strong> Phone number: ${formData.phoneNumber || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[10].</strong> Parent/guardian name (for children under 6): ${formData.parentGuardianName || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[11].</strong> Contribution amount: ${formData.contributionAmount || "_____"} <strong>[12].</strong> Contribution method: ${formData.contributionMethod || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[13].</strong> Initial health care provider: ${formData.healthInsuranceProvider || "_____"}</div>
+            ${formData.householdMembers.length > 0 ? '<div style="margin-bottom: 8px;"><strong>[14].</strong> Appendix: household members (see next page)</div>' : ''}
           </div>
         `;
       } else {
         htmlContent += `
           <div style="margin-bottom: 15px;">
-            <div style="font-weight: bold; margin-bottom: 10px;">II. Đối với người đã được cấp mã số BHXH thay đổi thông tin</div>
-            <div style="margin-bottom: 8px;"><strong>[01].</strong> Họ và tên (viết chữ in hoa): <strong>${formData.name || "_________________"}</strong></div>
-            <div style="margin-bottom: 8px;"><strong>[02].</strong> Ngày, tháng, năm sinh: ${formData.dateOfBirth || "___/___/_____"} <strong>[03].</strong> Mã số BHXH: ${formData.socialInsuranceNumber || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[04].</strong> Nội dung thay đổi, yêu cầu:</div>
+            <div style="font-weight: bold; margin-bottom: 10px;">II. For participants with a Social Insurance number (information change)</div>
+            <div style="margin-bottom: 8px;"><strong>[01].</strong> Full name (UPPERCASE): <strong>${formData.name || "_________________"}</strong></div>
+            <div style="margin-bottom: 8px;"><strong>[02].</strong> Date of birth: ${formData.dateOfBirth || "___/___/_____"} <strong>[03].</strong> Social Insurance number: ${formData.socialInsuranceNumber || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[04].</strong> Requested changes:</div>
             <div style="margin-left: 20px; margin-bottom: 8px; white-space: pre-wrap;">${formData.changeContent || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[05].</strong> Hồ sơ kèm theo (nếu có):</div>
+            <div style="margin-bottom: 8px;"><strong>[05].</strong> Attached documents (if any):</div>
             <div style="margin-left: 20px; margin-bottom: 8px; white-space: pre-wrap;">${formData.attachedDocuments || "_____"}</div>
           </div>
         `;
@@ -363,11 +434,11 @@ export default function InsuranceFormTK1TS() {
       
       htmlContent += `
         <div style="margin-top: 30px; margin-bottom: 20px;">
-          <div style="margin-bottom: 15px;">Tôi cam đoan những nội dung kê khai là đúng và chịu trách nhiệm trước pháp luật về những nội dung đã kê khai</div>
+          <div style="margin-bottom: 15px;">I hereby declare that the above information is true and I take full legal responsibility for this declaration.</div>
           <div style="text-align: right; margin-top: 20px;">
-            <div>.........., ngày ....... tháng ....... năm ...........</div>
-            <div style="margin-top: 15px;">Người kê khai</div>
-            <div style="margin-top: 5px;">(Ký, ghi rõ họ tên)</div>
+            <div>.........., ....... / ....... / ...........</div>
+            <div style="margin-top: 15px;">Declarant</div>
+            <div style="margin-top: 5px;">(Signature &amp; full name)</div>
           </div>
         </div>
       `;
@@ -376,27 +447,27 @@ export default function InsuranceFormTK1TS() {
       if (formData.householdMembers.length > 0) {
         htmlContent += `
           <div style="page-break-before: always; margin-top: 30px;">
-            <div style="text-align: center; font-size: 12pt; font-weight: bold; margin-bottom: 20px;">PHỤ LỤC THÀNH VIÊN HỘ GIA ĐÌNH</div>
+            <div style="text-align: center; font-size: 12pt; font-weight: bold; margin-bottom: 20px;">APPENDIX: HOUSEHOLD MEMBERS</div>
             <div style="margin-bottom: 15px;">
-              <div><strong>Họ và tên chủ hộ:</strong> ${formData.householdHeadName || "_____"} <strong>Số điện thoại (nếu có):</strong> ${formData.householdHeadPhone || "_____"}</div>
-              <div style="margin-top: 10px;"><strong>Địa chỉ:</strong></div>
+              <div><strong>Household head full name:</strong> ${formData.householdHeadName || "_____"} <strong>Phone (optional):</strong> ${formData.householdHeadPhone || "_____"}</div>
+              <div style="margin-top: 10px;"><strong>Address:</strong></div>
               <div style="margin-left: 20px;">
-                <div><strong>Thôn (bản, tổ dân phố):</strong> ${formData.householdAddressWard || "_____"} <strong>Xã (phường, thị trấn):</strong> ${formData.householdAddressWard || "_____"}</div>
-                <div><strong>Huyện (quận, thị xã, Tp thuộc tỉnh):</strong> ${formData.householdAddressDistrict || "_____"} <strong>Tỉnh (Tp):</strong> ${formData.householdAddressProvince || "_____"}</div>
+                <div><strong>Hamlet/Residential group:</strong> ${formData.householdAddressWard || "_____"} <strong>Ward/Commune/Township:</strong> ${formData.householdAddressWard || "_____"}</div>
+                <div><strong>District:</strong> ${formData.householdAddressDistrict || "_____"} <strong>Province/City:</strong> ${formData.householdAddressProvince || "_____"}</div>
               </div>
             </div>
             <table style="width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 9pt;">
               <thead>
                 <tr style="background-color: #667eea; color: white;">
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Stt</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Họ và tên</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Mã số BHXH</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Ngày, tháng, năm sinh</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Giới tính</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Nơi cấp giấy khai sinh</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Mối quan hệ với chủ hộ</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Số CMND/ Thẻ căn cước/ Hộ chiếu</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Ghi chú</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">No.</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Full name</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Social Insurance No.</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Date of birth</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Gender</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Birth certificate place</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Relationship to head</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">ID/Passport/Citizen ID</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Notes</th>
                 </tr>
               </thead>
               <tbody>
@@ -416,11 +487,11 @@ export default function InsuranceFormTK1TS() {
               </tbody>
             </table>
             <div style="margin-top: 30px;">
-              <div style="margin-bottom: 15px;">Tôi cam đoan những nội dung kê khai là đúng và chịu trách nhiệm trước pháp luật về những nội dung đã kê khai</div>
+              <div style="margin-bottom: 15px;">I hereby declare that the above information is true and I take full legal responsibility for this declaration.</div>
               <div style="text-align: right; margin-top: 20px;">
-                <div>.........., ngày ....... tháng ....... năm ...........</div>
-                <div style="margin-top: 15px;">Người kê khai</div>
-                <div style="margin-top: 5px;">(Ký, ghi rõ họ tên)</div>
+                <div>.........., ....... / ....... / ...........</div>
+                <div style="margin-top: 15px;">Declarant</div>
+                <div style="margin-top: 5px;">(Signature &amp; full name)</div>
               </div>
             </div>
           </div>
@@ -465,10 +536,10 @@ export default function InsuranceFormTK1TS() {
       // Save PDF
       const filename = `TK1-TS-${formData.name.replace(/\s+/g, "-")}-${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(filename);
-      setMessage("Đã xuất PDF thành công!");
+      setMessage("PDF exported successfully!");
     } catch (error) {
       console.error("Error generating PDF:", error);
-      setMessage("Lỗi khi xuất PDF: " + error.message);
+      setMessage("Failed to export PDF: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -477,7 +548,7 @@ export default function InsuranceFormTK1TS() {
   const exportToWord = async () => {
     try {
       setLoadingWord(true);
-      setMessage("Đang tạo file Word...");
+      setMessage("Generating Word file...");
 
       const children = [];
 
@@ -486,7 +557,7 @@ export default function InsuranceFormTK1TS() {
         new Paragraph({
           children: [
             new TextRun({
-              text: "BẢO HIỂM XÃ HỘI VIỆT NAM",
+              text: "VIETNAM SOCIAL SECURITY",
               bold: true,
               size: 28
             })
@@ -497,7 +568,7 @@ export default function InsuranceFormTK1TS() {
         new Paragraph({
           children: [
             new TextRun({
-              text: "CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM",
+              text: "SOCIALIST REPUBLIC OF VIETNAM",
               size: 22
             })
           ],
@@ -507,7 +578,7 @@ export default function InsuranceFormTK1TS() {
         new Paragraph({
           children: [
             new TextRun({
-              text: "Độc lập - Tự do - Hạnh phúc",
+              text: "Independence - Freedom - Happiness",
               size: 20
             })
           ],
@@ -517,7 +588,7 @@ export default function InsuranceFormTK1TS() {
         new Paragraph({
           children: [
             new TextRun({
-              text: "TỜ KHAI",
+              text: "DECLARATION",
               bold: true,
               size: 24
             })
@@ -528,7 +599,7 @@ export default function InsuranceFormTK1TS() {
         new Paragraph({
           children: [
             new TextRun({
-              text: "THAM GIA, ĐIỀU CHỈNH THÔNG TIN BẢO HIỂM XÃ HỘI, BẢO HIỂM Y TẾ",
+              text: "SOCIAL INSURANCE & HEALTH INSURANCE PARTICIPATION / INFORMATION UPDATE",
               size: 20
             })
           ],
@@ -538,7 +609,7 @@ export default function InsuranceFormTK1TS() {
         new Paragraph({
           children: [
             new TextRun({
-              text: "(Áp dụng đối với người tham gia chưa được cấp mã số BHXH và thay đổi thông tin)",
+              text: "(For participants who have not been issued a social insurance number and for information changes)",
               size: 18,
               italics: true
             })
@@ -554,7 +625,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({
-                text: "I. Đối với người chưa được cấp mã số BHXH",
+                text: "I. For participants without a Social Insurance number",
                 bold: true,
                 size: 22
               })
@@ -564,7 +635,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[01]. ", bold: true }),
-              new TextRun({ text: "Họ và tên (viết chữ in hoa): " }),
+              new TextRun({ text: "Full name (UPPERCASE): " }),
               new TextRun({ text: formData.name || "_________________", bold: true })
             ],
             spacing: { after: 200 }
@@ -572,10 +643,10 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[02]. ", bold: true }),
-              new TextRun({ text: "Ngày, tháng, năm sinh: " }),
+              new TextRun({ text: "Date of birth: " }),
               new TextRun({ text: formData.dateOfBirth || "___/___/_____" }),
               new TextRun({ text: "  [03]. ", bold: true }),
-              new TextRun({ text: "Giới tính: " }),
+              new TextRun({ text: "Gender: " }),
               new TextRun({ text: formData.gender || "_____" })
             ],
             spacing: { after: 200 }
@@ -583,10 +654,10 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[04]. ", bold: true }),
-              new TextRun({ text: "Quốc tịch: " }),
+              new TextRun({ text: "Nationality: " }),
               new TextRun({ text: formData.nationality || "_____" }),
               new TextRun({ text: "  [05]. ", bold: true }),
-              new TextRun({ text: "Dân tộc: " }),
+              new TextRun({ text: "Ethnicity: " }),
               new TextRun({ text: formData.ethnicity || "_____" })
             ],
             spacing: { after: 200 }
@@ -594,14 +665,14 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[06]. ", bold: true }),
-              new TextRun({ text: "Nơi đăng ký giấy khai sinh:" })
+              new TextRun({ text: "Birth certificate registration place:" })
             ],
             spacing: { after: 200 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[06.1]. ", bold: true }),
-              new TextRun({ text: "Xã (phường, thị trấn): " }),
+              new TextRun({ text: "Ward/Commune/Township: " }),
               new TextRun({ text: formData.birthPlaceWard || "_____" })
             ],
             indent: { left: 400 },
@@ -610,7 +681,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[06.2]. ", bold: true }),
-              new TextRun({ text: "Huyện (quận, thị xã, Tp thuộc tỉnh): " }),
+              new TextRun({ text: "District: " }),
               new TextRun({ text: formData.birthPlaceDistrict || "_____" })
             ],
             indent: { left: 400 },
@@ -619,7 +690,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[06.3]. ", bold: true }),
-              new TextRun({ text: "Tỉnh (Tp): " }),
+              new TextRun({ text: "Province/City: " }),
               new TextRun({ text: formData.birthPlaceProvince || "_____" })
             ],
             indent: { left: 400 },
@@ -628,14 +699,14 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[07]. ", bold: true }),
-              new TextRun({ text: "Địa chỉ nhận kết quả:" })
+              new TextRun({ text: "Address to receive results:" })
             ],
             spacing: { after: 200 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[07.1]. ", bold: true }),
-              new TextRun({ text: "Số nhà, đường phố, thôn xóm: " }),
+              new TextRun({ text: "House no./Street/Hamlet: " }),
               new TextRun({ text: formData.addressStreet || "_____" })
             ],
             indent: { left: 400 },
@@ -644,7 +715,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[07.2]. ", bold: true }),
-              new TextRun({ text: "Xã (phường, thị trấn): " }),
+              new TextRun({ text: "Ward/Commune/Township: " }),
               new TextRun({ text: formData.addressWard || "_____" })
             ],
             indent: { left: 400 },
@@ -653,7 +724,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[07.3]. ", bold: true }),
-              new TextRun({ text: "Huyện (quận, thị xã, Tp thuộc tỉnh): " }),
+              new TextRun({ text: "District: " }),
               new TextRun({ text: formData.addressDistrict || "_____" })
             ],
             indent: { left: 400 },
@@ -662,7 +733,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[07.4]. ", bold: true }),
-              new TextRun({ text: "Tỉnh (Tp): " }),
+              new TextRun({ text: "Province/City: " }),
               new TextRun({ text: formData.addressProvince || "_____" })
             ],
             indent: { left: 400 },
@@ -671,10 +742,10 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[08]. ", bold: true }),
-              new TextRun({ text: "Số CMND/ Hộ chiếu/ Thẻ căn cước: " }),
+              new TextRun({ text: "ID/Passport/Citizen ID: " }),
               new TextRun({ text: formData.idNumber || "_____" }),
               new TextRun({ text: "  [09]. ", bold: true }),
-              new TextRun({ text: "Số điện thoại liên hệ: " }),
+              new TextRun({ text: "Phone number: " }),
               new TextRun({ text: formData.phoneNumber || "_____" })
             ],
             spacing: { after: 200 }
@@ -682,7 +753,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[10]. ", bold: true }),
-              new TextRun({ text: "Họ tên cha/ mẹ/ người giám hộ (đối với trẻ em dưới 6 tuổi): " }),
+              new TextRun({ text: "Parent/guardian name (for children under 6): " }),
               new TextRun({ text: formData.parentGuardianName || "_____" })
             ],
             spacing: { after: 200 }
@@ -690,10 +761,10 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[11]. ", bold: true }),
-              new TextRun({ text: "Mức tiền đóng: " }),
+              new TextRun({ text: "Contribution amount: " }),
               new TextRun({ text: formData.contributionAmount || "_____" }),
               new TextRun({ text: "  [12]. ", bold: true }),
-              new TextRun({ text: "Phương thức đóng: " }),
+              new TextRun({ text: "Contribution method: " }),
               new TextRun({ text: formData.contributionMethod || "_____" })
             ],
             spacing: { after: 200 }
@@ -701,7 +772,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[13]. ", bold: true }),
-              new TextRun({ text: "Nơi đăng ký khám bệnh, chữa bệnh ban đầu: " }),
+              new TextRun({ text: "Initial health care provider: " }),
               new TextRun({ text: formData.healthInsuranceProvider || "_____" })
             ],
             spacing: { after: 200 }
@@ -713,7 +784,7 @@ export default function InsuranceFormTK1TS() {
             new Paragraph({
               children: [
                 new TextRun({ text: "[14]. ", bold: true }),
-                new TextRun({ text: "Phụ lục thành viên hộ gia đình (xem trang sau)" })
+                new TextRun({ text: "Appendix: household members (see next page)" })
               ],
               spacing: { after: 200 }
             })
@@ -725,7 +796,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({
-                text: "II. Đối với người đã được cấp mã số BHXH thay đổi thông tin",
+                text: "II. For participants with a Social Insurance number (information change)",
                 bold: true,
                 size: 22
               })
@@ -735,7 +806,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[01]. ", bold: true }),
-              new TextRun({ text: "Họ và tên (viết chữ in hoa): " }),
+              new TextRun({ text: "Full name (UPPERCASE): " }),
               new TextRun({ text: formData.name || "_________________", bold: true })
             ],
             spacing: { after: 200 }
@@ -743,10 +814,10 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[02]. ", bold: true }),
-              new TextRun({ text: "Ngày, tháng, năm sinh: " }),
+              new TextRun({ text: "Date of birth: " }),
               new TextRun({ text: formData.dateOfBirth || "___/___/_____" }),
               new TextRun({ text: "  [03]. ", bold: true }),
-              new TextRun({ text: "Mã số BHXH: " }),
+              new TextRun({ text: "Social Insurance number: " }),
               new TextRun({ text: formData.socialInsuranceNumber || "_____" })
             ],
             spacing: { after: 200 }
@@ -754,7 +825,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[04]. ", bold: true }),
-              new TextRun({ text: "Nội dung thay đổi, yêu cầu:" })
+              new TextRun({ text: "Requested changes:" })
             ],
             spacing: { after: 200 }
           }),
@@ -768,7 +839,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[05]. ", bold: true }),
-              new TextRun({ text: "Hồ sơ kèm theo (nếu có):" })
+              new TextRun({ text: "Attached documents (if any):" })
             ],
             spacing: { after: 200 }
           }),
@@ -787,28 +858,28 @@ export default function InsuranceFormTK1TS() {
         new Paragraph({
           children: [
             new TextRun({
-              text: "Tôi cam đoan những nội dung kê khai là đúng và chịu trách nhiệm trước pháp luật về những nội dung đã kê khai"
+              text: "I hereby declare that the above information is true and I take full legal responsibility for this declaration."
             })
           ],
           spacing: { before: 600, after: 400 }
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: ".........., ngày ....... tháng ....... năm ..........." })
+            new TextRun({ text: ".........., ....... / ....... / ..........." })
           ],
           alignment: AlignmentType.RIGHT,
           spacing: { after: 300 }
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: "Người kê khai", bold: true })
+            new TextRun({ text: "Declarant", bold: true })
           ],
           alignment: AlignmentType.RIGHT,
           spacing: { after: 150 }
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: "(Ký, ghi rõ họ tên)" })
+            new TextRun({ text: "(Signature & full name)" })
           ],
           alignment: AlignmentType.RIGHT,
           spacing: { after: 400 }
@@ -821,7 +892,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({
-                text: "PHỤ LỤC THÀNH VIÊN HỘ GIA ĐÌNH",
+                text: "APPENDIX: HOUSEHOLD MEMBERS",
                 bold: true,
                 size: 24
               })
@@ -831,24 +902,24 @@ export default function InsuranceFormTK1TS() {
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: "Họ và tên chủ hộ: ", bold: true }),
+              new TextRun({ text: "Household head full name: ", bold: true }),
               new TextRun({ text: formData.householdHeadName || "_____" }),
-              new TextRun({ text: "  Số điện thoại (nếu có): ", bold: true }),
+              new TextRun({ text: "  Phone (optional): ", bold: true }),
               new TextRun({ text: formData.householdHeadPhone || "_____" })
             ],
             spacing: { after: 200 }
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: "Địa chỉ:", bold: true })
+              new TextRun({ text: "Address:", bold: true })
             ],
             spacing: { after: 200 }
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: "Thôn (bản, tổ dân phố): ", bold: true }),
+              new TextRun({ text: "Hamlet/Residential group: ", bold: true }),
               new TextRun({ text: formData.householdAddressWard || "_____" }),
-              new TextRun({ text: "  Xã (phường, thị trấn): ", bold: true }),
+              new TextRun({ text: "  Ward/Commune/Township: ", bold: true }),
               new TextRun({ text: formData.householdAddressWard || "_____" })
             ],
             indent: { left: 400 },
@@ -856,9 +927,9 @@ export default function InsuranceFormTK1TS() {
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: "Huyện (quận, thị xã, Tp thuộc tỉnh): ", bold: true }),
+              new TextRun({ text: "District: ", bold: true }),
               new TextRun({ text: formData.householdAddressDistrict || "_____" }),
-              new TextRun({ text: "  Tỉnh (Tp): ", bold: true }),
+              new TextRun({ text: "  Province/City: ", bold: true }),
               new TextRun({ text: formData.householdAddressProvince || "_____" })
             ],
             indent: { left: 400 },
@@ -870,15 +941,15 @@ export default function InsuranceFormTK1TS() {
         const tableRows = [
           new TableRow({
             children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Stt", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Họ và tên", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Mã số BHXH", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Ngày, tháng, năm sinh", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Giới tính", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Nơi cấp giấy khai sinh", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Mối quan hệ với chủ hộ", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Số CMND/ Thẻ căn cước/ Hộ chiếu", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Ghi chú", bold: true })] })] })
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "No.", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Full name", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Social Insurance No.", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Date of birth", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Gender", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Birth certificate place", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Relationship to head", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "ID/Passport/Citizen ID", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Notes", bold: true })] })] })
             ]
           })
         ];
@@ -909,28 +980,28 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({
-                text: "Tôi cam đoan những nội dung kê khai là đúng và chịu trách nhiệm trước pháp luật về những nội dung đã kê khai"
+                text: "I hereby declare that the above information is true and I take full legal responsibility for this declaration."
               })
             ],
             spacing: { before: 600, after: 400 }
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: ".........., ngày ....... tháng ....... năm ..........." })
+              new TextRun({ text: ".........., ....... / ....... / ..........." })
             ],
             alignment: AlignmentType.RIGHT,
             spacing: { after: 300 }
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: "Người kê khai", bold: true })
+              new TextRun({ text: "Declarant", bold: true })
             ],
             alignment: AlignmentType.RIGHT,
             spacing: { after: 150 }
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: "(Ký, ghi rõ họ tên)" })
+              new TextRun({ text: "(Signature & full name)" })
             ],
             alignment: AlignmentType.RIGHT
           })
@@ -948,10 +1019,10 @@ export default function InsuranceFormTK1TS() {
       const blob = await Packer.toBlob(doc);
       const filename = `TK1-TS-${formData.name.replace(/\s+/g, "-")}-${new Date().toISOString().split('T')[0]}.docx`;
       saveAs(blob, filename);
-      setMessage("Đã xuất file Word thành công!");
+      setMessage("Word file exported successfully!");
     } catch (error) {
       console.error("Error generating Word document:", error);
-      setMessage("Lỗi khi xuất file Word: " + error.message);
+      setMessage("Failed to export Word file: " + error.message);
     } finally {
       setLoadingWord(false);
     }
@@ -1003,15 +1074,17 @@ export default function InsuranceFormTK1TS() {
     marginRight: theme.spacing.md
   };
 
+  const isSuccessMessage = typeof message === "string" && message.trim().startsWith("✅");
+
   return (
     <div style={containerStyle}>
       <h2 style={{ marginBottom: theme.spacing.lg, color: theme.neutral.gray900 }}>
-        📋 Tờ Khai Tham Gia, Điều Chỉnh Thông Tin BHXH, BHYT (Mẫu TK1-TS)
+        📋 Social/Health Insurance Participation & Information Update (Form TK1-TS)
       </h2>
 
       {/* Employee Selection */}
       <div style={formSectionStyle}>
-        <label style={labelStyle}>Chọn nhân viên:</label>
+        <label style={labelStyle}>Select employee:</label>
         <select
           style={inputStyle}
           value={selectedEmployee?.id || ""}
@@ -1020,7 +1093,7 @@ export default function InsuranceFormTK1TS() {
             setSelectedEmployee(emp || null);
           }}
         >
-          <option value="">-- Chọn nhân viên --</option>
+          <option value="">-- Select employee --</option>
           {employees.map(emp => (
             <option key={emp.id} value={emp.id}>
               {emp.employeeCode} - {emp.name}
@@ -1031,7 +1104,7 @@ export default function InsuranceFormTK1TS() {
 
       {/* Form Type Selection */}
       <div style={formSectionStyle}>
-        <label style={labelStyle}>Loại tờ khai:</label>
+        <label style={labelStyle}>Declaration type:</label>
         <div style={{ display: "flex", gap: theme.spacing.md }}>
           <button
             style={{
@@ -1041,7 +1114,7 @@ export default function InsuranceFormTK1TS() {
             }}
             onClick={() => setFormType("new")}
           >
-            I. Người chưa có mã số BHXH
+            I. No Social Insurance number yet
           </button>
           <button
             style={{
@@ -1051,7 +1124,7 @@ export default function InsuranceFormTK1TS() {
             }}
             onClick={() => setFormType("update")}
           >
-            II. Người đã có mã số BHXH (thay đổi thông tin)
+            II. Has Social Insurance number (information change)
           </button>
         </div>
       </div>
@@ -1061,22 +1134,22 @@ export default function InsuranceFormTK1TS() {
           {/* Phần I: Người chưa có mã số BHXH */}
           <div style={formSectionStyle}>
             <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
-              I. Đối với người chưa được cấp mã số BHXH
+              I. For participants without a Social Insurance number
             </h3>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
               <div>
-                <label style={labelStyle}>[01] Họ và tên (viết chữ in hoa): *</label>
+                <label style={labelStyle}>[01] Full name (UPPERCASE): *</label>
                 <input
                   type="text"
                   style={inputStyle}
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value.toUpperCase())}
-                  placeholder="NGUYỄN VĂN A"
+                  placeholder="NGUYEN VAN A"
                 />
               </div>
               <div>
-                <label style={labelStyle}>[02] Ngày, tháng, năm sinh: *</label>
+                <label style={labelStyle}>[02] Date of birth: *</label>
                 <input
                   type="text"
                   style={inputStyle}
@@ -1089,19 +1162,19 @@ export default function InsuranceFormTK1TS() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
               <div>
-                <label style={labelStyle}>[03] Giới tính: *</label>
+                <label style={labelStyle}>[03] Gender: *</label>
                 <select
                   style={inputStyle}
                   value={formData.gender}
                   onChange={(e) => handleInputChange("gender", e.target.value)}
                 >
-                  <option value="">-- Chọn --</option>
-                  <option value="Nam">Nam</option>
-                  <option value="Nữ">Nữ</option>
+                  <option value="">-- Select --</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>[04] Quốc tịch:</label>
+                <label style={labelStyle}>[04] Nationality:</label>
                 <select
                   style={inputStyle}
                   value={formData.nationality}
@@ -1111,7 +1184,7 @@ export default function InsuranceFormTK1TS() {
                     handleInputChange("nationalityName", country?.name || "");
                   }}
                 >
-                  <option value="">-- Chọn quốc gia --</option>
+                  <option value="">-- Select country --</option>
                   {countries.map(country => (
                     <option key={country.code} value={country.code}>
                       {country.name}
@@ -1122,7 +1195,7 @@ export default function InsuranceFormTK1TS() {
             </div>
 
             <div style={{ marginBottom: theme.spacing.md }}>
-              <label style={labelStyle}>[05] Dân tộc:</label>
+              <label style={labelStyle}>[05] Ethnicity:</label>
               <input
                 type="text"
                 style={inputStyle}
@@ -1132,9 +1205,9 @@ export default function InsuranceFormTK1TS() {
             </div>
 
             <div style={{ marginBottom: theme.spacing.md }}>
-              <label style={labelStyle}>[06] Nơi đăng ký giấy khai sinh:</label>
+              <label style={labelStyle}>[06] Birth certificate registration place:</label>
               <div style={{ marginBottom: theme.spacing.sm }}>
-                <label style={{ ...labelStyle, fontSize: "11px" }}>Quốc gia:</label>
+                <label style={{ ...labelStyle, fontSize: "11px" }}>Country:</label>
                 <select
                   style={inputStyle}
                   value={formData.birthPlaceCountry}
@@ -1148,7 +1221,7 @@ export default function InsuranceFormTK1TS() {
                     }
                   }}
                 >
-                  <option value="">-- Chọn quốc gia --</option>
+                  <option value="">-- Select country --</option>
                   {countries.map(country => (
                     <option key={country.code} value={country.code}>
                       {country.name}
@@ -1159,7 +1232,7 @@ export default function InsuranceFormTK1TS() {
               {formData.birthPlaceCountry === "VN" && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: theme.spacing.md }}>
                   <div>
-                    <label style={{ ...labelStyle, fontSize: "11px" }}>[06.1] Xã (phường, thị trấn):</label>
+                    <label style={{ ...labelStyle, fontSize: "11px" }}>[06.1] Ward/Commune/Township:</label>
                     <input
                       type="text"
                       style={inputStyle}
@@ -1168,7 +1241,7 @@ export default function InsuranceFormTK1TS() {
                     />
                   </div>
                   <div>
-                    <label style={{ ...labelStyle, fontSize: "11px" }}>[06.2] Huyện (quận, thị xã, Tp thuộc tỉnh):</label>
+                    <label style={{ ...labelStyle, fontSize: "11px" }}>[06.2] District:</label>
                     <input
                       type="text"
                       style={inputStyle}
@@ -1177,7 +1250,7 @@ export default function InsuranceFormTK1TS() {
                     />
                   </div>
                   <div>
-                    <label style={{ ...labelStyle, fontSize: "11px" }}>[06.3] Tỉnh (Tp):</label>
+                    <label style={{ ...labelStyle, fontSize: "11px" }}>[06.3] Province/City:</label>
                     <select
                       style={inputStyle}
                       value={formData.birthPlaceProvinceCode}
@@ -1187,7 +1260,7 @@ export default function InsuranceFormTK1TS() {
                         handleInputChange("birthPlaceProvince", province?.name || "");
                       }}
                     >
-                      <option value="">-- Chọn tỉnh/thành phố --</option>
+                      <option value="">-- Select province/city --</option>
                       {vietnamProvinces.map(province => (
                         <option key={province.code} value={province.code}>
                           {province.name}
@@ -1199,22 +1272,22 @@ export default function InsuranceFormTK1TS() {
               )}
               {formData.birthPlaceCountry !== "VN" && formData.birthPlaceCountry && (
                 <div>
-                  <label style={{ ...labelStyle, fontSize: "11px" }}>Tỉnh/Thành phố:</label>
+                  <label style={{ ...labelStyle, fontSize: "11px" }}>Province/City:</label>
                   <input
                     type="text"
                     style={inputStyle}
                     value={formData.birthPlaceProvince}
                     onChange={(e) => handleInputChange("birthPlaceProvince", e.target.value)}
-                    placeholder="Nhập tỉnh/thành phố"
+                    placeholder="Enter province/city"
                   />
                 </div>
               )}
             </div>
 
             <div style={{ marginBottom: theme.spacing.md }}>
-              <label style={labelStyle}>[07] Địa chỉ nhận kết quả:</label>
+              <label style={labelStyle}>[07] Address to receive results:</label>
               <div style={{ marginBottom: theme.spacing.sm }}>
-                <label style={{ ...labelStyle, fontSize: "11px" }}>Quốc gia:</label>
+                <label style={{ ...labelStyle, fontSize: "11px" }}>Country:</label>
                 <select
                   style={inputStyle}
                   value={formData.addressCountry}
@@ -1228,7 +1301,7 @@ export default function InsuranceFormTK1TS() {
                     }
                   }}
                 >
-                  <option value="">-- Chọn quốc gia --</option>
+                  <option value="">-- Select country --</option>
                   {countries.map(country => (
                     <option key={country.code} value={country.code}>
                       {country.name}
@@ -1240,7 +1313,7 @@ export default function InsuranceFormTK1TS() {
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.sm }}>
                     <div>
-                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.1] Số nhà, đường phố, thôn xóm:</label>
+                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.1] House no./Street/Hamlet:</label>
                       <input
                         type="text"
                         style={inputStyle}
@@ -1249,7 +1322,7 @@ export default function InsuranceFormTK1TS() {
                       />
                     </div>
                     <div>
-                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.2] Xã (phường, thị trấn):</label>
+                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.2] Ward/Commune/Township:</label>
                       <input
                         type="text"
                         style={inputStyle}
@@ -1260,7 +1333,7 @@ export default function InsuranceFormTK1TS() {
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
                     <div>
-                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.3] Huyện (quận, thị xã, Tp thuộc tỉnh):</label>
+                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.3] District:</label>
                       <input
                         type="text"
                         style={inputStyle}
@@ -1269,7 +1342,7 @@ export default function InsuranceFormTK1TS() {
                       />
                     </div>
                     <div>
-                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.4] Tỉnh (Tp):</label>
+                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.4] Province/City:</label>
                       <select
                         style={inputStyle}
                         value={formData.addressProvinceCode}
@@ -1279,7 +1352,7 @@ export default function InsuranceFormTK1TS() {
                           handleInputChange("addressProvince", province?.name || "");
                         }}
                       >
-                        <option value="">-- Chọn tỉnh/thành phố --</option>
+                        <option value="">-- Select province/city --</option>
                         {vietnamProvinces.map(province => (
                           <option key={province.code} value={province.code}>
                             {province.name}
@@ -1292,13 +1365,13 @@ export default function InsuranceFormTK1TS() {
               )}
               {formData.addressCountry !== "VN" && formData.addressCountry && (
                 <div>
-                  <label style={{ ...labelStyle, fontSize: "11px" }}>Địa chỉ:</label>
+                  <label style={{ ...labelStyle, fontSize: "11px" }}>Address:</label>
                   <input
                     type="text"
                     style={inputStyle}
                     value={formData.addressStreet}
                     onChange={(e) => handleInputChange("addressStreet", e.target.value)}
-                    placeholder="Nhập địa chỉ đầy đủ"
+                    placeholder="Enter full address"
                   />
                 </div>
               )}
@@ -1306,7 +1379,7 @@ export default function InsuranceFormTK1TS() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
               <div>
-                <label style={labelStyle}>[08] Số CMND/ Hộ chiếu/ Thẻ căn cước:</label>
+                <label style={labelStyle}>[08] ID/Passport/Citizen ID:</label>
                 <input
                   type="text"
                   style={inputStyle}
@@ -1315,7 +1388,7 @@ export default function InsuranceFormTK1TS() {
                 />
               </div>
               <div>
-                <label style={labelStyle}>[09] Số điện thoại liên hệ:</label>
+                <label style={labelStyle}>[09] Phone number:</label>
                 <input
                   type="text"
                   style={inputStyle}
@@ -1326,7 +1399,7 @@ export default function InsuranceFormTK1TS() {
             </div>
 
             <div style={{ marginBottom: theme.spacing.md }}>
-              <label style={labelStyle}>[10] Họ tên cha/ mẹ/ người giám hộ (đối với trẻ em dưới 6 tuổi):</label>
+              <label style={labelStyle}>[10] Parent/guardian name (for children under 6):</label>
               <input
                 type="text"
                 style={inputStyle}
@@ -1337,7 +1410,7 @@ export default function InsuranceFormTK1TS() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
               <div>
-                <label style={labelStyle}>[11] Mức tiền đóng (BHXH tự nguyện):</label>
+                <label style={labelStyle}>[11] Contribution amount (voluntary SI):</label>
                 <input
                   type="text"
                   style={inputStyle}
@@ -1346,19 +1419,19 @@ export default function InsuranceFormTK1TS() {
                 />
               </div>
               <div>
-                <label style={labelStyle}>[12] Phương thức đóng:</label>
+                <label style={labelStyle}>[12] Contribution method:</label>
                 <input
                   type="text"
                   style={inputStyle}
                   value={formData.contributionMethod}
                   onChange={(e) => handleInputChange("contributionMethod", e.target.value)}
-                  placeholder="03 tháng, 06 tháng, 12 tháng..."
+                  placeholder="3 months, 6 months, 12 months..."
                 />
               </div>
             </div>
 
             <div style={{ marginBottom: theme.spacing.md }}>
-              <label style={labelStyle}>[13] Nơi đăng ký khám bệnh, chữa bệnh ban đầu:</label>
+              <label style={labelStyle}>[13] Initial health care provider:</label>
               <input
                 type="text"
                 style={inputStyle}
@@ -1373,12 +1446,12 @@ export default function InsuranceFormTK1TS() {
           {/* Phần II: Người đã có mã số BHXH */}
           <div style={formSectionStyle}>
             <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
-              II. Đối với người đã được cấp mã số BHXH thay đổi thông tin
+              II. For participants with a Social Insurance number (information change)
             </h3>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
               <div>
-                <label style={labelStyle}>[01] Họ và tên (viết chữ in hoa): *</label>
+                <label style={labelStyle}>[01] Full name (UPPERCASE): *</label>
                 <input
                   type="text"
                   style={inputStyle}
@@ -1387,7 +1460,7 @@ export default function InsuranceFormTK1TS() {
                 />
               </div>
               <div>
-                <label style={labelStyle}>[02] Ngày, tháng, năm sinh: *</label>
+                <label style={labelStyle}>[02] Date of birth: *</label>
                 <input
                   type="date"
                   style={inputStyle}
@@ -1398,7 +1471,7 @@ export default function InsuranceFormTK1TS() {
             </div>
 
             <div style={{ marginBottom: theme.spacing.md }}>
-              <label style={labelStyle}>[03] Mã số BHXH: *</label>
+              <label style={labelStyle}>[03] Social Insurance number: *</label>
               <input
                 type="text"
                 style={inputStyle}
@@ -1408,22 +1481,22 @@ export default function InsuranceFormTK1TS() {
             </div>
 
             <div style={{ marginBottom: theme.spacing.md }}>
-              <label style={labelStyle}>[04] Nội dung thay đổi, yêu cầu: *</label>
+              <label style={labelStyle}>[04] Requested changes: *</label>
               <textarea
                 style={{ ...inputStyle, minHeight: "100px" }}
                 value={formData.changeContent}
                 onChange={(e) => handleInputChange("changeContent", e.target.value)}
-                placeholder="Ghi rõ nội dung cần thay đổi..."
+                placeholder="Describe the requested changes..."
               />
             </div>
 
             <div style={{ marginBottom: theme.spacing.md }}>
-              <label style={labelStyle}>[05] Hồ sơ kèm theo (nếu có):</label>
+              <label style={labelStyle}>[05] Attached documents (if any):</label>
               <textarea
                 style={{ ...inputStyle, minHeight: "80px" }}
                 value={formData.attachedDocuments}
                 onChange={(e) => handleInputChange("attachedDocuments", e.target.value)}
-                placeholder="Danh sách các giấy tờ kèm theo..."
+                placeholder="List attached documents..."
               />
             </div>
           </div>
@@ -1433,13 +1506,13 @@ export default function InsuranceFormTK1TS() {
       {/* Phụ lục: Thành viên hộ gia đình */}
       <div style={formSectionStyle}>
         <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
-          Phụ lục: Thành viên hộ gia đình (nếu có)
+          Appendix: Household members (if any)
         </h3>
 
         <div style={{ marginBottom: theme.spacing.md }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
             <div>
-              <label style={labelStyle}>Họ và tên chủ hộ:</label>
+              <label style={labelStyle}>Household head full name:</label>
               <input
                 type="text"
                 style={inputStyle}
@@ -1448,7 +1521,7 @@ export default function InsuranceFormTK1TS() {
               />
             </div>
             <div>
-              <label style={labelStyle}>Số điện thoại (nếu có):</label>
+              <label style={labelStyle}>Phone number (optional):</label>
               <input
                 type="text"
                 style={inputStyle}
@@ -1459,7 +1532,7 @@ export default function InsuranceFormTK1TS() {
           </div>
 
           <div style={{ marginBottom: theme.spacing.sm }}>
-            <label style={labelStyle}>Quốc gia:</label>
+            <label style={labelStyle}>Country:</label>
             <select
               style={inputStyle}
               value={formData.householdAddressCountry}
@@ -1473,7 +1546,7 @@ export default function InsuranceFormTK1TS() {
                 }
               }}
             >
-              <option value="">-- Chọn quốc gia --</option>
+              <option value="">-- Select country --</option>
               {countries.map(country => (
                 <option key={country.code} value={country.code}>
                   {country.name}
@@ -1484,7 +1557,7 @@ export default function InsuranceFormTK1TS() {
           {formData.householdAddressCountry === "VN" && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
               <div>
-                <label style={labelStyle}>Xã (phường, thị trấn):</label>
+                <label style={labelStyle}>Ward/Commune/Township:</label>
                 <input
                   type="text"
                   style={inputStyle}
@@ -1493,7 +1566,7 @@ export default function InsuranceFormTK1TS() {
                 />
               </div>
               <div>
-                <label style={labelStyle}>Huyện (quận, thị xã, Tp thuộc tỉnh):</label>
+                <label style={labelStyle}>District:</label>
                 <input
                   type="text"
                   style={inputStyle}
@@ -1502,7 +1575,7 @@ export default function InsuranceFormTK1TS() {
                 />
               </div>
               <div>
-                <label style={labelStyle}>Tỉnh (Tp):</label>
+                <label style={labelStyle}>Province/City:</label>
                 <select
                   style={inputStyle}
                   value={formData.householdAddressProvinceCode}
@@ -1512,7 +1585,7 @@ export default function InsuranceFormTK1TS() {
                     handleInputChange("householdAddressProvince", province?.name || "");
                   }}
                 >
-                  <option value="">-- Chọn tỉnh/thành phố --</option>
+                  <option value="">-- Select province/city --</option>
                   {vietnamProvinces.map(province => (
                     <option key={province.code} value={province.code}>
                       {province.name}
@@ -1524,13 +1597,13 @@ export default function InsuranceFormTK1TS() {
           )}
           {formData.householdAddressCountry !== "VN" && formData.householdAddressCountry && (
             <div>
-              <label style={labelStyle}>Địa chỉ:</label>
+              <label style={labelStyle}>Address:</label>
               <input
                 type="text"
                 style={inputStyle}
                 value={formData.householdAddressWard}
                 onChange={(e) => handleInputChange("householdAddressWard", e.target.value)}
-                placeholder="Nhập địa chỉ đầy đủ"
+                placeholder="Enter full address"
               />
             </div>
           )}
@@ -1538,10 +1611,10 @@ export default function InsuranceFormTK1TS() {
 
         {/* Add household member form */}
         <div style={{ ...formSectionStyle, backgroundColor: theme.neutral.white, marginBottom: theme.spacing.md }}>
-          <h4 style={{ marginBottom: theme.spacing.md }}>Thêm thành viên hộ gia đình:</h4>
+          <h4 style={{ marginBottom: theme.spacing.md }}>Add household member:</h4>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
             <div>
-              <label style={labelStyle}>Họ và tên: *</label>
+              <label style={labelStyle}>Full name: *</label>
               <input
                 type="text"
                 style={inputStyle}
@@ -1550,7 +1623,7 @@ export default function InsuranceFormTK1TS() {
               />
             </div>
             <div>
-              <label style={labelStyle}>Mã số BHXH:</label>
+              <label style={labelStyle}>Social Insurance No.:</label>
               <input
                 type="text"
                 style={inputStyle}
@@ -1561,7 +1634,7 @@ export default function InsuranceFormTK1TS() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
             <div>
-              <label style={labelStyle}>Ngày, tháng, năm sinh:</label>
+              <label style={labelStyle}>Date of birth:</label>
               <input
                 type="date"
                 style={inputStyle}
@@ -1570,21 +1643,21 @@ export default function InsuranceFormTK1TS() {
               />
             </div>
             <div>
-              <label style={labelStyle}>Giới tính:</label>
+              <label style={labelStyle}>Gender:</label>
               <select
                 style={inputStyle}
                 value={householdMember.gender}
                 onChange={(e) => setHouseholdMember({ ...householdMember, gender: e.target.value })}
               >
-                <option value="">-- Chọn --</option>
-                <option value="Nam">Nam</option>
-                <option value="Nữ">Nữ</option>
+                <option value="">-- Select --</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
               </select>
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
             <div>
-              <label style={labelStyle}>Nơi cấp giấy khai sinh:</label>
+              <label style={labelStyle}>Birth certificate place:</label>
               <input
                 type="text"
                 style={inputStyle}
@@ -1593,19 +1666,19 @@ export default function InsuranceFormTK1TS() {
               />
             </div>
             <div>
-              <label style={labelStyle}>Mối quan hệ với chủ hộ:</label>
+              <label style={labelStyle}>Relationship to household head:</label>
               <input
                 type="text"
                 style={inputStyle}
                 value={householdMember.relationship}
                 onChange={(e) => setHouseholdMember({ ...householdMember, relationship: e.target.value })}
-                placeholder="Vợ, chồng, con, cháu..."
+                placeholder="Spouse, child, ..."
               />
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
             <div>
-              <label style={labelStyle}>Số CMND/ Thẻ căn cước/ Hộ chiếu:</label>
+              <label style={labelStyle}>ID/Passport/Citizen ID:</label>
               <input
                 type="text"
                 style={inputStyle}
@@ -1614,7 +1687,7 @@ export default function InsuranceFormTK1TS() {
               />
             </div>
             <div>
-              <label style={labelStyle}>Ghi chú:</label>
+              <label style={labelStyle}>Notes:</label>
               <input
                 type="text"
                 style={inputStyle}
@@ -1627,24 +1700,24 @@ export default function InsuranceFormTK1TS() {
             style={buttonStyle}
             onClick={addHouseholdMember}
           >
-            ➕ Thêm thành viên
+            ➕ Add member
           </button>
         </div>
 
         {/* List of household members */}
         {formData.householdMembers.length > 0 && (
           <div style={{ marginTop: theme.spacing.md }}>
-            <h4 style={{ marginBottom: theme.spacing.md }}>Danh sách thành viên đã thêm:</h4>
+            <h4 style={{ marginBottom: theme.spacing.md }}>Added members:</h4>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: theme.typography.small.fontSize }}>
               <thead>
                 <tr style={{ backgroundColor: theme.primary.main, color: theme.neutral.white }}>
-                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Stt</th>
-                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Họ và tên</th>
-                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Mã số BHXH</th>
-                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Ngày sinh</th>
-                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Giới tính</th>
-                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Mối quan hệ</th>
-                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Thao tác</th>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>No.</th>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Full name</th>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Social Insurance No.</th>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Date of birth</th>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Gender</th>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Relationship</th>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1669,7 +1742,7 @@ export default function InsuranceFormTK1TS() {
                           fontSize: theme.typography.small.fontSize
                         }}
                       >
-                        Xóa
+                        Delete
                       </button>
                     </td>
                   </tr>
@@ -1692,7 +1765,7 @@ export default function InsuranceFormTK1TS() {
           onClick={saveFormData}
           disabled={loading || loadingWord || !selectedEmployee}
         >
-          {loading ? "⏳ Đang lưu..." : "💾 Lưu Form"}
+          {loading ? "⏳ Saving..." : "💾 Save"}
         </button>
         <button
           style={{
@@ -1704,7 +1777,7 @@ export default function InsuranceFormTK1TS() {
           onClick={exportToWord}
           disabled={loadingWord || loading}
         >
-          {loadingWord ? "⏳ Đang tạo Word..." : "📝 Xuất Word"}
+          {loadingWord ? "⏳ Generating Word..." : "📝 Export Word"}
         </button>
         <button
           style={{
@@ -1716,7 +1789,7 @@ export default function InsuranceFormTK1TS() {
           onClick={exportToPDF}
           disabled={loading || loadingWord}
         >
-          {loading ? "⏳ Đang tạo PDF..." : "📄 Xuất PDF"}
+          {loading ? "⏳ Generating PDF..." : "📄 Export PDF"}
         </button>
       </div>
 
@@ -1724,8 +1797,8 @@ export default function InsuranceFormTK1TS() {
         <div style={{
           marginTop: theme.spacing.md,
           padding: theme.spacing.md,
-          backgroundColor: message.includes("thành công") ? theme.success.light : theme.error.light,
-          color: message.includes("thành công") ? theme.success.dark : theme.error.dark,
+          backgroundColor: isSuccessMessage ? theme.success.light : theme.error.light,
+          color: isSuccessMessage ? theme.success.dark : theme.error.dark,
           borderRadius: theme.radius.md
         }}>
           {message}
