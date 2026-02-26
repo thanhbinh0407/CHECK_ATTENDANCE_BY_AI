@@ -1729,21 +1729,67 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                     return (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: theme.spacing.md }}>
                       {dependents.map((dep) => (
-                        <div key={dep.id} style={{
-                          padding: theme.spacing.md,
-                          backgroundColor: theme.neutral.gray50,
-                          borderRadius: theme.radius.md,
-                          border: `1px solid ${theme.neutral.gray200}`
-                        }}>
-                          <div style={{ fontWeight: 600, marginBottom: theme.spacing.xs, fontSize: "16px" }}>
-                            {dep.fullName}
+                        <div
+                          key={dep.id}
+                          style={{
+                            padding: theme.spacing.md,
+                            backgroundColor: theme.neutral.gray50,
+                            borderRadius: theme.radius.md,
+                            border: `1px solid ${theme.neutral.gray200}`
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              marginBottom: theme.spacing.xs,
+                              fontSize: "16px"
+                            }}
+                          >
+                            {dep.fullName || "-"}
                           </div>
-                          <div style={{ fontSize: "14px", color: theme.neutral.gray600 }}>
-                            <div>Relationship: {dep.relationship}</div>
-                            {dep.dateOfBirth && (
-                              <div>Date of Birth: {new Date(dep.dateOfBirth).toLocaleDateString('en-US')}</div>
+                          <div
+                            style={{
+                              fontSize: "14px",
+                              color: theme.neutral.gray600,
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 2
+                            }}
+                          >
+                            <div>
+                              <strong>Relationship:</strong> {dep.relationship || "-"}
+                            </div>
+                            {dep.gender && (
+                              <div>
+                                <strong>Gender:</strong> {dep.gender}
+                              </div>
                             )}
-                            {dep.gender && <div>Gender: {dep.gender}</div>}
+                            {dep.dateOfBirth && (
+                              <div>
+                                <strong>Date of Birth:</strong>{" "}
+                                {new Date(dep.dateOfBirth).toLocaleDateString("en-GB")}
+                              </div>
+                            )}
+                            {dep.idNumber && (
+                              <div>
+                                <strong>ID Number:</strong> {dep.idNumber}
+                              </div>
+                            )}
+                            {dep.address && (
+                              <div>
+                                <strong>Address:</strong> {dep.address}
+                              </div>
+                            )}
+                            {dep.phoneNumber && (
+                              <div>
+                                <strong>Phone Number:</strong> {dep.phoneNumber}
+                              </div>
+                            )}
+                            {dep.email && (
+                              <div>
+                                <strong>Email:</strong> {dep.email}
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
