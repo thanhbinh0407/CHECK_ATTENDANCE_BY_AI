@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { theme } from "../styles/theme.js";
 import * as faceapi from "face-api.js";
-import { JOB_COEFFICIENTS, EDUCATION_COEFFICIENTS, CERTIFICATE_COEFFICIENTS } from "../utils/salaryCalculation.js";
+import { EDUCATION_COEFFICIENTS } from "../utils/salaryCalculation.js";
 import { filterNumbersFromName, validateName, validateEmail, validateEmployeeCode, validatePassword } from "../utils/validationUtils.js";
 
 const JOB_LABELS = {
@@ -32,15 +32,16 @@ export default function EnrollmentForm() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [faceDetected, setFaceDetected] = useState(false);
+  const [jobTitles, setJobTitles] = useState([]);
+  const [jobTitlesLoading, setJobTitlesLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     employeeCode: "",
     password: "",
     jobTitle: "Nhân viên",
+    jobTitleId: null,
     educationLevel: "Đại học",
-    certificates: [],
-    dependents: 0,
     baseSalary: 1800000
   });
   const [useCustomPassword, setUseCustomPassword] = useState(false);
@@ -48,10 +49,56 @@ export default function EnrollmentForm() {
   const [generatedPassword, setGeneratedPassword] = useState(null);
   const [passwordGenerated, setPasswordGenerated] = useState(false);
   const detectionIntervalRef = useRef(null);
+  const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
   // Load face detection models
   useEffect(() => {
     loadModels();
+  }, []);
+
+  // Load job titles for admin enrollment form
+  useEffect(() => {
+    const loadJobTitles = async () => {
+      try {
+        setJobTitlesLoading(true);
+        const token = localStorage.getItem("authToken");
+        const res = await fetch(`${apiBase}/api/job-titles`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          const activeTitles = (data.jobTitles || []).filter((jt) => jt.isActive);
+          setJobTitles(activeTitles);
+
+          // If no selection yet, default to first active job title and its base salary
+          if (activeTitles.length > 0 && !formData.jobTitleId) {
+            const first = activeTitles[0];
+            setFormData((prev) => ({
+              ...prev,
+              jobTitleId: first.id,
+              jobTitle: first.name || prev.jobTitle,
+              baseSalary: first.baseSalaryMin
+                ? parseInt(first.baseSalaryMin)
+                : prev.baseSalary
+            }));
+          }
+        } else {
+          setMessage(
+            "Failed to load job titles: " + (data.message || "Unknown error")
+          );
+        }
+      } catch (err) {
+        console.error("Error loading job titles:", err);
+        setMessage("Failed to load job titles from server");
+      } finally {
+        setJobTitlesLoading(false);
+      }
+    };
+
+    loadJobTitles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Realtime face detection loop
@@ -267,7 +314,6 @@ export default function EnrollmentForm() {
 
     try {
       setLoading(true);
-      const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
       const token = localStorage.getItem("authToken");
       
       const res = await fetch(`${apiBase}/api/enroll/register`, {
@@ -282,10 +328,9 @@ export default function EnrollmentForm() {
           employeeCode: formData.employeeCode,
           descriptor: capturedDescriptor,
           password: useCustomPassword ? formData.password : undefined,
+          jobTitleId: formData.jobTitleId,
           jobTitle: formData.jobTitle,
           educationLevel: formData.educationLevel,
-          certificates: formData.certificates,
-          dependents: formData.dependents,
           baseSalary: formData.baseSalary
         })
       });
@@ -301,9 +346,8 @@ export default function EnrollmentForm() {
           employeeCode: "", 
           password: "",
           jobTitle: "Nhân viên",
+          jobTitleId: null,
           educationLevel: "Đại học",
-          certificates: [],
-          dependents: 0,
           baseSalary: 1800000
         });
         setUseCustomPassword(false);
@@ -455,16 +499,37 @@ export default function EnrollmentForm() {
               />
             </div>
 
-            {/* Job Title */}
+            {/* Job Title - loaded from Job Title Management */}
             <div style={{ marginBottom: "16px" }}>
               <label style={labelStyle}>Job Title *</label>
               <select
                 style={inputStyle}
-                value={formData.jobTitle}
-                onChange={(e) => setFormData({...formData, jobTitle: e.target.value})}
+                value={formData.jobTitleId || ""}
+                onChange={(e) => {
+                  const id = parseInt(e.target.value) || null;
+                  const selected = jobTitles.find((jt) => jt.id === id);
+                  setFormData((prev) => ({
+                    ...prev,
+                    jobTitleId: id,
+                    jobTitle: selected ? (selected.name || prev.jobTitle) : prev.jobTitle,
+                    baseSalary:
+                      selected && selected.baseSalaryMin
+                        ? parseInt(selected.baseSalaryMin)
+                        : prev.baseSalary
+                  }));
+                }}
+                disabled={jobTitlesLoading || jobTitles.length === 0}
               >
-                {Object.keys(JOB_COEFFICIENTS).map(job => (
-                  <option key={job} value={job}>{JOB_LABELS[job] || job}</option>
+                <option value="">
+                  {jobTitlesLoading
+                    ? "Loading job titles..."
+                    : "Select job title"}
+                </option>
+                {jobTitles.map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {job.name}
+                    {job.code ? ` (${job.code})` : ""}
+                  </option>
                 ))}
               </select>
             </div>
@@ -481,43 +546,6 @@ export default function EnrollmentForm() {
                   <option key={edu} value={edu}>{EDU_LABELS[edu] || edu}</option>
                 ))}
               </select>
-            </div>
-
-            {/* Certificates */}
-            <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Certificates (select multiple)</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
-                {Object.keys(CERTIFICATE_COEFFICIENTS).map(cert => (
-                  <label key={cert} style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={formData.certificates.includes(cert)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setFormData({...formData, certificates: [...formData.certificates, cert]});
-                        } else {
-                          setFormData({...formData, certificates: formData.certificates.filter(c => c !== cert)});
-                        }
-                      }}
-                      style={{ marginRight: "8px", width: "16px", height: "16px" }}
-                    />
-                    <span style={{ fontSize: "14px" }}>{cert}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Dependents */}
-            <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Number of Dependents</label>
-              <input
-                type="number"
-                style={inputStyle}
-                value={formData.dependents}
-                onChange={(e) => setFormData({...formData, dependents: parseInt(e.target.value) || 0})}
-                min="0"
-                placeholder="0"
-              />
             </div>
 
             {/* Base Salary */}

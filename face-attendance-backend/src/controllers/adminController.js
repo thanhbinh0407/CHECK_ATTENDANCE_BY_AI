@@ -170,7 +170,12 @@ export const updateEmployee = async (req, res) => {
       responsibilityAllowance,
       socialInsuranceNumber,
       healthInsuranceProvider,
-      dependentCount
+      dependentCount,
+      educationLevel,
+      major,
+      emergencyContactName,
+      emergencyContactRelationship,
+      emergencyContactPhone
     } = req.body;
 
     const employee = await User.findOne({
@@ -206,7 +211,6 @@ export const updateEmployee = async (req, res) => {
     if (permanentAddress !== undefined) updateData.permanentAddress = permanentAddress;
     if (temporaryAddress !== undefined) updateData.temporaryAddress = temporaryAddress;
     if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
-    if (gender !== undefined) updateData.gender = gender;
     if (idNumber !== undefined) updateData.idNumber = idNumber;
     if (idIssueDate !== undefined) updateData.idIssueDate = idIssueDate ? new Date(idIssueDate) : null;
     if (idIssuePlace !== undefined) updateData.idIssuePlace = idIssuePlace;
@@ -219,9 +223,8 @@ export const updateEmployee = async (req, res) => {
     if (bankName !== undefined) updateData.bankName = bankName;
     if (bankBranch !== undefined) updateData.bankBranch = bankBranch;
     if (taxCode !== undefined) updateData.taxCode = taxCode;
-    if (idNumber !== undefined) updateData.idNumber = idNumber;
-    if (contractType !== undefined) updateData.contractType = contractType;
-    if (employmentStatus !== undefined) updateData.employmentStatus = employmentStatus;
+    if (contractType !== undefined) updateData.contractType = contractType || null;
+    if (employmentStatus !== undefined) updateData.employmentStatus = employmentStatus || null;
     if (managerId !== undefined) updateData.managerId = managerId ? parseInt(managerId) : null;
     if (branchName !== undefined) updateData.branchName = branchName;
     if (lunchAllowance !== undefined) updateData.lunchAllowance = parseFloat(lunchAllowance) || 0;
@@ -231,11 +234,19 @@ export const updateEmployee = async (req, res) => {
     if (socialInsuranceNumber !== undefined) updateData.socialInsuranceNumber = socialInsuranceNumber;
     if (healthInsuranceProvider !== undefined) updateData.healthInsuranceProvider = healthInsuranceProvider;
     if (dependentCount !== undefined) updateData.dependentCount = parseInt(dependentCount) || 0;
-    if (educationLevel !== undefined) updateData.educationLevel = educationLevel;
+    if (educationLevel !== undefined) {
+      // Convert empty string to null for enum fields
+      updateData.educationLevel = educationLevel === "" ? null : educationLevel;
+    }
     if (major !== undefined) updateData.major = major;
     if (emergencyContactName !== undefined) updateData.emergencyContactName = emergencyContactName;
     if (emergencyContactRelationship !== undefined) updateData.emergencyContactRelationship = emergencyContactRelationship;
     if (emergencyContactPhone !== undefined) updateData.emergencyContactPhone = emergencyContactPhone;
+    
+    // Convert empty strings to null for enum fields to avoid PostgreSQL enum errors
+    if (gender !== undefined) updateData.gender = gender === "" ? null : gender;
+    if (contractType !== undefined) updateData.contractType = contractType === "" ? null : contractType;
+    if (employmentStatus !== undefined) updateData.employmentStatus = employmentStatus === "" ? null : employmentStatus;
 
     await employee.update(updateData);
 
@@ -718,26 +729,64 @@ export const getEmployeeAttendanceStats = async (req, res) => {
       order: [['timestamp', 'ASC']]
     });
 
-    // Calculate statistics
-    const lateCount = logs.filter(log => log.isLate === true).length;
-    const absenceCount = 0; // TODO: Calculate based on working days vs attendance
-    const earlyLeaveCount = logs.filter(log => log.isEarlyLeave === true).length;
+    // Calculate statistics (group by local day, based on timestamp + IN/OUT)
+    const timeZone = 'Asia/Ho_Chi_Minh';
+    const dayKeyOf = (d) => new Date(d).toLocaleDateString('sv-SE', { timeZone }); // YYYY-MM-DD
+    const dayMap = new Map();
+
+    for (const log of logs) {
+      const key = dayKeyOf(log.timestamp);
+      if (!dayMap.has(key)) {
+        dayMap.set(key, { dateKey: key, checkIn: null, checkOut: null, logs: [] });
+      }
+      const day = dayMap.get(key);
+      day.logs.push(log);
+
+      if (log.type === 'IN') {
+        if (!day.checkIn || new Date(log.timestamp) < new Date(day.checkIn.timestamp)) {
+          day.checkIn = log;
+        }
+      } else if (log.type === 'OUT') {
+        if (!day.checkOut || new Date(log.timestamp) > new Date(day.checkOut.timestamp)) {
+          day.checkOut = log;
+        }
+      }
+    }
+
+    const daily = Array.from(dayMap.values()).sort((a, b) => a.dateKey.localeCompare(b.dateKey)); // oldest -> newest
+    const daysWorked = daily.filter(d => !!d.checkIn).length;
+    const lateCount = daily.filter(d => d.checkIn?.isLate === true).length;
+    const earlyLeaveCount = daily.filter(d => d.checkOut?.isEarlyLeave === true).length;
+    const totalDaysInMonth = new Date(targetYear, targetMonth, 0).getDate();
+    const absenceCount = Math.max(0, totalDaysInMonth - daysWorked);
 
     return res.json({
       status: "success",
       month: targetMonth,
       year: targetYear,
       statistics: {
-        totalDays: logs.length,
+        totalDays: totalDaysInMonth,
+        daysWorked,
         lateCount,
         absenceCount,
         earlyLeaveCount,
-        logs: logs.map(log => ({
+        recentAttendance: daily.slice(-31).map(d => ({
+          date: d.dateKey,
+          checkIn: d.checkIn ? d.checkIn.timestamp : null,
+          checkOut: d.checkOut ? d.checkOut.timestamp : null,
+          flags: {
+            isLate: d.checkIn?.isLate === true,
+            isEarlyLeave: d.checkOut?.isEarlyLeave === true,
+            isOvertime: (d.logs || []).some(l => l.isOvertime === true)
+          }
+        })),
+        rawLogs: logs.map(log => ({
           id: log.id,
           timestamp: log.timestamp,
           type: log.type,
           isLate: log.isLate,
-          isEarlyLeave: log.isEarlyLeave
+          isEarlyLeave: log.isEarlyLeave,
+          isOvertime: log.isOvertime
         }))
       }
     });
@@ -788,11 +837,11 @@ export const getEmployeeDetailedInfo = async (req, res) => {
     const attendanceLogs = await AttendanceLog.findAll({
       where: {
         userId: id,
-        createdAt: {
+        timestamp: {
           [Op.between]: [startDate, endDate]
         }
       },
-      order: [['createdAt', 'DESC']],
+      order: [['timestamp', 'DESC']],
       limit: 100
     });
 
@@ -814,10 +863,36 @@ export const getEmployeeDetailedInfo = async (req, res) => {
       limit: 12
     });
 
-    // Calculate attendance statistics
-    const workingDaysCount = attendanceLogs.length;
-    const lateCount = attendanceLogs.filter(log => log.isLate === true).length;
-    const earlyLeaveCount = attendanceLogs.filter(log => log.isEarlyLeave === true).length;
+    // Calculate attendance statistics (group by local day, based on timestamp + IN/OUT)
+    const timeZone = 'Asia/Ho_Chi_Minh';
+    const dayKeyOf = (d) => new Date(d).toLocaleDateString('sv-SE', { timeZone }); // YYYY-MM-DD
+    const dayMap = new Map();
+
+    for (const log of attendanceLogs) {
+      const key = dayKeyOf(log.timestamp);
+      if (!dayMap.has(key)) {
+        dayMap.set(key, { dateKey: key, checkIn: null, checkOut: null, logs: [] });
+      }
+      const day = dayMap.get(key);
+      day.logs.push(log);
+
+      if (log.type === 'IN') {
+        if (!day.checkIn || new Date(log.timestamp) < new Date(day.checkIn.timestamp)) {
+          day.checkIn = log;
+        }
+      } else if (log.type === 'OUT') {
+        if (!day.checkOut || new Date(log.timestamp) > new Date(day.checkOut.timestamp)) {
+          day.checkOut = log;
+        }
+      }
+    }
+
+    const daily = Array.from(dayMap.values()).sort((a, b) => b.dateKey.localeCompare(a.dateKey)); // newest -> oldest
+    const workingDaysCount = daily.filter(d => !!d.checkIn).length;
+    const lateCount = daily.filter(d => d.checkIn?.isLate === true).length;
+    const earlyLeaveCount = daily.filter(d => d.checkOut?.isEarlyLeave === true).length;
+    const totalDaysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+    const absentDaysCount = Math.max(0, totalDaysInMonth - workingDaysCount);
 
     return res.json({
       status: "success",
@@ -828,9 +903,15 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         employeeCode: employee.employeeCode,
         phoneNumber: employee.phoneNumber,
         address: employee.address,
+        permanentAddress: employee.permanentAddress,
+        temporaryAddress: employee.temporaryAddress,
         dateOfBirth: employee.dateOfBirth,
         gender: employee.gender,
         idNumber: employee.idNumber,
+        idIssueDate: employee.idIssueDate,
+        idIssuePlace: employee.idIssuePlace,
+        personalEmail: employee.personalEmail,
+        companyEmail: employee.companyEmail,
         startDate: employee.startDate,
         baseSalary: employee.baseSalary,
         isActive: employee.isActive,
@@ -839,21 +920,54 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         department: employee.Department?.name || 'N/A',
         jobTitle: employee.JobTitle?.name || 'N/A',
         salaryGrade: employee.SalaryGrade?.name || 'N/A',
+        contractType: employee.contractType,
+        employmentStatus: employee.employmentStatus,
+        managerId: employee.managerId,
+        branchName: employee.branchName,
+        Manager: employee.Manager ? { id: employee.Manager.id, name: employee.Manager.name, employeeCode: employee.Manager.employeeCode } : null,
+        Department: employee.Department,
+        JobTitle: employee.JobTitle,
+        SalaryGrade: employee.SalaryGrade,
         bankAccount: employee.bankAccount,
         bankName: employee.bankName,
+        bankBranch: employee.bankBranch,
         taxCode: employee.taxCode,
+        contractType: employee.contractType,
+        employmentStatus: employee.employmentStatus,
+        managerId: employee.managerId,
+        branchName: employee.branchName,
+        lunchAllowance: employee.lunchAllowance,
+        transportAllowance: employee.transportAllowance,
+        phoneAllowance: employee.phoneAllowance,
+        responsibilityAllowance: employee.responsibilityAllowance,
+        socialInsuranceNumber: employee.socialInsuranceNumber,
+        healthInsuranceProvider: employee.healthInsuranceProvider,
+        dependentCount: employee.dependentCount,
+        educationLevel: employee.educationLevel,
+        major: employee.major,
+        emergencyContactName: employee.emergencyContactName,
+        emergencyContactRelationship: employee.emergencyContactRelationship,
+        emergencyContactPhone: employee.emergencyContactPhone,
         password: employee.password, // Include password for admin viewing
         attendanceStats: {
+          month: currentMonth,
+          year: currentYear,
+          totalDays: totalDaysInMonth,
           totalDaysWorked: workingDaysCount,
           totalLate: lateCount,
-          totalAbsent: 0,
+          totalAbsent: absentDaysCount,
           totalEarlyLeave: earlyLeaveCount
         },
-        recentAttendance: attendanceLogs.map(log => ({
-          date: new Date(log.createdAt).toLocaleDateString('vi-VN'),
-          checkIn: log.createdAt ? new Date(log.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null,
-          checkOut: log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null,
-          status: log.isLate ? 'Muộn' : log.isEarlyLeave ? 'Về sớm' : 'Bình thường'
+        recentAttendance: daily.slice(0, 31).map(d => ({
+          date: d.dateKey, // YYYY-MM-DD
+          checkIn: d.checkIn ? d.checkIn.timestamp : null,
+          checkOut: d.checkOut ? d.checkOut.timestamp : null,
+          flags: {
+            isLate: d.checkIn?.isLate === true,
+            isEarlyLeave: d.checkOut?.isEarlyLeave === true,
+            isOvertime: (d.logs || []).some(l => l.isOvertime === true)
+          },
+          status: d.checkIn?.isLate ? 'Muộn' : d.checkOut?.isEarlyLeave ? 'Về sớm' : 'Bình thường'
         })),
         leaveHistory: leaveRequests.map(leave => ({
           id: leave.id,
@@ -891,7 +1005,8 @@ export const getEmployeeDetailedInfo = async (req, res) => {
           name: qual.name,
           issuedBy: qual.issuedBy,
           issuedDate: qual.issuedDate
-        })) : []
+        })) : [],
+        WorkExperiences: employee.WorkExperiences || []
       }
     });
   } catch (err) {
