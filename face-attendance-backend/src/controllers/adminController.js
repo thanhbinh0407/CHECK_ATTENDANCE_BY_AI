@@ -992,13 +992,20 @@ export const getEmployeeDetailedInfo = async (req, res) => {
           finalSalary: salary.finalSalary,
           status: salary.status
         })),
-        dependents: employee.Dependents ? employee.Dependents.map(dep => ({
-          id: dep.id,
-          fullName: dep.fullName,
-          relationship: dep.relationship,
-          dateOfBirth: dep.dateOfBirth,
-          gender: dep.gender
-        })) : [],
+        // Family / Dependents info for frontend (EmployeeProfileModal - Family tab)
+        dependents: employee.Dependents
+          ? employee.Dependents.map(dep => ({
+              id: dep.id,
+              fullName: dep.fullName,
+              relationship: dep.relationship,
+              dateOfBirth: dep.dateOfBirth,
+              gender: dep.gender,
+              idNumber: dep.idNumber,
+              address: dep.address,
+              phoneNumber: dep.phoneNumber,
+              email: dep.email
+            }))
+          : [],
         qualifications: employee.Qualifications ? employee.Qualifications.map(qual => ({
           id: qual.id,
           type: qual.type,
