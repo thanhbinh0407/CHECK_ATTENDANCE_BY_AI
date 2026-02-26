@@ -186,13 +186,6 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
           error = "Temporary Address must be at least 10 characters";
         }
         break;
-      case "phoneNumber":
-        if (!value || value.trim().length === 0) {
-          error = "Personal Phone Number is required";
-        } else if (!/^0\d{9,10}$/.test(value)) {
-          error = "Personal Phone Number must be a valid Vietnamese phone number (10-11 digits, starts with 0)";
-        }
-        break;
       case "personalEmail":
         if (!value || value.trim().length === 0) {
           error = "Personal Email is required";
@@ -242,9 +235,6 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
     
     const temporaryAddressError = validateField("temporaryAddress", editForm.temporaryAddress);
     if (temporaryAddressError) errors.temporaryAddress = temporaryAddressError;
-    
-    const phoneNumberError = validateField("phoneNumber", editForm.phoneNumber);
-    if (phoneNumberError) errors.phoneNumber = phoneNumberError;
     
     const personalEmailError = validateField("personalEmail", editForm.personalEmail);
     if (personalEmailError) errors.personalEmail = personalEmailError;
@@ -1022,42 +1012,6 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                       )}
                     </div>
 
-                    {/* Personal Phone Number */}
-                    <div style={infoCardStyle} data-field="phoneNumber">
-                      <label style={labelStyle}>Personal Phone Number *</label>
-                      {isEditing ? (
-                        <>
-                          <input
-                            type="tel"
-                            value={editForm.phoneNumber}
-                            onChange={(e) => {
-                              let value = e.target.value.replace(/\D/g, '').slice(0, 11);
-                              setEditForm({ ...editForm, phoneNumber: value });
-                              const error = validateField("phoneNumber", value);
-                              setValidationErrors({ ...validationErrors, phoneNumber: error });
-                            }}
-                            onBlur={(e) => {
-                              const error = validateField("phoneNumber", e.target.value);
-                              setValidationErrors({ ...validationErrors, phoneNumber: error });
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            style={{
-                              ...inputStyle,
-                              borderColor: validationErrors.phoneNumber ? theme.error.main : inputStyle.border
-                            }}
-                            placeholder="Enter phone number (10-11 digits, starts with 0)"
-                          />
-                          {validationErrors.phoneNumber && (
-                            <div style={{ color: theme.error.main, fontSize: "12px", marginTop: "4px" }}>
-                              {validationErrors.phoneNumber}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div style={valueStyle}>{employeeDetails?.phoneNumber || "-"}</div>
-                      )}
-                    </div>
-
                     {/* Personal Email */}
                     <div style={infoCardStyle} data-field="personalEmail">
                       <label style={labelStyle}>Personal Email *</label>
@@ -1704,14 +1658,14 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         />
                       ) : (
                         <div style={valueStyle}>
-                          {employeeDetails?.dependentCount || 0} {employeeDetails?.dependentCount === 1 ? 'person' : 'people'}
                           {(() => {
                             const dependents = employeeDetails?.Dependents || employeeDetails?.dependents || [];
-                            return dependents.length > 0 ? (
-                            <span style={{ fontSize: "12px", color: theme.neutral.gray600, marginLeft: "8px" }}>
-                              ({dependents.length} in system)
-                            </span>
-                          ) : null;
+                            const count = dependents.length;
+                            return (
+                              <>
+                                {count} {count === 1 ? "person" : "people"}
+                              </>
+                            );
                           })()}
                         </div>
                       )}
