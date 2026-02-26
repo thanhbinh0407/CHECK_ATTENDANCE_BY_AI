@@ -251,6 +251,10 @@ export default function InsuranceFormTK1TS() {
       const data = await res.json();
       if (res.ok) {
         const emp = data.employee;
+        const dependents = emp?.Dependents || emp?.dependents || [];
+        const householdHeadFromFamily = dependents && dependents.length > 0
+          ? (dependents[0].fullName || dependents[0].name || "")
+          : "";
 
         // Parse address
         const parseAddress = (address) => {
@@ -311,7 +315,7 @@ export default function InsuranceFormTK1TS() {
           socialInsuranceNumber: emp.socialInsuranceNumber || "",
           changeContent: "",
           attachedDocuments: "",
-          householdHeadName: "",
+          householdHeadName: householdHeadFromFamily,
           householdHeadPhone: "",
           householdAddressCountry: "VN",
           householdAddressCountryName: "Vietnam",
