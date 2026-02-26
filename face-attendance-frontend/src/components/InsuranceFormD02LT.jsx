@@ -23,6 +23,7 @@ export default function InsuranceFormD02LT() {
     reportDate: new Date().toLocaleDateString('vi-VN')
   });
   const [employeeList, setEmployeeList] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
@@ -37,6 +38,59 @@ export default function InsuranceFormD02LT() {
         console.error("Error loading company info:", e);
       }
     }
+  }, []);
+
+  // Load báo cáo D02-LT đã lưu (theo user admin hiện tại)
+  useEffect(() => {
+    const loadSavedReport = async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        const userStr = localStorage.getItem("user");
+        if (!token || !userStr) return;
+
+        const currentUser = JSON.parse(userStr);
+        if (!currentUser?.id) return;
+
+        const res = await fetch(`${apiBase}/api/insurance-forms/${currentUser.id}/D02_LT`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        if (data.status === "success" && data.data) {
+          const saved = data.data;
+          // companyInfo ưu tiên dữ liệu đã lưu trên server
+          if (saved.companyInfo || saved.formData?.companyInfo) {
+            setCompanyInfo(prev => ({
+              ...prev,
+              ...(saved.companyInfo || {}),
+              ...(saved.formData?.companyInfo || {})
+            }));
+          }
+
+          // employeeList: danh sách đã xử lý để preview/xuất file
+          if (Array.isArray(saved.employeeList)) {
+            setEmployeeList(saved.employeeList);
+            // Đồng bộ lại danh sách id nhân viên được chọn (nếu có)
+            const ids = saved.employeeList
+              .map(e => e.id)
+              .filter(id => id !== undefined && id !== null);
+            if (ids.length > 0) {
+              setSelectedEmployees(ids);
+            }
+          }
+
+          setMessage("Đã tải dữ liệu báo cáo D02-LT đã lưu");
+        }
+      } catch (err) {
+        console.error("Error loading saved D02-LT report:", err);
+        // Không show lỗi nếu chưa có dữ liệu
+      }
+    };
+
+    loadSavedReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -320,6 +374,63 @@ export default function InsuranceFormD02LT() {
   const deselectAllEmployees = () => {
     setSelectedEmployees([]);
     setEmployeeList([]);
+  };
+
+  // Lưu báo cáo D02-LT vào database
+  const saveReport = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      const userStr = localStorage.getItem("user");
+
+      if (!token || !userStr) {
+        setMessage("Lỗi: Không tìm thấy thông tin đăng nhập. Vui lòng đăng nhập lại.");
+        return;
+      }
+
+      const currentUser = JSON.parse(userStr);
+      if (!currentUser?.id) {
+        setMessage("Lỗi: Không xác định được người dùng hiện tại.");
+        return;
+      }
+
+      if (employeeList.length === 0) {
+        setMessage("Lỗi: Chưa có dữ liệu nhân viên để lưu báo cáo.");
+        return;
+      }
+
+      setIsSaving(true);
+      setMessage("Đang lưu báo cáo D02-LT...");
+
+      const res = await fetch(`${apiBase}/api/insurance-forms/save`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          formType: "D02_LT",
+          formData: {
+            companyInfo,
+            selectedEmployeeIds: selectedEmployees
+          },
+          companyInfo,
+          employeeList
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.status === "success") {
+        setMessage("✅ Đã lưu báo cáo D02-LT thành công!");
+      } else {
+        setMessage("❌ Lỗi khi lưu báo cáo D02-LT: " + (data.message || "Unknown error"));
+      }
+    } catch (err) {
+      console.error("Error saving D02-LT report:", err);
+      setMessage("❌ Lỗi khi lưu báo cáo D02-LT: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const exportToPDF = async () => {
@@ -990,7 +1101,19 @@ export default function InsuranceFormD02LT() {
       )}
 
       {/* Action Buttons */}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: theme.spacing.md, marginTop: theme.spacing.xl }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: theme.spacing.md, marginTop: theme.spacing.xl }}>
+        <button
+          style={{
+            ...buttonStyle,
+            backgroundColor: isSaving ? theme.neutral.gray400 : theme.primary.main,
+            cursor: isSaving ? "not-allowed" : "pointer",
+            opacity: isSaving ? 0.7 : 1
+          }}
+          onClick={saveReport}
+          disabled={isSaving || loading || employeeList.length === 0}
+        >
+          {isSaving ? "⏳ Đang lưu..." : "💾 Lưu Form"}
+        </button>
         <button
           style={{
             ...buttonStyle,

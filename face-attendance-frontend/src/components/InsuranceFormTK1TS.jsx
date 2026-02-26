@@ -75,10 +75,20 @@ export default function InsuranceFormTK1TS() {
   }, []);
 
   useEffect(() => {
-    if (selectedEmployee) {
-      loadEmployeeData();
-      loadSavedFormData();
-    }
+    if (!selectedEmployee) return;
+
+    // Đảm bảo: luôn load thông tin nhân viên trước,
+    // sau đó mới áp dữ liệu form đã lưu để không bị ghi đè
+    const loadAll = async () => {
+      try {
+        await loadEmployeeData();
+        await loadSavedFormData();
+      } catch (err) {
+        console.error("Error loading employee + saved form data:", err);
+      }
+    };
+
+    loadAll();
   }, [selectedEmployee, formType]);
 
   // Load saved form data

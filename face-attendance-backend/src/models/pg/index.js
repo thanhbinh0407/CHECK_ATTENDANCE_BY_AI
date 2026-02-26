@@ -114,7 +114,8 @@ Payroll.belongsTo(User, { foreignKey: "approvedBy", as: "Approver" });
 User.hasMany(Payroll, { foreignKey: "approvedBy", as: "ApprovedPayrolls" });
 
 // INSURANCE FORM ASSOCIATIONS
-User.hasMany(InsuranceForm, { foreignKey: "userId", as: "InsuranceForms" });
+// Use a unique alias to avoid conflicts with any default-generated association names
+User.hasMany(InsuranceForm, { foreignKey: "userId", as: "UserInsuranceForms" });
 InsuranceForm.belongsTo(User, { foreignKey: "userId" });
 
 // Export models

@@ -59,8 +59,10 @@ const InsuranceForm = sequelize.define('InsuranceForm', {
   ]
 });
 
-InsuranceForm.belongsTo(User, { foreignKey: 'userId' });
-User.hasMany(InsuranceForm, { foreignKey: 'userId', as: 'InsuranceForms' });
+// Associations for InsuranceForm are defined centrally in `src/models/pg/index.js`
+// to avoid duplicate alias definitions (e.g. "InsuranceForms").
+// Here we only export the model.
 
 export default InsuranceForm;
 
+		
