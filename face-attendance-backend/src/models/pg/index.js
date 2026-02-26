@@ -22,6 +22,7 @@ import SalaryPolicy from "./SalaryPolicy.js";
 import PayrollComponent from "./PayrollComponent.js";
 import Payroll from "./Payroll.js";
 import PayrollDetail from "./PayrollDetail.js";
+import InsuranceForm from "./InsuranceForm.js";
 
 // USER ASSOCIATIONS - Organizational Structure
 User.belongsTo(Department, { foreignKey: "departmentId" });
@@ -112,6 +113,11 @@ PayrollComponent.hasMany(PayrollDetail, { foreignKey: "payrollComponentId" });
 Payroll.belongsTo(User, { foreignKey: "approvedBy", as: "Approver" });
 User.hasMany(Payroll, { foreignKey: "approvedBy", as: "ApprovedPayrolls" });
 
+// INSURANCE FORM ASSOCIATIONS
+// Use a unique alias to avoid conflicts with any default-generated association names
+User.hasMany(InsuranceForm, { foreignKey: "userId", as: "UserInsuranceForms" });
+InsuranceForm.belongsTo(User, { foreignKey: "userId" });
+
 // Export models
 export { 
   User, 
@@ -137,7 +143,8 @@ export {
   SalaryPolicy,
   PayrollComponent,
   Payroll,
-  PayrollDetail
+  PayrollDetail,
+  InsuranceForm
 };
 
 

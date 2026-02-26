@@ -1,0 +1,596 @@
+// Hệ Thống Quản Lý Chấm Công & Tính Lương - Sơ Đồ Cơ Sở Dữ Liệu
+// Được tạo cho dbdiagram.io
+// Copy và paste mã này vào https://dbdiagram.io/
+
+// ============================================
+// THỰC THỂ CỐT LÕI
+// ============================================
+
+Table users {
+  id integer [primary key, increment, note: 'Khóa chính']
+  name varchar [not null, note: 'Họ và tên']
+  email varchar [unique, not null, note: 'Email đăng nhập']
+  employeeCode varchar [unique, note: 'Mã nhân viên']
+  password varchar [note: 'Mật khẩu (đã mã hóa)']
+  role varchar [default: 'employee', note: 'Vai trò: admin, employee, accountant']
+  isActive boolean [default: true, note: 'Trạng thái hoạt động']
+  
+  // Cấu Trúc Tổ Chức
+  departmentId integer [ref: > departments.id, note: 'ID phòng ban']
+  jobTitleId integer [ref: > job_titles.id, note: 'ID chức vụ']
+  salaryGradeId integer [ref: > salary_grades.id, note: 'ID bậc lương']
+  managerId integer [ref: > users.id, note: 'ID người quản lý (tự tham chiếu)']
+  
+  // Thông Tin Tuyển Dụng
+  startDate date [note: 'Ngày bắt đầu']
+  hireDate date [note: 'Ngày vào làm']
+  probationStartDate date [note: 'Ngày bắt đầu thử việc']
+  probationEndDate date [note: 'Ngày kết thúc thử việc']
+  contractType varchar [note: 'Loại hợp đồng: probation, 1_year, 3_year, indefinite, other']
+  employmentStatus varchar [default: 'active', note: 'Trạng thái làm việc: active, maternity_leave, unpaid_leave, suspended, terminated, resigned']
+  branchName varchar [note: 'Tên chi nhánh']
+  
+  // Thông Tin Lương
+  baseSalary decimal(12,2) [default: 0, note: 'Lương cơ bản (VND)']
+  lunchAllowance decimal(12,2) [default: 0, note: 'Phụ cấp ăn trưa (VND)']
+  transportAllowance decimal(12,2) [default: 0, note: 'Phụ cấp xăng xe (VND)']
+  phoneAllowance decimal(12,2) [default: 0, note: 'Phụ cấp điện thoại (VND)']
+  responsibilityAllowance decimal(12,2) [default: 0, note: 'Phụ cấp trách nhiệm (VND)']
+  
+  // Thông Tin Cá Nhân
+  phoneNumber varchar [note: 'Số điện thoại']
+  address text [note: 'Địa chỉ hiện tại']
+  permanentAddress text [note: 'Địa chỉ thường trú']
+  temporaryAddress text [note: 'Địa chỉ tạm trú']
+  bankAccount varchar [note: 'Số tài khoản ngân hàng']
+  bankName varchar [note: 'Tên ngân hàng']
+  bankBranch varchar [note: 'Chi nhánh ngân hàng']
+  taxCode varchar [note: 'Mã số thuế']
+  socialInsuranceNumber varchar [note: 'Số bảo hiểm xã hội']
+  healthInsuranceProvider varchar [note: 'Nơi đăng ký khám chữa bệnh']
+  dependentCount integer [default: 0, note: 'Số người phụ thuộc']
+  idNumber varchar [note: 'Số CMND/CCCD']
+  idIssueDate date [note: 'Ngày cấp CMND/CCCD']
+  idIssuePlace varchar [note: 'Nơi cấp CMND/CCCD']
+  dateOfBirth date [note: 'Ngày sinh']
+  gender varchar [note: 'Giới tính: male, female, other']
+  personalEmail varchar [note: 'Email cá nhân']
+  companyEmail varchar [note: 'Email công ty']
+  
+  // Học Vấn & Kỹ Năng
+  educationLevel varchar [note: 'Trình độ học vấn: high_school, vocational, college, university, master, phd, other']
+  major varchar [note: 'Chuyên ngành']
+  
+  // Liên Hệ Khẩn Cấp
+  emergencyContactName varchar [note: 'Tên người liên hệ khẩn cấp']
+  emergencyContactRelationship varchar [note: 'Mối quan hệ']
+  emergencyContactPhone varchar [note: 'Số điện thoại liên hệ khẩn cấp']
+  
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Bảng người dùng/nhân viên cốt lõi với cấu trúc tổ chức và thông tin cá nhân'
+}
+
+Table departments {
+  id integer [primary key, increment, note: 'Khóa chính']
+  code varchar [unique, not null, note: 'Mã phòng ban']
+  name varchar [not null, note: 'Tên phòng ban']
+  description text [note: 'Mô tả']
+  managerId integer [ref: > users.id, note: 'ID người quản lý']
+  isActive boolean [default: true, note: 'Trạng thái hoạt động']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Quản lý phòng ban/đơn vị tổ chức'
+}
+
+Table job_titles {
+  id integer [primary key, increment, note: 'Khóa chính']
+  code varchar [unique, not null, note: 'Mã chức vụ']
+  name varchar [not null, note: 'Tên chức vụ']
+  description text [note: 'Mô tả']
+  level varchar [note: 'Cấp độ']
+  permissions jsonb [default: '[]', note: 'Quyền hạn (JSON)']
+  baseSalaryMin decimal(12,2) [default: 0, note: 'Lương cơ bản tối thiểu (VND)']
+  baseSalaryMax decimal(12,2) [default: 0, note: 'Lương cơ bản tối đa (VND)']
+  isActive boolean [default: true, note: 'Trạng thái hoạt động']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Quản lý chức vụ/vị trí công việc với phạm vi lương'
+}
+
+Table salary_grades {
+  id integer [primary key, increment, note: 'Khóa chính']
+  code varchar [unique, not null, note: 'Mã bậc lương']
+  name varchar [not null, note: 'Tên bậc lương']
+  level integer [not null, default: 1, note: 'Cấp độ bậc lương']
+  baseSalary decimal(12,2) [not null, default: 0, note: 'Lương cơ bản (VND)']
+  description text [note: 'Mô tả']
+  isActive boolean [default: true, note: 'Trạng thái hoạt động']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Các bậc lương để tăng lương theo thâm niên'
+}
+
+// ============================================
+// CHẤM CÔNG & NHẬN DIỆN KHUÔN MẶT
+// ============================================
+
+Table face_profiles {
+  id integer [primary key, increment, note: 'Khóa chính']
+  userId integer [ref: > users.id, not null, note: 'ID người dùng']
+  modelVersion varchar [default: 'faceapi-tiny', note: 'Phiên bản mô hình nhận diện']
+  embeddings jsonb [not null, note: 'Vector đặc trưng khuôn mặt (JSON)']
+  imageUrl varchar [note: 'URL ảnh khuôn mặt']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Vector đặc trưng nhận diện khuôn mặt để theo dõi chấm công'
+}
+
+Table attendance_logs {
+  id integer [primary key, increment, note: 'Khóa chính']
+  userId integer [ref: > users.id, not null, note: 'ID người dùng']
+  detectedName varchar [not null, note: 'Tên được phát hiện']
+  confidence float [note: 'Độ tin cậy nhận diện']
+  matchDistance float [note: 'Khoảng cách khớp']
+  type varchar [not null, default: 'IN', note: 'Loại: IN (vào), OUT (ra)']
+  note text [note: 'Ghi chú']
+  shiftId integer [note: 'ID ca làm việc']
+  isLate boolean [default: false, note: 'Đi muộn']
+  isEarlyLeave boolean [default: false, note: 'Về sớm']
+  isOvertime boolean [default: false, note: 'Làm thêm giờ']
+  deviceId varchar [note: 'ID thiết bị chấm công']
+  imageBase64 text [note: 'Ảnh chấm công (Base64)']
+  timestamp timestamp [default: `now()`, note: 'Thời gian chấm công']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Nhật ký chấm công hàng ngày với dữ liệu nhận diện khuôn mặt'
+}
+
+Table shift_settings {
+  id integer [primary key, increment, note: 'Khóa chính']
+  name varchar [not null, default: 'Company Working Hours', note: 'Tên ca làm việc']
+  startTime varchar [not null, default: '08:00', note: 'Giờ bắt đầu (HH:MM)']
+  endTime varchar [not null, default: '17:00', note: 'Giờ kết thúc (HH:MM)']
+  gracePeriodMinutes integer [not null, default: 5, note: 'Thời gian cho phép muộn (phút)']
+  overtimeThresholdMinutes integer [not null, default: 15, note: 'Ngưỡng làm thêm giờ (phút)']
+  active boolean [default: true, note: 'Trạng thái hoạt động']
+  note text [note: 'Ghi chú']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Cấu hình lịch làm việc'
+}
+
+// ============================================
+// QUẢN LÝ NGHỈ PHÉP & YÊU CẦU
+// ============================================
+
+Table leave_requests {
+  id integer [primary key, increment, note: 'Khóa chính']
+  userId integer [ref: > users.id, not null, note: 'ID người dùng']
+  type varchar [not null, default: 'paid', note: 'Loại nghỉ: paid, unpaid, sick, maternity, personal, other']
+  startDate date [not null, note: 'Ngày bắt đầu']
+  endDate date [not null, note: 'Ngày kết thúc']
+  days integer [not null, note: 'Số ngày nghỉ']
+  reason text [note: 'Lý do nghỉ']
+  status varchar [default: 'pending', note: 'Trạng thái: pending, approved, rejected']
+  approvedBy integer [ref: > users.id, note: 'ID người duyệt']
+  approvedAt timestamp [note: 'Thời gian duyệt']
+  rejectionReason text [note: 'Lý do từ chối']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Yêu cầu nghỉ phép/nghỉ lễ'
+}
+
+Table overtime_requests {
+  id integer [primary key, increment, note: 'Khóa chính']
+  userId integer [ref: > users.id, not null, note: 'ID người dùng']
+  date date [not null, note: 'Ngày làm thêm']
+  startTime time [not null, note: 'Giờ bắt đầu']
+  endTime time [not null, note: 'Giờ kết thúc']
+  totalHours decimal(5,2) [not null, note: 'Tổng số giờ']
+  reason text [not null, note: 'Lý do làm thêm']
+  projectName varchar [note: 'Tên dự án']
+  approvalStatus varchar [default: 'pending', note: 'Trạng thái duyệt: pending, approved, rejected']
+  approvedBy integer [ref: > users.id, note: 'ID người duyệt']
+  approvedAt timestamp [note: 'Thời gian duyệt']
+  rejectionReason text [note: 'Lý do từ chối']
+  approvalLevel integer [default: 1, note: 'Cấp độ duyệt']
+  currentApproverId integer [ref: > users.id, note: 'ID người duyệt hiện tại']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Yêu cầu làm thêm giờ với duyệt nhiều cấp'
+}
+
+Table business_trip_requests {
+  id integer [primary key, increment, note: 'Khóa chính']
+  userId integer [ref: > users.id, not null, note: 'ID người dùng']
+  startDate date [not null, note: 'Ngày bắt đầu']
+  endDate date [not null, note: 'Ngày kết thúc']
+  destination varchar [not null, note: 'Địa điểm']
+  purpose text [not null, note: 'Mục đích công tác']
+  estimatedCost decimal(12,2) [note: 'Chi phí dự kiến (VND)']
+  transportType varchar [note: 'Loại phương tiện: plane, train, bus, car, other']
+  accommodation varchar [note: 'Nơi ở']
+  approvalStatus varchar [default: 'pending', note: 'Trạng thái duyệt: pending, approved, rejected']
+  approvedBy integer [ref: > users.id, note: 'ID người duyệt']
+  approvedAt timestamp [note: 'Thời gian duyệt']
+  rejectionReason text [note: 'Lý do từ chối']
+  approvalLevel integer [default: 1, note: 'Cấp độ duyệt']
+  currentApproverId integer [ref: > users.id, note: 'ID người duyệt hiện tại']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Yêu cầu đi công tác với theo dõi chi phí'
+}
+
+Table salary_advances {
+  id integer [primary key, increment, note: 'Khóa chính']
+  userId integer [ref: > users.id, not null, note: 'ID người dùng']
+  month integer [not null, note: 'Tháng ứng lương (1-12)']
+  year integer [not null, note: 'Năm ứng lương']
+  amount decimal(12,2) [not null, note: 'Số tiền ứng (VND)']
+  reason text [note: 'Lý do ứng lương']
+  requestDate timestamp [default: `now()`, note: 'Ngày yêu cầu']
+  approvalStatus varchar [default: 'pending', note: 'Trạng thái duyệt: pending, approved, rejected']
+  approvedBy integer [ref: > users.id, note: 'ID người duyệt']
+  approvedAt timestamp [note: 'Thời gian duyệt']
+  rejectionReason text [note: 'Lý do từ chối']
+  isDeducted boolean [default: false, note: 'Đã trừ vào lương']
+  deductedAt timestamp [note: 'Thời gian trừ lương']
+  salaryId integer [note: 'ID bảng lương đã trừ']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Yêu cầu ứng lương (ứng lương)'
+}
+
+Table approval_workflows {
+  id integer [primary key, increment, note: 'Khóa chính']
+  requestType varchar [not null, note: 'Loại yêu cầu: leave, overtime, business_trip, salary_advance, other']
+  requestId integer [not null, note: 'ID yêu cầu']
+  level integer [not null, note: 'Cấp độ duyệt: 1=Trưởng phòng, 2=HR, 3=Giám đốc']
+  approverId integer [ref: > users.id, not null, note: 'ID người duyệt']
+  status varchar [default: 'pending', note: 'Trạng thái: pending, approved, rejected, skipped']
+  approvedAt timestamp [note: 'Thời gian duyệt']
+  comments text [note: 'Nhận xét']
+  isRequired boolean [default: true, note: 'Bắt buộc duyệt']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Theo dõi quy trình duyệt nhiều cấp'
+}
+
+// ============================================
+// LƯƠNG & CHẤM CÔNG
+// ============================================
+
+Table salaries {
+  id integer [primary key, increment, note: 'Khóa chính']
+  userId integer [ref: > users.id, not null, note: 'ID người dùng']
+  baseSalary decimal(12,2) [not null, default: 0, note: 'Lương cơ bản (VND)']
+  bonus decimal(12,2) [default: 0, note: 'Thưởng (VND)']
+  deduction decimal(12,2) [default: 0, note: 'Khấu trừ (VND)']
+  finalSalary decimal(12,2) [not null, default: 0, note: 'Lương thực nhận (VND)']
+  month integer [not null, note: 'Tháng (1-12)']
+  year integer [not null, note: 'Năm']
+  status varchar [default: 'pending', note: 'Trạng thái: pending, approved, paid']
+  notes text [note: 'Ghi chú']
+  calculatedAt timestamp [note: 'Thời gian tính lương']
+  paidAt timestamp [note: 'Thời gian thanh toán']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  indexes {
+    (userId, month, year) [unique]
+  }
+  
+  Note: 'Hồ sơ lương hàng tháng'
+}
+
+Table salary_rules {
+  id integer [primary key, increment, note: 'Khóa chính']
+  name varchar [not null, note: 'Tên quy tắc']
+  type varchar [not null, note: 'Loại: bonus (thưởng), deduction (khấu trừ)']
+  triggerType varchar [not null, note: 'Kích hoạt: late, early_leave, absent, overtime, full_attendance, custom']
+  amount decimal(12,2) [not null, default: 0, note: 'Số tiền (VND)']
+  amountType varchar [default: 'fixed', note: 'Loại số tiền: fixed (cố định), percentage (phần trăm)']
+  threshold integer [note: 'Ngưỡng kích hoạt']
+  isActive boolean [default: true, note: 'Trạng thái hoạt động']
+  description text [note: 'Mô tả']
+  priority integer [default: 0, note: 'Độ ưu tiên']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Quy tắc tính lương (thưởng/khấu trừ)'
+}
+
+Table insurance_configs {
+  id integer [primary key, increment, note: 'Khóa chính']
+  name varchar [unique, not null, note: 'Tên cấu hình']
+  effectiveDate date [not null, note: 'Ngày có hiệu lực']
+  expiryDate date [note: 'Ngày hết hiệu lực']
+  employeeSocialInsuranceRate decimal(5,2) [default: 10.5, note: 'Tỷ lệ BHXH nhân viên (%)']
+  employerSocialInsuranceRate decimal(5,2) [default: 21.5, note: 'Tỷ lệ BHXH doanh nghiệp (%)']
+  employeeHealthInsuranceRate decimal(5,2) [default: 1.5, note: 'Tỷ lệ BHYT nhân viên (%)']
+  employerHealthInsuranceRate decimal(5,2) [default: 3.0, note: 'Tỷ lệ BHYT doanh nghiệp (%)']
+  employeeUnemploymentInsuranceRate decimal(5,2) [default: 1.0, note: 'Tỷ lệ BHTN nhân viên (%)']
+  employerUnemploymentInsuranceRate decimal(5,2) [default: 1.0, note: 'Tỷ lệ BHTN doanh nghiệp (%)']
+  maxInsuranceSalary decimal(12,2) [note: 'Mức lương tối đa đóng BH (VND)']
+  minInsuranceSalary decimal(12,2) [note: 'Mức lương tối thiểu đóng BH (VND)']
+  isActive boolean [default: true, note: 'Trạng thái hoạt động']
+  description text [note: 'Mô tả']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Cấu hình tỷ lệ bảo hiểm (BHXH, BHYT, BHTN)'
+}
+
+Table payrolls {
+  id integer [primary key, increment, note: 'Khóa chính']
+  userId integer [ref: > users.id, not null, note: 'ID người dùng']
+  year integer [not null, note: 'Năm']
+  month integer [not null, note: 'Tháng']
+  salaryPolicyId integer [ref: > salary_policies.id, note: 'ID chính sách lương']
+  
+  // Ngày Công
+  workingDaysBase decimal(5,2) [default: 0, note: 'Ngày công cơ bản']
+  workingDaysHoliday decimal(5,2) [default: 0, note: 'Ngày công ngày lễ']
+  workingDaysSunday decimal(5,2) [default: 0, note: 'Ngày công chủ nhật']
+  overtimeDaysBase decimal(5,2) [default: 0, note: 'Ngày làm thêm cơ bản']
+  overtimeDaysHoliday decimal(5,2) [default: 0, note: 'Ngày làm thêm ngày lễ']
+  overtimeDaysSunday decimal(5,2) [default: 0, note: 'Ngày làm thêm chủ nhật']
+  annualLeaveDays decimal(5,2) [default: 0, note: 'Ngày nghỉ phép năm']
+  
+  // Tổng Cộng
+  totalIncome decimal(12,2) [default: 0, note: 'Tổng thu nhập (VND)']
+  totalDeduction decimal(12,2) [default: 0, note: 'Tổng khấu trừ (VND)']
+  netSalary decimal(12,2) [default: 0, note: 'Lương thực nhận (VND)']
+  
+  // Trạng Thái
+  status varchar [default: 'draft', note: 'Trạng thái: draft, pending_approval, approved, paid, rejected']
+  approvedBy integer [ref: > users.id, note: 'ID người duyệt']
+  approvedAt timestamp [note: 'Thời gian duyệt']
+  paidAt timestamp [note: 'Thời gian thanh toán']
+  rejectionReason text [note: 'Lý do từ chối']
+  notes text [note: 'Ghi chú']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  indexes {
+    (userId, year, month) [unique]
+  }
+  
+  Note: 'Hồ sơ bảng lương chi tiết với phân tích ngày công'
+}
+
+Table salary_policies {
+  id integer [primary key, increment, note: 'Khóa chính']
+  code varchar [unique, not null, note: 'Mã chính sách']
+  name varchar [not null, note: 'Tên chính sách']
+  shiftType varchar [not null, note: 'Loại ca: day (ngày), night (đêm)']
+  contractType varchar [not null, note: 'Loại hợp đồng: probation (thử việc), official (chính thức)']
+  baseSalaryPerDay decimal(12,2) [not null, note: 'Lương cơ bản mỗi ngày (VND)']
+  overtimeRate decimal(4,2) [default: 1.5, note: 'Hệ số làm thêm']
+  holidayRate decimal(4,2) [default: 2.0, note: 'Hệ số ngày lễ']
+  holidayOvertimeRate decimal(4,2) [default: 3.0, note: 'Hệ số làm thêm ngày lễ']
+  sundayRate decimal(4,2) [default: 1.5, note: 'Hệ số chủ nhật']
+  sundayOvertimeRate decimal(4,2) [default: 2.0, note: 'Hệ số làm thêm chủ nhật']
+  nightShiftBonus decimal(12,2) [default: 0, note: 'Phụ cấp ca đêm (VND)']
+  description text [note: 'Mô tả']
+  isActive boolean [default: true, note: 'Trạng thái hoạt động']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Chính sách lương cho các loại ca làm việc và loại hợp đồng khác nhau'
+}
+
+Table payroll_components {
+  id integer [primary key, increment, note: 'Khóa chính']
+  code varchar [unique, not null, note: 'Mã thành phần']
+  name varchar [not null, note: 'Tên thành phần']
+  type varchar [not null, note: 'Loại: income (thu nhập), deduction (khấu trừ)']
+  category varchar [not null, note: 'Danh mục: base_salary, overtime, annual_leave, allowance, bonus, insurance, tax, union_fee, uniform, advance_deduction, other']
+  calculationMethod varchar [not null, default: 'fixed_amount', note: 'Phương thức tính: fixed_amount, percentage_base_salary, percentage_income, multiplier_daily_rate, multiplier_hourly_rate, custom']
+  defaultValue decimal(12,2) [note: 'Giá trị mặc định (VND)']
+  isRequired boolean [default: true, note: 'Bắt buộc']
+  isEditable boolean [default: true, note: 'Có thể chỉnh sửa']
+  description text [note: 'Mô tả']
+  displayOrder integer [default: 0, note: 'Thứ tự hiển thị']
+  isActive boolean [default: true, note: 'Trạng thái hoạt động']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Định nghĩa các thành phần thu nhập và khấu trừ trong lương'
+}
+
+Table payroll_details {
+  id integer [primary key, increment, note: 'Khóa chính']
+  payrollId integer [ref: > payrolls.id, not null, note: 'ID bảng lương']
+  payrollComponentId integer [ref: > payroll_components.id, not null, note: 'ID thành phần lương']
+  quantity decimal(10,2) [default: 0, note: 'Số lượng']
+  unitAmount decimal(12,2) [default: 0, note: 'Đơn giá (VND)']
+  amount decimal(12,2) [default: 0, note: 'Thành tiền (VND)']
+  calculationFormula varchar(500) [note: 'Công thức tính']
+  notes text [note: 'Ghi chú']
+  isEdited boolean [default: false, note: 'Đã chỉnh sửa']
+  editedReason text [note: 'Lý do chỉnh sửa']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Phân tích chi tiết từng thành phần bảng lương'
+}
+
+// ============================================
+// THÔNG TIN NHÂN VIÊN
+// ============================================
+
+Table qualifications {
+  id integer [primary key, increment, note: 'Khóa chính']
+  userId integer [ref: > users.id, not null, note: 'ID người dùng']
+  type varchar [not null, note: 'Loại: certificate, degree, license, training']
+  name varchar [not null, note: 'Tên bằng cấp/chứng chỉ']
+  issuedBy varchar [note: 'Cơ quan cấp']
+  issuedDate date [note: 'Ngày cấp']
+  expiryDate date [note: 'Ngày hết hạn']
+  certificateNumber varchar [note: 'Số chứng chỉ']
+  documentPath varchar [note: 'Đường dẫn tài liệu']
+  description text [note: 'Mô tả']
+  isActive boolean [default: true, note: 'Trạng thái hoạt động']
+  approvalStatus varchar [default: 'pending', note: 'Trạng thái duyệt: pending, approved, rejected']
+  approvedAt timestamp [note: 'Thời gian duyệt']
+  approvedBy integer [ref: > users.id, note: 'ID người duyệt']
+  rejectionReason text [note: 'Lý do từ chối']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Bằng cấp và chứng chỉ của nhân viên'
+}
+
+Table dependents {
+  id integer [primary key, increment, note: 'Khóa chính']
+  userId integer [ref: > users.id, not null, note: 'ID người dùng']
+  fullName varchar [not null, note: 'Họ và tên']
+  relationship varchar [not null, note: 'Mối quan hệ: spouse, child, parent, grandparent, sibling, other']
+  dateOfBirth date [note: 'Ngày sinh']
+  gender varchar [note: 'Giới tính: male, female, other']
+  idNumber varchar [note: 'Số CMND/CCCD']
+  address text [note: 'Địa chỉ']
+  phoneNumber varchar [note: 'Số điện thoại']
+  email varchar [note: 'Email']
+  occupation varchar [note: 'Nghề nghiệp']
+  isDependent boolean [default: true, note: 'Là người phụ thuộc']
+  notes text [note: 'Ghi chú']
+  approvalStatus varchar [default: 'pending', note: 'Trạng thái duyệt: pending, approved, rejected']
+  approvedAt timestamp [note: 'Thời gian duyệt']
+  approvedBy integer [ref: > users.id, note: 'ID người duyệt']
+  rejectionReason text [note: 'Lý do từ chối']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Người phụ thuộc của nhân viên để giảm trừ thuế'
+}
+
+Table work_experiences {
+  id integer [primary key, increment, note: 'Khóa chính']
+  userId integer [ref: > users.id, not null, note: 'ID người dùng']
+  companyName varchar [not null, note: 'Tên công ty']
+  position varchar [not null, note: 'Vị trí']
+  startDate date [note: 'Ngày bắt đầu']
+  endDate date [note: 'Ngày kết thúc']
+  description text [note: 'Mô tả']
+  responsibilities text [note: 'Trách nhiệm']
+  achievements text [note: 'Thành tựu']
+  isCurrent boolean [default: false, note: 'Đang làm việc']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Lịch sử kinh nghiệm làm việc của nhân viên'
+}
+
+Table documents {
+  id integer [primary key, increment, note: 'Khóa chính']
+  userId integer [ref: > users.id, not null, note: 'ID người dùng']
+  documentType varchar [not null, note: 'Loại tài liệu: id_card, contract, certificate, appointment_decision, salary_decision, other']
+  title varchar [not null, note: 'Tiêu đề']
+  documentPath varchar [not null, note: 'Đường dẫn tài liệu']
+  fileName varchar [note: 'Tên file']
+  fileSize integer [note: 'Kích thước file (bytes)']
+  mimeType varchar [note: 'Loại MIME']
+  uploadDate timestamp [default: `now()`, note: 'Ngày tải lên']
+  expiryDate date [note: 'Ngày hết hạn']
+  description text [note: 'Mô tả']
+  isActive boolean [default: true, note: 'Trạng thái hoạt động']
+  uploadedBy integer [ref: > users.id, note: 'ID người tải lên']
+  notes text [note: 'Ghi chú']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Tài liệu nhân viên (CMND/CCCD, hợp đồng, chứng chỉ, v.v.)'
+}
+
+// ============================================
+// THÔNG BÁO
+// ============================================
+
+Table notifications {
+  id integer [primary key, increment, note: 'Khóa chính']
+  userId integer [ref: > users.id, note: 'ID người dùng (null = gửi cho tất cả)']
+  type varchar [not null, note: 'Loại: attendance, late, leave, salary, system, alert']
+  title varchar [not null, note: 'Tiêu đề']
+  message text [not null, note: 'Nội dung']
+  read boolean [default: false, note: 'Đã đọc']
+  readAt timestamp [note: 'Thời gian đọc']
+  metadata jsonb [note: 'Dữ liệu bổ sung (JSON)']
+  createdAt timestamp [note: 'Ngày tạo']
+  updatedAt timestamp [note: 'Ngày cập nhật']
+  
+  Note: 'Thông báo hệ thống cho người dùng'
+}
+
+// ============================================
+// TÓM TẮT MỐI QUAN HỆ
+// ============================================
+
+// Mối Quan Hệ Người Dùng:
+// - thuộc về Phòng Ban (departmentId)
+// - thuộc về Chức Vụ (jobTitleId)
+// - thuộc về Bậc Lương (salaryGradeId)
+// - có quản lý (managerId -> users.id, tự tham chiếu)
+// - có nhiều Hồ Sơ Khuôn Mặt
+// - có nhiều Nhật Ký Chấm Công
+// - có nhiều Lương
+// - có nhiều Yêu Cầu Nghỉ Phép
+// - có nhiều Yêu Cầu Làm Thêm Giờ
+// - có nhiều Yêu Cầu Đi Công Tác
+// - có nhiều Ứng Lương
+// - có nhiều Bằng Cấp
+// - có nhiều Người Phụ Thuộc
+// - có nhiều Kinh Nghiệm Làm Việc
+// - có nhiều Tài Liệu
+// - có nhiều Thông Báo
+// - quản lý Phòng Ban (với tư cách Quản Lý)
+// - duyệt các yêu cầu khác nhau (với tư cách Người Duyệt)
+
+// Mối Quan Hệ Phòng Ban:
+// - có nhiều Người Dùng
+// - có Quản Lý (managerId -> users.id)
+
+// Mối Quan Hệ Chức Vụ:
+// - có nhiều Người Dùng
+
+// Mối Quan Hệ Bậc Lương:
+// - có nhiều Người Dùng
+
+// Mối Quan Hệ Lương:
+// - thuộc về Người Dùng
+
+// Mối Quan Hệ Bảng Lương:
+// - thuộc về Người Dùng
+// - thuộc về Chính Sách Lương
+// - có nhiều Chi Tiết Bảng Lương
+
+// Mối Quan Hệ Chi Tiết Bảng Lương:
+// - thuộc về Bảng Lương
+// - thuộc về Thành Phần Bảng Lương
+
+// Mối Quan Hệ Thành Phần Bảng Lương:
+// - có nhiều Chi Tiết Bảng Lương
+
+// Mối Quan Hệ Chính Sách Lương:
+// - có nhiều Bảng Lương
+
+// Mối Quan Hệ Cấu Hình Bảo Hiểm:
+// - Bảng cấu hình độc lập
+
+// Mối Quan Hệ Quy Trình Duyệt:
+// - thuộc về Người Dùng (với tư cách Người Duyệt)
+

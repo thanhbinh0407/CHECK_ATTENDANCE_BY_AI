@@ -12,7 +12,9 @@
     "db:migrate:job": "node migrate-add-job-fields.js",
     "db:reset": "node src/db/migrations/reset.js",
     "db:reset:drop": "DROP_DB=true node src/db/migrations/reset.js",
-    "db:seed": "node seed-data.js"
+    "db:seed": "node seed-data.js",
+    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "echo \"No linter configured\" && exit 0"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
