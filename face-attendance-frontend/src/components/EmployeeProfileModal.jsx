@@ -1824,11 +1824,30 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           <div style={{ fontWeight: 600, marginBottom: theme.spacing.xs, fontSize: "16px" }}>
                             {qual.name}
                           </div>
-                          <div style={{ fontSize: "14px", color: theme.neutral.gray600 }}>
+                          <div style={{ fontSize: "14px", color: theme.neutral.gray600, display: "flex", flexDirection: "column", gap: 2 }}>
                             <div>Type: {qual.type}</div>
-                            {qual.issuedBy && <div>Issued by: {qual.issuedBy}</div>}
+                            {qual.issuedBy && <div><strong>Issued by:</strong> {qual.issuedBy}</div>}
                             {qual.issuedDate && (
-                              <div>Issued date: {new Date(qual.issuedDate).toLocaleDateString('en-US')}</div>
+                              <div>
+                                <strong>Issued date:</strong>{" "}
+                                {new Date(qual.issuedDate).toLocaleDateString('en-US')}
+                              </div>
+                            )}
+                            {qual.expiryDate && (
+                              <div>
+                                <strong>Expiry date:</strong>{" "}
+                                {new Date(qual.expiryDate).toLocaleDateString('en-US')}
+                              </div>
+                            )}
+                            {qual.certificateNumber && (
+                              <div>
+                                <strong>Certificate No.:</strong> {qual.certificateNumber}
+                              </div>
+                            )}
+                            {qual.description && (
+                              <div>
+                                <strong>Description:</strong> {qual.description}
+                              </div>
                             )}
                             {qual.documentPath && (
                               <a

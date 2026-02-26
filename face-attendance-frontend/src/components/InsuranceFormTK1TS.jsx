@@ -116,9 +116,36 @@ export default function InsuranceFormTK1TS() {
       if (res.ok) {
         const data = await res.json();
         if (data.status === 'success' && data.data && data.data.formData) {
+          const saved = data.data.formData || {};
+
+          // Không ghi đè auto-fill Appendix address nếu giá trị lưu trong DB trống
+          const {
+            householdAddressWard,
+            householdAddressDistrict,
+            householdAddressProvince,
+            householdAddressProvinceCode,
+            ...restSaved
+          } = saved;
+
+          const overrideHouseholdAddress = {
+            ...(householdAddressWard && householdAddressWard.trim()
+              ? { householdAddressWard }
+              : {}),
+            ...(householdAddressDistrict && householdAddressDistrict.trim()
+              ? { householdAddressDistrict }
+              : {}),
+            ...(householdAddressProvince && householdAddressProvince.trim()
+              ? { householdAddressProvince }
+              : {}),
+            ...(householdAddressProvinceCode && householdAddressProvinceCode.trim()
+              ? { householdAddressProvinceCode }
+              : {})
+          };
+
           setFormData(prev => ({
             ...prev,
-            ...data.data.formData
+            ...restSaved,
+            ...overrideHouseholdAddress
           }));
           setMessage("Loaded saved form data.");
         }
@@ -260,10 +287,9 @@ export default function InsuranceFormTK1TS() {
           ? (dependents[0].phoneNumber || "")
           : "";
 
-        // Parse address
+        // Parse main address for section [07]
         const parseAddress = (address) => {
           if (!address) return { street: "", ward: "", district: "", province: "" };
-          // Simple parsing - can be improved
           const parts = address.split(",").map(s => s.trim());
           return {
             street: parts[0] || "",
@@ -278,6 +304,43 @@ export default function InsuranceFormTK1TS() {
         // Parse province from address
         const provinceCode = vietnamProvinces.find(p =>
           tempAddr.province && tempAddr.province.includes(p.name)
+        )?.code || "";
+
+        // Household address (Appendix)
+        // 1) Ưu tiên dùng 3 trường backend đã tách sẵn: addressHamlet / addressCommune / addressProvince
+        // 2) Nếu backend chưa có (rỗng), fallback tách trực tiếp từ Address giống frontend cũ
+        const parseHouseholdAddressFallback = (address) => {
+          if (!address) return { hamlet: "", commune: "", province: "" };
+          let parts = address.split("-").map(s => s.trim()).filter(Boolean);
+          if (parts.length < 3) {
+            parts = address.split(",").map(s => s.trim()).filter(Boolean);
+          }
+          const hamlet = parts[0] || "";
+          const commune = parts[1] || "";
+          const province = parts[2] || "";
+          return { hamlet, commune, province };
+        };
+
+        let householdAddr = {
+          hamlet: emp.addressHamlet || "",
+          commune: emp.addressCommune || "",
+          province: emp.addressProvince || ""
+        };
+
+        if (!householdAddr.hamlet && !householdAddr.commune && !householdAddr.province) {
+          // Ưu tiên dùng địa chỉ của người phụ thuộc (nếu có), ví dụ: "Ấp 1 - Cái Bè - Tiền Giang"
+          const primaryDependent = dependents && dependents.length > 0 ? dependents[0] : null;
+          const dependentAddressSource = primaryDependent?.address || "";
+
+          const employeeAddressSource =
+            emp.address || emp.permanentAddress || emp.temporaryAddress || "";
+
+          const source = dependentAddressSource || employeeAddressSource || "";
+          householdAddr = parseHouseholdAddressFallback(source);
+        }
+
+        const householdProvinceCode = vietnamProvinces.find(p =>
+          householdAddr.province && householdAddr.province.includes(p.name)
         )?.code || "";
 
         // Khi đổi nhân viên, luôn reset form về mặc định rồi mới fill dữ liệu nhân viên.
@@ -324,10 +387,11 @@ export default function InsuranceFormTK1TS() {
           householdHeadPhone: householdHeadPhoneFromFamily,
           householdAddressCountry: "VN",
           householdAddressCountryName: "Vietnam",
-          householdAddressWard: "",
-          householdAddressDistrict: "",
-          householdAddressProvince: "",
-          householdAddressProvinceCode: "",
+          // Pre-fill from free-form Address, e.g. "Ấp 1 - Cái Bè - Tiền Giang"
+          householdAddressWard: householdAddr.hamlet,
+          householdAddressDistrict: householdAddr.commune,
+          householdAddressProvince: householdAddr.province,
+          householdAddressProvinceCode: householdProvinceCode,
           householdMembers: []
         }));
       }
@@ -412,13 +476,13 @@ export default function InsuranceFormTK1TS() {
             <div style="margin-bottom: 8px;"><strong>[02].</strong> Date of birth: ${formData.dateOfBirth || "___/___/_____"} <strong>[03].</strong> Gender: ${formData.gender || "_____"}</div>
             <div style="margin-bottom: 8px;"><strong>[04].</strong> Nationality: ${formData.nationality || "_____"} <strong>[05].</strong> Ethnicity: ${formData.ethnicity || "_____"}</div>
             <div style="margin-bottom: 8px;"><strong>[06].</strong> Birth certificate registration place:</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[06.1].</strong> Ward/Commune/Township: ${formData.birthPlaceWard || "_____"}</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[06.2].</strong> District: ${formData.birthPlaceDistrict || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[06.1].</strong> Hamlet: ${formData.birthPlaceWard || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[06.2].</strong> Commune: ${formData.birthPlaceDistrict || "_____"}</div>
             <div style="margin-left: 20px; margin-bottom: 8px;"><strong>[06.3].</strong> Province/City: ${formData.birthPlaceProvince || "_____"}</div>
             <div style="margin-bottom: 8px;"><strong>[07].</strong> Address to receive results:</div>
             <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.1].</strong> House no./Street/Hamlet: ${formData.addressStreet || "_____"}</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.2].</strong> Ward/Commune/Township: ${formData.addressWard || "_____"}</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.3].</strong> District: ${formData.addressDistrict || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.2].</strong> Hamlet: ${formData.addressWard || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.3].</strong> Commune: ${formData.addressDistrict || "_____"}</div>
             <div style="margin-left: 20px; margin-bottom: 8px;"><strong>[07.4].</strong> Province/City: ${formData.addressProvince || "_____"}</div>
             <div style="margin-bottom: 8px;"><strong>[08].</strong> ID/Passport/Citizen ID: ${formData.idNumber || "_____"} <strong>[09].</strong> Phone number: ${formData.phoneNumber || "_____"}</div>
             <div style="margin-bottom: 8px;"><strong>[10].</strong> Parent/guardian name (for children under 6): ${formData.parentGuardianName || "_____"}</div>
@@ -461,8 +525,8 @@ export default function InsuranceFormTK1TS() {
               <div><strong>Household head full name:</strong> ${formData.householdHeadName || "_____"} <strong>Phone (optional):</strong> ${formData.householdHeadPhone || "_____"}</div>
               <div style="margin-top: 10px;"><strong>Address:</strong></div>
               <div style="margin-left: 20px;">
-                <div><strong>Hamlet/Residential group:</strong> ${formData.householdAddressWard || "_____"} <strong>Ward/Commune/Township:</strong> ${formData.householdAddressWard || "_____"}</div>
-                <div><strong>District:</strong> ${formData.householdAddressDistrict || "_____"} <strong>Province/City:</strong> ${formData.householdAddressProvince || "_____"}</div>
+                <div><strong>Hamlet/Residential group:</strong> ${formData.householdAddressWard || "_____"} <strong>Hamlet:</strong> ${formData.householdAddressWard || "_____"}</div>
+                <div><strong>Commune:</strong> ${formData.householdAddressDistrict || "_____"} <strong>Province/City:</strong> ${formData.householdAddressProvince || "_____"}</div>
               </div>
             </div>
             <table style="width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 9pt;">
@@ -681,7 +745,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[06.1]. ", bold: true }),
-              new TextRun({ text: "Ward/Commune/Township: " }),
+              new TextRun({ text: "Hamlet: " }),
               new TextRun({ text: formData.birthPlaceWard || "_____" })
             ],
             indent: { left: 400 },
@@ -724,7 +788,7 @@ export default function InsuranceFormTK1TS() {
           new Paragraph({
             children: [
               new TextRun({ text: "[07.2]. ", bold: true }),
-              new TextRun({ text: "Ward/Commune/Township: " }),
+              new TextRun({ text: "Hamlet: " }),
               new TextRun({ text: formData.addressWard || "_____" })
             ],
             indent: { left: 400 },
@@ -928,7 +992,7 @@ export default function InsuranceFormTK1TS() {
             children: [
               new TextRun({ text: "Hamlet/Residential group: ", bold: true }),
               new TextRun({ text: formData.householdAddressWard || "_____" }),
-              new TextRun({ text: "  Ward/Commune/Township: ", bold: true }),
+              new TextRun({ text: "  Hamlet: ", bold: true }),
               new TextRun({ text: formData.householdAddressWard || "_____" })
             ],
             indent: { left: 400 },
@@ -936,7 +1000,7 @@ export default function InsuranceFormTK1TS() {
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: "District: ", bold: true }),
+              new TextRun({ text: "Commune: ", bold: true }),
               new TextRun({ text: formData.householdAddressDistrict || "_____" }),
               new TextRun({ text: "  Province/City: ", bold: true }),
               new TextRun({ text: formData.householdAddressProvince || "_____" })
@@ -1241,7 +1305,7 @@ export default function InsuranceFormTK1TS() {
               {formData.birthPlaceCountry === "VN" && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: theme.spacing.md }}>
                   <div>
-                    <label style={{ ...labelStyle, fontSize: "11px" }}>[06.1] Ward/Commune/Township:</label>
+                    <label style={{ ...labelStyle, fontSize: "11px" }}>[06.1] Hamlet:</label>
                     <input
                       type="text"
                       style={inputStyle}
@@ -1250,7 +1314,7 @@ export default function InsuranceFormTK1TS() {
                     />
                   </div>
                   <div>
-                    <label style={{ ...labelStyle, fontSize: "11px" }}>[06.2] District:</label>
+                    <label style={{ ...labelStyle, fontSize: "11px" }}>[06.2] Commune:</label>
                     <input
                       type="text"
                       style={inputStyle}
@@ -1331,7 +1395,7 @@ export default function InsuranceFormTK1TS() {
                       />
                     </div>
                     <div>
-                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.2] Ward/Commune/Township:</label>
+                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.2] Hamlet:</label>
                       <input
                         type="text"
                         style={inputStyle}
@@ -1341,8 +1405,8 @@ export default function InsuranceFormTK1TS() {
                     </div>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
-                    <div>
-                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.3] District:</label>
+                  <div>
+                    <label style={{ ...labelStyle, fontSize: "11px" }}>[07.3] Commune:</label>
                       <input
                         type="text"
                         style={inputStyle}
@@ -1566,7 +1630,7 @@ export default function InsuranceFormTK1TS() {
           {formData.householdAddressCountry === "VN" && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
               <div>
-                <label style={labelStyle}>Ward/Commune/Township:</label>
+                <label style={labelStyle}>Hamlet:</label>
                 <input
                   type="text"
                   style={inputStyle}
@@ -1575,7 +1639,7 @@ export default function InsuranceFormTK1TS() {
                 />
               </div>
               <div>
-                <label style={labelStyle}>District:</label>
+                <label style={labelStyle}>Commune:</label>
                 <input
                   type="text"
                   style={inputStyle}
