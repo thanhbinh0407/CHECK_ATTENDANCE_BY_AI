@@ -57,6 +57,29 @@ export const saveInsuranceForm = async (req, res) => {
       await form.save();
     }
 
+    // Đồng bộ thông tin BHXH sang hồ sơ nhân viên (users) để D02-LT và báo cáo khác có dữ liệu
+    if (formType === 'TK1_TS' && formData) {
+      const userUpdate = {};
+      if (formData.socialInsuranceNumber != null && String(formData.socialInsuranceNumber).trim() !== '') {
+        userUpdate.socialInsuranceNumber = String(formData.socialInsuranceNumber).trim();
+      }
+      if (formData.dateOfBirth != null && String(formData.dateOfBirth).trim() !== '') {
+        const raw = String(formData.dateOfBirth).trim();
+        // DD/MM/YYYY hoặc YYYY-MM-DD
+        const ddmmyyyy = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (ddmmyyyy) {
+          const [, d, m, y] = ddmmyyyy;
+          userUpdate.dateOfBirth = new Date(Number(y), Number(m) - 1, Number(d));
+        } else {
+          const date = new Date(raw);
+          if (!isNaN(date.getTime())) userUpdate.dateOfBirth = date;
+        }
+      }
+      if (Object.keys(userUpdate).length > 0) {
+        await user.update(userUpdate);
+      }
+    }
+
     return res.json({
       status: 'success',
       message: created ? 'Đã lưu form thành công' : 'Đã cập nhật form thành công',

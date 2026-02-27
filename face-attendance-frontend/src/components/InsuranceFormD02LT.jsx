@@ -3,7 +3,7 @@ import { theme } from "../styles/theme.js";
 import jsPDF from "jspdf";
 import autoTable from 'jspdf-autotable';
 import html2canvas from "html2canvas";
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType } from "docx";
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, PageOrientation, UnderlineType, BorderStyle } from "docx";
 import { saveAs } from "file-saver";
 
 export default function InsuranceFormD02LT() {
@@ -277,6 +277,30 @@ export default function InsuranceFormD02LT() {
               }
             };
 
+            // Thâm niên công tác (số năm từ ngày vào làm) và thâm niên vượt khung (%)
+            let seniorityJobStr = ""; // Thâm niên công tác (năm)
+            let seniorityVKStr = "";  // Thâm niên vượt khung (%)
+            const refDate = emp.employmentStatus === "terminated" || emp.employmentStatus === "resigned"
+              ? (emp.updatedAt ? new Date(emp.updatedAt) : new Date())
+              : new Date();
+            const startDateRaw = emp.startDate || emp.hireDate;
+            if (startDateRaw) {
+              try {
+                const start = new Date(startDateRaw);
+                if (!isNaN(start.getTime()) && start <= refDate) {
+                  const years = (refDate - start) / (1000 * 60 * 60 * 24 * 365.25);
+                  const fullYears = Math.floor(years);
+                  if (fullYears >= 0) seniorityJobStr = fullYears === 0 ? "< 1 năm" : `${fullYears} năm`;
+                }
+              } catch (e) {
+                console.warn("Error parsing startDate for seniority:", emp.id, e);
+              }
+            }
+            // Thâm niên vượt khung: nếu có trường từ backend thì dùng, không thì để trống hoặc "-"
+            if (emp.seniorityVK != null && emp.seniorityVK !== "") {
+              seniorityVKStr = String(emp.seniorityVK);
+            }
+
             return {
               id: emp.id,
               stt: idx + 1,
@@ -290,8 +314,8 @@ export default function InsuranceFormD02LT() {
               salary: formatNumber(emp.baseSalary),
               salaryCoefficient: "", // Can be calculated if needed
               positionAllowance: formatNumber(emp.responsibilityAllowance),
-              seniorityVK: "", // Thâm niên vượt khung (%)
-              seniorityJob: "", // Thâm niên nghề (%)
+              seniorityVK: seniorityVKStr,
+              seniorityJob: seniorityJobStr,
               salaryAllowance: "", // Phụ cấp lương
               otherAllowances: [
                 emp.lunchAllowance ? `Lunch: ${formatNumber(emp.lunchAllowance)}` : "",
@@ -377,6 +401,16 @@ export default function InsuranceFormD02LT() {
       }
     });
   };
+
+  // Search employees by code or name
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const filteredEmployees = employees.filter((emp) => {
+    if (!employeeSearch.trim()) return true;
+    const term = employeeSearch.trim().toLowerCase();
+    const code = (emp.employeeCode || emp.code || "").toLowerCase();
+    const name = (emp.name || "").toLowerCase();
+    return code.includes(term) || name.includes(term);
+  });
 
   const selectAllEmployees = () => {
     const allIds = employees.map(emp => emp.id);
@@ -622,134 +656,176 @@ export default function InsuranceFormD02LT() {
     try {
       setLoadingWord(true);
       setMessage("Generating Word file...");
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10);
+      const timeStr = now.toTimeString().slice(0, 5).replace(":", "-");
 
       const children = [];
 
-      // Header
+      // Header 2 cột giống mẫu, không có khung (no visible borders)
+      const noBorder = { style: BorderStyle.NONE };
+      const headerTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: {
+          top: noBorder,
+          left: noBorder,
+          right: noBorder,
+          bottom: noBorder,
+          insideH: noBorder,
+          insideV: noBorder
+        },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+                children: [
+                  new Paragraph({
+                    children: [new TextRun({ text: "NAME OF THE LABOR-USING UNIT / EMPLOYER:", bold: true })],
+                    spacing: { after: 80 }
+                  }),
+                  new Paragraph({
+                    children: [new TextRun({ text: companyInfo.name || "................................................................................." })],
+                    spacing: { after: 120 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "No.: ", bold: true }),
+                      new TextRun({ text: companyInfo.reportNumber || "............" }),
+                      new TextRun({ text: " / ............." })
+                    ],
+                    spacing: { after: 100 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "Unit code: ", bold: true }),
+                      new TextRun({ text: (companyInfo.code || "........................").padEnd(24) }),
+                      new TextRun({ text: " ; Tax code: ", bold: true }),
+                      new TextRun({ text: companyInfo.taxCode || "................." })
+                    ],
+                    spacing: { after: 100 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "Address: ", bold: true }),
+                      new TextRun({ text: (companyInfo.address || "...................................................................").slice(0, 65) })
+                    ],
+                    spacing: { after: 100 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "Phone: ", bold: true }),
+                      new TextRun({ text: (companyInfo.phone || ".................................").slice(0, 33) }),
+                      new TextRun({ text: "; Email: ", bold: true }),
+                      new TextRun({ text: (companyInfo.email || ".................................").slice(0, 33) })
+                    ],
+                    spacing: { after: 0 }
+                  })
+                ]
+              }),
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+                children: [
+                  new Paragraph({
+                    children: [new TextRun({ text: "Form D02-LT", bold: true })],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 80 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: "(Issued together with Decision No. 1040/QĐ-BHXH dated 18/8/2020 of Vietnam Social Security)",
+                        italics: true
+                      })
+                    ],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 200 }
+                  }),
+                  new Paragraph({
+                    children: [new TextRun({ text: "SOCIALIST REPUBLIC OF VIETNAM", bold: true })],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 100 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: "Independence - Freedom - Happiness",
+                        bold: true,
+                        underline: { type: UnderlineType.SINGLE }
+                      })
+                    ],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 120 }
+                  }),
+                  new Paragraph({
+                    children: [new TextRun({ text: "... day ... month ... year ...", italics: true })],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 0 }
+                  })
+                ]
+              })
+            ]
+          })
+        ]
+      });
+      children.push(headerTable);
+
+      // Main title (centered)
       children.push(
         new Paragraph({
           children: [
             new TextRun({
-              text: "Form D02-LT",
+              text: "EMPLOYMENT STATUS REPORT AND LIST OF PARTICIPANTS IN SOCIAL INSURANCE, HEALTH INSURANCE, UNEMPLOYMENT INSURANCE",
               bold: true
             })
           ],
           alignment: AlignmentType.CENTER,
-          spacing: { after: 100 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: "(Issued with Decision No. 1040/QĐ-BHXH dated 18/08/2020 of Vietnam Social Security)",
-              italics: true
-            })
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 300 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: "EMPLOYER NAME: ", bold: true }),
-            new TextRun({ text: companyInfo.name || "_________________" })
-          ],
-          spacing: { after: 150 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: `No.: ${companyInfo.reportNumber || "_____"} /………` })
-          ],
-          spacing: { after: 150 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: `Unit code: ${companyInfo.code || "_____"}; ` }),
-            new TextRun({ text: `Tax code: ${companyInfo.taxCode || "_____"}` })
-          ],
-          spacing: { after: 150 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: `Address: ${companyInfo.address || "_____"}` })
-          ],
-          spacing: { after: 150 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: `Phone: ${companyInfo.phone || "_____"}; ` }),
-            new TextRun({ text: `Email: ${companyInfo.email || "_____"}` })
-          ],
-          spacing: { after: 300 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: "SOCIALIST REPUBLIC OF VIETNAM",
-              bold: true
-            })
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 100 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: "Independence - Freedom - Happiness",
-              bold: true
-            })
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 200 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: "…., … / … / …" })
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 300 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: "EMPLOYMENT STATUS REPORT AND LIST OF PARTICIPATION IN SI, HI, UI",
-              bold: true
-            })
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 400 }
+          spacing: { before: 280, after: 320 }
         })
       );
 
-      // Table
+      // Helper: ô tiêu đề căn giữa
+      const th = (text) => new TableCell({
+        children: [new Paragraph({ children: [new TextRun({ text, bold: true })], alignment: AlignmentType.CENTER })]
+      });
+      // Helper: ô dữ liệu căn giữa
+      const td = (text) => new TableCell({
+        children: [new Paragraph({ children: [new TextRun({ text: text || "" })], alignment: AlignmentType.CENTER })]
+      });
+
+      // Table — header và dữ liệu đều căn giữa
       const tableRows = [
         new TableRow({
           children: [
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "No.", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Full name", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Social Insurance No.", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Date of birth", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Gender", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Citizen ID/ID", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Position/Title", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Manager", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "High-skilled", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Mid-skilled", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Other", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Salary", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Position allowance", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Seniority VK", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Job seniority", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Salary allowance", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Other allowances", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Hazard start", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Hazard end", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Indefinite contract start", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Fixed-term contract start", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Fixed-term contract end", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Other contract start", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Other contract end", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "SI start", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "SI end", bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Notes", bold: true })] })] })
+            th("No."),
+            th("Full name"),
+            th("Social Insurance No."),
+            th("Date of birth"),
+            th("Gender"),
+            th("Citizen ID/ID"),
+            th("Position/Title"),
+            th("Manager"),
+            th("High-skilled"),
+            th("Mid-skilled"),
+            th("Other"),
+            th("Salary"),
+            th("Position allowance"),
+            th("Seniority VK"),
+            th("Job seniority"),
+            th("Salary allowance"),
+            th("Other allowances"),
+            th("Hazard start"),
+            th("Hazard end"),
+            th("Indefinite contract start"),
+            th("Fixed-term contract start"),
+            th("Fixed-term contract end"),
+            th("Other contract start"),
+            th("Other contract end"),
+            th("SI start"),
+            th("SI end"),
+            th("Notes")
           ]
         })
       ];
@@ -758,44 +834,44 @@ export default function InsuranceFormD02LT() {
         tableRows.push(
           new TableRow({
             children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(emp.stt) })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.name })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.socialInsuranceNumber || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.dateOfBirth })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.gender })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.idNumber || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.position })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.positionCategory.manager ? "X" : "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.positionCategory.highTech ? "X" : "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.positionCategory.midTech ? "X" : "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.positionCategory.other ? "X" : "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.salary })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.positionAllowance || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.seniorityVK || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.seniorityJob || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.salaryAllowance || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.otherAllowances || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.hazardousStartDate || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.hazardousEndDate || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.indefiniteContractStart || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.fixedTermContractStart || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.fixedTermContractEnd || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.otherContractStart || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.otherContractEnd || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.insuranceStartDate || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.insuranceEndDate || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.note || "" })] })] })
+              td(String(emp.stt)),
+              td(emp.name),
+              td(emp.socialInsuranceNumber),
+              td(emp.dateOfBirth),
+              td(emp.gender),
+              td(emp.idNumber),
+              td(emp.position),
+              td(emp.positionCategory?.manager ? "X" : ""),
+              td(emp.positionCategory?.highTech ? "X" : ""),
+              td(emp.positionCategory?.midTech ? "X" : ""),
+              td(emp.positionCategory?.other ? "X" : ""),
+              td(emp.salary),
+              td(emp.positionAllowance),
+              td(emp.seniorityVK),
+              td(emp.seniorityJob),
+              td(emp.salaryAllowance),
+              td(emp.otherAllowances),
+              td(emp.hazardousStartDate),
+              td(emp.hazardousEndDate),
+              td(emp.indefiniteContractStart),
+              td(emp.fixedTermContractStart),
+              td(emp.fixedTermContractEnd),
+              td(emp.otherContractStart),
+              td(emp.otherContractEnd),
+              td(emp.insuranceStartDate),
+              td(emp.insuranceEndDate),
+              td(emp.note)
             ]
           })
         );
       });
 
-      // Total row
+      // Total row — căn giữa
       tableRows.push(
         new TableRow({
           children: [
             new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: `Total: ${employeeList.length}`, bold: true })] })],
+              children: [new Paragraph({ children: [new TextRun({ text: `Total: ${employeeList.length}`, bold: true })], alignment: AlignmentType.CENTER })],
               columnSpan: 27
             })
           ]
@@ -809,10 +885,10 @@ export default function InsuranceFormD02LT() {
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: "EMPLOYER REPRESENTATIVE", bold: true })
+            new TextRun({ text: "REPRESENTATIVE OF THE LABOR-USING UNIT", bold: true })
           ],
           alignment: AlignmentType.RIGHT,
-          spacing: { before: 600, after: 200 }
+          spacing: { before: 600, after: 120 }
         }),
         new Paragraph({
           children: [
@@ -822,16 +898,36 @@ export default function InsuranceFormD02LT() {
         })
       );
 
+      // A4 landscape, kích thước và lề gần giống mẫu chuẩn D02-LT
       const doc = new Document({
         sections: [{
+          properties: {
+            page: {
+              size: {
+                // Theo docx: truyền kích thước A4 dọc (21cm x 29.7cm),
+                // orientation = LANDSCAPE sẽ tự xoay ngang (swap width/height).
+                width: "21cm",
+                height: "29.7cm",
+                orientation: PageOrientation.LANDSCAPE
+              },
+              margin: {
+                // Lề gần giống mẫu: khoảng 2cm trên/dưới, 1.5cm trái/phải
+                top: "2cm",
+                right: "1.5cm",
+                bottom: "2cm",
+                left: "1.5cm"
+              }
+            }
+          },
           children: children
         }]
       });
 
       const blob = await Packer.toBlob(doc);
-      const filename = `D02-LT-${companyInfo.name.replace(/\s+/g, "-")}-${new Date().toISOString().split('T')[0]}.docx`;
+      const safeName = (companyInfo.name || "Report").replace(/\s+/g, "-");
+      const filename = `D02-LT-${safeName}-${dateStr}-${timeStr}.docx`;
       saveAs(blob, filename);
-      setMessage("Word file exported successfully!");
+      setMessage("Word file exported successfully! Open the new file (check time in filename).");
     } catch (error) {
       console.error("Error generating Word document:", error);
       setMessage("Failed to export Word file: " + error.message);
@@ -988,7 +1084,20 @@ export default function InsuranceFormD02LT() {
             Employees ({selectedEmployees.length}/{employees.length})
             {loading && <span style={{ marginLeft: theme.spacing.sm, fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500 }}>⏳ Loading...</span>}
           </h3>
-          <div style={{ display: "flex", gap: theme.spacing.sm }}>
+          <div style={{ display: "flex", gap: theme.spacing.sm, alignItems: "center" }}>
+            <input
+              type="text"
+              placeholder="Search by code or name..."
+              value={employeeSearch}
+              onChange={(e) => setEmployeeSearch(e.target.value)}
+              style={{
+                padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+                borderRadius: theme.radius.sm,
+                border: `1px solid ${theme.neutral.gray300}`,
+                fontSize: theme.typography.small.fontSize,
+                minWidth: "220px"
+              }}
+            />
             <button
               style={{
                 ...buttonStyle,
@@ -1032,7 +1141,7 @@ export default function InsuranceFormD02LT() {
             borderRadius: theme.radius.sm,
             padding: theme.spacing.sm
           }}>
-            {employees.map(emp => (
+            {filteredEmployees.map(emp => (
               <label
                 key={emp.id}
                 style={{
