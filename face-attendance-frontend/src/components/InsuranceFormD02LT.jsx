@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { theme } from "../styles/theme.js";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from 'jspdf-autotable';
 import html2canvas from "html2canvas";
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType } from "docx";
 import { saveAs } from "file-saver";
@@ -136,6 +136,7 @@ export default function InsuranceFormD02LT() {
         // Auto-select all active employees
         const activeEmployees = data.employees.filter(emp => emp && emp.isActive !== false);
         setSelectedEmployees(activeEmployees.map(emp => emp.id));
+        console.log("Active employees count:", activeEmployees.length);
         generateEmployeeList(activeEmployees);
         setMessage("");
       } else {
@@ -188,46 +189,55 @@ export default function InsuranceFormD02LT() {
               positionCategory = { manager: false, highTech: false, midTech: true, other: false };
             }
 
-            // Contract type
+            // Contract type - Tách riêng cho từng loại hợp đồng
             const contractType = emp.contractType || "";
-            let contractStartDate = "";
-            let contractEndDate = "";
-            let contractOtherStart = "";
-            let contractOtherEnd = "";
+            let indefiniteContractStart = "";
+            let fixedTermContractStart = "";
+            let fixedTermContractEnd = "";
+            let otherContractStart = "";
+            let otherContractEnd = "";
             
             try {
               if (contractType === "indefinite") {
+                // Hợp đồng không xác định thời hạn
                 if (emp.startDate) {
                   const date = new Date(emp.startDate);
                   if (!isNaN(date.getTime())) {
-                    contractStartDate = date.toLocaleDateString('vi-VN');
+                    indefiniteContractStart = date.toLocaleDateString('vi-VN');
                   }
                 }
               } else if (contractType === "1_year" || contractType === "3_year") {
+                // Hợp đồng xác định thời hạn
                 if (emp.startDate) {
                   const start = new Date(emp.startDate);
                   if (!isNaN(start.getTime())) {
-                    contractStartDate = start.toLocaleDateString('vi-VN');
+                    fixedTermContractStart = start.toLocaleDateString('vi-VN');
                     const end = new Date(start);
                     if (contractType === "1_year") {
                       end.setFullYear(end.getFullYear() + 1);
                     } else {
                       end.setFullYear(end.getFullYear() + 3);
                     }
-                    contractEndDate = end.toLocaleDateString('vi-VN');
+                    fixedTermContractEnd = end.toLocaleDateString('vi-VN');
                   }
                 }
-              } else if (contractType === "probation") {
+              } else if (contractType === "probation" || contractType === "other") {
+                // Hợp đồng thử việc hoặc loại khác
                 if (emp.probationStartDate) {
                   const date = new Date(emp.probationStartDate);
                   if (!isNaN(date.getTime())) {
-                    contractOtherStart = date.toLocaleDateString('vi-VN');
+                    otherContractStart = date.toLocaleDateString('vi-VN');
+                  }
+                } else if (emp.startDate) {
+                  const date = new Date(emp.startDate);
+                  if (!isNaN(date.getTime())) {
+                    otherContractStart = date.toLocaleDateString('vi-VN');
                   }
                 }
                 if (emp.probationEndDate) {
                   const date = new Date(emp.probationEndDate);
                   if (!isNaN(date.getTime())) {
-                    contractOtherEnd = date.toLocaleDateString('vi-VN');
+                    otherContractEnd = date.toLocaleDateString('vi-VN');
                   }
                 }
               }
@@ -290,10 +300,11 @@ export default function InsuranceFormD02LT() {
               ].filter(Boolean).join(", "),
               hazardousStartDate: "",
               hazardousEndDate: "",
-              contractStartDate,
-              contractEndDate,
-              contractOtherStart,
-              contractOtherEnd,
+              indefiniteContractStart,
+              fixedTermContractStart,
+              fixedTermContractEnd,
+              otherContractStart,
+              otherContractEnd,
               insuranceStartDate,
               insuranceEndDate,
               note: [
@@ -323,10 +334,11 @@ export default function InsuranceFormD02LT() {
               otherAllowances: "",
               hazardousStartDate: "",
               hazardousEndDate: "",
-              contractStartDate: "",
-              contractEndDate: "",
-              contractOtherStart: "",
-              contractOtherEnd: "",
+              indefiniteContractStart: "",
+              fixedTermContractStart: "",
+              fixedTermContractEnd: "",
+              otherContractStart: "",
+              otherContractEnd: "",
               insuranceStartDate: "",
               insuranceEndDate: "",
               note: "Data processing error"
@@ -334,6 +346,7 @@ export default function InsuranceFormD02LT() {
           }
         });
       
+      console.log("Generated employee list:", list.length, "items");
       setEmployeeList(list);
     } catch (error) {
       console.error("Error generating employee list:", error);
@@ -435,163 +448,171 @@ export default function InsuranceFormD02LT() {
 
   const exportToPDF = async () => {
     try {
+      console.log("exportToPDF called, employeeList length:", employeeList.length);
       setLoading(true);
       setMessage("Generating PDF...");
 
-      const printDiv = document.createElement('div');
-      printDiv.style.position = 'absolute';
-      printDiv.style.left = '-9999px';
-      printDiv.style.width = '297mm'; // A4 landscape width
-      printDiv.style.padding = '10mm';
-      printDiv.style.fontFamily = 'Arial, sans-serif';
-      printDiv.style.fontSize = '9pt';
-      printDiv.style.backgroundColor = 'white';
-      printDiv.style.color = 'black';
-
-      let htmlContent = `
-        <div style="margin-bottom: 15px;">
-          <div style="text-align: center; font-size: 10pt; margin-bottom: 10px;">
-            <strong>Form D02-LT</strong><br/>
+      // Create temporary container
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.width = '1400px'; // Wider for more columns
+      container.style.padding = '20px';
+      container.style.backgroundColor = '#ffffff';
+      container.style.fontFamily = 'Arial, sans-serif';
+      
+      // Build HTML content
+      container.innerHTML = `
+        <div style="margin-bottom: 20px;">
+          <div style="text-align: center; font-size: 11px; font-weight: bold; margin-bottom: 10px;">Form D02-LT</div>
+          <div style="text-align: center; font-size: 8px; margin-bottom: 15px; font-style: italic;">
             (Issued with Decision No. 1040/QĐ-BHXH dated 18/08/2020 of Vietnam Social Security)
           </div>
-          <div style="margin-bottom: 15px;">
-            <div><strong>EMPLOYER NAME:</strong> ${companyInfo.name || "_________________"}</div>
-            <div>No.: ${companyInfo.reportNumber || "_____"} /………</div>
-            <div>Unit code: ${companyInfo.code || "_____"}; Tax code: ${companyInfo.taxCode || "_____"}</div>
-            <div>Address: ${companyInfo.address || "_____"}</div>
-            <div>Phone: ${companyInfo.phone || "_____"}; Email: ${companyInfo.email || "_____"}</div>
+          
+          <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+            <div style="flex: 1; font-size: 9px;">
+              <div style="margin-bottom: 3px;"><strong>EMPLOYER NAME:</strong> ${companyInfo.name || "_________________"}</div>
+              <div style="margin-bottom: 3px;">No.: ${companyInfo.reportNumber || "_____"} /………</div>
+              <div style="margin-bottom: 3px;">Unit code: ${companyInfo.code || "_____"}; Tax code: ${companyInfo.taxCode || "_____"}</div>
+              <div style="margin-bottom: 3px;">Address: ${companyInfo.address || "_____"}</div>
+              <div>Phone: ${companyInfo.phone || "_____"}; Email: ${companyInfo.email || "_____"}</div>
+            </div>
+            
+            <div style="flex: 0 0 250px; text-align: center; font-size: 9px;">
+              <div style="font-weight: bold; margin-bottom: 3px;">SOCIALIST REPUBLIC OF VIETNAM</div>
+              <div style="font-weight: bold; margin-bottom: 8px;">Independence - Freedom - Happiness</div>
+              <div>…., … / … / …</div>
+            </div>
           </div>
-          <div style="text-align: center; margin-bottom: 15px;">
-            <div style="font-size: 11pt; font-weight: bold;">SOCIALIST REPUBLIC OF VIETNAM</div>
-            <div style="font-size: 11pt; font-weight: bold;">Independence - Freedom - Happiness</div>
-            <div style="margin-top: 10px;">…., … / … / …</div>
-          </div>
-          <div style="text-align: center; font-size: 11pt; font-weight: bold; margin-bottom: 15px;">
+          
+          <div style="text-align: center; font-size: 11px; font-weight: bold; margin: 20px 0;">
             EMPLOYMENT STATUS REPORT AND LIST OF PARTICIPATION IN SI, HI, UI
           </div>
         </div>
-      `;
-
-      // Table header
-      htmlContent += `
-        <table style="width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 20px;">
+        
+        <table style="width: 100%; border-collapse: collapse; font-size: 7px;">
           <thead>
-            <tr style="background-color: #f0f0f0;">
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">No.</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 6%;">Full name</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 4%;">Social Insurance No.</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 3%;">Date of birth</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Gender</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 4%;">Citizen ID/ID</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 5%;">Position/Title</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Manager</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">High-skilled</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Mid-skilled</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Other</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 3%;">Salary</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Position allowance</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Seniority VK (%)</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Job seniority (%)</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Salary allowance</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 3%;">Other allowances</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Hazard start</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Hazard end</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Indefinite contract start</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Fixed-term contract start</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Fixed-term contract end</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Other contract start</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">Other contract end</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">SI start</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 2%;">SI end</th>
-              <th style="border: 1px solid #000; padding: 4px; text-align: center; width: 4%;">Notes</th>
+            <tr style="background-color: #dbeafe; color: #1e40af; font-weight: 600;">
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 25px;">No.</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 80px;">Full name</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 60px;">SI No.</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">DoB</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">Gender</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 60px;">ID</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 100px;">Position</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">Mgr</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">High</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">Mid</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">Oth</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 60px;">Salary</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 40px;">Pos Allow</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 35px;">Sen VK</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 35px;">Sen Job</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 40px;">Sal Allow</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 80px;">Other Allow</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 45px;">Haz Start</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 45px;">Haz End</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Indef Start</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Fixed Start</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Fixed End</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Other Start</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Other End</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">SI Start</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">SI End</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 80px;">Notes</th>
             </tr>
           </thead>
           <tbody>
-      `;
-
-      employeeList.forEach(emp => {
-        htmlContent += `
-          <tr>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.stt}</td>
-            <td style="border: 1px solid #000; padding: 4px;">${emp.name}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.socialInsuranceNumber || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.dateOfBirth}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.gender}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.idNumber || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px;">${emp.position}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.positionCategory.manager ? "X" : ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.positionCategory.highTech ? "X" : ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.positionCategory.midTech ? "X" : ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.positionCategory.other ? "X" : ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: right;">${emp.salary}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.positionAllowance || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.seniorityVK || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.seniorityJob || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.salaryAllowance || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px;">${emp.otherAllowances || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.hazardousStartDate || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.hazardousEndDate || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.contractStartDate || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.contractEndDate || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;"></td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.contractOtherStart || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.contractOtherEnd || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.insuranceStartDate || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px; text-align: center;">${emp.insuranceEndDate || ""}</td>
-            <td style="border: 1px solid #000; padding: 4px;">${emp.note || ""}</td>
-          </tr>
-        `;
-      });
-
-      htmlContent += `
-            <tr>
-              <td colspan="27" style="border: 1px solid #000; padding: 4px; text-align: center; font-weight: bold;">Total: ${employeeList.length}</td>
+            ${employeeList.map((emp, idx) => `
+              <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f0f9ff'};">
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.stt}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px;">${emp.name}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.socialInsuranceNumber || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.dateOfBirth}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.gender === 'Male' ? 'M' : emp.gender === 'Female' ? 'F' : ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.idNumber || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px;">${emp.position}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionCategory.manager ? 'X' : ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionCategory.highTech ? 'X' : ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionCategory.midTech ? 'X' : ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionCategory.other ? 'X' : ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: right;">${emp.salary}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionAllowance || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.seniorityVK || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.seniorityJob || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.salaryAllowance || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; font-size: 6px;">${emp.otherAllowances || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.hazardousStartDate || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.hazardousEndDate || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.indefiniteContractStart || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.fixedTermContractStart || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.fixedTermContractEnd || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.otherContractStart || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.otherContractEnd || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.insuranceStartDate || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.insuranceEndDate || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; font-size: 6px;">${emp.note || ''}</td>
+              </tr>
+            `).join('')}
+            <tr style="background-color: #dbeafe;">
+              <td colspan="27" style="border: 1px solid #93c5fd; padding: 5px; text-align: center; font-weight: bold; color: #1e40af;">
+                Total: ${employeeList.length} employees
+              </td>
             </tr>
           </tbody>
         </table>
-        <div style="margin-top: 30px; text-align: right;">
-          <div style="margin-bottom: 20px;"><strong>EMPLOYER REPRESENTATIVE</strong></div>
-          <div>(Signature, full name, and seal)</div>
+        
+        <div style="margin-top: 30px; text-align: right; font-size: 9px;">
+          <div style="font-weight: bold; margin-bottom: 5px;">EMPLOYER REPRESENTATIVE</div>
+          <div style="font-size: 8px;">(Signature, full name, and seal)</div>
         </div>
       `;
-
-      printDiv.innerHTML = htmlContent;
-      document.body.appendChild(printDiv);
-
-      const canvas = await html2canvas(printDiv, {
+      
+      document.body.appendChild(container);
+      
+      // Capture with html2canvas
+      const canvas = await html2canvas(container, {
         scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        width: 1400,
+        windowWidth: 1400
       });
-
-      document.body.removeChild(printDiv);
-
+      
+      document.body.removeChild(container);
+      
+      // Create PDF
       const imgData = canvas.toDataURL('image/png');
-      const imgWidth = 297; // A4 landscape width in mm
-      const pageHeight = 210; // A4 landscape height in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pdf = new jsPDF('landscape', 'mm', 'a4');
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      
       let heightLeft = imgHeight;
-
-      const doc = new jsPDF('landscape', 'mm', 'a4');
       let position = 0;
-
-      doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
+      
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+      
+      // Add additional pages if needed
       while (heightLeft > 0) {
         position = heightLeft - imgHeight;
-        doc.addPage();
-        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
       }
-
+      
       const filename = `D02-LT-${companyInfo.name.replace(/\s+/g, "-")}-${new Date().toISOString().split('T')[0]}.pdf`;
-      doc.save(filename);
-      setMessage("PDF exported successfully!");
+      pdf.save(filename);
+      
+      setMessage("✅ PDF exported successfully with all columns!");
     } catch (error) {
       console.error("Error generating PDF:", error);
-      setMessage("Failed to export PDF: " + error.message);
+      setMessage("❌ Failed to export PDF: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -756,11 +777,11 @@ export default function InsuranceFormD02LT() {
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.otherAllowances || "" })] })] }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.hazardousStartDate || "" })] })] }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.hazardousEndDate || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.contractStartDate || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.contractEndDate || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.contractOtherStart || "" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.contractOtherEnd || "" })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.indefiniteContractStart || "" })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.fixedTermContractStart || "" })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.fixedTermContractEnd || "" })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.otherContractStart || "" })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.otherContractEnd || "" })] })] }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.insuranceStartDate || "" })] })] }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.insuranceEndDate || "" })] })] }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: emp.note || "" })] })] })
@@ -1021,11 +1042,12 @@ export default function InsuranceFormD02LT() {
                   cursor: "pointer",
                   borderRadius: theme.radius.sm,
                   marginBottom: theme.spacing.xs,
-                  backgroundColor: selectedEmployees.includes(emp.id) ? theme.primary.light : "transparent"
+                  backgroundColor: selectedEmployees.includes(emp.id) ? "#e0f2fe" : "transparent",
+                  border: selectedEmployees.includes(emp.id) ? "1px solid #bae6fd" : "1px solid transparent"
                 }}
                 onMouseEnter={(e) => {
                   if (!selectedEmployees.includes(emp.id)) {
-                    e.currentTarget.style.backgroundColor = theme.neutral.gray100;
+                    e.currentTarget.style.backgroundColor = "#f0f9ff";
                   }
                 }}
                 onMouseLeave={(e) => {
@@ -1063,32 +1085,32 @@ export default function InsuranceFormD02LT() {
           }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: theme.typography.tiny.fontSize }}>
               <thead>
-                <tr style={{ backgroundColor: theme.primary.main, color: theme.neutral.white }}>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>No.</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "left" }}>Full name</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Social Insurance No.</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Date of birth</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Gender</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Citizen ID/ID</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "left" }}>Position/Title</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>Salary</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>SI start</th>
-                  <th style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "left" }}>Notes</th>
+                <tr style={{ backgroundColor: "#dbeafe", color: "#1e40af", fontWeight: "600" }}>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>No.</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "left" }}>Full name</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>Social Insurance No.</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>Date of birth</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>Gender</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>Citizen ID/ID</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "left" }}>Position/Title</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>Salary</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>SI start</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "left" }}>Notes</th>
                 </tr>
               </thead>
               <tbody>
-                {employeeList.slice(0, 10).map(emp => (
-                  <tr key={emp.id}>
-                    <td style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>{emp.stt}</td>
-                    <td style={{ padding: theme.spacing.xs, border: "1px solid #ddd" }}>{emp.name}</td>
-                    <td style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>{emp.socialInsuranceNumber || "-"}</td>
-                    <td style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>{emp.dateOfBirth}</td>
-                    <td style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>{emp.gender}</td>
-                    <td style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>{emp.idNumber || "-"}</td>
-                    <td style={{ padding: theme.spacing.xs, border: "1px solid #ddd" }}>{emp.position || "-"}</td>
-                    <td style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "right" }}>{emp.salary || "-"}</td>
-                    <td style={{ padding: theme.spacing.xs, border: "1px solid #ddd", textAlign: "center" }}>{emp.insuranceStartDate || "-"}</td>
-                    <td style={{ padding: theme.spacing.xs, border: "1px solid #ddd" }}>{emp.note || "-"}</td>
+                {employeeList.slice(0, 10).map((emp, idx) => (
+                  <tr key={emp.id} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f0f9ff" }}>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "center" }}>{emp.stt}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff" }}>{emp.name}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "center" }}>{emp.socialInsuranceNumber || "-"}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "center" }}>{emp.dateOfBirth}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "center" }}>{emp.gender}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "center" }}>{emp.idNumber || "-"}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff" }}>{emp.position || "-"}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "right" }}>{emp.salary || "-"}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "center" }}>{emp.insuranceStartDate || "-"}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff" }}>{emp.note || "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1141,6 +1163,20 @@ export default function InsuranceFormD02LT() {
           {loading ? "⏳ Generating PDF..." : "📄 Export PDF"}
         </button>
       </div>
+
+      {/* Debug info */}
+      {employeeList.length === 0 && selectedEmployees.length > 0 && (
+        <div style={{
+          marginTop: theme.spacing.md,
+          padding: theme.spacing.sm,
+          backgroundColor: theme.warning.bg,
+          color: theme.warning.text,
+          borderRadius: theme.radius.md,
+          fontSize: theme.typography.small.fontSize
+        }}>
+          ℹ️ Processing {selectedEmployees.length} employees... If this persists, try refreshing the page.
+        </div>
+      )}
 
       {message && (
         <div style={{

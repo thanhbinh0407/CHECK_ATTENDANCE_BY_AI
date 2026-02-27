@@ -50,11 +50,84 @@ export default function EnrollmentForm() {
   const [passwordGenerated, setPasswordGenerated] = useState(false);
   const detectionIntervalRef = useRef(null);
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  
+  // Validation errors state
+  const [errors, setErrors] = useState({
+    name: "",
+    email: "",
+    employeeCode: "",
+    password: "",
+    baseSalary: "",
+    jobTitle: "",
+    faceCapture: ""
+  });
+  
+  const [touched, setTouched] = useState({
+    name: false,
+    email: false,
+    employeeCode: false,
+    password: false,
+    baseSalary: false,
+    jobTitle: false
+  });
 
   // Load face detection models
   useEffect(() => {
     loadModels();
   }, []);
+  
+  // Validation functions
+  const validateField = (fieldName, value) => {
+    let error = "";
+    
+    switch(fieldName) {
+      case "name":
+        const nameCheck = validateName(value);
+        if (!nameCheck.valid) error = nameCheck.message;
+        break;
+      case "email":
+        const emailCheck = validateEmail(value);
+        if (!emailCheck.valid) error = emailCheck.message;
+        break;
+      case "employeeCode":
+        const codeCheck = validateEmployeeCode(value);
+        if (!codeCheck.valid) error = codeCheck.message;
+        break;
+      case "password":
+        if (useCustomPassword) {
+          const pwdCheck = validatePassword(value, true);
+          if (!pwdCheck.valid) error = pwdCheck.message;
+        }
+        break;
+      case "baseSalary":
+        if (!value || value <= 0) {
+          error = "Base salary must be greater than 0";
+        }
+        break;
+      case "jobTitle":
+        if (!formData.jobTitleId) {
+          error = "Please select a job title";
+        }
+        break;
+      default:
+        break;
+    }
+    
+    setErrors(prev => ({ ...prev, [fieldName]: error }));
+    return error === "";
+  };
+  
+  const handleBlur = (fieldName) => {
+    setTouched(prev => ({ ...prev, [fieldName]: true }));
+    validateField(fieldName, formData[fieldName]);
+  };
+  
+  const handleFieldChange = (fieldName, value) => {
+    setFormData(prev => ({ ...prev, [fieldName]: value }));
+    if (touched[fieldName]) {
+      validateField(fieldName, value);
+    }
+  };
 
   // Load job titles for admin enrollment form
   useEffect(() => {
@@ -283,32 +356,34 @@ export default function EnrollmentForm() {
   const handleSubmitEnrollment = async (e) => {
     e.preventDefault();
 
-    const nameCheck = validateName(formData.name);
-    if (!nameCheck.valid) {
-      setMessage(nameCheck.message);
-      return;
-    }
-    const emailCheck = validateEmail(formData.email);
-    if (!emailCheck.valid) {
-      setMessage(emailCheck.message);
-      return;
-    }
-    const codeCheck = validateEmployeeCode(formData.employeeCode);
-    if (!codeCheck.valid) {
-      setMessage(codeCheck.message);
-      return;
-    }
-
-    if (useCustomPassword) {
-      const pwdCheck = validatePassword(formData.password, true);
-      if (!pwdCheck.valid) {
-        setMessage(pwdCheck.message);
-        return;
-      }
-    }
+    // Mark all fields as touched
+    setTouched({
+      name: true,
+      email: true,
+      employeeCode: true,
+      password: useCustomPassword,
+      baseSalary: true,
+      jobTitle: true
+    });
+    
+    // Validate all fields
+    const nameValid = validateField("name", formData.name);
+    const emailValid = validateField("email", formData.email);
+    const codeValid = validateField("employeeCode", formData.employeeCode);
+    const passwordValid = useCustomPassword ? validateField("password", formData.password) : true;
+    const salaryValid = validateField("baseSalary", formData.baseSalary);
+    const jobTitleValid = validateField("jobTitle", formData.jobTitle);
 
     if (!capturedDescriptor) {
-      setMessage("Please capture your face before submitting");
+      setErrors(prev => ({ ...prev, faceCapture: "Please capture your face before submitting" }));
+      setMessage("❌ Please capture your face before submitting");
+      return;
+    } else {
+      setErrors(prev => ({ ...prev, faceCapture: "" }));
+    }
+    
+    if (!nameValid || !emailValid || !codeValid || !passwordValid || !salaryValid || !jobTitleValid) {
+      setMessage("❌ Please fix all validation errors before submitting");
       return;
     }
 
@@ -337,7 +412,7 @@ export default function EnrollmentForm() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Employee registered successfully!");
+        setMessage("✅ Employee registered successfully!");
         setGeneratedPassword(data.password);
         setPasswordGenerated(data.passwordGenerated || false);
         setFormData({ 
@@ -352,13 +427,30 @@ export default function EnrollmentForm() {
         });
         setUseCustomPassword(false);
         setCapturedDescriptor(null);
+        setErrors({
+          name: "",
+          email: "",
+          employeeCode: "",
+          password: "",
+          baseSalary: "",
+          jobTitle: "",
+          faceCapture: ""
+        });
+        setTouched({
+          name: false,
+          email: false,
+          employeeCode: false,
+          password: false,
+          baseSalary: false,
+          jobTitle: false
+        });
       } else {
-        setMessage("Registration failed: " + data.message);
+        setMessage("❌ Registration failed: " + data.message);
         setGeneratedPassword(null);
         setPasswordGenerated(false);
       }
     } catch (error) {
-      setMessage("Error: " + error.message);
+      setMessage("❌ Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -384,21 +476,70 @@ export default function EnrollmentForm() {
   };
 
   const labelStyle = {
-    display: "block",
-    marginBottom: "8px",
-    fontWeight: "600",
-    color: "#1a1a1a",
-    fontSize: "14px"
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    marginBottom: "10px",
+    fontWeight: "700",
+    color: "#1f2937",
+    fontSize: "15px",
+    letterSpacing: "0.3px"
   };
 
   const inputStyle = {
     width: "100%",
-    padding: "12px 16px",
+    padding: "14px 18px",
     border: `2px solid ${theme.neutral.gray200}`,
-    borderRadius: "10px",
-    fontSize: "14px",
+    borderRadius: "12px",
+    fontSize: "15px",
     boxSizing: "border-box",
-    transition: "all 0.2s"
+    transition: "all 0.3s ease",
+    backgroundColor: "#fafafa",
+    fontWeight: "500"
+  };
+  
+  const inputErrorStyle = {
+    ...inputStyle,
+    border: "2px solid #ef4444",
+    backgroundColor: "#fef2f2"
+  };
+  
+  const inputHoverStyle = {
+    border: `2px solid ${theme.info.main}`,
+    backgroundColor: "#ffffff",
+    boxShadow: "0 0 0 3px rgba(59, 130, 246, 0.1)"
+  };
+  
+  const inputFocusStyle = {
+    outline: "none",
+    border: `2px solid ${theme.info.main}`,
+    backgroundColor: "#ffffff",
+    boxShadow: "0 0 0 4px rgba(59, 130, 246, 0.15)"
+  };
+  
+  const inputFocusErrorStyle = {
+    outline: "none",
+    border: "2px solid #ef4444",
+    backgroundColor: "#ffffff",
+    boxShadow: "0 0 0 4px rgba(239, 68, 68, 0.15)"
+  };
+  
+  const getInputStyle = (fieldName) => {
+    return touched[fieldName] && errors[fieldName] ? inputErrorStyle : inputStyle;
+  };
+  
+  const getInputFocusStyle = (fieldName) => {
+    return touched[fieldName] && errors[fieldName] ? inputFocusErrorStyle : inputFocusStyle;
+  };
+  
+  const errorMessageStyle = {
+    fontSize: "13px",
+    color: "#ef4444",
+    marginTop: "6px",
+    display: "flex",
+    alignItems: "center",
+    gap: "4px",
+    fontWeight: "500"
   };
 
   const buttonStyle = {
@@ -414,20 +555,29 @@ export default function EnrollmentForm() {
 
   const primaryButtonStyle = {
     ...buttonStyle,
-    backgroundColor: theme.info.main,
-    color: "#fff"
+    background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+    color: "#fff",
+    boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
+    transform: "translateY(0)",
+    ':hover': {
+      transform: "translateY(-2px)",
+      boxShadow: "0 6px 16px rgba(59, 130, 246, 0.4)"
+    }
   };
 
   const successButtonStyle = {
     ...buttonStyle,
-    backgroundColor: theme.success.main,
-    color: "#fff"
+    background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+    color: "#fff",
+    boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
+    transform: "translateY(0)"
   };
 
   const secondaryButtonStyle = {
     ...buttonStyle,
-    backgroundColor: theme.neutral.gray600,
-    color: "#fff"
+    background: "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)",
+    color: "#fff",
+    boxShadow: "0 4px 12px rgba(107, 114, 128, 0.3)"
   };
 
   return (
@@ -466,44 +616,86 @@ export default function EnrollmentForm() {
         {/* Left: Form */}
         <div>
           <form onSubmit={handleSubmitEnrollment}>
-            <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Full Name *</label>
+            <div style={{ marginBottom: "20px" }}>
+              <label style={labelStyle}>
+                <span style={{ fontSize: "18px" }}>👤</span>
+                <span>Full Name *</span>
+              </label>
               <input
                 type="text"
-                style={inputStyle}
+                style={getInputStyle("name")}
                 value={formData.name}
-                onChange={(e) => setFormData({...formData, name: filterNumbersFromName(e.target.value)})}
+                onChange={(e) => handleFieldChange("name", filterNumbersFromName(e.target.value))}
+                onBlur={(e) => { handleBlur("name"); Object.assign(e.target.style, getInputStyle("name")); }}
                 placeholder="Nguyễn Văn A"
+                onFocus={(e) => Object.assign(e.target.style, getInputFocusStyle("name"))}
+                onMouseEnter={(e) => { if (e.target !== document.activeElement && !errors.name) Object.assign(e.target.style, inputHoverStyle) }}
+                onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, getInputStyle("name")) }}
               />
-            </div>
-
-            <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Email Address *</label>
-              <input
-                type="email"
-                style={inputStyle}
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                placeholder="john@company.com"
-              />
+              {touched.name && errors.name && (
+                <div style={errorMessageStyle}>
+                  <span>⚠️</span>
+                  <span>{errors.name}</span>
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: "20px" }}>
-              <label style={labelStyle}>Employee Code *</label>
+              <label style={labelStyle}>
+                <span style={{ fontSize: "18px" }}>📧</span>
+                <span>Email Address *</span>
+              </label>
+              <input
+                type="email"
+                style={getInputStyle("email")}
+                value={formData.email}
+                onChange={(e) => handleFieldChange("email", e.target.value)}
+                onBlur={(e) => { handleBlur("email"); Object.assign(e.target.style, getInputStyle("email")); }}
+                placeholder="john@company.com"
+                onFocus={(e) => Object.assign(e.target.style, getInputFocusStyle("email"))}
+                onMouseEnter={(e) => { if (e.target !== document.activeElement && !errors.email) Object.assign(e.target.style, inputHoverStyle) }}
+                onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, getInputStyle("email")) }}
+              />
+              {touched.email && errors.email && (
+                <div style={errorMessageStyle}>
+                  <span>⚠️</span>
+                  <span>{errors.email}</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <label style={labelStyle}>
+                <span style={{ fontSize: "18px" }}>🆔</span>
+                <span>Employee Code *</span>
+              </label>
               <input
                 type="text"
-                style={inputStyle}
+                style={getInputStyle("employeeCode")}
                 value={formData.employeeCode}
-                onChange={(e) => setFormData({...formData, employeeCode: e.target.value})}
+                onChange={(e) => handleFieldChange("employeeCode", e.target.value)}
+                onBlur={(e) => { handleBlur("employeeCode"); Object.assign(e.target.style, getInputStyle("employeeCode")); }}
                 placeholder="EMP001"
+                onFocus={(e) => Object.assign(e.target.style, getInputFocusStyle("employeeCode"))}
+                onMouseEnter={(e) => { if (e.target !== document.activeElement && !errors.employeeCode) Object.assign(e.target.style, inputHoverStyle) }}
+                onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, getInputStyle("employeeCode")) }}
               />
+              {touched.employeeCode && errors.employeeCode && (
+                <div style={errorMessageStyle}>
+                  <span>⚠️</span>
+                  <span>{errors.employeeCode}</span>
+                </div>
+              )}
             </div>
 
             {/* Job Title - loaded from Job Title Management */}
-            <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Job Title *</label>
+            <div style={{ marginBottom: "20px" }}>
+              <label style={labelStyle}>
+                <span style={{ fontSize: "18px" }}>💼</span>
+                <span>Job Title *</span>
+              </label>
               <select
-                style={inputStyle}
+                style={getInputStyle("jobTitle")}
                 value={formData.jobTitleId || ""}
                 onChange={(e) => {
                   const id = parseInt(e.target.value) || null;
@@ -517,8 +709,15 @@ export default function EnrollmentForm() {
                         ? parseInt(selected.baseSalaryMin)
                         : prev.baseSalary
                   }));
+                  if (touched.jobTitle) {
+                    validateField("jobTitle", selected ? selected.name : "");
+                  }
                 }}
+                onBlur={(e) => { handleBlur("jobTitle"); Object.assign(e.target.style, getInputStyle("jobTitle")); }}
                 disabled={jobTitlesLoading || jobTitles.length === 0}
+                onFocus={(e) => Object.assign(e.target.style, getInputFocusStyle("jobTitle"))}
+                onMouseEnter={(e) => { if (e.target !== document.activeElement && !errors.jobTitle) Object.assign(e.target.style, inputHoverStyle) }}
+                onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, getInputStyle("jobTitle")) }}
               >
                 <option value="">
                   {jobTitlesLoading
@@ -532,15 +731,27 @@ export default function EnrollmentForm() {
                   </option>
                 ))}
               </select>
+              {touched.jobTitle && errors.jobTitle && (
+                <div style={errorMessageStyle}>
+                  <span>⚠️</span>
+                  <span>{errors.jobTitle}</span>
+                </div>
+              )}
             </div>
 
             {/* Education Level */}
-            <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Education Level *</label>
+            <div style={{ marginBottom: "20px" }}>
+              <label style={labelStyle}>
+                <span style={{ fontSize: "18px" }}>🎓</span>
+                <span>Education Level *</span>
+              </label>
               <select
                 style={inputStyle}
                 value={formData.educationLevel}
                 onChange={(e) => setFormData({...formData, educationLevel: e.target.value})}
+                onFocus={(e) => Object.assign(e.target.style, inputFocusStyle)}
+                onMouseEnter={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, inputHoverStyle) }}
+                onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, inputStyle) }}
               >
                 {Object.keys(EDUCATION_COEFFICIENTS).map(edu => (
                   <option key={edu} value={edu}>{EDU_LABELS[edu] || edu}</option>
@@ -549,23 +760,38 @@ export default function EnrollmentForm() {
             </div>
 
             {/* Base Salary */}
-            <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Base Salary (VND)</label>
+            <div style={{ marginBottom: "20px" }}>
+              <label style={labelStyle}>
+                <span style={{ fontSize: "18px" }}>💰</span>
+                <span>Base Salary (VND) *</span>
+              </label>
               <input
                 type="number"
-                style={inputStyle}
+                style={getInputStyle("baseSalary")}
                 value={formData.baseSalary}
-                onChange={(e) => setFormData({...formData, baseSalary: parseInt(e.target.value) || 1800000})}
+                onChange={(e) => handleFieldChange("baseSalary", parseInt(e.target.value) || 0)}
+                onBlur={(e) => { handleBlur("baseSalary"); Object.assign(e.target.style, getInputStyle("baseSalary")); }}
                 min="0"
                 placeholder="1800000"
+                onFocus={(e) => Object.assign(e.target.style, getInputFocusStyle("baseSalary"))}
+                onMouseEnter={(e) => { if (e.target !== document.activeElement && !errors.baseSalary) Object.assign(e.target.style, inputHoverStyle) }}
+                onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, getInputStyle("baseSalary")) }}
               />
-              <div style={{ fontSize: "12px", color: theme.neutral.gray600, marginTop: "4px" }}>
-                Default: 1,800,000 VND (state base salary)
-              </div>
+              {touched.baseSalary && errors.baseSalary && (
+                <div style={errorMessageStyle}>
+                  <span>⚠️</span>
+                  <span>{errors.baseSalary}</span>
+                </div>
+              )}
+              {!errors.baseSalary && (
+                <div style={{ fontSize: "12px", color: theme.neutral.gray600, marginTop: "6px", fontWeight: "500" }}>
+                  💡 Default: 1,800,000 VND (state base salary)
+                </div>
+              )}
             </div>
 
-            <div style={{ marginBottom: "20px", paddingTop: "16px", borderTop: "1px solid #e0e0e0" }}>
-              <div style={{ display: "flex", alignItems: "center", marginBottom: "12px" }}>
+            <div style={{ marginBottom: "24px", paddingTop: "20px", borderTop: "2px solid #e5e7eb" }}>
+              <div style={{ display: "flex", alignItems: "center", marginBottom: "12px", padding: "12px", backgroundColor: "#f9fafb", borderRadius: "10px" }}>
                 <input
                   type="checkbox"
                   id="useCustomPassword"
@@ -574,38 +800,59 @@ export default function EnrollmentForm() {
                     setUseCustomPassword(e.target.checked);
                     if (!e.target.checked) {
                       setFormData({...formData, password: ""});
+                      setErrors(prev => ({...prev, password: ""}));
+                      setTouched(prev => ({...prev, password: false}));
                     }
                   }}
-                  style={{ marginRight: "8px", width: "16px", height: "16px", cursor: "pointer" }}
+                  style={{ marginRight: "10px", width: "18px", height: "18px", cursor: "pointer" }}
                 />
-                <label htmlFor="useCustomPassword" style={{ ...labelStyle, margin: 0, cursor: "pointer", fontWeight: "500" }}>
-                  Use custom password (leave unchecked for auto-generated password)
+                <label htmlFor="useCustomPassword" style={{ margin: 0, cursor: "pointer", fontWeight: "600", fontSize: "14px", color: "#374151", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ fontSize: "16px" }}>🔐</span>
+                  <span>Use custom password (leave unchecked for auto-generated password)</span>
                 </label>
               </div>
               {useCustomPassword && (
-                <div>
-                  <label style={{...labelStyle, marginTop: "8px"}}>Password *</label>
+                <div style={{ marginTop: "16px" }}>
+                  <label style={{...labelStyle}}>
+                    <span style={{ fontSize: "18px" }}>🔑</span>
+                    <span>Password *</span>
+                  </label>
                   <input
                     type="password"
-                    style={inputStyle}
+                    style={getInputStyle("password")}
                     value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    onChange={(e) => handleFieldChange("password", e.target.value)}
+                    onBlur={(e) => { handleBlur("password"); Object.assign(e.target.style, getInputStyle("password")); }}
                     placeholder="Enter password for employee"
                     minLength={6}
+                    onFocus={(e) => Object.assign(e.target.style, getInputFocusStyle("password"))}
+                    onMouseEnter={(e) => { if (e.target !== document.activeElement && !errors.password) Object.assign(e.target.style, inputHoverStyle) }}
+                    onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, getInputStyle("password")) }}
                   />
-                  <div style={{ fontSize: "12px", color: theme.neutral.gray600, marginTop: "4px" }}>
-                    Password must be at least 6 characters
-                  </div>
+                  {touched.password && errors.password && (
+                    <div style={errorMessageStyle}>
+                      <span>⚠️</span>
+                      <span>{errors.password}</span>
+                    </div>
+                  )}
+                  {!errors.password && (
+                    <div style={{ fontSize: "12px", color: theme.neutral.gray600, marginTop: "6px", fontWeight: "500" }}>
+                      🔒 Password must be at least 6 characters
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
             <div style={{ 
               marginBottom: "24px", 
-              paddingTop: "16px", 
-              borderTop: `1px solid ${theme.neutral.gray200}`
+              paddingTop: "20px", 
+              borderTop: `2px solid ${theme.neutral.gray200}`
             }}>
-              <label style={labelStyle}>Face Recognition Status</label>
+              <label style={{...labelStyle}}>
+                <span style={{ fontSize: "18px" }}>📸</span>
+                <span>Face Recognition Status</span>
+              </label>
               <div style={{
                 padding: "12px 16px",
                 borderRadius: "10px",
@@ -614,18 +861,18 @@ export default function EnrollmentForm() {
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
-                backgroundColor: capturedDescriptor ? theme.success.bg : theme.warning.bg,
-                border: `2px solid ${capturedDescriptor ? theme.success.border : theme.warning.border}`,
-                color: capturedDescriptor ? theme.success.text : theme.warning.text
+                backgroundColor: capturedDescriptor ? theme.success.bg : (errors.faceCapture ? "#fef2f2" : theme.warning.bg),
+                border: `2px solid ${capturedDescriptor ? theme.success.border : (errors.faceCapture ? "#ef4444" : theme.warning.border)}`,
+                color: capturedDescriptor ? theme.success.text : (errors.faceCapture ? "#ef4444" : theme.warning.text)
               }}>
                 <span style={{
                   width: "8px",
                   height: "8px",
                   borderRadius: "50%",
-                  backgroundColor: capturedDescriptor ? "#28a745" : "#ffc107",
+                  backgroundColor: capturedDescriptor ? "#28a745" : (errors.faceCapture ? "#ef4444" : "#ffc107"),
                   display: "inline-block"
                 }}></span>
-                {capturedDescriptor ? "Face captured - Ready to enroll" : "Capture your face to proceed"}
+                {capturedDescriptor ? "✅ Face captured - Ready to enroll" : (errors.faceCapture ? "❌ " + errors.faceCapture : "⚠️ Capture your face to proceed")}
               </div>
             </div>
 
