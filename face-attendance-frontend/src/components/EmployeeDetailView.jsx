@@ -527,7 +527,7 @@ export default function EmployeeDetailView() {
                             />
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày bắt đầu làm việc</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Start Date</label>
                             <input
                               type="date"
                               value={editForm.startDate}
@@ -556,11 +556,11 @@ export default function EmployeeDetailView() {
                               }}
                             >
                               <option value="">Chọn loại hợp đồng</option>
-                              <option value="probation">Thử việc</option>
-                              <option value="1_year">Hợp đồng 1 năm</option>
-                              <option value="3_year">Hợp đồng 3 năm</option>
-                              <option value="indefinite">Không xác định thời hạn</option>
-                              <option value="other">Khác</option>
+                              <option value="probation">Probation</option>
+                              <option value="1_year">1-year contract</option>
+                              <option value="3_year">3-year contract</option>
+                              <option value="indefinite">Indefinite-term contract</option>
+                              <option value="other">Other</option>
                             </select>
                           </div>
                           <div>
@@ -575,11 +575,12 @@ export default function EmployeeDetailView() {
                                 borderRadius: theme.radius.md
                               }}
                             >
-                              <option value="active">Đang làm việc</option>
-                              <option value="maternity_leave">Đang nghỉ thai sản</option>
-                              <option value="unpaid_leave">Nghỉ không lương</option>
-                              <option value="terminated">Đã nghỉ việc</option>
-                              <option value="resigned">Đã từ chức</option>
+                              <option value="active">Active</option>
+                              <option value="maternity_leave">Maternity Leave</option>
+                              <option value="unpaid_leave">Unpaid Leave</option>
+                              <option value="suspended">Suspended</option>
+                              <option value="terminated">Terminated</option>
+                              <option value="resigned">Resigned</option>
                             </select>
                           </div>
                           <div>
@@ -638,7 +639,7 @@ export default function EmployeeDetailView() {
                                 checked={editForm.isActive}
                                 onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })}
                               />
-                              <span style={{ fontWeight: "600" }}>Đang làm việc</span>
+                              <span style={{ fontWeight: "600" }}>Active</span>
                             </label>
                           </div>
                         </div>
@@ -834,13 +835,13 @@ export default function EmployeeDetailView() {
                         </div>
 
                         <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Loại hợp đồng:</label>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Contract Type:</label>
                           <p style={{ margin: 0, color: theme.neutral.gray600 }}>
-                            {selectedEmployeeForModal.contractType === "probation" ? "Thử việc" :
-                             selectedEmployeeForModal.contractType === "1_year" ? "Hợp đồng 1 năm" :
-                             selectedEmployeeForModal.contractType === "3_year" ? "Hợp đồng 3 năm" :
-                             selectedEmployeeForModal.contractType === "indefinite" ? "Không xác định thời hạn" :
-                             selectedEmployeeForModal.contractType === "other" ? "Khác" : "Chưa cập nhật"}
+                            {selectedEmployeeForModal.contractType === "probation" ? "Probation" :
+                             selectedEmployeeForModal.contractType === "1_year" ? "1-year contract" :
+                             selectedEmployeeForModal.contractType === "3_year" ? "3-year contract" :
+                             selectedEmployeeForModal.contractType === "indefinite" ? "Indefinite-term contract" :
+                             selectedEmployeeForModal.contractType === "other" ? "Other" : "Not updated"}
                           </p>
                         </div>
 
@@ -862,22 +863,23 @@ export default function EmployeeDetailView() {
                                 theme.error.text
                             }}
                           >
-                            {selectedEmployeeForModal.employmentStatus === "active" ? "Đang làm việc" :
-                             selectedEmployeeForModal.employmentStatus === "maternity_leave" ? "Đang nghỉ thai sản" :
-                             selectedEmployeeForModal.employmentStatus === "unpaid_leave" ? "Nghỉ không lương" :
-                             selectedEmployeeForModal.employmentStatus === "terminated" ? "Đã nghỉ việc" :
-                             selectedEmployeeForModal.employmentStatus === "resigned" ? "Đã từ chức" :
-                             selectedEmployeeForModal.isActive ? "Đang làm việc" : "Đã nghỉ việc"}
+                            {selectedEmployeeForModal.employmentStatus === "active" ? "Active" :
+                             selectedEmployeeForModal.employmentStatus === "maternity_leave" ? "Maternity Leave" :
+                             selectedEmployeeForModal.employmentStatus === "unpaid_leave" ? "Unpaid Leave" :
+                             selectedEmployeeForModal.employmentStatus === "suspended" ? "Suspended" :
+                             selectedEmployeeForModal.employmentStatus === "terminated" ? "Terminated" :
+                             selectedEmployeeForModal.employmentStatus === "resigned" ? "Resigned" :
+                             selectedEmployeeForModal.isActive ? "Active" : "Inactive"}
                           </p>
                         </div>
 
                         <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày bắt đầu làm việc:</label>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Start Date:</label>
                           <p style={{ margin: 0, color: theme.neutral.gray600 }}>
-                            {selectedEmployeeForModal.startDate ? new Date(selectedEmployeeForModal.startDate).toLocaleDateString('vi-VN') : "Chưa cập nhật"}
+                            {selectedEmployeeForModal.startDate ? new Date(selectedEmployeeForModal.startDate).toLocaleDateString('en-US') : "Not updated"}
                           </p>
                           <p style={{ margin: theme.spacing.xs, fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500 }}>
-                            (Dùng để tính thâm niên và ngày phép năm)
+                            (Used for seniority and annual leave calculation)
                           </p>
                         </div>
 

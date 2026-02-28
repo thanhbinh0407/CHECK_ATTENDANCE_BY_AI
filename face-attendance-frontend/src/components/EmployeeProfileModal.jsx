@@ -1404,19 +1404,19 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           style={inputStyle}
                         >
                           <option value="">Select contract type</option>
-                          <option value="probation">Thử việc (Probation)</option>
-                          <option value="1_year">Hợp đồng 1 năm (1 Year)</option>
-                          <option value="3_year">Hợp đồng 3 năm (3 Years)</option>
-                          <option value="indefinite">Không xác định thời hạn (Indefinite)</option>
-                          <option value="other">Khác (Other)</option>
+                          <option value="probation">Probation</option>
+                          <option value="1_year">1-year contract</option>
+                          <option value="3_year">3-year contract</option>
+                          <option value="indefinite">Indefinite-term contract</option>
+                          <option value="other">Other</option>
                         </select>
                       ) : (
                         <div style={valueStyle}>
-                          {employeeDetails?.contractType === "probation" ? "Thử việc" :
-                           employeeDetails?.contractType === "1_year" ? "Hợp đồng 1 năm" :
-                           employeeDetails?.contractType === "3_year" ? "Hợp đồng 3 năm" :
-                           employeeDetails?.contractType === "indefinite" ? "Không xác định thời hạn" :
-                           employeeDetails?.contractType === "other" ? "Khác" : "-"}
+                          {employeeDetails?.contractType === "probation" ? "Probation" :
+                           employeeDetails?.contractType === "1_year" ? "1-year contract" :
+                           employeeDetails?.contractType === "3_year" ? "3-year contract" :
+                           employeeDetails?.contractType === "indefinite" ? "Indefinite-term contract" :
+                           employeeDetails?.contractType === "other" ? "Other" : "-"}
                         </div>
                       )}
                     </div>
@@ -1429,21 +1429,21 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           onChange={(e) => setEditForm({ ...editForm, employmentStatus: e.target.value })}
                           style={inputStyle}
                         >
-                          <option value="active">Đang làm việc (Active)</option>
-                          <option value="maternity_leave">Đang nghỉ thai sản (Maternity Leave)</option>
-                          <option value="unpaid_leave">Nghỉ không lương (Unpaid Leave)</option>
-                          <option value="suspended">Tạm nghỉ việc (Suspended)</option>
-                          <option value="terminated">Đã nghỉ việc (Terminated)</option>
-                          <option value="resigned">Đã từ chức (Resigned)</option>
+                          <option value="active">Active</option>
+                          <option value="maternity_leave">Maternity Leave</option>
+                          <option value="unpaid_leave">Unpaid Leave</option>
+                          <option value="suspended">Suspended</option>
+                          <option value="terminated">Terminated</option>
+                          <option value="resigned">Resigned</option>
                         </select>
                       ) : (
                         <div style={valueStyle}>
-                          {employeeDetails?.employmentStatus === "active" ? "Đang làm việc" :
-                           employeeDetails?.employmentStatus === "maternity_leave" ? "Đang nghỉ thai sản" :
-                           employeeDetails?.employmentStatus === "unpaid_leave" ? "Nghỉ không lương" :
-                           employeeDetails?.employmentStatus === "suspended" ? "Tạm nghỉ việc" :
-                           employeeDetails?.employmentStatus === "terminated" ? "Đã nghỉ việc" :
-                           employeeDetails?.employmentStatus === "resigned" ? "Đã từ chức" : "-"}
+                          {employeeDetails?.employmentStatus === "active" ? "Active" :
+                           employeeDetails?.employmentStatus === "maternity_leave" ? "Maternity Leave" :
+                           employeeDetails?.employmentStatus === "unpaid_leave" ? "Unpaid Leave" :
+                           employeeDetails?.employmentStatus === "suspended" ? "Suspended" :
+                           employeeDetails?.employmentStatus === "terminated" ? "Terminated" :
+                           employeeDetails?.employmentStatus === "resigned" ? "Resigned" : "-"}
                         </div>
                       )}
                     </div>
