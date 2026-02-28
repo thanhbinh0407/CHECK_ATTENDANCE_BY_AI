@@ -20,7 +20,7 @@ const Notification = sequelize.define('Notification', {
     comment: 'User ID, null for broadcast'
   },
   type: {
-    type: DataTypes.ENUM('attendance', 'late', 'leave', 'salary', 'system', 'alert'),
+    type: DataTypes.ENUM('attendance', 'late', 'leave', 'salary', 'salary_advance', 'system', 'alert'),
     allowNull: false
   },
   title: {

@@ -1,12 +1,42 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+
+// Chỉ cho chọn: tháng hiện tại, hoặc 1–2 tháng kế tiếp (không quá khứ, không xa hơn 2 tháng)
+function getAllowedMonthYearOptions() {
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+  const options = [];
+  for (let i = 0; i <= 2; i++) {
+    let m = currentMonth + i;
+    let y = currentYear;
+    if (m > 12) {
+      m -= 12;
+      y += 1;
+    }
+    options.push({
+      month: m,
+      year: y,
+      label: `Tháng ${m}/${y}`
+    });
+  }
+  return options;
+}
 
 export default function SalaryAdvanceRequest({ userId }) {
   const [advances, setAdvances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const allowedPeriods = useMemo(getAllowedMonthYearOptions, []);
+  const availablePeriods = useMemo(
+    () => allowedPeriods.filter(
+      (p) => !advances.some((a) => Number(a.month) === p.month && Number(a.year) === p.year)
+    ),
+    [allowedPeriods, advances]
+  );
+  const defaultPeriod = allowedPeriods[0] || { month: new Date().getMonth() + 1, year: new Date().getFullYear() };
   const [formData, setFormData] = useState({
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear(),
+    month: defaultPeriod.month,
+    year: defaultPeriod.year,
     amount: "",
     reason: ""
   });
@@ -16,6 +46,21 @@ export default function SalaryAdvanceRequest({ userId }) {
     fetchAdvances();
   }, [userId]);
 
+  const prevShowForm = React.useRef(false);
+  useEffect(() => {
+    if (showForm && !prevShowForm.current && availablePeriods.length > 0) {
+      const first = availablePeriods[0];
+      setFormData((prev) => ({
+        ...prev,
+        month: first.month,
+        year: first.year,
+        amount: "",
+        reason: ""
+      }));
+    }
+    prevShowForm.current = showForm;
+  }, [showForm, availablePeriods]);
+
   const fetchAdvances = async () => {
     try {
       setLoading(true);
@@ -24,7 +69,8 @@ export default function SalaryAdvanceRequest({ userId }) {
 
       if (!token) return;
 
-      const res = await fetch(`${apiBase}/api/salary-advances?userId=${userId}`, {
+      const query = typeof userId === "number" || (typeof userId === "string" && userId !== "" && userId !== "undefined") ? `?userId=${userId}` : "";
+      const res = await fetch(`${apiBase}/api/salary-advances${query}`, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
@@ -34,9 +80,13 @@ export default function SalaryAdvanceRequest({ userId }) {
       const data = await res.json();
       if (res.ok) {
         setAdvances(data.advances || []);
+        setMessage("");
+      } else {
+        setMessage(data?.message ? `Lỗi: ${data.message}` : "Không tải được danh sách ứng lương.");
       }
     } catch (error) {
       console.error("Error fetching salary advances:", error);
+      setMessage("Lỗi kết nối. Vui lòng đăng nhập lại.");
     } finally {
       setLoading(false);
     }
@@ -44,6 +94,14 @@ export default function SalaryAdvanceRequest({ userId }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const alreadyRequested = advances.some(
+      (a) => Number(a.month) === Number(formData.month) && Number(a.year) === Number(formData.year)
+    );
+    if (alreadyRequested) {
+      setMessage("❌ Bạn đã có yêu cầu ứng lương cho tháng/năm này. Mỗi tháng chỉ được ứng 1 lần.");
+      return;
+    }
+
     try {
       setLoading(true);
       setMessage("");
@@ -159,7 +217,17 @@ export default function SalaryAdvanceRequest({ userId }) {
             </p>
           </div>
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => {
+              const first = allowedPeriods[0];
+              setFormData((prev) => ({
+                ...prev,
+                month: first?.month ?? new Date().getMonth() + 1,
+                year: first?.year ?? new Date().getFullYear(),
+                amount: "",
+                reason: ""
+              }));
+              setShowForm(true);
+            }}
             style={{
               padding: "12px 24px",
               backgroundColor: "#28a745",
@@ -242,42 +310,39 @@ export default function SalaryAdvanceRequest({ userId }) {
                   fontSize: "14px",
                   color: "#333"
                 }}>
-                  Tháng/Năm *
+                  Tháng/Năm * <span style={{ fontWeight: 400, color: "#666", fontSize: "12px" }}>(chỉ tháng hiện tại hoặc 2 tháng kế tiếp, mỗi tháng ứng 1 lần)</span>
                 </label>
-                <div style={{ display: "flex", gap: "12px" }}>
+                {availablePeriods.length === 0 ? (
+                  <div style={{ padding: "12px", background: "#fff3cd", borderRadius: "8px", color: "#856404", fontSize: "14px" }}>
+                    Bạn đã có yêu cầu ứng lương cho tất cả các tháng được phép (tháng hiện tại và 2 tháng kế tiếp).
+                  </div>
+                ) : (
                   <select
-                    value={formData.month}
-                    onChange={(e) => setFormData({ ...formData, month: parseInt(e.target.value) })}
+                    value={(() => {
+                      const currentValue = `${formData.month}-${formData.year}`;
+                      const exists = availablePeriods.some((p) => `${p.month}-${p.year}` === currentValue);
+                      return exists ? currentValue : `${availablePeriods[0].month}-${availablePeriods[0].year}`;
+                    })()}
+                    onChange={(e) => {
+                      const [month, year] = e.target.value.split("-").map(Number);
+                      setFormData({ ...formData, month, year });
+                    }}
                     required
                     style={{
-                      flex: 1,
+                      width: "100%",
                       padding: "12px",
                       border: "2px solid #e0e0e0",
                       borderRadius: "8px",
                       fontSize: "14px"
                     }}
                   >
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                      <option key={m} value={m}>{m}</option>
+                    {availablePeriods.map((p) => (
+                      <option key={`${p.month}-${p.year}`} value={`${p.month}-${p.year}`}>
+                        {p.label}
+                      </option>
                     ))}
                   </select>
-                  <select
-                    value={formData.year}
-                    onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
-                    required
-                    style={{
-                      flex: 1,
-                      padding: "12px",
-                      border: "2px solid #e0e0e0",
-                      borderRadius: "8px",
-                      fontSize: "14px"
-                    }}
-                  >
-                    {Array.from({ length: 3 }, (_, i) => new Date().getFullYear() + i).map(y => (
-                      <option key={y} value={y}>{y}</option>
-                    ))}
-                  </select>
-                </div>
+                )}
               </div>
 
               <div style={{ marginBottom: "20px" }}>
@@ -354,7 +419,7 @@ export default function SalaryAdvanceRequest({ userId }) {
                 </button>
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || availablePeriods.length === 0}
                   style={{
                     flex: 1,
                     padding: "14px",

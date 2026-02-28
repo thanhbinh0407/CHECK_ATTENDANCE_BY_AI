@@ -129,6 +129,50 @@ export default function EnrollmentForm() {
     }
   };
 
+  // Generate unique employee code based on job title code (e.g., NVC + 3 random digits)
+  const generateEmployeeCodeForJob = async (job) => {
+    try {
+      if (!job) return;
+      const prefix = job.code || "EMP";
+
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+
+      const res = await fetch(`${apiBase}/api/admin/employees`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json().catch(() => ({}));
+
+      const existingCodes = Array.isArray(data.employees)
+        ? data.employees
+            .map((e) => e.employeeCode)
+            .filter((code) => typeof code === "string" && code.startsWith(prefix))
+        : [];
+
+      const usedSuffixes = new Set(
+        existingCodes
+          .map((code) => code.slice(prefix.length))
+          .filter((s) => /^[0-9]{3}$/.test(s))
+      );
+
+      let suffix = "000";
+      for (let i = 0; i < 1000; i++) {
+        const candidate = String(Math.floor(Math.random() * 1000)).padStart(3, "0");
+        if (!usedSuffixes.has(candidate)) {
+          suffix = candidate;
+          break;
+        }
+      }
+
+      const newCode = `${prefix}${suffix}`;
+      setFormData((prev) => ({ ...prev, employeeCode: newCode }));
+      setErrors((prev) => ({ ...prev, employeeCode: "" }));
+    } catch (err) {
+      console.error("Error generating employee code:", err);
+      // Không chặn flow nếu lỗi, chỉ log ra console
+    }
+  };
+
   // Load job titles for admin enrollment form
   useEffect(() => {
     const loadJobTitles = async () => {
@@ -156,6 +200,8 @@ export default function EnrollmentForm() {
                 ? parseInt(first.baseSalaryMin)
                 : prev.baseSalary
             }));
+            // Tự sinh mã nhân viên cho job mặc định
+            generateEmployeeCodeForJob(first);
           }
         } else {
           setMessage(
@@ -709,6 +755,10 @@ export default function EnrollmentForm() {
                         ? parseInt(selected.baseSalaryMin)
                         : prev.baseSalary
                   }));
+                  // Khi chọn chức danh, tự sinh mã nhân viên dựa trên mã chức danh (ví dụ NVC + 3 số)
+                  if (selected) {
+                    generateEmployeeCodeForJob(selected);
+                  }
                   if (touched.jobTitle) {
                     validateField("jobTitle", selected ? selected.name : "");
                   }
