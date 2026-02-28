@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { vietnamProvinces } from "../data/vietnamProvinces.js";
 
 export default function BusinessTripRequest({ userId }) {
   const [requests, setRequests] = useState([]);
@@ -319,12 +320,10 @@ export default function BusinessTripRequest({ userId }) {
                 }}>
                   Địa Điểm Công Tác *
                 </label>
-                <input
-                  type="text"
+                <select
                   value={formData.destination}
                   onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
                   required
-                  placeholder="Nhập địa điểm công tác"
                   style={{
                     width: "100%",
                     padding: "12px",
@@ -332,7 +331,12 @@ export default function BusinessTripRequest({ userId }) {
                     borderRadius: "8px",
                     fontSize: "14px"
                   }}
-                />
+                >
+                  <option value="">Chọn địa điểm (tỉnh/thành phố)</option>
+                  {vietnamProvinces.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
               </div>
 
               <div style={{ marginBottom: "20px" }}>

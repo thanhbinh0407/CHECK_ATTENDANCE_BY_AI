@@ -188,7 +188,7 @@ export default function ReportsDashboard() {
 
   const renderPayrollReport = () => {
     if (!reportData.summary || !reportData.breakdown) return null;
-    
+
     return (
       <div style={{ marginTop: theme.spacing.xl }}>
         <div style={{ ...cardStyle, marginBottom: theme.spacing.lg }}>
