@@ -13,8 +13,31 @@ export default function AdminDashboard() {
   const [resetPasswordSuccess, setResetPasswordSuccess] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all"); // all, withFace, withoutFace
+  const [startDateFrom, setStartDateFrom] = useState("");
+  const [startDateTo, setStartDateTo] = useState("");
   const [savedFilters, setSavedFilters] = useState([]);
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+  const toLocalDateOnly = (value) => {
+    if (!value) return null;
+
+    if (typeof value === "string") {
+      const datePart = value.slice(0, 10);
+      const parts = datePart.split("-");
+      if (parts.length === 3) {
+        const year = Number(parts[0]);
+        const month = Number(parts[1]);
+        const day = Number(parts[2]);
+        if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+          return new Date(year, month - 1, day);
+        }
+      }
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  };
 
   useEffect(() => {
     fetchEmployees();
@@ -50,8 +73,22 @@ export default function AdminDashboard() {
       filtered = filtered.filter(emp => !emp.FaceProfiles || emp.FaceProfiles.length === 0);
     }
 
+    // Apply start date range filter
+    if (startDateFrom || startDateTo) {
+      const from = startDateFrom ? toLocalDateOnly(startDateFrom) : null;
+      const to = startDateTo ? toLocalDateOnly(startDateTo) : null;
+
+      filtered = filtered.filter((emp) => {
+        const employeeStartDate = toLocalDateOnly(emp.startDate);
+        if (!employeeStartDate) return false;
+        if (from && employeeStartDate < from) return false;
+        if (to && employeeStartDate > to) return false;
+        return true;
+      });
+    }
+
     setFilteredEmployees(filtered);
-  }, [searchQuery, filterStatus, employees]);
+  }, [searchQuery, filterStatus, startDateFrom, startDateTo, employees]);
 
   const fetchEmployees = async () => {
     try {
@@ -305,8 +342,57 @@ export default function AdminDashboard() {
                 <option value="withoutFace">Not Registered ({employees.filter(e => !e.FaceProfiles || e.FaceProfiles.length === 0).length})</option>
               </select>
             </div>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              flexWrap: "wrap"
+            }}>
+              <label style={{
+                fontWeight: "700",
+                fontSize: "15px",
+                color: "#495057",
+                whiteSpace: "nowrap"
+              }}>
+                Start Date:
+              </label>
+              <input
+                type="date"
+                value={startDateFrom}
+                onChange={(e) => setStartDateFrom(e.target.value)}
+                style={{
+                  padding: "12px 14px",
+                  border: "2px solid #e0e0e0",
+                  borderRadius: "10px",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  backgroundColor: "#fff",
+                  outline: "none"
+                }}
+              />
+              <span style={{ color: "#6c757d", fontWeight: "600" }}>to</span>
+              <input
+                type="date"
+                value={startDateTo}
+                onChange={(e) => setStartDateTo(e.target.value)}
+                style={{
+                  padding: "12px 14px",
+                  border: "2px solid #e0e0e0",
+                  borderRadius: "10px",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  backgroundColor: "#fff",
+                  outline: "none"
+                }}
+              />
+            </div>
               <button
-              onClick={() => { setSearchQuery(""); setFilterStatus("all"); }}
+              onClick={() => {
+                setSearchQuery("");
+                setFilterStatus("all");
+                setStartDateFrom("");
+                setStartDateTo("");
+              }}
                 style={{
                   padding: "12px 20px",
                   backgroundColor: "#6c757d",
@@ -502,7 +588,12 @@ export default function AdminDashboard() {
             </p>
             {employees.length > 0 && (
               <button
-                onClick={() => { setSearchQuery(""); setFilterStatus("all"); }}
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilterStatus("all");
+                  setStartDateFrom("");
+                  setStartDateTo("");
+                }}
                 style={{
                   marginTop: "16px",
                   padding: "12px 24px",
@@ -645,11 +736,11 @@ export default function AdminDashboard() {
                           <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
                             <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Contract</div>
                             <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600" }}>
-                              {emp.contractType === "probation" ? "Thử việc" :
-                               emp.contractType === "1_year" ? "1 năm" :
-                               emp.contractType === "3_year" ? "3 năm" :
-                               emp.contractType === "indefinite" ? "Không xác định" :
-                               emp.contractType === "other" ? "Khác" : emp.contractType}
+                              {emp.contractType === "probation" ? "Probation" :
+                               emp.contractType === "1_year" ? "1 year" :
+                               emp.contractType === "3_year" ? "3 years" :
+                               emp.contractType === "indefinite" ? "Indefinite" :
+                               emp.contractType === "other" ? "Other" : emp.contractType}
                             </div>
                           </div>
                         )}
@@ -663,12 +754,12 @@ export default function AdminDashboard() {
                               emp.employmentStatus === "suspended" ? "#ff5722" :
                               emp.employmentStatus === "terminated" || emp.employmentStatus === "resigned" ? "#dc3545" : "#666",
                               fontWeight: "700" }}>
-                              {emp.employmentStatus === "active" ? "Đang làm việc" :
-                               emp.employmentStatus === "maternity_leave" ? "Nghỉ thai sản" :
-                               emp.employmentStatus === "unpaid_leave" ? "Nghỉ không lương" :
-                               emp.employmentStatus === "suspended" ? "Tạm nghỉ" :
-                               emp.employmentStatus === "terminated" ? "Đã nghỉ việc" :
-                               emp.employmentStatus === "resigned" ? "Đã từ chức" : emp.employmentStatus}
+                              {emp.employmentStatus === "active" ? "Active" :
+                               emp.employmentStatus === "maternity_leave" ? "Maternity Leave" :
+                               emp.employmentStatus === "unpaid_leave" ? "Unpaid Leave" :
+                               emp.employmentStatus === "suspended" ? "Suspended" :
+                               emp.employmentStatus === "terminated" ? "Terminated" :
+                               emp.employmentStatus === "resigned" ? "Resigned" : emp.employmentStatus}
                             </div>
                           </div>
                         )}
@@ -685,11 +776,11 @@ export default function AdminDashboard() {
                           </div>
                         )}
                         <div style={{ gridColumn: "1 / -1", padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
-                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Ngày bắt đầu làm việc</div>
+                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Start Date</div>
                           <div style={{ fontSize: "14px", color: emp.startDate ? "#667eea" : "#999", fontWeight: "700" }}>
                             {emp.startDate
-                              ? new Date(emp.startDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })
-                              : "Chưa cập nhật"}
+                              ? new Date(emp.startDate).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })
+                              : "Not set"}
                           </div>
                         </div>
                   </div>
