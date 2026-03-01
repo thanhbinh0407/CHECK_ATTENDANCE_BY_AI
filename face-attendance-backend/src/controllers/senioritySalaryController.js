@@ -1,7 +1,8 @@
 import {
   applySenioritySalaryIncrease,
   applySenioritySalaryIncreasesForAll,
-  calculateSeniority
+  calculateSeniority,
+  getQualifiedGrade
 } from "../services/senioritySalaryService.js";
 import User from "../models/pg/User.js";
 
@@ -12,30 +13,27 @@ export const getUserSeniority = async (req, res) => {
   try {
     const { userId } = req.params;
     const user = await User.findByPk(userId);
-    
+
     if (!user) {
-      return res.status(404).json({
-        status: "error",
-        message: "User not found"
-      });
+      return res.status(404).json({ status: "error", message: "User not found" });
     }
-    
-    const seniority = calculateSeniority(user.hireDate);
-    
+
+    // Fix: use startDate (the actual DB field)
+    const seniority = calculateSeniority(user.startDate);
+    const qualifiedGrade = await getQualifiedGrade(seniority);
+
     return res.json({
       status: "success",
       seniority: {
-        years: seniority,
-        hireDate: user.hireDate,
-        currentBaseSalary: user.baseSalary
+        years:             seniority,
+        startDate:         user.startDate,
+        currentBaseSalary: user.baseSalary,
+        qualifiedGrade:    qualifiedGrade ? { id: qualifiedGrade.id, name: qualifiedGrade.name, baseSalary: qualifiedGrade.baseSalary, minYearsOfService: qualifiedGrade.minYearsOfService } : null
       }
     });
   } catch (error) {
     console.error("Error getting user seniority:", error);
-    return res.status(500).json({
-      status: "error",
-      message: error.message
-    });
+    return res.status(500).json({ status: "error", message: error.message });
   }
 };
 

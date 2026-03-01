@@ -463,12 +463,12 @@ async function seedDB() {
     // Create Salary Grades
     console.log('Step 9: Creating salary grades...');
     const grades = await SalaryGrade.bulkCreate([
-      { code: 'A', name: 'Grade A', level: 1, baseSalary: 25000000 },
-      { code: 'B', name: 'Grade B', level: 2, baseSalary: 20000000 },
-      { code: 'C', name: 'Grade C', level: 3, baseSalary: 15000000 },
-      { code: 'D', name: 'Grade D', level: 4, baseSalary: 12000000 },
-      { code: 'E', name: 'Grade E', level: 5, baseSalary: 10000000 },
-      { code: 'F', name: 'Grade F', level: 6, baseSalary: 8000000 }
+      { code: 'A', name: 'Grade A', level: 1, baseSalary: 25000000, minYearsOfService: 10 },
+      { code: 'B', name: 'Grade B', level: 2, baseSalary: 20000000, minYearsOfService: 8  },
+      { code: 'C', name: 'Grade C', level: 3, baseSalary: 15000000, minYearsOfService: 5  },
+      { code: 'D', name: 'Grade D', level: 4, baseSalary: 12000000, minYearsOfService: 3  },
+      { code: 'E', name: 'Grade E', level: 5, baseSalary: 10000000, minYearsOfService: 1  },
+      { code: 'F', name: 'Grade F', level: 6, baseSalary: 8000000,  minYearsOfService: 0  }
     ]);
     console.log(`Done: created ${grades.length} salary grades\n`);
 
@@ -856,6 +856,11 @@ async function seedDB() {
           outMin = 10 + ((i + serial) % 45);
         }
 
+        // VN timezone is UTC+7 — store timestamps in true UTC (subtract 7h)
+        // e.g. 07:35 VN local = 00:35 UTC
+        const inUTCHour  = inHour  - 7;  // 0 or 1
+        const outUTCHour = outHour - 7;  // 9, 10, 11
+
         attendanceRows.push({
           userId: emp.id,
           detectedName: emp.name,
@@ -866,7 +871,7 @@ async function seedDB() {
           isEarlyLeave: false,
           isOvertime: false,
           deviceId: 'MAIN_ENTRANCE',
-          timestamp: new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), inHour, inMin))
+          timestamp: new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), inUTCHour, inMin))
         });
 
         attendanceRows.push({
@@ -879,7 +884,7 @@ async function seedDB() {
           isEarlyLeave,
           isOvertime: hasOvertime,
           deviceId: 'MAIN_ENTRANCE',
-          timestamp: new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), outHour, outMin))
+          timestamp: new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), outUTCHour, outMin))
         });
 
         if (attendanceRows.length >= 1000) {
