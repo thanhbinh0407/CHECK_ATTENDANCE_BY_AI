@@ -19,6 +19,11 @@ export default function Dependents({ userId }) {
   const [messageType, setMessageType] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [errors, setErrors] = useState({
+    fullName: "",
+    phoneNumber: "",
+    email: ""
+  });
 
   const showMessage = (text, type) => {
     setMessage(text);
@@ -77,16 +82,154 @@ export default function Dependents({ userId }) {
     }
   };
 
+  // Validation functions
+  const validateFullName = (value) => {
+    if (!value || value.trim() === "") {
+      return "Full Name is required";
+    }
+    // Check for numbers
+    if (/\d/.test(value)) {
+      return "Full Name cannot contain numbers";
+    }
+    // Check for special characters (allow spaces, hyphens, apostrophes, and all Vietnamese characters)
+    // Only block: numbers, and special characters except spaces, hyphens, apostrophes
+    if (/[0-9!@#$%^&*()_+=\[\]{};:"\\|,.<>\/?~`]/.test(value)) {
+      return "Full Name cannot contain numbers or special characters";
+    }
+    return "";
+  };
+
+  const validatePhoneNumber = (value) => {
+    if (!value || value.trim() === "") {
+      return "Phone Number is required";
+    }
+    // Only allow numbers
+    if (!/^\d+$/.test(value)) {
+      return "Phone Number must contain only numbers";
+    }
+    // Maximum 10 digits
+    if (value.length > 10) {
+      return "Phone Number must be maximum 10 digits";
+    }
+    return "";
+  };
+
+  const validateEmail = (value) => {
+    if (!value || value.trim() === "") {
+      return "Email is required";
+    }
+    // Must end with @gmail.com
+    if (!value.toLowerCase().endsWith("@gmail.com")) {
+      return "Email must end with @gmail.com";
+    }
+    return "";
+  };
+
+  // Capitalize first letter of each word while preserving Vietnamese accents
+  // Only capitalize if the first letter is lowercase, preserve accents
+  const capitalizeWords = (str) => {
+    return str
+      .split(" ")
+      .map(word => {
+        if (!word) return word;
+        const firstChar = word.charAt(0);
+        const rest = word.slice(1);
+        // Only capitalize if first char is lowercase letter (a-z), preserve Vietnamese accents
+        if (firstChar >= 'a' && firstChar <= 'z') {
+          return firstChar.toUpperCase() + rest;
+        }
+        // If already uppercase or has accent, keep as is
+        return word;
+      })
+      .join(" ");
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    let processedValue = value;
+    let error = "";
+
+    // Process and validate based on field name
+    if (name === "fullName") {
+      // Remove only numbers and special characters (keep all letters including Vietnamese with accents)
+      // Allow: all Unicode letters, spaces, hyphens, apostrophes
+      // Block: numbers and special characters like !@#$%^&*() etc.
+      processedValue = value.replace(/[0-9!@#$%^&*()_+=\[\]{};:"\\|,.<>\/?~`]/g, "");
+      // Don't capitalize while typing, only on blur (and only if needed)
+      error = validateFullName(processedValue);
+    } else if (name === "phoneNumber") {
+      // Only allow numbers
+      processedValue = value.replace(/\D/g, "");
+      // Limit to 10 digits
+      if (processedValue.length > 10) {
+        processedValue = processedValue.substring(0, 10);
+      }
+      error = validatePhoneNumber(processedValue);
+    } else if (name === "email") {
+      error = validateEmail(value);
+    }
+
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: processedValue
+    }));
+
+    // Update errors
+    setErrors(prev => ({
+      ...prev,
+      [name]: error
+    }));
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    let error = "";
+
+    if (name === "fullName") {
+      // Only capitalize if first letter of each word is lowercase (a-z), preserve Vietnamese accents
+      // This way "nguyễn" becomes "Nguyễn" but "Nguyễn" stays "Nguyễn"
+      const capitalized = capitalizeWords(value);
+      if (capitalized !== value) {
+        setFormData(prev => ({
+          ...prev,
+          [name]: capitalized
+        }));
+        error = validateFullName(capitalized);
+      } else {
+        error = validateFullName(value);
+      }
+    } else if (name === "phoneNumber") {
+      error = validatePhoneNumber(value);
+    } else if (name === "email") {
+      error = validateEmail(value);
+    }
+
+    setErrors(prev => ({
+      ...prev,
+      [name]: error
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate all fields
+    const fullNameError = validateFullName(formData.fullName);
+    const phoneNumberError = validatePhoneNumber(formData.phoneNumber);
+    const emailError = validateEmail(formData.email);
+
+    setErrors({
+      fullName: fullNameError,
+      phoneNumber: phoneNumberError,
+      email: emailError
+    });
+
+    // If there are validation errors, don't submit
+    if (fullNameError || phoneNumberError || emailError) {
+      showMessage("Please fix the validation errors before submitting.", "error");
+      return;
+    }
+
     try {
       const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
       const token = localStorage.getItem("authToken");
@@ -146,6 +289,11 @@ export default function Dependents({ userId }) {
             gender: "male",
             idNumber: "",
             address: "",
+            phoneNumber: "",
+            email: ""
+          });
+          setErrors({
+            fullName: "",
             phoneNumber: "",
             email: ""
           });
@@ -544,35 +692,99 @@ export default function Dependents({ userId }) {
           <div style={{
             backgroundColor: "white",
             borderRadius: "16px",
-            padding: "32px",
             maxWidth: "700px",
             width: "100%",
             maxHeight: "90vh",
             overflowY: "auto",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            display: "flex",
+            flexDirection: "column"
           }}>
-            <h3 style={{ 
-              fontSize: "24px", 
-              fontWeight: "700", 
-              marginBottom: "24px",
-              color: "#1a1a1a"
+            {/* Header */}
+            <div style={{
+              background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
+              padding: "24px 32px",
+              borderTopLeftRadius: "16px",
+              borderTopRightRadius: "16px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
             }}>
-              {editingId ? "Edit Dependent" : "Add New Dependent"}
-            </h3>
+              <h3 style={{ 
+                fontSize: "22px", 
+                fontWeight: "700", 
+                color: "#fff",
+                margin: 0
+              }}>
+                {editingId ? "✏️ Edit Dependent" : "➕ Add New Dependent"}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingId(null);
+                  setFormData({ 
+                    fullName: "", 
+                    relationship: "spouse", 
+                    dateOfBirth: "", 
+                    gender: "male", 
+                    idNumber: "", 
+                    address: "", 
+                    phoneNumber: "", 
+                    email: "" 
+                  });
+                  setMessage("");
+                  setErrors({
+                    fullName: "",
+                    phoneNumber: "",
+                    email: ""
+                  });
+                }}
+                style={{
+                  background: "rgba(255, 255, 255, 0.2)",
+                  border: "none",
+                  borderRadius: "8px",
+                  width: "36px",
+                  height: "36px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontSize: "20px",
+                  fontWeight: "600",
+                  transition: "all 0.3s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = "rgba(255, 255, 255, 0.3)";
+                  e.target.style.transform = "rotate(90deg)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = "rgba(255, 255, 255, 0.2)";
+                  e.target.style.transform = "rotate(0deg)";
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Form Content */}
+            <div style={{ padding: "32px" }}>
 
             <form onSubmit={handleSubmit}>
               {/* Full Name */}
-              <div style={{ marginBottom: "20px" }}>
+              <div style={{ marginBottom: "24px" }}>
                 <label style={{ 
-                  display: "block", 
-                  fontSize: "13px", 
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "14px", 
                   fontWeight: "600", 
-                  color: "#495057", 
-                  marginBottom: "8px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
+                  color: "#333", 
+                  marginBottom: "10px"
                 }}>
-                  Full Name <span style={{ color: "#dc3545" }}>*</span>
+                  <span>👤</span>
+                  <span>Full Name</span>
+                  <span style={{ color: "#dc3545" }}>*</span>
                 </label>
                 <input
                   type="text"
@@ -583,35 +795,60 @@ export default function Dependents({ userId }) {
                   placeholder="Enter full name"
                   style={{
                     width: "100%",
-                    padding: "12px 16px",
-                    border: "2px solid #e9ecef",
-                    borderRadius: "8px",
-                    fontSize: "14px",
-                    transition: "all 0.3s ease"
+                    padding: "14px 16px",
+                    border: `2px solid ${errors.fullName ? "#dc3545" : "#e0e0e0"}`,
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    backgroundColor: "#f8f9fa"
                   }}
-                  onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                  onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = errors.fullName ? "#dc3545" : "#A2B9ED";
+                    e.target.style.backgroundColor = "white";
+                    e.target.style.boxShadow = `0 0 0 3px ${errors.fullName ? "rgba(220, 53, 69, 0.1)" : "rgba(162, 185, 237, 0.1)"}`;
+                  }}
+                  onBlur={(e) => {
+                    handleBlur(e);
+                    e.target.style.borderColor = errors.fullName ? "#dc3545" : "#e0e0e0";
+                    e.target.style.backgroundColor = "#f8f9fa";
+                    e.target.style.boxShadow = "none";
+                  }}
                 />
+                {errors.fullName && (
+                  <div style={{
+                    marginTop: "6px",
+                    fontSize: "12px",
+                    color: "#dc3545",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}>
+                    <span>⚠️</span>
+                    <span>{errors.fullName}</span>
+                  </div>
+                )}
               </div>
 
               {/* Relationship & Gender */}
               <div style={{ 
                 display: "grid", 
                 gridTemplateColumns: "1fr 1fr", 
-                gap: "16px", 
-                marginBottom: "20px" 
+                gap: "20px", 
+                marginBottom: "24px" 
               }}>
                 <div>
                   <label style={{ 
-                    display: "block", 
-                    fontSize: "13px", 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
                     fontWeight: "600", 
-                    color: "#495057", 
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
+                    color: "#333", 
+                    marginBottom: "10px"
                   }}>
-                    Relationship <span style={{ color: "#dc3545" }}>*</span>
+                    <span>👨‍👩‍👧‍👦</span>
+                    <span>Relationship</span>
+                    <span style={{ color: "#dc3545" }}>*</span>
                   </label>
                   <select 
                     name="relationship" 
@@ -620,35 +857,46 @@ export default function Dependents({ userId }) {
                     required
                     style={{
                       width: "100%",
-                      padding: "12px 16px",
-                      border: "2px solid #e9ecef",
-                      borderRadius: "8px",
-                      fontSize: "14px",
+                      padding: "14px 16px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "10px",
+                      fontSize: "15px",
                       transition: "all 0.3s ease",
-                      backgroundColor: "white"
+                      backgroundColor: "#f8f9fa",
+                      color: "#333",
+                      cursor: "pointer"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                    onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
                   >
-                    <option value="spouse">Spouse</option>
-                    <option value="child">Child</option>
-                    <option value="parent">Parent</option>
-                    <option value="grandparent">Grandparent</option>
-                    <option value="sibling">Sibling</option>
-                    <option value="other">Other</option>
+                    <option value="spouse">💑 Spouse</option>
+                    <option value="child">👶 Child</option>
+                    <option value="parent">👨‍👩‍👦 Parent</option>
+                    <option value="grandparent">👴👵 Grandparent</option>
+                    <option value="sibling">👫 Sibling</option>
+                    <option value="other">👤 Other</option>
                   </select>
                 </div>
                 <div>
                   <label style={{ 
-                    display: "block", 
-                    fontSize: "13px", 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
                     fontWeight: "600", 
-                    color: "#495057", 
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
+                    color: "#333", 
+                    marginBottom: "10px"
                   }}>
-                    Gender
+                    <span>⚧️</span>
+                    <span>Gender</span>
                   </label>
                   <select 
                     name="gender" 
@@ -656,19 +904,29 @@ export default function Dependents({ userId }) {
                     onChange={handleInputChange}
                     style={{
                       width: "100%",
-                      padding: "12px 16px",
-                      border: "2px solid #e9ecef",
-                      borderRadius: "8px",
-                      fontSize: "14px",
+                      padding: "14px 16px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "10px",
+                      fontSize: "15px",
                       transition: "all 0.3s ease",
-                      backgroundColor: "white"
+                      backgroundColor: "#f8f9fa",
+                      color: "#333",
+                      cursor: "pointer"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                    onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
                   >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
+                    <option value="male">👨 Male</option>
+                    <option value="female">👩 Female</option>
+                    <option value="other">⚧️ Other</option>
                   </select>
                 </div>
               </div>
@@ -677,20 +935,21 @@ export default function Dependents({ userId }) {
               <div style={{ 
                 display: "grid", 
                 gridTemplateColumns: "1fr 1fr", 
-                gap: "16px", 
-                marginBottom: "20px" 
+                gap: "20px", 
+                marginBottom: "24px" 
               }}>
                 <div>
                   <label style={{ 
-                    display: "block", 
-                    fontSize: "13px", 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
                     fontWeight: "600", 
-                    color: "#495057", 
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
+                    color: "#333", 
+                    marginBottom: "10px"
                   }}>
-                    Date of Birth
+                    <span>📅</span>
+                    <span>Date of Birth</span>
                   </label>
                   <input
                     type="date"
@@ -699,27 +958,37 @@ export default function Dependents({ userId }) {
                     onChange={handleInputChange}
                     style={{
                       width: "100%",
-                      padding: "12px 16px",
-                      border: "2px solid #e9ecef",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      transition: "all 0.3s ease"
+                      padding: "14px 16px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      backgroundColor: "#f8f9fa"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                    onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
                   />
                 </div>
                 <div>
                   <label style={{ 
-                    display: "block", 
-                    fontSize: "13px", 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
                     fontWeight: "600", 
-                    color: "#495057", 
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
+                    color: "#333", 
+                    marginBottom: "10px"
                   }}>
-                    ID Number
+                    <span>🆔</span>
+                    <span>ID Number</span>
                   </label>
                   <input
                     type="text"
@@ -729,30 +998,40 @@ export default function Dependents({ userId }) {
                     placeholder="ID/Passport number"
                     style={{
                       width: "100%",
-                      padding: "12px 16px",
-                      border: "2px solid #e9ecef",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      transition: "all 0.3s ease"
+                      padding: "14px 16px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      backgroundColor: "#f8f9fa"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                    onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
                   />
                 </div>
               </div>
 
               {/* Address */}
-              <div style={{ marginBottom: "20px" }}>
+              <div style={{ marginBottom: "24px" }}>
                 <label style={{ 
-                  display: "block", 
-                  fontSize: "13px", 
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "14px", 
                   fontWeight: "600", 
-                  color: "#495057", 
-                  marginBottom: "8px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
+                  color: "#333", 
+                  marginBottom: "10px"
                 }}>
-                  Address
+                  <span>📍</span>
+                  <span>Address</span>
                 </label>
                 <input
                   type="text"
@@ -762,14 +1041,23 @@ export default function Dependents({ userId }) {
                   placeholder="Home address"
                   style={{
                     width: "100%",
-                    padding: "12px 16px",
-                    border: "2px solid #e9ecef",
-                    borderRadius: "8px",
-                    fontSize: "14px",
-                    transition: "all 0.3s ease"
+                    padding: "14px 16px",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    backgroundColor: "#f8f9fa"
                   }}
-                  onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                  onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "#A2B9ED";
+                    e.target.style.backgroundColor = "white";
+                    e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "#e0e0e0";
+                    e.target.style.backgroundColor = "#f8f9fa";
+                    e.target.style.boxShadow = "none";
+                  }}
                 />
               </div>
 
@@ -777,68 +1065,119 @@ export default function Dependents({ userId }) {
               <div style={{ 
                 display: "grid", 
                 gridTemplateColumns: "1fr 1fr", 
-                gap: "16px", 
+                gap: "20px", 
                 marginBottom: "24px" 
               }}>
                 <div>
                   <label style={{ 
-                    display: "block", 
-                    fontSize: "13px", 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
                     fontWeight: "600", 
-                    color: "#495057", 
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
+                    color: "#333", 
+                    marginBottom: "10px"
                   }}>
-                    Phone Number
+                    <span>📞</span>
+                    <span>Phone Number</span>
                   </label>
                   <input
                     type="tel"
                     name="phoneNumber"
                     value={formData.phoneNumber}
                     onChange={handleInputChange}
-                    placeholder="Contact number"
+                    required
+                    placeholder="Enter phone number (max 10 digits)"
+                    maxLength={10}
                     style={{
                       width: "100%",
-                      padding: "12px 16px",
-                      border: "2px solid #e9ecef",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      transition: "all 0.3s ease"
+                      padding: "14px 16px",
+                      border: `2px solid ${errors.phoneNumber ? "#dc3545" : "#e0e0e0"}`,
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      backgroundColor: "#f8f9fa"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                    onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = errors.phoneNumber ? "#dc3545" : "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = `0 0 0 3px ${errors.phoneNumber ? "rgba(220, 53, 69, 0.1)" : "rgba(162, 185, 237, 0.1)"}`;
+                    }}
+                    onBlur={(e) => {
+                      handleBlur(e);
+                      e.target.style.borderColor = errors.phoneNumber ? "#dc3545" : "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
                   />
+                  {errors.phoneNumber && (
+                    <div style={{
+                      marginTop: "6px",
+                      fontSize: "12px",
+                      color: "#dc3545",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}>
+                      <span>⚠️</span>
+                      <span>{errors.phoneNumber}</span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label style={{ 
-                    display: "block", 
-                    fontSize: "13px", 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
                     fontWeight: "600", 
-                    color: "#495057", 
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
+                    color: "#333", 
+                    marginBottom: "10px"
                   }}>
-                    Email
+                    <span>📧</span>
+                    <span>Email</span>
                   </label>
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    placeholder="Email address"
+                    required
+                    placeholder="example@gmail.com"
                     style={{
                       width: "100%",
-                      padding: "12px 16px",
-                      border: "2px solid #e9ecef",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      transition: "all 0.3s ease"
+                      padding: "14px 16px",
+                      border: `2px solid ${errors.email ? "#dc3545" : "#e0e0e0"}`,
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      backgroundColor: "#f8f9fa"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                    onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = errors.email ? "#dc3545" : "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = `0 0 0 3px ${errors.email ? "rgba(220, 53, 69, 0.1)" : "rgba(162, 185, 237, 0.1)"}`;
+                    }}
+                    onBlur={(e) => {
+                      handleBlur(e);
+                      e.target.style.borderColor = errors.email ? "#dc3545" : "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
                   />
+                  {errors.email && (
+                    <div style={{
+                      marginTop: "6px",
+                      fontSize: "12px",
+                      color: "#dc3545",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}>
+                      <span>⚠️</span>
+                      <span>{errors.email}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -859,7 +1198,14 @@ export default function Dependents({ userId }) {
               )}
 
               {/* Action Buttons */}
-              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+              <div style={{ 
+                display: "flex", 
+                gap: "16px", 
+                justifyContent: "flex-end",
+                paddingTop: "8px",
+                borderTop: "1px solid #e0e0e0",
+                marginTop: "8px"
+              }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -876,44 +1222,67 @@ export default function Dependents({ userId }) {
                       email: "" 
                     });
                     setMessage("");
+                    setErrors({
+                      fullName: "",
+                      phoneNumber: "",
+                      email: ""
+                    });
                   }}
                   style={{ 
-                    padding: "12px 24px", 
+                    padding: "14px 28px", 
                     backgroundColor: "#6c757d", 
                     color: "white", 
                     border: "none", 
-                    borderRadius: "8px", 
+                    borderRadius: "10px", 
                     cursor: "pointer",
-                    fontSize: "14px",
+                    fontSize: "15px",
                     fontWeight: "600",
-                    transition: "all 0.3s ease"
+                    transition: "all 0.3s ease",
+                    boxShadow: "0 2px 8px rgba(108, 117, 125, 0.2)"
                   }}
-                  onMouseOver={(e) => e.target.style.backgroundColor = "#5a6268"}
-                  onMouseOut={(e) => e.target.style.backgroundColor = "#6c757d"}
+                  onMouseOver={(e) => {
+                    e.target.style.backgroundColor = "#5a6268";
+                    e.target.style.transform = "translateY(-2px)";
+                    e.target.style.boxShadow = "0 4px 12px rgba(108, 117, 125, 0.3)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.backgroundColor = "#6c757d";
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow = "0 2px 8px rgba(108, 117, 125, 0.2)";
+                  }}
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit"
                   style={{ 
-                    padding: "12px 24px", 
-                    backgroundColor: "#2196F3", 
+                    padding: "14px 28px", 
+                    background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
                     color: "white", 
                     border: "none", 
-                    borderRadius: "8px", 
+                    borderRadius: "10px", 
                     cursor: "pointer",
-                    fontSize: "14px",
+                    fontSize: "15px",
                     fontWeight: "600",
                     transition: "all 0.3s ease",
-                    boxShadow: "0 2px 8px rgba(33, 150, 243, 0.3)"
+                    boxShadow: "0 4px 12px rgba(162, 185, 237, 0.3)"
                   }}
-                  onMouseOver={(e) => e.target.style.backgroundColor = "#1976D2"}
-                  onMouseOut={(e) => e.target.style.backgroundColor = "#2196F3"}
+                  onMouseOver={(e) => {
+                    e.target.style.background = "linear-gradient(135deg, #8BA3E0 0%, #7B93D0 100%)";
+                    e.target.style.transform = "translateY(-2px)";
+                    e.target.style.boxShadow = "0 6px 16px rgba(162, 185, 237, 0.4)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.background = "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)";
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow = "0 4px 12px rgba(162, 185, 237, 0.3)";
+                  }}
                 >
-                  {editingId ? "Update" : "Add"}
+                  {editingId ? "✏️ Update" : "✅ Add"}
                 </button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       )}
