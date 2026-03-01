@@ -48,7 +48,15 @@ export const getBusinessTripRequests = async (req, res) => {
 export const createBusinessTripRequest = async (req, res) => {
   try {
     const { startDate, endDate, destination, purpose, estimatedCost, transportType, accommodation } = req.body;
-    const userId = req.user.id;
+    // In JWT we store userId, but keep a fallback to id for safety
+    const userId = req.user?.userId ?? req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        status: "error",
+        message: "User not authenticated"
+      });
+    }
 
     if (!startDate || !endDate || !destination || !purpose) {
       return res.status(400).json({

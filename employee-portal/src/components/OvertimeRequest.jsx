@@ -64,7 +64,7 @@ export default function OvertimeRequest({ userId }) {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("✅ Yêu cầu làm thêm giờ đã được gửi thành công!");
+        setMessage("✅ Overtime request submitted successfully!");
         setShowForm(false);
         setFormData({
           date: new Date().toISOString().split('T')[0],
@@ -76,11 +76,11 @@ export default function OvertimeRequest({ userId }) {
         fetchRequests();
         setTimeout(() => setMessage(""), 5000);
       } else {
-        setMessage(`❌ Lỗi: ${data.message || "Không thể tạo yêu cầu"}`);
+        setMessage(`❌ Error: ${data.message || "Unable to create request"}`);
       }
     } catch (error) {
       console.error("Error creating overtime request:", error);
-      setMessage(`❌ Lỗi: ${error.message}`);
+      setMessage(`❌ Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -91,7 +91,21 @@ export default function OvertimeRequest({ userId }) {
     const start = new Date(`${formData.date}T${formData.startTime}`);
     const end = new Date(`${formData.date}T${formData.endTime}`);
     const hours = (end - start) / (1000 * 60 * 60);
-    return hours > 0 ? hours.toFixed(2) : 0;
+    return hours > 0 ? hours : 0;
+  };
+
+  // Chuyển số giờ thập phân (vd: 12.05) thành định dạng HH:MM (vd: 12:03)
+  const formatHoursToHHMM = (value) => {
+    if (value == null || Number.isNaN(value)) return "-";
+    const hoursNumber = parseFloat(value);
+    if (!Number.isFinite(hoursNumber) || hoursNumber <= 0) return "00:00";
+
+    const totalMinutes = Math.round(hoursNumber * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    const hh = String(h).padStart(2, "0");
+    const mm = String(m).padStart(2, "0");
+    return `${hh}:${mm}`;
   };
 
   const getStatusBadge = (status) => {
@@ -101,22 +115,26 @@ export default function OvertimeRequest({ userId }) {
       rejected: { backgroundColor: "#dc3545", color: "#fff" }
     };
     const labels = {
-      pending: "ĐANG CHỜ DUYỆT",
-      approved: "ĐÃ DUYỆT",
-      rejected: "ĐÃ TỪ CHỐI"
+      pending: "PENDING",
+      approved: "APPROVED",
+      rejected: "REJECTED"
     };
     const style = styles[status] || styles.pending;
+    const label = labels[status] || status.toUpperCase();
+
     return (
-      <span style={{
-        ...style,
-        padding: "5px 14px",
-        borderRadius: "4px",
-        fontSize: "11px",
-        fontWeight: "600",
-        textTransform: "uppercase",
-        letterSpacing: "0.5px"
-      }}>
-        {labels[status] || status}
+      <span
+        style={{
+          ...style,
+          padding: "5px 14px",
+          borderRadius: "4px",
+          fontSize: "11px",
+          fontWeight: "600",
+          textTransform: "uppercase",
+          letterSpacing: "0.5px"
+        }}
+      >
+        {label}
       </span>
     );
   };
@@ -149,14 +167,14 @@ export default function OvertimeRequest({ userId }) {
               fontWeight: "700",
               color: "#1a1a1a"
             }}>
-              ⏱️ Yêu Cầu Làm Thêm Giờ
+              ⏱️ Overtime Request
             </h2>
             <p style={{
               margin: 0,
               color: "#666",
               fontSize: "14px"
             }}>
-              Tạo và theo dõi yêu cầu làm thêm giờ
+              Create and track overtime requests
             </p>
           </div>
           <button
@@ -175,23 +193,26 @@ export default function OvertimeRequest({ userId }) {
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#1565c0"}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#1976d2"}
           >
-            + Tạo Yêu Cầu Mới
+            + Create New Request
           </button>
         </div>
       </div>
 
       {message && (
-        <div style={{
-          padding: "16px 20px",
-          backgroundColor: message.includes("✅") ? "#d4edda" : "#f8d7da",
-          border: `2px solid ${message.includes("✅") ? "#c3e6cb" : "#f5c6cb"}`,
-          borderRadius: "12px",
-          color: message.includes("✅") ? "#155724" : "#721c24",
-          marginBottom: "24px",
-          fontSize: "14px",
-          fontWeight: "500"
-        }}>
-          {message}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "24px" }}>
+          <div style={{
+            display: "inline-block",
+            padding: "10px 16px",
+            backgroundColor: message.includes("✅") ? "#d4edda" : "#f8d7da",
+            border: `2px solid ${message.includes("✅") ? "#c3e6cb" : "#f5c6cb"}`,
+            borderRadius: "999px",
+            color: message.includes("✅") ? "#155724" : "#721c24",
+            fontSize: "14px",
+            fontWeight: "500",
+            textAlign: "center"
+          }}>
+            {message}
+          </div>
         </div>
       )}
 
@@ -217,23 +238,79 @@ export default function OvertimeRequest({ userId }) {
             style={{
               backgroundColor: "white",
               borderRadius: "16px",
-              padding: "32px",
               maxWidth: "600px",
               width: "100%",
               maxHeight: "90vh",
               overflowY: "auto",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+              display: "flex",
+              flexDirection: "column"
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{
-              margin: "0 0 24px 0",
-              fontSize: "24px",
-              fontWeight: "700",
-              color: "#1a1a1a"
+            {/* Modal header */}
+            <div style={{
+              padding: "24px 32px",
+              background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
+              color: "#fff",
+              borderBottom: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: "16px 16px 0 0",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              boxShadow: "0 4px 15px rgba(162, 185, 237, 0.3)"
             }}>
-              Tạo Yêu Cầu Làm Thêm Giờ
-            </h3>
+              <div>
+                <h3 style={{
+                  margin: "0 0 4px 0",
+                  fontSize: "24px",
+                  fontWeight: "700",
+                  color: "#fff",
+                  letterSpacing: "-0.5px"
+                }}>
+                  Create Overtime Request
+                </h3>
+                <p style={{
+                  margin: 0,
+                  fontSize: "14px",
+                  color: "rgba(255,255,255,0.9)",
+                  fontWeight: "500"
+                }}>
+                  Submit a new request for overtime work
+                </p>
+              </div>
+              <button
+                onClick={() => setShowForm(false)}
+                style={{
+                  background: "rgba(255,255,255,0.2)",
+                  border: "none",
+                  borderRadius: "8px",
+                  width: "40px",
+                  height: "40px",
+                  fontSize: "20px",
+                  cursor: "pointer",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s",
+                  transform: "rotate(0deg)"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.3)";
+                  e.currentTarget.style.transform = "rotate(90deg)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.2)";
+                  e.currentTarget.style.transform = "rotate(0deg)";
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div style={{ padding: "32px" }}>
             <form onSubmit={handleSubmit}>
               <div style={{ marginBottom: "20px" }}>
                 <label style={{
@@ -243,7 +320,7 @@ export default function OvertimeRequest({ userId }) {
                   fontSize: "14px",
                   color: "#333"
                 }}>
-                  Ngày Làm Thêm *
+                  Overtime Date *
                 </label>
                 <input
                   type="date"
@@ -268,7 +345,7 @@ export default function OvertimeRequest({ userId }) {
                   fontSize: "14px",
                   color: "#333"
                 }}>
-                  Thời Gian *
+                  Time *
                 </label>
                 <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
                   <input
@@ -307,7 +384,7 @@ export default function OvertimeRequest({ userId }) {
                       fontWeight: "600",
                       color: "#1976d2"
                     }}>
-                      {calculateHours()}h
+                      {formatHoursToHHMM(calculateHours())}
                     </div>
                   )}
                 </div>
@@ -321,13 +398,13 @@ export default function OvertimeRequest({ userId }) {
                   fontSize: "14px",
                   color: "#333"
                 }}>
-                  Lý Do / Mô Tả Công Việc *
+                  Reason / Work Description *
                 </label>
                 <textarea
                   value={formData.reason}
                   onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
                   required
-                  placeholder="Mô tả công việc cần làm thêm giờ..."
+                  placeholder="Describe the work that needs to be done during overtime..."
                   rows="4"
                   style={{
                     width: "100%",
@@ -348,13 +425,13 @@ export default function OvertimeRequest({ userId }) {
                   fontSize: "14px",
                   color: "#333"
                 }}>
-                  Tên Dự Án (Tùy chọn)
+                  Project Name (Optional)
                 </label>
                 <input
                   type="text"
                   value={formData.projectName}
                   onChange={(e) => setFormData({ ...formData, projectName: e.target.value })}
-                  placeholder="Tên dự án hoặc công việc liên quan"
+                  placeholder="Project name or related work"
                   style={{
                     width: "100%",
                     padding: "12px",
@@ -381,7 +458,7 @@ export default function OvertimeRequest({ userId }) {
                     fontSize: "14px"
                   }}
                 >
-                  Hủy
+                  Cancel
                 </button>
                 <button
                   type="submit"
@@ -399,10 +476,11 @@ export default function OvertimeRequest({ userId }) {
                     opacity: (loading || !formData.startTime || !formData.endTime || calculateHours() <= 0) ? 0.6 : 1
                   }}
                 >
-                  {loading ? "Đang gửi..." : "Gửi Yêu Cầu"}
+                  {loading ? "Submitting..." : "Submit Request"}
                 </button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       )}
@@ -425,7 +503,7 @@ export default function OvertimeRequest({ userId }) {
               margin: "0 auto 16px",
               animation: "spin 1s linear infinite"
             }}></div>
-            <p style={{ margin: 0, fontSize: "16px", fontWeight: "500" }}>Đang tải...</p>
+            <p style={{ margin: 0, fontSize: "16px", fontWeight: "500" }}>Loading...</p>
             <style>{`
               @keyframes spin {
                 0% { transform: rotate(0deg); }
@@ -442,165 +520,223 @@ export default function OvertimeRequest({ userId }) {
               fontWeight: "600",
               color: "#666"
             }}>
-              Chưa có yêu cầu làm thêm giờ
+              No overtime requests yet
             </p>
             <p style={{ margin: 0, fontSize: "14px", color: "#999" }}>
-              Nhấn "Tạo Yêu Cầu Mới" để bắt đầu
+              Click "Create New Request" to start
             </p>
           </div>
         ) : (
-          <div style={{ display: "grid", gap: "16px" }}>
-            {requests.map((request) => (
-              <div
-                key={request.id}
-                style={{
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "12px",
-                  padding: "24px",
-                  transition: "all 0.3s",
-                  backgroundColor: "#fff"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "#1976d2";
-                  e.currentTarget.style.boxShadow = "0 4px 16px rgba(25,118,210,0.15)";
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "#e0e0e0";
-                  e.currentTarget.style.boxShadow = "none";
-                  e.currentTarget.style.transform = "translateY(0)";
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{
-                      fontSize: "22px",
-                      fontWeight: "700",
-                      color: "#1a1a1a",
-                      marginBottom: "8px",
-                      letterSpacing: "-0.5px"
+          <table style={{
+            width: "100%",
+            borderCollapse: "separate",
+            borderSpacing: "0",
+            border: "1px solid #868e96",
+            borderRadius: "8px",
+            overflow: "hidden"
+          }}>
+            <thead>
+              <tr style={{ backgroundColor: "#f8f9fa" }}>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96",
+                  borderTopLeftRadius: "8px"
+                }}>
+                  Date
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Start Time
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  End Time
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "center",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Total Hours
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Reason
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Project
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "center",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Status
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderTopRightRadius: "8px"
+                }}>
+                  Created Date
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((request, index) => {
+                const isLastRow = index === requests.length - 1;
+                return (
+                  <tr key={request.id} style={{ backgroundColor: "#fff" }}>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333",
+                      borderBottomLeftRadius: isLastRow ? "8px" : "0"
                     }}>
-                      {new Date(request.date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
-                    </div>
-                    <div style={{ marginBottom: "4px" }}>
-                      {getStatusBadge(request.approvalStatus)}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "13px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Tổng Giờ
-                    </div>
-                    <div style={{ fontSize: "28px", fontWeight: "700", color: "#1976d2", letterSpacing: "-0.5px" }}>
-                      {request.totalHours || 0}h
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: "12px",
-                  marginBottom: "12px",
-                  padding: "12px",
-                  backgroundColor: "#f8f9fa",
-                  borderRadius: "8px"
-                }}>
-                  <div>
-                    <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Bắt Đầu
-                    </div>
-                    <div style={{ fontSize: "14px", fontWeight: "600", color: "#333" }}>
+                      {new Date(request.date).toLocaleDateString("en-US", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333",
+                      fontWeight: "600"
+                    }}>
                       {request.startTime}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Kết Thúc
-                    </div>
-                    <div style={{ fontSize: "14px", fontWeight: "600", color: "#333" }}>
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333",
+                      fontWeight: "600"
+                    }}>
                       {request.endTime}
-                    </div>
-                  </div>
-                </div>
-
-                {request.reason && (
-                  <div style={{
-                    padding: "12px 16px",
-                    backgroundColor: "#f8f9fa",
-                    borderRadius: "8px",
-                    marginBottom: "12px"
-                  }}>
-                    <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Lý Do
-                    </div>
-                    <div style={{ fontSize: "14px", color: "#333" }}>
-                      {request.reason}
-                    </div>
-                  </div>
-                )}
-
-                {request.projectName && (
-                  <div style={{
-                    padding: "12px 16px",
-                    backgroundColor: "#e3f2fd",
-                    borderRadius: "8px",
-                    marginBottom: "12px"
-                  }}>
-                    <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Dự Án
-                    </div>
-                    <div style={{ fontSize: "14px", color: "#333", fontWeight: "600" }}>
-                      {request.projectName}
-                    </div>
-                  </div>
-                )}
-
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: "12px",
-                  paddingTop: "20px",
-                  borderTop: "2px solid #f0f0f0"
-                }}>
-                  <div>
-                    <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Ngày Tạo
-                    </div>
-                    <div style={{ fontSize: "13px", fontWeight: "600", color: "#333" }}>
-                      {new Date(request.createdAt).toLocaleDateString("vi-VN")}
-                    </div>
-                  </div>
-                  {request.approvedAt && (
-                    <div>
-                      <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                        Ngày Duyệt
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      fontWeight: "700",
+                      textAlign: "center",
+                      color: "#1976d2"
+                    }}>
+                      {formatHoursToHHMM(request.totalHours || 0)}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333",
+                      maxWidth: "260px"
+                    }}>
+                      <div style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap"
+                      }}>
+                        {request.reason || "-"}
                       </div>
-                      <div style={{ fontSize: "13px", fontWeight: "600", color: "#333" }}>
-                        {new Date(request.approvedAt).toLocaleDateString("vi-VN")}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {request.approverComments && (
-                  <div style={{
-                    marginTop: "12px",
-                    padding: "12px 16px",
-                    backgroundColor: "#e3f2fd",
-                    borderRadius: "8px",
-                    borderLeft: "4px solid #1976d2"
-                  }}>
-                    <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Ghi Chú Từ Người Duyệt
-                    </div>
-                    <div style={{ fontSize: "13px", color: "#333" }}>
-                      {request.approverComments}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333"
+                    }}>
+                      {request.projectName || "-"}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      textAlign: "center"
+                    }}>
+                      {getStatusBadge(request.approvalStatus)}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333",
+                      borderBottomRightRadius: isLastRow ? "8px" : "0"
+                    }}>
+                      {new Date(request.createdAt).toLocaleDateString("en-US")}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
     </div>
