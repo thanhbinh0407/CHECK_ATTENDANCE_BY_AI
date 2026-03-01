@@ -27,17 +27,54 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   });
   const [savingWorkExp, setSavingWorkExp] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
+  const [attendanceFilter, setAttendanceFilter] = useState(null); // { month, year } | null = auto
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [expandedLeaveId, setExpandedLeaveId] = useState(null); // leave request id whose reason is expanded
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
   useEffect(() => {
     if (employee) {
+      setAttendanceFilter(null); // reset filter on employee switch
       fetchEmployeeDetails();
       fetchDepartments();
       fetchJobTitles();
       fetchManagers();
-      setNewPassword(null); // Reset new password when employee changes
+      setNewPassword(null);
     }
   }, [employee]);
+
+  const fetchAttendanceByFilter = async (month, year) => {
+    try {
+      setAttendanceLoading(true);
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(
+        `${apiBase}/api/admin/employees/${employee.id}/details?month=${month}&year=${year}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setEmployeeDetails(prev => ({
+          ...prev,
+          attendanceStats: data.employee.attendanceStats,
+          recentAttendance: data.employee.recentAttendance
+        }));
+      }
+    } catch (e) {
+      console.error("Failed to fetch attendance:", e);
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const handleAttendanceFilterChange = (month, year) => {
+    setAttendanceFilter({ month, year });
+    fetchAttendanceByFilter(month, year);
+  };
+
+  const resetAttendanceFilter = () => {
+    setAttendanceFilter(null);
+    fetchEmployeeDetails();
+  };
 
   const fetchEmployeeDetails = async () => {
     try {
@@ -673,6 +710,99 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                   <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
                     Personal Information
                   </h3>
+
+                  {/* Face Profiles Section */}
+                  {employeeDetails?.FaceProfiles && employeeDetails.FaceProfiles.length > 0 && (
+                    <div style={{
+                      backgroundColor: "#f8f9fa",
+                      borderRadius: "12px",
+                      padding: "20px",
+                      marginBottom: theme.spacing.xl,
+                      border: "1px solid #e0e0e0"
+                    }}>
+                      <div style={{
+                        fontSize: "14px",
+                        fontWeight: "700",
+                        color: "#333",
+                        marginBottom: "16px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px"
+                      }}>
+                        📸 <span>Registered Face Profiles ({employeeDetails.FaceProfiles.length})</span>
+                      </div>
+                      <div style={{ 
+                        display: "grid", 
+                        gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", 
+                        gap: "16px" 
+                      }}>
+                        {employeeDetails.FaceProfiles.map((profile, idx) => (
+                          profile.imageUrl ? (
+                            <div 
+                              key={profile.id}
+                              style={{
+                                position: "relative",
+                                aspectRatio: "1/1",
+                                borderRadius: "12px",
+                                overflow: "hidden",
+                                border: "2px solid #e0e0e0",
+                                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                                transition: "all 0.3s ease"
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = "scale(1.05)";
+                                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
+                                e.currentTarget.style.borderColor = "#667eea";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = "scale(1)";
+                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+                                e.currentTarget.style.borderColor = "#e0e0e0";
+                              }}
+                            >
+                              <img 
+                                src={`${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${profile.imageUrl}`}
+                                alt={`Face Profile ${idx + 1}`}
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover"
+                                }}
+onError={(e) => {
+                                  e.target.parentElement.style.display = 'none';
+                                }}
+                              />
+                              <div style={{
+                                position: "absolute",
+                                bottom: "4px",
+                                right: "4px",
+                                backgroundColor: "rgba(0,0,0,0.7)",
+                                color: "white",
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                fontSize: "10px",
+                                fontWeight: "600"
+                              }}>
+                                #{idx + 1}
+                              </div>
+                            </div>
+                          ) : null
+                        ))}
+                      </div>
+                      <div style={{
+                        marginTop: "12px",
+                        fontSize: "11px",
+                        color: "#999",
+                        fontStyle: "italic"
+                      }}>
+                        Registered on: {new Date(employeeDetails.FaceProfiles[0].createdAt).toLocaleDateString("en-US", { 
+                          month: "short", 
+                          day: "numeric", 
+                          year: "numeric" 
+                        })}
+                      </div>
+                    </div>
+                  )}
                   <div style={infoGridStyle} onClick={(e) => e.stopPropagation()}>
                     {/* Employee ID - Read-only */}
                     <div style={infoCardStyle}>
@@ -2209,9 +2339,75 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
               {/* Tab: Attendance */}
               {activeTab === "attendance" && (
                 <div>
-                  <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
-                    Attendance Statistics
-                  </h3>
+                  {/* Header row: title + month/year filter */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: theme.spacing.md, marginBottom: theme.spacing.lg }}>
+                    <h3 style={{ margin: 0, color: theme.primary.main }}>Attendance Statistics</h3>
+
+                    {/* Month / Year picker */}
+                    {(() => {
+                      const now = new Date();
+                      const dispMonth = attendanceFilter?.month ?? employeeDetails?.attendanceStats?.month ?? (now.getMonth() + 1);
+                      const dispYear  = attendanceFilter?.year  ?? employeeDetails?.attendanceStats?.year  ?? now.getFullYear();
+                      const isCurrentMonth = dispMonth === now.getMonth() + 1 && dispYear === now.getFullYear();
+
+                      const goPrev = () => {
+                        const m = dispMonth === 1 ? 12 : dispMonth - 1;
+                        const y = dispMonth === 1 ? dispYear - 1 : dispYear;
+                        if (y < 2020) return;
+                        handleAttendanceFilterChange(m, y);
+                      };
+                      const goNext = () => {
+                        if (isCurrentMonth) return;
+                        const m = dispMonth === 12 ? 1 : dispMonth + 1;
+                        const y = dispMonth === 12 ? dispYear + 1 : dispYear;
+                        handleAttendanceFilterChange(m, y);
+                      };
+                      const monthLabel = new Date(dispYear, dispMonth - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+                      const btnStyle = (disabled) => ({
+                        width: 32, height: 32, borderRadius: 8, border: `1px solid ${theme.neutral.gray200}`,
+                        background: disabled ? theme.neutral.gray100 : "#fff",
+                        color: disabled ? theme.neutral.gray400 : theme.neutral.gray700,
+                        cursor: disabled ? "not-allowed" : "pointer",
+                        fontWeight: 700, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center"
+                      });
+
+                      return (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <button onClick={goPrev} style={btnStyle(dispYear <= 2020 && dispMonth === 1)} title="Previous month">‹</button>
+                          <span style={{
+                            minWidth: 150, textAlign: "center", fontWeight: 600, fontSize: 14,
+                            color: theme.neutral.gray800, padding: "4px 12px",
+                            border: `1px solid ${theme.neutral.gray200}`, borderRadius: 8, background: "#fff"
+                          }}>
+                            {attendanceLoading ? "Loading…" : monthLabel}
+                          </span>
+                          <button onClick={goNext} style={btnStyle(isCurrentMonth)} title="Next month">›</button>
+                          {!isCurrentMonth && (
+                            <button
+                              onClick={resetAttendanceFilter}
+                              style={{
+                                height: 32, padding: "0 12px", borderRadius: 8, fontSize: 12, fontWeight: 700,
+                                border: `1px solid ${theme.primary.main}`, background: theme.primary.main,
+                                color: "#fff", cursor: "pointer"
+                              }}
+                            >
+                              Current
+                            </button>
+                          )}
+                          {employeeDetails?.attendanceStats?.isFallback && !attendanceFilter && (
+                            <span style={{
+                              fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+                              color: theme.warning?.main || "#d97706",
+                              backgroundColor: `${theme.warning?.main || "#d97706"}15`,
+                              border: `1px solid ${theme.warning?.main || "#d97706"}40`
+                            }}>Auto: Prev Month</span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
                   {employeeDetails?.attendanceStats ? (
                     <>
                     <div style={infoGridStyle}>
@@ -2219,21 +2415,21 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         <label style={labelStyle}>Total Days Worked</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.primary.main }}>
                           {employeeDetails.attendanceStats.totalDaysWorked || 0}
-                            {employeeDetails.attendanceStats.totalDays ? (
-                              <span style={{ fontSize: 12, color: theme.neutral.gray600, marginLeft: 8 }}>
-                                / {employeeDetails.attendanceStats.totalDays}
-                              </span>
-                            ) : null}
+                          {employeeDetails.attendanceStats.totalDays ? (
+                            <span style={{ fontSize: 12, color: theme.neutral.gray500, marginLeft: 8 }}>
+                              / {employeeDetails.attendanceStats.totalDays} working days
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                       <div style={infoCardStyle}>
-                          <label style={labelStyle}>Late Days</label>
+                        <label style={labelStyle}>Late Days</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.warning.main }}>
                           {employeeDetails.attendanceStats.totalLate || 0}
                         </div>
                       </div>
                       <div style={infoCardStyle}>
-                          <label style={labelStyle}>Early Leave Days</label>
+                        <label style={labelStyle}>Early Leave Days</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.warning.main }}>
                           {employeeDetails.attendanceStats.totalEarlyLeave || 0}
                         </div>
@@ -2243,23 +2439,29 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.error.main }}>
                           {employeeDetails.attendanceStats.totalAbsent || 0}
                         </div>
+                        <span style={{ fontSize: 11, color: theme.neutral.gray400 }}>to date, excl. weekends</span>
                       </div>
-                      </div>
+                    </div>
 
-                      {/* Recent attendance (grouped by day) */}
+                      {/* Attendance log table */}
                       <div style={{ marginTop: theme.spacing.xl }}>
                         <h4 style={{ margin: 0, marginBottom: theme.spacing.md, color: theme.neutral.gray800 }}>
-                          Recent Attendance (This Month)
+                          Attendance Log ({new Date(employeeDetails.attendanceStats.year, employeeDetails.attendanceStats.month - 1)
+                            .toLocaleDateString("en-US", { month: "long", year: "numeric" })})
                         </h4>
-                        {employeeDetails?.recentAttendance && employeeDetails.recentAttendance.length > 0 ? (
+                        {attendanceLoading ? (
+                          <p style={{ color: theme.neutral.gray400, fontStyle: "italic" }}>Loading attendance data…</p>
+                        ) : employeeDetails?.recentAttendance && employeeDetails.recentAttendance.length > 0 ? (
                           <div style={{ overflowX: "auto", border: `1px solid ${theme.neutral.gray200}`, borderRadius: theme.radius.lg }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
                               <thead>
                                 <tr style={{ backgroundColor: theme.neutral.gray50, borderBottom: `1px solid ${theme.neutral.gray200}` }}>
                                   <th style={{ textAlign: "left", padding: theme.spacing.md, fontSize: 12, textTransform: "uppercase", color: theme.neutral.gray700 }}>Date</th>
                                   <th style={{ textAlign: "left", padding: theme.spacing.md, fontSize: 12, textTransform: "uppercase", color: theme.neutral.gray700 }}>Check-in</th>
                                   <th style={{ textAlign: "left", padding: theme.spacing.md, fontSize: 12, textTransform: "uppercase", color: theme.neutral.gray700 }}>Check-out</th>
+                                  <th style={{ textAlign: "left", padding: theme.spacing.md, fontSize: 12, textTransform: "uppercase", color: theme.neutral.gray700 }}>Total Hours</th>
                                   <th style={{ textAlign: "left", padding: theme.spacing.md, fontSize: 12, textTransform: "uppercase", color: theme.neutral.gray700 }}>Status</th>
+                                  <th style={{ textAlign: "left", padding: theme.spacing.md, fontSize: 12, textTransform: "uppercase", color: theme.neutral.gray700 }}>Late Duration</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -2267,46 +2469,196 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                                   const checkIn = row.checkIn ? new Date(row.checkIn) : null;
                                   const checkOut = row.checkOut ? new Date(row.checkOut) : null;
                                   const flags = row.flags || {};
-                                  const statusText = flags.isLate ? "Late" : flags.isEarlyLeave ? "Early Leave" : "Normal";
-                                  const statusColor = flags.isLate || flags.isEarlyLeave ? theme.warning.main : theme.success.main;
+                                  const isAbsent = row.isAbsent === true;
+                                  const isOnLeave = isAbsent && !!row.leaveInfo;
+                                  const leaveTypeLabel = {
+                                    paid: "Paid", unpaid: "Unpaid", sick: "Sick",
+                                    maternity: "Maternity", personal: "Personal", other: "Other"
+                                  }[row.leaveInfo?.type] || row.leaveInfo?.type || "";
+
+                                  // Total working hours
+                                  const totalHours = (() => {
+                                    if (!checkIn || !checkOut) return null;
+                                    const diff = checkOut - checkIn;
+                                    const h = Math.floor(diff / 3600000);
+                                    const m = Math.floor((diff % 3600000) / 60000);
+                                    return `${h}h ${m}m`;
+                                  })();
+
+                                  // Late duration (how many minutes past 08:00 VN)
+                                  const lateDuration = (() => {
+                                    if (!checkIn || !flags.isLate) return null;
+                                    const standard = new Date(checkIn);
+                                    standard.setHours(8, 0, 0, 0);
+                                    const mins = Math.floor((checkIn - standard) / 60000);
+                                    return mins > 0 ? `${mins} min` : null;
+                                  })();
+
+                                  const rowBg = isOnLeave ? "#e0f2fe20"
+                                    : isAbsent ? `${theme.error.main}08`
+                                    : flags.isLate ? "#fffbeb50"
+                                    : "transparent";
+
+                                  // Status chips — mirrors employee Attendance History
+                                  const chips = [];
+                                  if (isOnLeave) {
+                                    chips.push({ label: "On Leave", sub: leaveTypeLabel || null, color: "#0284c7" });
+                                  } else if (isAbsent) {
+                                    chips.push({ label: "Absent", sub: null, color: theme.error.main });
+                                  } else {
+                                    // Check-in status
+                                    if (flags.isLate) {
+                                      chips.push({ label: "Late", color: "#dc3545" });
+                                    } else {
+                                      chips.push({ label: "On Time", color: "#28a745" });
+                                    }
+                                    // Check-out status
+                                    if (flags.isEarlyLeave) {
+                                      chips.push({ label: "Early Leave", color: "#d97706" });
+                                    } else if (flags.isOvertime) {
+                                      chips.push({ label: "Overtime", color: "#007bff" });
+                                    }
+                                  }
+
                                   return (
-                                    <tr key={idx} style={{ borderBottom: `1px solid ${theme.neutral.gray100}` }}>
-                                      <td style={{ padding: theme.spacing.md, fontWeight: 700, color: theme.neutral.gray800 }}>
-                                        {row.date ? new Date(row.date).toLocaleDateString("vi-VN") : "-"}
-                                      </td>
-                                      <td style={{ padding: theme.spacing.md, color: theme.neutral.gray700 }}>
-                                        {checkIn ? checkIn.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "-"}
-                                      </td>
-                                      <td style={{ padding: theme.spacing.md, color: theme.neutral.gray700 }}>
-                                        {checkOut ? checkOut.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "-"}
+                                    <tr
+                                      key={idx}
+                                      style={{
+                                        borderBottom: `1px solid ${theme.neutral.gray100}`,
+                                        backgroundColor: rowBg
+                                      }}
+                                    >
+                                      <td style={{ padding: theme.spacing.md, fontWeight: 700, color: isOnLeave ? "#0284c7" : isAbsent ? theme.error.main : theme.neutral.gray800 }}>
+                                        {row.date ? new Date(row.date + "T00:00:00").toLocaleDateString("vi-VN") : "-"}
                                       </td>
                                       <td style={{ padding: theme.spacing.md }}>
-                                        <span style={{
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          gap: 8,
-                                          padding: "6px 10px",
-                                          borderRadius: 999,
-                                          fontWeight: 800,
-                                          fontSize: 12,
-                                          color: statusColor,
-                                          backgroundColor: `${statusColor}15`,
-                                          border: `1px solid ${statusColor}30`
-                                        }}>
-                                          {statusText}
-                                          {flags.isOvertime ? (
-                                            <span style={{ fontWeight: 900, color: theme.secondary.main }}>OT</span>
-                                          ) : null}
-                                        </span>
+                                        {checkIn ? (
+                                          <span style={{ fontSize: 14, fontWeight: 600, color: flags.isLate ? "#dc3545" : "#28a745" }}>
+                                            {checkIn.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                                          </span>
+                                        ) : <span style={{ color: theme.neutral.gray400 }}>—</span>}
+                                      </td>
+                                      <td style={{ padding: theme.spacing.md }}>
+                                        {checkOut ? (
+                                          <span style={{ fontSize: 14, fontWeight: 600, color: flags.isEarlyLeave ? "#d97706" : theme.neutral.gray700 }}>
+                                            {checkOut.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                                          </span>
+                                        ) : <span style={{ color: theme.neutral.gray400 }}>—</span>}
+                                      </td>
+                                      <td style={{ padding: theme.spacing.md }}>
+                                        {totalHours ? (
+                                          <span style={{ fontSize: 14, fontWeight: 600, color: "#007bff" }}>{totalHours}</span>
+                                        ) : <span style={{ color: theme.neutral.gray400 }}>—</span>}
+                                      </td>
+                                      <td style={{ padding: theme.spacing.md }}>
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                          {chips.map((chip, ci) => (
+                                            <span key={ci} style={{
+                                              display: "inline-flex", alignItems: "center", gap: 4,
+                                              padding: "4px 12px", borderRadius: 4,
+                                              fontWeight: 600, fontSize: 11,
+                                              textTransform: "uppercase", letterSpacing: "0.5px",
+                                              color: "#fff",
+                                              backgroundColor: chip.color
+                                            }}>
+                                              {chip.label}
+                                              {chip.sub && <span style={{ fontWeight: 500, fontSize: 10, opacity: 0.9 }}>({chip.sub})</span>}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </td>
+                                      <td style={{ padding: theme.spacing.md }}>
+                                        {lateDuration ? (
+                                          <span style={{
+                                            backgroundColor: "#fff3cd", color: "#856404",
+                                            padding: "3px 10px", borderRadius: 12,
+                                            fontSize: 13, fontWeight: 600
+                                          }}>{lateDuration}</span>
+                                        ) : <span style={{ color: theme.neutral.gray400 }}>—</span>}
                                       </td>
                                     </tr>
                                   );
                                 })}
                               </tbody>
                             </table>
-                    </div>
+                          </div>
                         ) : (
-                          <p style={{ color: theme.neutral.gray500, margin: 0, fontStyle: "italic" }}>No recent attendance records</p>
+                          <p style={{ color: theme.neutral.gray500, margin: 0, fontStyle: "italic" }}>No attendance records this month</p>
+                        )}
+
+                        {/* Leave Requests This Month */}
+                        {employeeDetails?.monthLeaveRequests && employeeDetails.monthLeaveRequests.length > 0 && (
+                          <div style={{ marginTop: 24 }}>
+                            <h4 style={{ margin: "0 0 12px 0", fontSize: 14, fontWeight: 700, color: theme.neutral.gray800 }}>
+                              Leave Requests This Month
+                            </h4>
+                            <div style={{ border: `1px solid #bae6fd`, borderRadius: theme.radius.lg, overflow: "hidden" }}>
+                              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                                <thead>
+                                  <tr style={{ backgroundColor: "#f0f9ff", borderBottom: `1px solid #bae6fd` }}>
+                                    <th style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, textTransform: "uppercase", color: "#0369a1" }}>Type</th>
+                                    <th style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, textTransform: "uppercase", color: "#0369a1" }}>Period</th>
+                                    <th style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, textTransform: "uppercase", color: "#0369a1" }}>Days</th>
+                                    <th style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, textTransform: "uppercase", color: "#0369a1" }}>Status</th>
+                                    <th style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, textTransform: "uppercase", color: "#0369a1" }}>Reason</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {employeeDetails.monthLeaveRequests.map((lr, lrIdx) => {
+                                    const leaveTypeLabel = {
+                                      paid: "Paid", unpaid: "Unpaid", sick: "Sick",
+                                      maternity: "Maternity", personal: "Personal", other: "Other"
+                                    }[lr.type] || lr.type;
+                                    const statusColors = {
+                                      approved: { color: "#16a34a", bg: "#dcfce7" },
+                                      pending:  { color: "#b45309", bg: "#fef9c3" },
+                                      rejected: { color: "#dc2626", bg: "#fee2e2" }
+                                    };
+                                    const sc = statusColors[lr.status] || { color: "#6b7280", bg: "#f3f4f6" };
+                                    const isExpanded = expandedLeaveId === lr.id;
+                                    return (
+                                      <React.Fragment key={lr.id}>
+                                        <tr style={{ borderBottom: isExpanded ? "none" : `1px solid #e0f2fe`, backgroundColor: lrIdx % 2 === 0 ? "#fff" : "#f8fcff" }}>
+                                          <td style={{ padding: "10px 14px", fontWeight: 600, fontSize: 13, color: "#0284c7" }}>{leaveTypeLabel}</td>
+                                          <td style={{ padding: "10px 14px", fontSize: 13, color: theme.neutral.gray700 }}>
+                                            {new Date(lr.startDate + "T00:00:00").toLocaleDateString("vi-VN")} – {new Date(lr.endDate + "T00:00:00").toLocaleDateString("vi-VN")}
+                                          </td>
+                                          <td style={{ padding: "10px 14px", fontSize: 13, color: theme.neutral.gray700 }}>{lr.days} day{lr.days !== 1 ? "s" : ""}</td>
+                                          <td style={{ padding: "10px 14px" }}>
+                                            <span style={{ padding: "3px 10px", borderRadius: 999, fontSize: 12, fontWeight: 700, color: sc.color, backgroundColor: sc.bg }}>
+                                              {lr.status.charAt(0).toUpperCase() + lr.status.slice(1)}
+                                            </span>
+                                          </td>
+                                          <td style={{ padding: "10px 14px" }}>
+                                            <button
+                                              onClick={() => setExpandedLeaveId(isExpanded ? null : lr.id)}
+                                              style={{
+                                                cursor: "pointer", background: "none", border: `1px solid #7dd3fc`,
+                                                borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#0284c7",
+                                                fontWeight: 600
+                                              }}
+                                            >
+                                              {isExpanded ? "Hide" : "View Reason"}
+                                            </button>
+                                          </td>
+                                        </tr>
+                                        {isExpanded && (
+                                          <tr style={{ borderBottom: `1px solid #e0f2fe`, backgroundColor: lrIdx % 2 === 0 ? "#fff" : "#f8fcff" }}>
+                                            <td colSpan={5} style={{ padding: "8px 14px 14px 14px" }}>
+                                              <div style={{ backgroundColor: "#f0f9ff", border: `1px solid #bae6fd`, borderRadius: 8, padding: "10px 14px", fontSize: 13, color: theme.neutral.gray700, lineHeight: 1.6 }}>
+                                                <strong style={{ color: "#0369a1" }}>Reason: </strong>
+                                                {lr.reason || <em style={{ color: theme.neutral.gray500 }}>No reason provided</em>}
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        )}
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
                         )}
                       </div>
                     </>

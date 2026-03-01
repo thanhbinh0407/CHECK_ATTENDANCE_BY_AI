@@ -1,5 +1,6 @@
 import Salary from "../models/pg/Salary.js";
 import SalaryRule from "../models/pg/SalaryRule.js";
+import { calculateSeniority } from "../services/senioritySalaryService.js";
 import User from "../models/pg/User.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import ShiftSetting from "../models/pg/ShiftSetting.js";
@@ -313,7 +314,26 @@ export const calculateSalary = async (req, res) => {
           }
           break;
         case 'custom':
-          // Custom rules need manual configuration, skip for now
+          // "Seniority bonus" — applies a multiplier based on years of service.
+          // Amount (e.g. 2%) is the per-bracket rate; multiplied by seniority tier:
+          //   tier 0: < 1 yr  → ×0   tier 1: 1-2 yr  → ×1
+          //   tier 2: 3-4 yr  → ×2   tier 3: 5-9 yr  → ×3   tier 4: ≥10 yr → ×4
+          if (rule.name && rule.name.toLowerCase().includes('seniority')) {
+            const seniority = calculateSeniority(user.startDate);
+            let tier = 0;
+            if      (seniority >= 10) tier = 4;
+            else if (seniority >=  5) tier = 3;
+            else if (seniority >=  3) tier = 2;
+            else if (seniority >=  1) tier = 1;
+            if (tier > 0) {
+              shouldApply = true;
+              if (rule.amountType === 'percentage') {
+                ruleAmount = baseSalary * parseFloat(rule.amount) / 100 * tier;
+              } else {
+                ruleAmount = parseFloat(rule.amount) * tier;
+              }
+            }
+          }
           break;
       }
 
