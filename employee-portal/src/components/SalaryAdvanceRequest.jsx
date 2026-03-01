@@ -16,7 +16,7 @@ function getAllowedMonthYearOptions() {
     options.push({
       month: m,
       year: y,
-      label: `Tháng ${m}/${y}`
+      label: `Month ${m}/${y}`
     });
   }
   return options;
@@ -82,11 +82,11 @@ export default function SalaryAdvanceRequest({ userId }) {
         setAdvances(data.advances || []);
         setMessage("");
       } else {
-        setMessage(data?.message ? `Lỗi: ${data.message}` : "Không tải được danh sách ứng lương.");
+        setMessage(data?.message ? `Error: ${data.message}` : "Failed to load salary advance requests.");
       }
     } catch (error) {
       console.error("Error fetching salary advances:", error);
-      setMessage("Lỗi kết nối. Vui lòng đăng nhập lại.");
+      setMessage("Connection error. Please login again.");
     } finally {
       setLoading(false);
     }
@@ -98,7 +98,7 @@ export default function SalaryAdvanceRequest({ userId }) {
       (a) => Number(a.month) === Number(formData.month) && Number(a.year) === Number(formData.year)
     );
     if (alreadyRequested) {
-      setMessage("❌ Bạn đã có yêu cầu ứng lương cho tháng/năm này. Mỗi tháng chỉ được ứng 1 lần.");
+      setMessage("❌ You already have a salary advance request for this month/year. Only one request per month is allowed.");
       return;
     }
 
@@ -121,7 +121,7 @@ export default function SalaryAdvanceRequest({ userId }) {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("✅ Yêu cầu ứng lương đã được gửi thành công!");
+        setMessage("✅ Salary advance request submitted successfully!");
         setShowForm(false);
         setFormData({
           month: new Date().getMonth() + 1,
@@ -132,11 +132,11 @@ export default function SalaryAdvanceRequest({ userId }) {
         fetchAdvances();
         setTimeout(() => setMessage(""), 5000);
       } else {
-        setMessage(`❌ Lỗi: ${data.message || "Không thể tạo yêu cầu"}`);
+        setMessage(`❌ Error: ${data.message || "Unable to create request"}`);
       }
     } catch (error) {
       console.error("Error creating salary advance:", error);
-      setMessage(`❌ Lỗi: ${error.message}`);
+      setMessage(`❌ Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -157,10 +157,10 @@ export default function SalaryAdvanceRequest({ userId }) {
       deducted: { backgroundColor: "#17a2b8", color: "#fff" }
     };
     const labels = {
-      pending: "ĐANG CHỜ DUYỆT",
-      approved: "ĐÃ DUYỆT",
-      rejected: "ĐÃ TỪ CHỐI",
-      deducted: "ĐÃ KHẤU TRỪ"
+      pending: "PENDING",
+      approved: "APPROVED",
+      rejected: "REJECTED",
+      deducted: "DEDUCTED"
     };
     const style = styles[status] || styles.pending;
     return (
@@ -206,14 +206,14 @@ export default function SalaryAdvanceRequest({ userId }) {
               fontWeight: "700",
               color: "#1a1a1a"
             }}>
-              💸 Ứng Lương
+              💸 Salary Advance
             </h2>
             <p style={{
               margin: 0,
               color: "#666",
               fontSize: "14px"
             }}>
-              Yêu cầu ứng lương trước và theo dõi trạng thái
+              Request salary advance and track status
             </p>
           </div>
           <button
@@ -233,16 +233,15 @@ export default function SalaryAdvanceRequest({ userId }) {
               backgroundColor: "#28a745",
               color: "#fff",
               border: "none",
-              borderRadius: "8px",
+              borderRadius: "10px",
               cursor: "pointer",
-              fontWeight: "700",
+              fontWeight: "600",
               fontSize: "14px",
-              transition: "all 0.2s"
+              transition: "all 0.3s ease",
+              boxShadow: "0 2px 8px rgba(40, 167, 69, 0.3)"
             }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#218838"}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#28a745"}
           >
-            + Tạo Yêu Cầu Mới
+            + Create New Request
           </button>
         </div>
       </div>
@@ -284,37 +283,94 @@ export default function SalaryAdvanceRequest({ userId }) {
             style={{
               backgroundColor: "white",
               borderRadius: "16px",
-              padding: "32px",
-              maxWidth: "500px",
+              maxWidth: "600px",
               width: "100%",
               maxHeight: "90vh",
               overflowY: "auto",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+              display: "flex",
+              flexDirection: "column"
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{
-              margin: "0 0 24px 0",
-              fontSize: "24px",
-              fontWeight: "700",
-              color: "#1a1a1a"
+            {/* Header */}
+            <div style={{
+              background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
+              padding: "24px 32px",
+              borderTopLeftRadius: "16px",
+              borderTopRightRadius: "16px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
             }}>
-              Tạo Yêu Cầu Ứng Lương
-            </h3>
+              <h3 style={{
+                margin: 0,
+                fontSize: "22px",
+                fontWeight: "700",
+                color: "#fff"
+              }}>
+                💰 Create Salary Advance Request
+              </h3>
+              <button
+                onClick={() => setShowForm(false)}
+                style={{
+                  background: "rgba(255, 255, 255, 0.2)",
+                  border: "none",
+                  borderRadius: "8px",
+                  width: "36px",
+                  height: "36px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontSize: "20px",
+                  fontWeight: "600",
+                  transition: "all 0.3s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = "rgba(255, 255, 255, 0.3)";
+                  e.target.style.transform = "rotate(90deg)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = "rgba(255, 255, 255, 0.2)";
+                  e.target.style.transform = "rotate(0deg)";
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Form Content */}
+            <div style={{ padding: "32px" }}>
             <form onSubmit={handleSubmit}>
-              <div style={{ marginBottom: "20px" }}>
+              <div style={{ marginBottom: "24px" }}>
                 <label style={{
-                  display: "block",
-                  marginBottom: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  marginBottom: "10px",
                   fontWeight: "600",
                   fontSize: "14px",
                   color: "#333"
                 }}>
-                  Tháng/Năm * <span style={{ fontWeight: 400, color: "#666", fontSize: "12px" }}>(chỉ tháng hiện tại hoặc 2 tháng kế tiếp, mỗi tháng ứng 1 lần)</span>
+                  <span>📅</span>
+                  <span>Month/Year</span>
+                  <span style={{ color: "#dc3545" }}>*</span>
                 </label>
+                <div style={{ fontSize: "12px", color: "#666", marginBottom: "10px", fontStyle: "italic" }}>
+                  (Current month or next 2 months only, one request per month)
+                </div>
                 {availablePeriods.length === 0 ? (
-                  <div style={{ padding: "12px", background: "#fff3cd", borderRadius: "8px", color: "#856404", fontSize: "14px" }}>
-                    Bạn đã có yêu cầu ứng lương cho tất cả các tháng được phép (tháng hiện tại và 2 tháng kế tiếp).
+                  <div style={{ 
+                    padding: "16px", 
+                    background: "linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 193, 7, 0.05) 100%)", 
+                    borderRadius: "10px", 
+                    color: "#856404", 
+                    fontSize: "14px",
+                    border: "2px solid #ffc107"
+                  }}>
+                    You already have salary advance requests for all allowed months (current month and next 2 months).
                   </div>
                 ) : (
                   <select
@@ -330,10 +386,24 @@ export default function SalaryAdvanceRequest({ userId }) {
                     required
                     style={{
                       width: "100%",
-                      padding: "12px",
+                      padding: "14px 16px",
                       border: "2px solid #e0e0e0",
-                      borderRadius: "8px",
-                      fontSize: "14px"
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      backgroundColor: "#f8f9fa",
+                      color: "#333",
+                      cursor: "pointer"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
                     }}
                   >
                     {availablePeriods.map((p) => (
@@ -345,15 +415,19 @@ export default function SalaryAdvanceRequest({ userId }) {
                 )}
               </div>
 
-              <div style={{ marginBottom: "20px" }}>
+              <div style={{ marginBottom: "24px" }}>
                 <label style={{
-                  display: "block",
-                  marginBottom: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  marginBottom: "10px",
                   fontWeight: "600",
                   fontSize: "14px",
                   color: "#333"
                 }}>
-                  Số Tiền (VND) *
+                  <span>💰</span>
+                  <span>Amount (VND)</span>
+                  <span style={{ color: "#dc3545" }}>*</span>
                 </label>
                 <input
                   type="number"
@@ -362,80 +436,148 @@ export default function SalaryAdvanceRequest({ userId }) {
                   required
                   min="0"
                   step="1000"
-                  placeholder="Nhập số tiền muốn ứng"
+                  placeholder="Enter amount to advance"
                   style={{
                     width: "100%",
-                    padding: "12px",
+                    padding: "14px 16px",
                     border: "2px solid #e0e0e0",
-                    borderRadius: "8px",
-                    fontSize: "14px"
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    backgroundColor: "#f8f9fa"
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "#A2B9ED";
+                    e.target.style.backgroundColor = "white";
+                    e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "#e0e0e0";
+                    e.target.style.backgroundColor = "#f8f9fa";
+                    e.target.style.boxShadow = "none";
                   }}
                 />
               </div>
 
               <div style={{ marginBottom: "24px" }}>
                 <label style={{
-                  display: "block",
-                  marginBottom: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  marginBottom: "10px",
                   fontWeight: "600",
                   fontSize: "14px",
                   color: "#333"
                 }}>
-                  Lý Do (Tùy chọn)
+                  <span>📝</span>
+                  <span>Reason (Optional)</span>
                 </label>
                 <textarea
                   value={formData.reason}
                   onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                  placeholder="Nhập lý do ứng lương..."
+                  placeholder="Enter reason for salary advance..."
                   rows="4"
                   style={{
                     width: "100%",
-                    padding: "12px",
+                    padding: "14px 16px",
                     border: "2px solid #e0e0e0",
-                    borderRadius: "8px",
-                    fontSize: "14px",
-                    resize: "vertical"
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                    lineHeight: "1.6",
+                    transition: "all 0.3s ease",
+                    backgroundColor: "#f8f9fa"
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "#A2B9ED";
+                    e.target.style.backgroundColor = "white";
+                    e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "#e0e0e0";
+                    e.target.style.backgroundColor = "#f8f9fa";
+                    e.target.style.boxShadow = "none";
                   }}
                 />
               </div>
 
-              <div style={{ display: "flex", gap: "12px" }}>
+              <div style={{ 
+                display: "flex", 
+                gap: "16px",
+                paddingTop: "8px",
+                borderTop: "1px solid #e0e0e0",
+                marginTop: "8px"
+              }}>
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
                   style={{
                     flex: 1,
-                    padding: "14px",
+                    padding: "14px 28px",
                     backgroundColor: "#6c757d",
                     color: "#fff",
                     border: "none",
-                    borderRadius: "8px",
+                    borderRadius: "10px",
                     cursor: "pointer",
-                    fontWeight: "700",
-                    fontSize: "14px"
+                    fontWeight: "600",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    boxShadow: "0 2px 8px rgba(108, 117, 125, 0.2)"
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.backgroundColor = "#5a6268";
+                    e.target.style.transform = "translateY(-2px)";
+                    e.target.style.boxShadow = "0 4px 12px rgba(108, 117, 125, 0.3)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = "#6c757d";
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow = "0 2px 8px rgba(108, 117, 125, 0.2)";
                   }}
                 >
-                  Hủy
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading || availablePeriods.length === 0}
                   style={{
                     flex: 1,
-                    padding: "14px",
-                    backgroundColor: "#28a745",
+                    padding: "14px 28px",
+                    background: (loading || availablePeriods.length === 0)
+                      ? "linear-gradient(135deg, #90caf9 0%, #81b9f0 100%)"
+                      : "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
                     color: "#fff",
                     border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontWeight: "700",
-                    fontSize: "14px"
+                    borderRadius: "10px",
+                    cursor: (loading || availablePeriods.length === 0) ? "not-allowed" : "pointer",
+                    fontWeight: "600",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    boxShadow: (loading || availablePeriods.length === 0)
+                      ? "none"
+                      : "0 4px 12px rgba(162, 185, 237, 0.3)"
+                  }}
+                  onMouseOver={(e) => {
+                    if (!loading && availablePeriods.length > 0) {
+                      e.target.style.background = "linear-gradient(135deg, #8BA3E0 0%, #7B93D0 100%)";
+                      e.target.style.transform = "translateY(-2px)";
+                      e.target.style.boxShadow = "0 6px 16px rgba(162, 185, 237, 0.4)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!loading && availablePeriods.length > 0) {
+                      e.target.style.background = "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)";
+                      e.target.style.transform = "translateY(0)";
+                      e.target.style.boxShadow = "0 4px 12px rgba(162, 185, 237, 0.3)";
+                    }
                   }}
                 >
-                  {loading ? "Đang gửi..." : "Gửi Yêu Cầu"}
+                  {loading ? "⏳ Submitting..." : "✅ Submit Request"}
                 </button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       )}
@@ -458,7 +600,7 @@ export default function SalaryAdvanceRequest({ userId }) {
               margin: "0 auto 16px",
               animation: "spin 1s linear infinite"
             }}></div>
-            <p style={{ margin: 0, fontSize: "16px", fontWeight: "500" }}>Đang tải...</p>
+            <p style={{ margin: 0, fontSize: "16px", fontWeight: "500" }}>Loading...</p>
             <style>{`
               @keyframes spin {
                 0% { transform: rotate(0deg); }
@@ -475,122 +617,234 @@ export default function SalaryAdvanceRequest({ userId }) {
               fontWeight: "600",
               color: "#666"
             }}>
-              Chưa có yêu cầu ứng lương
+              No salary advance requests yet
             </p>
             <p style={{ margin: 0, fontSize: "14px", color: "#999" }}>
-              Nhấn "Tạo Yêu Cầu Mới" để bắt đầu
+              Click "Create New Request" to start
             </p>
           </div>
         ) : (
-          <div style={{ display: "grid", gap: "16px" }}>
-            {advances.map((advance) => (
-              <div
-                key={advance.id}
-                style={{
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "12px",
-                  padding: "24px",
-                  transition: "all 0.3s",
-                  backgroundColor: "#fff"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "#28a745";
-                  e.currentTarget.style.boxShadow = "0 4px 16px rgba(40,167,69,0.15)";
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "#e0e0e0";
-                  e.currentTarget.style.boxShadow = "none";
-                  e.currentTarget.style.transform = "translateY(0)";
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{
-                      fontSize: "22px",
-                      fontWeight: "700",
-                      color: "#1a1a1a",
-                      marginBottom: "8px",
-                      letterSpacing: "-0.5px"
-                    }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "separate",
+              borderSpacing: "0",
+              border: "1px solid #868e96",
+              borderRadius: "8px",
+              overflow: "hidden"
+            }}
+          >
+            <thead>
+              <tr style={{ backgroundColor: "#f8f9fa" }}>
+                <th
+                  style={{
+                    padding: "16px",
+                    textAlign: "left",
+                    fontWeight: "700",
+                    color: "#333",
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96",
+                    borderTopLeftRadius: "8px"
+                  }}
+                >
+                  Period
+                </th>
+                <th
+                  style={{
+                    padding: "16px",
+                    textAlign: "right",
+                    fontWeight: "700",
+                    color: "#333",
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
+                  }}
+                >
+                  Amount
+                </th>
+                <th
+                  style={{
+                    padding: "16px",
+                    textAlign: "left",
+                    fontWeight: "700",
+                    color: "#333",
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
+                  }}
+                >
+                  Reason
+                </th>
+                <th
+                  style={{
+                    padding: "16px",
+                    textAlign: "center",
+                    fontWeight: "700",
+                    color: "#333",
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
+                  }}
+                >
+                  Status
+                </th>
+                <th
+                  style={{
+                    padding: "16px",
+                    textAlign: "left",
+                    fontWeight: "700",
+                    color: "#333",
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
+                  }}
+                >
+                  Created Date
+                </th>
+                <th
+                  style={{
+                    padding: "16px",
+                    textAlign: "left",
+                    fontWeight: "700",
+                    color: "#333",
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
+                  }}
+                >
+                  Approved Date
+                </th>
+                <th
+                  style={{
+                    padding: "16px",
+                    textAlign: "left",
+                    fontWeight: "700",
+                    color: "#333",
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #868e96",
+                    borderTopRightRadius: "8px"
+                  }}
+                >
+                  Approver Comments
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {advances.map((advance, index) => {
+                const isLastRow = index === advances.length - 1;
+                return (
+                  <tr key={advance.id} style={{ backgroundColor: "#fff" }}>
+                    <td
+                      style={{
+                        padding: "16px",
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        borderRight: "1px solid #868e96",
+                        fontSize: "14px",
+                        color: "#333",
+                        fontWeight: "600",
+                        borderBottomLeftRadius: isLastRow ? "8px" : "0"
+                      }}
+                    >
                       {advance.month}/{advance.year}
-                    </div>
-                    <div style={{ marginBottom: "4px" }}>
-                      {getStatusBadge(advance.approvalStatus)}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "13px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Số Tiền
-                    </div>
-                    <div style={{ fontSize: "28px", fontWeight: "700", color: "#28a745", letterSpacing: "-0.5px" }}>
+                    </td>
+                    <td
+                      style={{
+                        padding: "16px",
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        borderRight: "1px solid #868e96",
+                        fontSize: "14px",
+                        color: "#28a745",
+                        fontWeight: "700",
+                        textAlign: "right"
+                      }}
+                    >
                       {formatCurrency(advance.amount)}
-                    </div>
-                  </div>
-                </div>
-
-                {advance.reason && (
-                  <div style={{
-                    padding: "12px 16px",
-                    backgroundColor: "#f8f9fa",
-                    borderRadius: "8px",
-                    marginBottom: "12px"
-                  }}>
-                    <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Lý Do
-                    </div>
-                    <div style={{ fontSize: "14px", color: "#333" }}>
-                      {advance.reason}
-                    </div>
-                  </div>
-                )}
-
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: "12px",
-                  paddingTop: "20px",
-                  borderTop: "2px solid #f0f0f0"
-                }}>
-                  <div>
-                    <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Ngày Tạo
-                    </div>
-                    <div style={{ fontSize: "13px", fontWeight: "600", color: "#333" }}>
-                      {new Date(advance.createdAt).toLocaleDateString("vi-VN")}
-                    </div>
-                  </div>
-                  {advance.approvedAt && (
-                    <div>
-                      <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                        Ngày Duyệt
+                    </td>
+                    <td
+                      style={{
+                        padding: "16px",
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        borderRight: "1px solid #868e96",
+                        fontSize: "14px",
+                        color: "#333",
+                        maxWidth: "260px"
+                      }}
+                    >
+                      <div
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        {advance.reason || "-"}
                       </div>
-                      <div style={{ fontSize: "13px", fontWeight: "600", color: "#333" }}>
-                        {new Date(advance.approvedAt).toLocaleDateString("vi-VN")}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {advance.approverComments && (
-                  <div style={{
-                    marginTop: "12px",
-                    padding: "12px 16px",
-                    backgroundColor: "#e3f2fd",
-                    borderRadius: "8px",
-                    borderLeft: "4px solid #1976d2"
-                  }}>
-                    <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Ghi Chú Từ Người Duyệt
-                    </div>
-                    <div style={{ fontSize: "13px", color: "#333" }}>
-                      {advance.approverComments}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+                    </td>
+                    <td
+                      style={{
+                        padding: "16px",
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        borderRight: "1px solid #868e96",
+                        textAlign: "center"
+                      }}
+                    >
+                      {getStatusBadge(advance.approvalStatus)}
+                    </td>
+                    <td
+                      style={{
+                        padding: "16px",
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        borderRight: "1px solid #868e96",
+                        fontSize: "14px",
+                        color: "#333"
+                      }}
+                    >
+                      {new Date(advance.createdAt).toLocaleDateString("en-US")}
+                    </td>
+                    <td
+                      style={{
+                        padding: "16px",
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        borderRight: "1px solid #868e96",
+                        fontSize: "14px",
+                        color: "#333"
+                      }}
+                    >
+                      {advance.approvedAt
+                        ? new Date(advance.approvedAt).toLocaleDateString("en-US")
+                        : "-"}
+                    </td>
+                    <td
+                      style={{
+                        padding: "16px",
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        fontSize: "14px",
+                        color: "#333",
+                        borderBottomRightRadius: isLastRow ? "8px" : "0"
+                      }}
+                    >
+                      {advance.approverComments || "-"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
     </div>
