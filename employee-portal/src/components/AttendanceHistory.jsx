@@ -146,9 +146,9 @@ export default function AttendanceHistory({ userId }) {
   const groupedLogs = useMemo(() => {
     const grouped = {};
     logs.forEach(log => {
-      const date = new Date(log.timestamp).toLocaleDateString("en-US");
+      const date = new Date(log.timestamp).toLocaleDateString("vi-VN");
       if (!grouped[date]) {
-        grouped[date] = { checkIn: null, checkOut: null, date: log.timestamp };
+        grouped[date] = { checkIn: null, checkOut: null };
       }
       if (log.type === "IN") {
         grouped[date].checkIn = log;
@@ -162,11 +162,15 @@ export default function AttendanceHistory({ userId }) {
       ...data
     }));
 
-    // Sort by date
+    // Sort by parsing vi-VN date string dd/mm/yyyy
     result.sort((a, b) => {
-      const dateA = new Date(a.date);
-      const dateB = new Date(b.date);
-      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+      const parseViDate = (s) => {
+        const [d, m, y] = s.split("/");
+        return new Date(+y, +m - 1, +d);
+      };
+      return sortOrder === "desc"
+        ? parseViDate(b.date) - parseViDate(a.date)
+        : parseViDate(a.date) - parseViDate(b.date);
     });
 
     // Filter by search
@@ -924,7 +928,7 @@ export default function AttendanceHistory({ userId }) {
                             <span style={{ 
                               fontSize: "16px", 
                               fontWeight: "600",
-                              color: "#333"
+                              color: item.checkOut.isEarlyLeave ? "#d97706" : "#333"
                             }}>
                               {formatTime(item.checkOut.timestamp)}
                             </span>
@@ -953,7 +957,26 @@ export default function AttendanceHistory({ userId }) {
                         borderRight: "none",
                         borderLeft: "none"
                       }}>
-                        {item.checkIn && getStatusBadge(item.checkIn)}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
+                          {/* Check-in status */}
+                          {item.checkIn && (
+                            item.checkIn.isLate ? (
+                              <span style={{ backgroundColor: "#dc3545", color: "#fff", padding: "5px 14px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Late</span>
+                            ) : (
+                              <span style={{ backgroundColor: "#28a745", color: "#fff", padding: "5px 14px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>On Time</span>
+                            )
+                          )}
+                          {/* Check-out status */}
+                          {item.checkOut?.isEarlyLeave && (
+                            <span style={{ backgroundColor: "#d97706", color: "#fff", padding: "5px 14px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Early Leave</span>
+                          )}
+                          {item.checkOut?.isOvertime && !item.checkOut?.isEarlyLeave && (
+                            <span style={{ backgroundColor: "#007bff", color: "#fff", padding: "5px 14px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Overtime</span>
+                          )}
+                          {!item.checkIn && !item.checkOut && (
+                            <span style={{ color: "#999", fontSize: "14px" }}>—</span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ 
                         padding: "16px",
