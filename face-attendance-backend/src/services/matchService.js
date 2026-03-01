@@ -137,9 +137,11 @@ export async function matchDescriptor(descriptorOrList, threshold = 0.6) {
       console.log(`MATCH (LOW): ${detectedName} (distance: ${bestDistance.toFixed(6)} <= ${LOW})`);
       return { matched: true, userId: matched.User?.id || matched.userId, detectedName, distance: bestDistance, allProfiles: profiles.length };
     }
-    if (bestDistance > LOW && bestDistance <= HIGH) {
-      console.log(`UNCERTAIN: distance ${bestDistance.toFixed(6)} in (${LOW},${HIGH}) => require_more_frames`);
-      return { matched: false, userId: null, detectedName: 'RequireMoreFrames', distance: bestDistance, allProfiles: profiles.length, topMatch: distances[0] };
+    // Treat uncertain zone (LOW, HIGH] as match so user can confirm and check-out; otherwise they get stuck on "RequireMoreFrames"
+    if (bestDistance > LOW && bestDistance <= HIGH && matched) {
+      const detectedName = matched.User?.name || "Unknown";
+      console.log(`MATCH (HIGH/uncertain): ${detectedName} (distance: ${bestDistance.toFixed(6)} in (${LOW},${HIGH}) => allow confirm)`);
+      return { matched: true, userId: matched.User?.id || matched.userId, detectedName, distance: bestDistance, allProfiles: profiles.length, softMatch: true };
     }
 
     console.log(`UNKNOWN: distance ${bestDistance.toFixed(6)} > ${HIGH} => Unknown`);
