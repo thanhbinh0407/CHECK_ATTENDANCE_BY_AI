@@ -25,6 +25,7 @@ function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [approvalCount, setApprovalCount] = useState(0);
   
   // Use lazy initialization to read from localStorage only once on mount
   const [authToken, setAuthToken] = useState(() => {
@@ -147,6 +148,46 @@ function App() {
     }
   }, [isChecking, authToken, user]);
 
+  // Fetch approval counts
+  useEffect(() => {
+    if (!authToken || !user) return;
+
+    const fetchApprovalCounts = async () => {
+      try {
+        const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+        const headers = { "Authorization": `Bearer ${authToken}` };
+
+        // Fetch all pending approvals
+        const [leaveRes, dependentsRes, qualificationsRes] = await Promise.all([
+          fetch(`${apiBase}/api/leave/requests?status=pending`, { headers }),
+          fetch(`${apiBase}/api/dependents?approvalStatus=pending`, { headers }),
+          fetch(`${apiBase}/api/qualifications?approvalStatus=pending`, { headers })
+        ]);
+
+        const [leaveData, dependentsData, qualificationsData] = await Promise.all([
+          leaveRes.ok ? leaveRes.json() : { leaveRequests: [] },
+          dependentsRes.ok ? dependentsRes.json() : { dependents: [] },
+          qualificationsRes.ok ? qualificationsRes.json() : { qualifications: [] }
+        ]);
+
+        const totalCount = 
+          (leaveData.leaveRequests?.length || 0) +
+          (dependentsData.dependents?.length || 0) +
+          (qualificationsData.qualifications?.length || 0);
+
+        setApprovalCount(totalCount);
+      } catch (error) {
+        console.error('Error fetching approval counts:', error);
+      }
+    };
+
+    fetchApprovalCounts();
+    
+    // Refresh counts every 30 seconds
+    const interval = setInterval(fetchApprovalCounts, 30000);
+    return () => clearInterval(interval);
+  }, [authToken, user]);
+
   // Show loading while checking
   if (isChecking) {
     return null;
@@ -174,7 +215,7 @@ function App() {
     { id: "salary-grades", label: "Salary Grade Management", shortcut: "", icon: "💰" },
     { id: "insurance-configs", label: "Insurance & Cost Config", shortcut: "", icon: "🛡️" },
     { id: "insurance-form", label: "BHXH/BHYT Form (TK1-TS)", shortcut: "", icon: "📋" },
-    { id: "insurance-report", label: "Báo Cáo D02-LT", shortcut: "", icon: "📊" },
+    { id: "insurance-report", label: "D02-LT Report", shortcut: "", icon: "📊" },
     { id: "reports", label: "Reporting", shortcut: "", icon: "📈" },
   ];
 
@@ -353,6 +394,23 @@ function App() {
                   }}>
                     {item.label}
                   </span>
+                  {item.id === "approvals" && approvalCount > 0 && (
+                    <span style={{ 
+                      fontSize: "11px",
+                      color: "#fff",
+                      backgroundColor: "#ef4444",
+                      padding: "3px 7px",
+                      borderRadius: "10px",
+                      fontWeight: "700",
+                      marginLeft: theme.spacing.xs,
+                      marginRight: theme.spacing.xs,
+                      minWidth: "20px",
+                      textAlign: "center",
+                      boxShadow: "0 2px 4px rgba(239, 68, 68, 0.3)"
+                    }}>
+                      {approvalCount}
+                    </span>
+                  )}
                   {item.shortcut ? (
                     <span style={{ 
                       fontSize: theme.typography.tiny.fontSize, 
@@ -370,8 +428,26 @@ function App() {
                 </>
               )}
               {sidebarCollapsed && (
-                <span style={{ fontSize: "20px" }}>
+                <span style={{ fontSize: "20px", position: "relative" }}>
                   {item.icon || "•"}
+                  {item.id === "approvals" && approvalCount > 0 && (
+                    <span style={{ 
+                      position: "absolute",
+                      top: "-6px",
+                      right: "-6px",
+                      fontSize: "9px",
+                      color: "#fff",
+                      backgroundColor: "#ef4444",
+                      padding: "2px 5px",
+                      borderRadius: "8px",
+                      fontWeight: "700",
+                      minWidth: "16px",
+                      textAlign: "center",
+                      boxShadow: "0 2px 4px rgba(239, 68, 68, 0.3)"
+                    }}>
+                      {approvalCount}
+                    </span>
+                  )}
                 </span>
               )}
             </div>
