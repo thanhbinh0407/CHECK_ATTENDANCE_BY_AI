@@ -22,7 +22,7 @@ function AttendanceScanner() {
   const [multiFaceWarning, setMultiFaceWarning] = useState(false);
   const [spoofWarning, setSpoofWarning] = useState(false);
   const [antiInfo, setAntiInfo] = useState(null);
-  const [antiThreshold, setAntiThreshold] = useState(60);
+  const [antiThreshold, setAntiThreshold] = useState(50);
   const [useServerAnti, setUseServerAnti] = useState(false);
   const [serverAntiLoading, setServerAntiLoading] = useState(false);
   const detectionIntervalRef = useRef(null);
@@ -90,6 +90,9 @@ function AttendanceScanner() {
 
     loadFaceApi();
 
+    // Load today's attendance logs from backend so they persist after reload
+    fetchTodayLogs();
+
     // Cleanup
     return () => {
       if (detectionIntervalRef.current) {
@@ -97,6 +100,27 @@ function AttendanceScanner() {
       }
     };
   }, []);
+
+  // Fetch today's attendance logs from backend (so they persist after reload)
+  const fetchTodayLogs = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/attendance/today`);
+      const data = await res.json();
+      if (data.status === "success" && Array.isArray(data.logs)) {
+        const mapped = data.logs.map((log) => ({
+          id: log.id,
+          time: log.timestamp ? new Date(log.timestamp).toLocaleTimeString("vi-VN") : "",
+          name: log.detectedName || "Unknown",
+          status: "✓",
+          type: log.type || "IN",
+          logsCount: 0
+        }));
+        setAttendanceLogs(mapped);
+      }
+    } catch (e) {
+      console.warn("Fetch today logs failed:", e);
+    }
+  };
 
   const startScanning = async () => {
     try {
@@ -376,8 +400,9 @@ function AttendanceScanner() {
           setAntiInfo({ ...anti, score: Math.round(avgAnti) });
           console.log(`[AntiCheck] avgAnti=${avgAnti.toFixed(1)}, anti.isFace=${anti.isFace}, live.isAlive=${live.isAlive}`);
 
-          // Gate logic: prefer liveness. Only block if NO liveness AND avg anti below threshold
-          if (!live.isAlive && (avgAnti < antiThreshold)) {
+          // Gate logic: prefer liveness. Only block if NO liveness AND avg anti (valid number) below threshold
+          const antiValid = Number.isFinite(avgAnti);
+          if (!live.isAlive && antiValid && avgAnti < antiThreshold) {
             setSpoofWarning(true);
             spoofDetectedRef.current = true;
             setConfirmDialog(null);
@@ -628,20 +653,9 @@ function AttendanceScanner() {
         
         if (response.ok) {
           console.log("Attendance logged:", result);
-          // Get type from backend response (more accurate than calculating)
-          const type = result.type || 'IN';
-          setAttendanceLogs((prev) => [
-            {
-              id: Math.random(),
-              time: dialogData.timestamp.toLocaleTimeString("vi-VN"),
-              name: result.detectedName || "Unknown",
-              status: result.matched ? "✓" : "⚠",
-              type: type,
-              logsCount: 0
-            },
-            ...prev.slice(0, 9)
-          ]);
-          
+          // Reload today's logs from server so list stays in sync and persists after reload
+          await fetchTodayLogs();
+
           // Show success or finished toast for 3 seconds
           if (result.finished) {
             setSuccessMsg(`Bạn đã kết thúc 1 ngày công`);
@@ -942,9 +956,9 @@ function AttendanceScanner() {
             </div>
           )}
           <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 12, lineHeight: 1.6 }}>
-            <div>Texture: <strong>{antiInfo.details?.texture?.textureScore?.toFixed(1) || 'N/A'}</strong></div>
-            <div>Frequency: <strong>{antiInfo.details?.frequency?.frequencyScore?.toFixed(1) || 'N/A'}</strong></div>
-            <div>Color: <strong>{antiInfo.details?.color?.colorScore?.toFixed(2) || 'N/A'}</strong></div>
+            <div>Texture: <strong>{Number.isFinite(antiInfo.details?.texture?.textureScore) ? antiInfo.details.texture.textureScore.toFixed(1) : 'N/A'}</strong></div>
+            <div>Frequency: <strong>{Number.isFinite(antiInfo.details?.frequency?.frequencyScore) ? antiInfo.details.frequency.frequencyScore.toFixed(1) : 'N/A'}</strong></div>
+            <div>Color: <strong>{Number.isFinite(antiInfo.details?.color?.colorScore) ? antiInfo.details.color.colorScore.toFixed(2) : 'N/A'}</strong></div>
           </div>
           <div style={{ 
             paddingTop: 12,

@@ -3,6 +3,7 @@ import { theme } from "../styles/theme.js";
 import * as faceapi from "face-api.js";
 import { EDUCATION_COEFFICIENTS } from "../utils/salaryCalculation.js";
 import { filterNumbersFromName, validateName, validateEmail, validateEmployeeCode, validatePassword } from "../utils/validationUtils.js";
+import { calculateAntiSpoofingScore } from "../utils/antiSpoofing.js";
 
 const JOB_LABELS = {
   "Nhân viên CNTT": "IT Staff",
@@ -50,7 +51,7 @@ export default function EnrollmentForm() {
   const [passwordGenerated, setPasswordGenerated] = useState(false);
   const detectionIntervalRef = useRef(null);
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
-  
+
   // Validation errors state
   const [errors, setErrors] = useState({
     name: "",
@@ -312,7 +313,6 @@ export default function EnrollmentForm() {
         "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@latest/model/",
         "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/models/"
       ];
-
       let loaded = false;
       for (const modelUrl of modelUrls) {
         try {
@@ -324,13 +324,12 @@ export default function EnrollmentForm() {
           setModelsLoaded(true);
           setMessage("Ready to enroll");
           loaded = true;
-          console.log("Models loaded from", modelUrl);
           break;
         } catch (err) {
           console.warn(`Failed to load from ${modelUrl}:`, err.message);
         }
       }
-      if (!loaded) throw new Error("Failed to load models from all sources");
+      if (!loaded) setMessage("Model loading failed");
     } catch (error) {
       console.error("Model loading error:", error);
       setMessage("Model loading failed");
@@ -339,8 +338,8 @@ export default function EnrollmentForm() {
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 640, height: 480 } 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 }
       });
       videoRef.current.srcObject = stream;
       videoRef.current.onloadedmetadata = () => {
@@ -363,12 +362,11 @@ export default function EnrollmentForm() {
 
   const captureFace = async () => {
     if (!cameraActive || !modelsLoaded) return;
-    
+
     try {
       setLoading(true);
       setMessage("Capturing face...");
 
-      // Check for multiple faces first
       const allDetections = await faceapi
         .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
         .withFaceLandmarks();
@@ -390,8 +388,19 @@ export default function EnrollmentForm() {
         return;
       }
 
+      const anti = calculateAntiSpoofingScore(videoRef.current);
+      const antiScore = Number.isFinite(anti?.score) ? anti.score : 100;
+      const ANTI_PHOTO_THRESHOLD = 28;
+      if (antiScore < ANTI_PHOTO_THRESHOLD) {
+        setMessage("Không chấp nhận ảnh. Vui lòng dùng khuôn mặt thật trước camera (đảm bảo ánh sáng tốt).");
+        setErrors((prev) => ({ ...prev, faceCapture: "Photo not allowed" }));
+        setLoading(false);
+        return;
+      }
+
       setCapturedDescriptor(Array.from(detection.descriptor));
       setMessage("Face captured successfully!");
+      setErrors((prev) => ({ ...prev, faceCapture: "" }));
     } catch (error) {
       setMessage("Capture error: " + error.message);
     } finally {
@@ -643,10 +652,10 @@ export default function EnrollmentForm() {
         {message && (
           <div style={{
             padding: "16px 20px",
-            backgroundColor: /success|captured successfully/i.test(message) ? theme.success.bg : /failed|error|denied|required|cannot|invalid|please enter/i.test(message) ? theme.error.bg : theme.info.bg,
-            border: `2px solid ${/success|captured successfully/i.test(message) ? theme.success.border : /failed|error|denied|required|cannot|invalid|please enter/i.test(message) ? theme.error.border : theme.info.border}`,
+            backgroundColor: /success|captured successfully/i.test(message) ? theme.success.bg : /failed|error|denied|required|cannot|invalid|please enter|Không chấp nhận ảnh/i.test(message) ? theme.error.bg : theme.info.bg,
+            border: `2px solid ${/success|captured successfully/i.test(message) ? theme.success.border : /failed|error|denied|required|cannot|invalid|please enter|Không chấp nhận ảnh/i.test(message) ? theme.error.border : theme.info.border}`,
             borderRadius: "10px",
-            color: /success|captured successfully/i.test(message) ? theme.success.text : /failed|error|denied|required|cannot|invalid|please enter/i.test(message) ? theme.error.text : theme.info.text,
+            color: /success|captured successfully/i.test(message) ? theme.success.text : /failed|error|denied|required|cannot|invalid|please enter|Không chấp nhận ảnh/i.test(message) ? theme.error.text : theme.info.text,
             marginBottom: "24px",
             fontSize: "14px",
             fontWeight: "500",
