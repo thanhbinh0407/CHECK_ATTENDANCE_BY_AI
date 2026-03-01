@@ -21,6 +21,7 @@
     "dev:portal": "cd employee-portal && npm run dev",
     "dev:accountant": "cd accountant-client && npm run dev",
     "dev:payroll": "cd payroll-frontend && npm run dev",
+    "db:seed": "cd face-attendance-backend && npm run db:seed",
     "postinstall": "npm run install:all"
   },
   "devDependencies": {
