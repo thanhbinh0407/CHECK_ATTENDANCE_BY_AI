@@ -25,6 +25,12 @@ const SalaryGrade = sequelize.define('SalaryGrade', {
     allowNull: false,
     defaultValue: 0
   },
+  minYearsOfService: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+    comment: 'Minimum years of service required to qualify for this grade'
+  },
   description: {
     type: DataTypes.TEXT
   },

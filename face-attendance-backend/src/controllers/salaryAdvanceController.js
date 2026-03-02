@@ -9,7 +9,23 @@ export const getSalaryAdvances = async (req, res) => {
     const { userId, month, year, status } = req.query;
 
     const where = {};
-    if (userId) where.userId = userId;
+    const queryUserId = userId != null && userId !== "" && userId !== "undefined" ? userId : null;
+    const isAdminOrAccountant = req.user?.role === "admin" || req.user?.role === "accountant";
+
+    if (queryUserId != null) {
+      const parsed = parseInt(queryUserId, 10);
+      if (Number.isNaN(parsed)) {
+        return res.status(400).json({
+          status: "error",
+          message: "userId must be a valid number"
+        });
+      }
+      where.userId = parsed;
+    } else if (!isAdminOrAccountant) {
+      // Employee: only list own advances (from token). Admin/accountant see all when no userId filter.
+      const tokenUserId = req.user?.id ?? req.user?.userId;
+      if (tokenUserId != null) where.userId = tokenUserId;
+    }
     if (month) where.month = parseInt(month);
     if (year) where.year = parseInt(year);
     if (status) where.approvalStatus = status;
@@ -40,7 +56,13 @@ export const getSalaryAdvances = async (req, res) => {
 export const createSalaryAdvance = async (req, res) => {
   try {
     const { month, year, amount, reason } = req.body;
-    const userId = req.user.id;
+    const userId = req.user?.id ?? req.user?.userId;
+    if (userId == null) {
+      return res.status(401).json({
+        status: "error",
+        message: "User not identified"
+      });
+    }
 
     if (!month || !year || !amount) {
       return res.status(400).json({
@@ -105,7 +127,7 @@ export const approveSalaryAdvance = async (req, res) => {
   try {
     const { id } = req.params;
     const { action, comments } = req.body;
-    const approverId = req.user.id;
+    const approverId = req.user?.id ?? req.user?.userId;
 
     const advance = await SalaryAdvance.findByPk(id, {
       include: [{ model: User }]

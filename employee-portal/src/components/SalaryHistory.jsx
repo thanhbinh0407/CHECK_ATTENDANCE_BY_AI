@@ -679,122 +679,233 @@ export default function SalaryHistory({ userId }) {
             </p>
           </div>
         ) : (
-          <div style={{ display: "grid", gap: "16px" }}>
-            {filteredSalaries.map((salary) => (
-              <div
-                key={salary.id}
-                style={{
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "12px",
-                  padding: "24px",
-                  transition: "all 0.3s",
-                  cursor: "pointer",
-                  backgroundColor: "#fff"
-                }}
-                onClick={() => viewSalaryDetail(salary)}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "#1976d2";
-                  e.currentTarget.style.boxShadow = "0 4px 16px rgba(25,118,210,0.15)";
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "#e0e0e0";
-                  e.currentTarget.style.boxShadow = "none";
-                  e.currentTarget.style.transform = "translateY(0)";
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ 
-                      fontSize: "22px", 
-                      fontWeight: "700", 
-                      color: "#1a1a1a", 
-                      marginBottom: "8px",
-                      letterSpacing: "-0.5px"
+          <table style={{
+            width: "100%",
+            borderCollapse: "separate",
+            borderSpacing: "0",
+            border: "1px solid #868e96",
+            borderRadius: "8px",
+            overflow: "hidden"
+          }}>
+            <thead>
+              <tr style={{ backgroundColor: "#f8f9fa" }}>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96",
+                  borderTopLeftRadius: "8px"
+                }}>
+                  Period
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "center",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Status
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "right",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Base Salary
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "right",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Bonus
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "right",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Deductions
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "right",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Net Pay
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "center",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderTopRightRadius: "8px"
+                }}>
+                  Action
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSalaries.map((salary, index) => {
+                const isLastRow = index === filteredSalaries.length - 1;
+                return (
+                  <tr 
+                    key={salary.id}
+                    style={{ 
+                      backgroundColor: "#fff",
+                      cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                    onClick={() => viewSalaryDetail(salary)}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f8f9fa";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "#fff";
+                    }}
+                  >
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      color: "#333",
+                      borderBottomLeftRadius: isLastRow ? "8px" : "0"
                     }}>
                       {new Date(salary.year, salary.month - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                    </div>
-                    <div style={{ marginBottom: "4px" }}>
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      textAlign: "center"
+                    }}>
                       {getStatusBadge(salary.status)}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "13px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Net Pay
-                    </div>
-                    <div style={{ fontSize: "28px", fontWeight: "700", color: "#28a745", letterSpacing: "-0.5px" }}>
-                      {formatCurrency(salary.finalSalary)}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ 
-                  display: "grid", 
-                  gridTemplateColumns: "repeat(3, 1fr)", 
-                  gap: "16px", 
-                  paddingTop: "20px", 
-                  borderTop: "2px solid #f0f0f0" 
-                }}>
-                  <div style={{ 
-                    padding: "12px",
-                    backgroundColor: "#f8f9fa",
-                    borderRadius: "8px"
-                  }}>
-                    <div style={{ fontSize: "11px", color: "#666", marginBottom: "6px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Base Salary
-                    </div>
-                    <div style={{ fontSize: "16px", fontWeight: "700", color: "#333" }}>
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333",
+                      textAlign: "right",
+                      fontWeight: "500"
+                    }}>
                       {formatCurrency(salary.baseSalary)}
-                    </div>
-                  </div>
-                  <div style={{ 
-                    padding: "12px",
-                    backgroundColor: "#e8f5e9",
-                    borderRadius: "8px"
-                  }}>
-                    <div style={{ fontSize: "11px", color: "#666", marginBottom: "6px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Bonus
-                    </div>
-                    <div style={{ fontSize: "16px", fontWeight: "700", color: "#28a745" }}>
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#28a745",
+                      textAlign: "right",
+                      fontWeight: "600"
+                    }}>
                       +{formatCurrency(salary.bonus)}
-                    </div>
-                  </div>
-                  <div style={{ 
-                    padding: "12px",
-                    backgroundColor: "#ffebee",
-                    borderRadius: "8px"
-                  }}>
-                    <div style={{ fontSize: "11px", color: "#666", marginBottom: "6px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                      Deductions
-                    </div>
-                    <div style={{ fontSize: "16px", fontWeight: "700", color: "#dc3545" }}>
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#dc3545",
+                      textAlign: "right",
+                      fontWeight: "600"
+                    }}>
                       -{formatCurrency(salary.deduction)}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ 
-                  marginTop: "16px",
-                  padding: "12px 16px",
-                  backgroundColor: "#e3f2fd",
-                  borderRadius: "8px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center"
-                }}>
-                  <span style={{ 
-                    fontSize: "12px", 
-                    color: "#1976d2", 
-                    fontWeight: "600",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
-                  }}>
-                    Click to view details →
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "16px",
+                      color: "#28a745",
+                      textAlign: "right",
+                      fontWeight: "700"
+                    }}>
+                      {formatCurrency(salary.finalSalary)}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      textAlign: "center",
+                      borderBottomRightRadius: isLastRow ? "8px" : "0"
+                    }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          viewSalaryDetail(salary);
+                        }}
+                        style={{
+                          padding: "8px 16px",
+                          backgroundColor: "#1976d2",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          transition: "all 0.2s"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#1565c0";
+                          e.currentTarget.style.transform = "translateY(-1px)";
+                          e.currentTarget.style.boxShadow = "0 2px 8px rgba(25,118,210,0.3)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "#1976d2";
+                          e.currentTarget.style.transform = "translateY(0)";
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                      >
+                        View Details
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
 
@@ -1374,12 +1485,13 @@ export default function SalaryHistory({ userId }) {
 
               {/* Net Pay Section */}
               <div style={{ 
-                borderTop: "3px solid #1976d2", 
+                borderTop: "3px solid #A2B9ED", 
                 paddingTop: "24px", 
                 marginTop: "28px",
-                backgroundColor: "#e3f2fd",
+                background: "linear-gradient(135deg, rgba(162, 185, 237, 0.1) 0%, rgba(162, 185, 237, 0.05) 100%)",
                 padding: "24px",
-                borderRadius: "12px"
+                borderRadius: "12px",
+                border: "1px solid rgba(162, 185, 237, 0.2)"
               }}>
                 <div style={{ 
                   display: "flex", 
@@ -1387,116 +1499,170 @@ export default function SalaryHistory({ userId }) {
                   alignItems: "center",
                   marginBottom: "12px"
                 }}>
-                  <span style={{ 
-                    fontSize: "16px", 
-                    fontWeight: "700",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.8px",
-                    color: "#1a1a1a"
-                  }}>
-                    Net Pay
-                  </span>
+                  <div>
+                    <div style={{ 
+                      fontSize: "14px", 
+                      fontWeight: "600",
+                      color: "#666",
+                      marginBottom: "4px"
+                    }}>
+                      Lương thực nhận
+                    </div>
+                    <div style={{ 
+                      fontSize: "12px", 
+                      color: "#999"
+                    }}>
+                      Net Pay
+                    </div>
+                  </div>
                   <strong style={{ 
-                    fontSize: "32px", 
+                    fontSize: "36px", 
                     fontWeight: "700", 
-                    color: "#1976d2",
-                    letterSpacing: "-0.5px"
+                    color: "#A2B9ED",
+                    letterSpacing: "-1px"
                   }}>
                     {formatCurrency(salaryDetails?.netSalary || selectedSalary.finalSalary)}
                   </strong>
                 </div>
                 {salaryDetails && (
                   <div style={{ 
-                    paddingTop: "16px",
-                    borderTop: "2px solid rgba(25, 118, 210, 0.3)",
+                    marginTop: "20px",
+                    padding: "20px",
                     backgroundColor: "#fff",
-                    borderRadius: "8px",
-                    padding: "16px",
-                    marginTop: "12px"
+                    borderRadius: "12px",
+                    border: "1px solid #e0e0e0"
                   }}>
-                    <div style={{ fontSize: "12px", fontWeight: "600", color: "#1976d2", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                      Chi Tiết Tính Toán Lương Thực Nhận:
+                    <div style={{ 
+                      fontSize: "14px", 
+                      fontWeight: "600", 
+                      color: "#333", 
+                      marginBottom: "20px",
+                      paddingBottom: "12px",
+                      borderBottom: "2px solid #f0f0f0"
+                    }}>
+                      📊 Chi Tiết Tính Toán
                     </div>
-                    <div style={{ fontSize: "13px", color: "#333", lineHeight: "2", fontFamily: "monospace" }}>
-                      <div style={{ marginBottom: "6px", display: "flex", justifyContent: "space-between" }}>
-                        <span>Tổng thu nhập (Gross Salary):</span>
-                        <strong style={{ color: "#1976d2" }}>{formatCurrency(salaryDetails.grossSalary)}</strong>
-                      </div>
-                      
-                      {/* Insurance Breakdown */}
-                      {salaryDetails.insuranceBreakdown?.employee && (
-                        <>
-                          {salaryDetails.insuranceBreakdown.employee.socialInsurance > 0 && (
-                            <div style={{ marginBottom: "4px", display: "flex", justifyContent: "space-between", paddingLeft: "16px", fontSize: "12px" }}>
-                              <span style={{ color: "#f57c00" }}>- BHXH:</span>
-                              <strong style={{ color: "#f57c00" }}>{formatCurrency(salaryDetails.insuranceBreakdown.employee.socialInsurance)}</strong>
-                            </div>
-                          )}
-                          {salaryDetails.insuranceBreakdown.employee.healthInsurance > 0 && (
-                            <div style={{ marginBottom: "4px", display: "flex", justifyContent: "space-between", paddingLeft: "16px", fontSize: "12px" }}>
-                              <span style={{ color: "#f57c00" }}>- BHYT:</span>
-                              <strong style={{ color: "#f57c00" }}>{formatCurrency(salaryDetails.insuranceBreakdown.employee.healthInsurance)}</strong>
-                            </div>
-                          )}
-                          {salaryDetails.insuranceBreakdown.employee.unemploymentInsurance > 0 && (
-                            <div style={{ marginBottom: "4px", display: "flex", justifyContent: "space-between", paddingLeft: "16px", fontSize: "12px" }}>
-                              <span style={{ color: "#f57c00" }}>- BHTN:</span>
-                              <strong style={{ color: "#f57c00" }}>{formatCurrency(salaryDetails.insuranceBreakdown.employee.unemploymentInsurance)}</strong>
-                            </div>
-                          )}
-                        </>
-                      )}
-                      {salaryDetails.employeeInsurance > 0 && (
-                        <div style={{ marginBottom: "6px", display: "flex", justifyContent: "space-between", paddingLeft: "8px" }}>
-                          <span style={{ color: "#f57c00", fontWeight: "600" }}>Tổng Bảo Hiểm:</span>
-                          <strong style={{ color: "#f57c00" }}>-{formatCurrency(salaryDetails.employeeInsurance)}</strong>
-                        </div>
-                      )}
-                      
-                      {/* Tax */}
-                      {salaryDetails.tax > 0 && (
-                        <div style={{ marginBottom: "6px", display: "flex", justifyContent: "space-between" }}>
-                          <span style={{ color: "#dc3545" }}>- Thuế TNCN:</span>
-                          <strong style={{ color: "#dc3545" }}>-{formatCurrency(salaryDetails.tax)}</strong>
-                        </div>
-                      )}
-                      
-                      {/* Deduction Breakdown */}
-                      {salaryDetails.deductionBreakdown && salaryDetails.deductionBreakdown.length > 0 ? (
-                        <>
-                          {salaryDetails.deductionBreakdown.map((item, idx) => (
-                            <div key={idx} style={{ marginBottom: "4px", display: "flex", justifyContent: "space-between", paddingLeft: "16px", fontSize: "12px" }}>
-                              <span style={{ color: "#dc3545" }}>- {item.ruleName}:</span>
-                              <strong style={{ color: "#dc3545" }}>-{formatCurrency(item.amount)}</strong>
-                            </div>
-                          ))}
-                          <div style={{ marginBottom: "6px", display: "flex", justifyContent: "space-between", paddingLeft: "8px" }}>
-                            <span style={{ color: "#dc3545", fontWeight: "600" }}>Tổng Khấu Trừ Khác:</span>
-                            <strong style={{ color: "#dc3545" }}>
-                              -{formatCurrency(salaryDetails.deductionBreakdown.reduce((sum, item) => sum + item.amount, 0))}
-                            </strong>
-                          </div>
-                        </>
-                      ) : salaryDetails.deductions > 0 ? (
-                        <div style={{ marginBottom: "6px", display: "flex", justifyContent: "space-between" }}>
-                          <span style={{ color: "#dc3545" }}>- Khấu Trừ Khác:</span>
-                          <strong style={{ color: "#dc3545" }}>-{formatCurrency(salaryDetails.deductions)}</strong>
-                        </div>
-                      ) : null}
-                      
+                    
+                    {/* Gross Salary */}
+                    <div style={{ 
+                      marginBottom: "16px",
+                      padding: "12px 16px",
+                      backgroundColor: "#f8f9fa",
+                      borderRadius: "8px"
+                    }}>
                       <div style={{ 
-                        marginTop: "12px", 
-                        paddingTop: "12px", 
-                        borderTop: "2px solid #1976d2",
                         display: "flex", 
                         justifyContent: "space-between",
-                        fontSize: "16px",
-                        fontWeight: "700",
-                        color: "#1976d2"
+                        alignItems: "center"
                       }}>
-                        <span>= Lương Thực Nhận (Net Pay):</span>
-                        <strong>{formatCurrency(salaryDetails.netSalary)}</strong>
+                        <span style={{ fontSize: "14px", color: "#666" }}>Tổng thu nhập</span>
+                        <strong style={{ fontSize: "16px", color: "#1976d2", fontWeight: "600" }}>
+                          {formatCurrency(salaryDetails.grossSalary)}
+                        </strong>
                       </div>
+                    </div>
+
+                    {/* Deductions Summary */}
+                    {(salaryDetails.employeeInsurance > 0 || salaryDetails.tax > 0 || salaryDetails.deductions > 0) && (
+                      <div style={{ marginBottom: "16px" }}>
+                        <div style={{ 
+                          fontSize: "13px", 
+                          color: "#666", 
+                          marginBottom: "10px",
+                          fontWeight: "500"
+                        }}>
+                          Khấu trừ:
+                        </div>
+                        
+                        {salaryDetails.employeeInsurance > 0 && (
+                          <div style={{ 
+                            display: "flex", 
+                            justifyContent: "space-between",
+                            padding: "8px 12px",
+                            marginBottom: "6px",
+                            backgroundColor: "#fff3e0",
+                            borderRadius: "6px"
+                          }}>
+                            <span style={{ fontSize: "13px", color: "#666" }}>Bảo hiểm</span>
+                            <strong style={{ fontSize: "14px", color: "#f57c00", fontWeight: "600" }}>
+                              -{formatCurrency(salaryDetails.employeeInsurance)}
+                            </strong>
+                          </div>
+                        )}
+                        
+                        {salaryDetails.tax > 0 && (
+                          <div style={{ 
+                            display: "flex", 
+                            justifyContent: "space-between",
+                            padding: "8px 12px",
+                            marginBottom: "6px",
+                            backgroundColor: "#ffebee",
+                            borderRadius: "6px"
+                          }}>
+                            <span style={{ fontSize: "13px", color: "#666" }}>Thuế TNCN</span>
+                            <strong style={{ fontSize: "14px", color: "#dc3545", fontWeight: "600" }}>
+                              -{formatCurrency(salaryDetails.tax)}
+                            </strong>
+                          </div>
+                        )}
+                        
+                        {salaryDetails.deductionBreakdown && salaryDetails.deductionBreakdown.length > 0 ? (
+                          salaryDetails.deductionBreakdown.map((item, idx) => (
+                            <div key={idx} style={{ 
+                              display: "flex", 
+                              justifyContent: "space-between",
+                              padding: "8px 12px",
+                              marginBottom: "6px",
+                              backgroundColor: "#ffebee",
+                              borderRadius: "6px"
+                            }}>
+                              <span style={{ fontSize: "13px", color: "#666" }}>{item.ruleName}</span>
+                              <strong style={{ fontSize: "14px", color: "#dc3545", fontWeight: "600" }}>
+                                -{formatCurrency(item.amount)}
+                              </strong>
+                            </div>
+                          ))
+                        ) : salaryDetails.deductions > 0 ? (
+                          <div style={{ 
+                            display: "flex", 
+                            justifyContent: "space-between",
+                            padding: "8px 12px",
+                            marginBottom: "6px",
+                            backgroundColor: "#ffebee",
+                            borderRadius: "6px"
+                          }}>
+                            <span style={{ fontSize: "13px", color: "#666" }}>Khấu trừ khác</span>
+                            <strong style={{ fontSize: "14px", color: "#dc3545", fontWeight: "600" }}>
+                              -{formatCurrency(salaryDetails.deductions)}
+                            </strong>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {/* Net Salary */}
+                    <div style={{ 
+                      marginTop: "16px",
+                      paddingTop: "16px",
+                      borderTop: "2px solid #A2B9ED",
+                      display: "flex", 
+                      justifyContent: "space-between",
+                      alignItems: "center"
+                    }}>
+                      <span style={{ 
+                        fontSize: "16px", 
+                        fontWeight: "600",
+                        color: "#333"
+                      }}>
+                        Lương thực nhận
+                      </span>
+                      <strong style={{ 
+                        fontSize: "20px", 
+                        fontWeight: "700",
+                        color: "#A2B9ED"
+                      }}>
+                        {formatCurrency(salaryDetails.netSalary)}
+                      </strong>
                     </div>
                   </div>
                 )}

@@ -137,6 +137,28 @@ export default function SalaryCalculation() {
     fetchRules();
   }, []);
 
+  // Auto-load existing salary records whenever month or year changes
+  useEffect(() => {
+    fetchExistingSalaries(selectedMonth, selectedYear);
+  }, [selectedMonth, selectedYear]);
+
+  const fetchExistingSalaries = async (month, year) => {
+    try {
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+      const res = await fetch(
+        `${apiBase}/api/salary?month=${month}&year=${year}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setCalculatedSalaries(data.salaries || []);
+      }
+    } catch (error) {
+      console.error("Error fetching existing salaries:", error);
+    }
+  };
+
   const fetchEmployees = async () => {
     try {
       const token = localStorage.getItem("authToken");
@@ -223,6 +245,8 @@ export default function SalaryCalculation() {
       }
 
       setCalculatedSalaries(calculatedSalariesList);
+      // Reload from API to get full data with User associations
+      await fetchExistingSalaries(selectedMonth, selectedYear);
       const successMsg = `Salary calculated for ${successCount} employee(s)${errorCount > 0 ? ` (${errorCount} error(s))` : ''}`;
       setToastPopup(successMsg);
       setTimeout(() => setToastPopup(""), 5000);
@@ -266,43 +290,40 @@ export default function SalaryCalculation() {
 
 
   const heroSectionStyle = {
-    background: "linear-gradient(135deg, #3b82f6 0%, #ec4899 50%, #f472b6 100%)",
-    backgroundSize: "200% 200%",
-    borderRadius: "24px",
-    padding: "48px 40px",
-    marginBottom: "32px",
-    color: "#fff",
-    boxShadow: "0 20px 80px rgba(59, 130, 246, 0.4), 0 0 100px rgba(236, 72, 153, 0.3)",
-    position: "relative",
-    overflow: "hidden",
-    animation: "fadeInUp 0.6s ease-out, gradientShift 10s ease infinite"
+    background: "#fff",
+    borderRadius: "12px",
+    padding: "28px 32px",
+    marginBottom: "24px",
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+    animation: "fadeInUp 0.5s ease-out",
   };
 
   const heroTitleStyle = {
-    fontSize: "42px",
-    fontWeight: "800",
-    margin: "0 0 12px 0",
-    letterSpacing: "-0.02em",
+    fontSize: "24px",
+    fontWeight: "700",
+    margin: "0 0 8px 0",
+    color: theme.primary.main,
     display: "flex",
     alignItems: "center",
-    gap: "16px"
+    gap: "12px",
   };
 
   const heroSubtitleStyle = {
-    fontSize: "18px",
-    opacity: 0.95,
+    fontSize: "15px",
+    color: "#64748b",
     fontWeight: "400",
-    margin: 0
+    margin: 0,
   };
 
   const controlCardStyle = {
     backgroundColor: "#fff",
-    borderRadius: "20px",
-    padding: "32px",
-    marginBottom: "32px",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-    border: "1px solid rgba(0,0,0,0.05)",
-    animation: "fadeInUp 0.7s ease-out 0.1s backwards"
+    borderRadius: "12px",
+    padding: "24px",
+    marginBottom: "24px",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+    border: "1px solid #e2e8f0",
+    animation: "fadeInUp 0.5s ease-out 0.08s backwards",
   };
 
   const inputGroupStyle = {
@@ -320,126 +341,115 @@ export default function SalaryCalculation() {
   };
 
   const labelStyle = {
-    fontSize: "14px",
+    fontSize: "13px",
     fontWeight: "600",
-    color: "#374151",
-    letterSpacing: "0.01em"
+    color: "#475569",
   };
 
   const inputStyle = {
-    padding: "14px 18px",
-    border: "2px solid #e5e7eb",
-    borderRadius: "12px",
-    fontSize: "16px",
-    fontWeight: "500",
-    color: "#111827",
+    padding: "10px 14px",
+    border: "1px solid #e2e8f0",
+    borderRadius: "8px",
+    fontSize: "15px",
+    color: theme.primary.main,
     backgroundColor: "#fff",
-    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
     outline: "none",
     width: "100%",
-    boxSizing: "border-box"
+    boxSizing: "border-box",
+    transition: "border-color 0.2s",
   };
 
   const buttonPrimaryStyle = {
-    padding: "14px 32px",
-    background: "linear-gradient(135deg, #3b82f6, #ec4899)",
-    backgroundColor: "#3b82f6",
+    padding: "12px 24px",
+    background: theme.accent.main,
     color: "#fff",
     border: "none",
-    borderRadius: "12px",
-    fontSize: "16px",
+    borderRadius: "8px",
+    fontSize: "15px",
     fontWeight: "600",
     cursor: loading ? "not-allowed" : "pointer",
-    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-    boxShadow: loading ? "none" : "0 4px 20px rgba(59, 130, 246, 0.5), 0 0 30px rgba(236, 72, 153, 0.3)",
+    transition: "background 0.2s",
     display: "flex",
     alignItems: "center",
-    gap: "10px",
+    gap: "8px",
     opacity: loading ? 0.7 : 1,
-    position: "relative",
-    overflow: "hidden"
   };
 
   const buttonSecondaryStyle = {
-    padding: "14px 32px",
-    backgroundColor: "#6b7280",
+    padding: "12px 24px",
+    backgroundColor: "#64748b",
     color: "#fff",
     border: "none",
-    borderRadius: "12px",
-    fontSize: "16px",
+    borderRadius: "8px",
+    fontSize: "15px",
     fontWeight: "600",
     cursor: "pointer",
-    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-    boxShadow: "0 4px 14px rgba(107, 114, 128, 0.3)"
+    transition: "background 0.2s",
   };
 
   const tableContainerStyle = {
     backgroundColor: "#fff",
-    borderRadius: "20px",
+    borderRadius: "12px",
     overflow: "hidden",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-    border: "1px solid rgba(0,0,0,0.05)",
-    animation: "fadeInUp 0.8s ease-out 0.2s backwards"
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+    border: "1px solid #e2e8f0",
+    animation: "fadeInUp 0.5s ease-out 0.15s backwards",
   };
 
   const tableHeaderStyle = {
-    background: "linear-gradient(135deg, #3b82f6 0%, #ec4899 50%, #f472b6 100%)",
-    backgroundSize: "200% 200%",
-    color: "#fff",
-    animation: "gradientShift 8s ease infinite"
+    background: "#f1f5f9",
+    color: "#475569",
   };
 
   const thStyle = {
-    padding: "20px 24px",
+    padding: "14px 20px",
     textAlign: "left",
-    fontWeight: "700",
-    fontSize: "14px",
-    letterSpacing: "0.05em",
-    textTransform: "uppercase"
+    fontWeight: "600",
+    fontSize: "12px",
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
   };
 
   const tdStyle = {
-    padding: "20px 24px",
-    borderBottom: "1px solid #f3f4f6",
-    fontSize: "15px",
-    color: "#374151"
+    padding: "14px 20px",
+    borderBottom: "1px solid #f1f5f9",
+    fontSize: "14px",
+    color: "#334155",
   };
 
   const statusBadgeStyle = (status) => ({
     display: "inline-flex",
     alignItems: "center",
-    padding: "8px 16px",
-    borderRadius: "20px",
-    fontSize: "12px",
-    fontWeight: "700",
+    padding: "6px 12px",
+    borderRadius: "6px",
+    fontSize: "11px",
+    fontWeight: "600",
     textTransform: "uppercase",
-    letterSpacing: "0.5px",
+    letterSpacing: "0.03em",
     backgroundColor:
       status === "paid"
-        ? "#d1fae5"
+        ? "#ccfbf1"
         : status === "approved"
         ? "#dbeafe"
         : "#fef3c7",
     color:
       status === "paid"
-        ? "#065f46"
+        ? "#0f766e"
         : status === "approved"
         ? "#1e40af"
         : "#92400e",
-    transition: "all 0.2s"
   });
 
   const emptyStateStyle = {
-    padding: "80px 40px",
+    padding: "48px 24px",
     textAlign: "center",
-    color: "#9ca3af"
+    color: "#64748b",
   };
 
   const emptyStateIconStyle = {
-    fontSize: "80px",
-    marginBottom: "24px",
-    opacity: 0.5,
-    animation: "pulse 2s infinite"
+    fontSize: "48px",
+    marginBottom: "16px",
+    opacity: 0.6,
   };
 
   return (
@@ -447,7 +457,7 @@ export default function SalaryCalculation() {
       {/* Hero Section */}
       <div style={heroSectionStyle}>
         <div style={heroTitleStyle}>
-          <span style={{ fontSize: "48px" }}>💰</span>
+          <span style={{ fontSize: "28px" }} aria-hidden>💰</span>
           <span>Monthly Salary Calculation</span>
         </div>
         <p style={heroSubtitleStyle}>
@@ -460,24 +470,24 @@ export default function SalaryCalculation() {
         <div
           style={{
             position: "fixed",
-            top: 24,
+            top: 20,
             left: "50%",
             transform: "translateX(-50%)",
-            padding: "16px 32px",
-            backgroundColor: "#059669",
+            padding: "12px 24px",
+            backgroundColor: theme.accent.dark,
             color: "#fff",
-            borderRadius: "16px",
-            boxShadow: "0 20px 60px rgba(5, 150, 105, 0.4)",
+            borderRadius: "8px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
             fontWeight: "600",
-            fontSize: "15px",
+            fontSize: "14px",
             zIndex: 10000,
-            animation: "slideInRight 0.4s ease-out",
+            animation: "slideInRight 0.3s ease-out",
             display: "flex",
             alignItems: "center",
-            gap: "12px"
+            gap: "10px",
           }}
         >
-          <span style={{ fontSize: "20px" }}>✅</span>
+          <span aria-hidden style={{ fontSize: "18px" }}>✅</span>
           {toastPopup}
         </div>
       )}
@@ -487,25 +497,25 @@ export default function SalaryCalculation() {
         <div
           style={{
             position: "fixed",
-            top: "80px",
+            top: "72px",
             right: "20px",
-            padding: "20px 24px",
-            backgroundColor: message.includes("thành công") ? "#d1fae5" : "#fee2e2",
+            padding: "14px 20px",
+            backgroundColor: message.includes("thành công") ? "#ecfdf5" : "#fef2f2",
             color: message.includes("thành công") ? "#065f46" : "#991b1b",
-            borderRadius: "16px",
-            boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
+            borderRadius: "8px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             zIndex: 9999,
-            minWidth: "320px",
-            maxWidth: "400px",
-            animation: "slideInRight 0.4s ease-out",
-            border: `2px solid ${message.includes("thành công") ? "#3b82f6" : "#ef4444"}`
+            minWidth: "280px",
+            maxWidth: "360px",
+            animation: "slideInRight 0.3s ease-out",
+            border: `1px solid ${message.includes("thành công") ? "#a7f3d0" : "#fecaca"}`,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ fontSize: "24px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span aria-hidden style={{ fontSize: "18px" }}>
               {message.includes("thành công") ? "✅" : "❌"}
             </span>
-            <span style={{ flex: 1, fontWeight: "600" }}>{message}</span>
+            <span style={{ flex: 1, fontWeight: "600", fontSize: "14px" }}>{message}</span>
           </div>
         </div>
       )}
@@ -518,18 +528,9 @@ export default function SalaryCalculation() {
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-              style={{
-                ...inputStyle,
-                cursor: "pointer"
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = "#3b82f6";
-                e.target.style.boxShadow = "0 0 0 4px rgba(59, 130, 246, 0.2), 0 0 0 8px rgba(236, 72, 153, 0.1)";
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = "#e5e7eb";
-                e.target.style.boxShadow = "none";
-              }}
+              style={{ ...inputStyle, cursor: "pointer" }}
+              onFocus={(e) => { e.target.style.borderColor = theme.accent.main; }}
+              onBlur={(e) => { e.target.style.borderColor = "#e2e8f0"; }}
             >
               {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
                 <option key={m} value={m}>
@@ -544,18 +545,9 @@ export default function SalaryCalculation() {
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-              style={{
-                ...inputStyle,
-                cursor: "pointer"
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = "#3b82f6";
-                e.target.style.boxShadow = "0 0 0 4px rgba(59, 130, 246, 0.2), 0 0 0 8px rgba(236, 72, 153, 0.1)";
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = "#e5e7eb";
-                e.target.style.boxShadow = "none";
-              }}
+              style={{ ...inputStyle, cursor: "pointer" }}
+              onFocus={(e) => { e.target.style.borderColor = theme.accent.main; }}
+              onBlur={(e) => { e.target.style.borderColor = "#e2e8f0"; }}
             >
               {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
                 <option key={y} value={y}>{y}</option>
@@ -568,16 +560,10 @@ export default function SalaryCalculation() {
             disabled={loading}
             style={buttonPrimaryStyle}
             onMouseEnter={(e) => {
-              if (!loading) {
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = "0 8px 30px rgba(59, 130, 246, 0.6), 0 0 40px rgba(236, 72, 153, 0.4)";
-              }
+              if (!loading) e.currentTarget.style.background = theme.accent.hover;
             }}
             onMouseLeave={(e) => {
-              if (!loading) {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 20px rgba(59, 130, 246, 0.5), 0 0 30px rgba(236, 72, 153, 0.3)";
-              }
+              if (!loading) e.currentTarget.style.background = theme.accent.main;
             }}
           >
             {loading ? (
@@ -606,16 +592,8 @@ export default function SalaryCalculation() {
           <button
             onClick={() => setShowRules(!showRules)}
             style={buttonSecondaryStyle}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 6px 20px rgba(107, 114, 128, 0.4)";
-              e.currentTarget.style.backgroundColor = "#4b5563";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 4px 14px rgba(107, 114, 128, 0.3)";
-              e.currentTarget.style.backgroundColor = "#6b7280";
-            }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#475569"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#64748b"; }}
           >
             {showRules ? "📋 Hide Rules" : "📋 Show Rules"}
           </button>
@@ -623,29 +601,28 @@ export default function SalaryCalculation() {
 
         {/* Progress Bar */}
         {loading && calculatingProgress > 0 && (
-          <div style={{ marginTop: "24px" }}>
+          <div style={{ marginTop: "20px" }}>
             <div style={{
               width: "100%",
-              height: "8px",
-              backgroundColor: "#e5e7eb",
-              borderRadius: "10px",
-              overflow: "hidden"
+              height: "6px",
+              backgroundColor: "#e2e8f0",
+              borderRadius: "6px",
+              overflow: "hidden",
             }}>
               <div style={{
                 width: `${calculatingProgress}%`,
                 height: "100%",
-                background: "linear-gradient(90deg, #3b82f6, #ec4899)",
-                borderRadius: "10px",
+                background: theme.accent.main,
+                borderRadius: "6px",
                 transition: "width 0.3s ease-out",
-                boxShadow: "0 2px 8px rgba(16, 185, 129, 0.4)"
               }} />
             </div>
             <p style={{
-              marginTop: "8px",
+              marginTop: "6px",
               fontSize: "13px",
-              color: "#6b7280",
+              color: "#64748b",
               textAlign: "center",
-              fontWeight: "500"
+              fontWeight: "500",
             }}>
               Processing {calculatingProgress}%...
             </p>
@@ -658,25 +635,25 @@ export default function SalaryCalculation() {
         <div
           style={{
             backgroundColor: "#fff",
-            borderRadius: "20px",
-            padding: "32px",
-            marginBottom: "32px",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-            border: "1px solid rgba(0,0,0,0.05)",
-            animation: "slideDown 0.4s ease-out"
+            borderRadius: "12px",
+            padding: "24px",
+            marginBottom: "24px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+            border: "1px solid #e2e8f0",
+            animation: "slideDown 0.3s ease-out",
           }}
         >
           <h3 style={{
             color: theme.primary.main,
             marginTop: 0,
-            marginBottom: "24px",
-            fontSize: "24px",
+            marginBottom: "20px",
+            fontSize: "18px",
             fontWeight: "700",
             display: "flex",
             alignItems: "center",
-            gap: "12px"
+            gap: "10px",
           }}>
-            <span>📋</span>
+            <span aria-hidden>📋</span>
             <span>Salary Calculation Rules</span>
           </h3>
 
@@ -715,22 +692,12 @@ export default function SalaryCalculation() {
                   <div
                     key={rule.id}
                     style={{
-                      padding: "20px",
-                      marginBottom: "12px",
+                      padding: "16px",
+                      marginBottom: "10px",
                       backgroundColor: "#fef2f2",
-                      borderLeft: "4px solid #ef4444",
-                      borderRadius: "12px",
-                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                      boxShadow: "0 2px 8px rgba(239, 68, 68, 0.1)",
-                      animation: `fadeInUp 0.5s ease-out ${index * 0.1}s backwards`
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateX(4px)";
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(239, 68, 68, 0.2)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "translateX(0)";
-                      e.currentTarget.style.boxShadow = "0 2px 8px rgba(239, 68, 68, 0.1)";
+                      border: "1px solid #fecaca",
+                      borderLeft: "4px solid #dc2626",
+                      borderRadius: "8px",
                     }}
                   >
                     <div style={{
@@ -785,15 +752,15 @@ export default function SalaryCalculation() {
             {/* Bonuses */}
             <div>
               <h4 style={{
-                        color: "#ec4899",
-                marginBottom: "16px",
-                fontSize: "18px",
-                fontWeight: "700",
+                color: theme.accent.dark,
+                marginBottom: "12px",
+                fontSize: "15px",
+                fontWeight: "600",
                 display: "flex",
                 alignItems: "center",
-                gap: "8px"
+                gap: "8px",
               }}>
-                <span>📈</span>
+                <span aria-hidden>📈</span>
                 <span>Bonuses</span>
               </h4>
               {rules.filter(r => r.type === "bonus").length === 0 ? (
@@ -812,22 +779,12 @@ export default function SalaryCalculation() {
                   <div
                     key={rule.id}
                     style={{
-                      padding: "20px",
-                      marginBottom: "12px",
-                      backgroundColor: "#f0fdf4",
-                      borderLeft: "4px solid #3b82f6",
-                      borderRadius: "12px",
-                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                      boxShadow: "0 2px 8px rgba(16, 185, 129, 0.1)",
-                      animation: `fadeInUp 0.5s ease-out ${index * 0.1}s backwards`
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateX(4px)";
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(16, 185, 129, 0.2)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "translateX(0)";
-                      e.currentTarget.style.boxShadow = "0 2px 8px rgba(16, 185, 129, 0.1)";
+                      padding: "16px",
+                      marginBottom: "10px",
+                      backgroundColor: "#f0fdfa",
+                      border: "1px solid #99f6e4",
+                      borderLeft: "4px solid #0d9488",
+                      borderRadius: "8px",
                     }}
                   >
                     <div style={{
@@ -845,11 +802,11 @@ export default function SalaryCalculation() {
                       </div>
                       <div style={{
                         padding: "4px 12px",
-                        backgroundColor: "#d1fae5",
-                        borderRadius: "12px",
+                        backgroundColor: theme.accent.light,
+                        borderRadius: "8px",
                         fontSize: "11px",
                         fontWeight: "700",
-                        color: "#3b82f6",
+                        color: theme.accent.dark,
                         textTransform: "uppercase"
                       }}>
                         Bonus
@@ -881,15 +838,15 @@ export default function SalaryCalculation() {
           </div>
 
           <div style={{
-            marginTop: "24px",
-            padding: "16px",
+            marginTop: "20px",
+            padding: "14px",
             backgroundColor: "#fffbeb",
-            borderRadius: "12px",
-            fontSize: "14px",
+            borderRadius: "8px",
+            fontSize: "13px",
             color: "#92400e",
-            border: "1px solid #fef3c7"
+            border: "1px solid #fde68a",
           }}>
-            <strong>⚠️ Note:</strong> These rules are set by company policy. Contact system administrator to change.
+            <strong>Note:</strong> These rules are set by company policy. Contact system administrator to change.
           </div>
         </div>
       )}
@@ -916,19 +873,19 @@ export default function SalaryCalculation() {
                 <td colSpan="9" style={emptyStateStyle}>
                   <div style={emptyStateIconStyle}>📊</div>
                   <h3 style={{
-                    fontSize: "24px",
-                    fontWeight: "700",
-                    color: "#374151",
-                    margin: "0 0 8px 0"
+                    fontSize: "18px",
+                    fontWeight: "600",
+                    color: "#334155",
+                    margin: "0 0 6px 0",
                   }}>
-                    No data yet
+                    No salary records
                   </h3>
                   <p style={{
-                    fontSize: "16px",
-                    color: "#6b7280",
-                    margin: 0
+                    fontSize: "14px",
+                    color: "#64748b",
+                    margin: 0,
                   }}>
-                    Click "Calculate" to start calculating salaries
+                    No data for this period. Click "Calculate" to generate salaries.
                   </p>
                 </td>
               </tr>
@@ -939,26 +896,24 @@ export default function SalaryCalculation() {
                   return (order[a.status] ?? 2) - (order[b.status] ?? 2);
                 })
                 .map((salary, index) => {
-                  const employee = employees.find(e => e.id === salary.userId);
+                  const employee = employees.find(e => e.id === salary.userId) || salary.User || {};
                   return (
                     <tr
                       key={salary.id}
                       style={{
-                        borderBottom: "1px solid #f3f4f6",
-                        backgroundColor: salary.status === "paid" ? "#f0fdf4" : "white",
-                        transition: "all 0.2s",
-                        animation: `fadeInUp 0.5s ease-out ${index * 0.05}s backwards`
+                        borderBottom: "1px solid #f1f5f9",
+                        backgroundColor: salary.status === "paid" ? "#f0fdfa" : "#fff",
+                        animation: `fadeInUp 0.35s ease-out ${Math.min(index * 0.04, 0.6)}s backwards`,
+                        transition: "background-color 0.2s ease",
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = "#f9fafb";
-                        e.currentTarget.style.transform = "scale(1.01)";
+                        e.currentTarget.style.backgroundColor = salary.status === "paid" ? "#ccfbf1" : "#f8fafc";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = salary.status === "paid" ? "#f0fdf4" : "white";
-                        e.currentTarget.style.transform = "scale(1)";
+                        e.currentTarget.style.backgroundColor = salary.status === "paid" ? "#f0fdfa" : "#fff";
                       }}
                     >
-                      <td style={{ ...tdStyle, fontWeight: "700", color: "#3b82f6" }}>
+                      <td style={{ ...tdStyle, fontWeight: "600", color: theme.accent.dark }}>
                         {employee?.employeeCode || "N/A"}
                       </td>
                       <td style={{ ...tdStyle, fontWeight: "600" }}>
@@ -970,7 +925,7 @@ export default function SalaryCalculation() {
                       <td style={{ ...tdStyle, textAlign: "right", fontWeight: "600" }}>
                         ₫{salary.baseSalary?.toLocaleString("vi-VN") || "0"}
                       </td>
-                      <td style={{ ...tdStyle, textAlign: "right", color: "#3b82f6", fontWeight: "600" }}>
+                      <td style={{ ...tdStyle, textAlign: "right", color: theme.accent.dark, fontWeight: "600" }}>
                         +₫{(salary.bonus || 0).toLocaleString("vi-VN")}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right", color: "#ef4444", fontWeight: "600" }}>
@@ -980,8 +935,8 @@ export default function SalaryCalculation() {
                         ...tdStyle,
                         textAlign: "right",
                         fontWeight: "700",
-                        fontSize: "16px",
-                        color: "#3b82f6"
+                        fontSize: "15px",
+                        color: theme.accent.dark,
                       }}>
                         ₫{salary.finalSalary?.toLocaleString("vi-VN") || "0"}
                       </td>
@@ -999,26 +954,18 @@ export default function SalaryCalculation() {
                           <button
                             onClick={() => viewSalaryBreakdown(salary)}
                             style={{
-                              padding: "8px 16px",
-                              background: "linear-gradient(135deg, #3b82f6, #ec4899)",
-                              backgroundColor: "#3b82f6",
+                              padding: "8px 14px",
+                              background: theme.accent.main,
                               color: "#fff",
                               border: "none",
-                              borderRadius: "8px",
+                              borderRadius: "6px",
                               cursor: "pointer",
                               fontSize: "13px",
                               fontWeight: "600",
-                              transition: "all 0.2s",
-                              boxShadow: "0 2px 12px rgba(59, 130, 246, 0.4), 0 0 20px rgba(236, 72, 153, 0.2)"
+                              transition: "background 0.2s",
                             }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.transform = "translateY(-2px)";
-                              e.currentTarget.style.boxShadow = "0 4px 20px rgba(59, 130, 246, 0.5), 0 0 30px rgba(236, 72, 153, 0.3)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.transform = "translateY(0)";
-                              e.currentTarget.style.boxShadow = "0 2px 12px rgba(59, 130, 246, 0.4), 0 0 20px rgba(236, 72, 153, 0.2)";
-                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = theme.accent.hover; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = theme.accent.main; }}
                           >
                             Details
                           </button>
@@ -1026,26 +973,18 @@ export default function SalaryCalculation() {
                             <button
                               onClick={() => approveSalary(salary.id)}
                               style={{
-                                padding: "8px 16px",
-                                background: "linear-gradient(135deg, #3b82f6, #ec4899)",
-                                backgroundColor: "#3b82f6",
+                                padding: "8px 14px",
+                                background: "#059669",
                                 color: "#fff",
                                 border: "none",
-                                borderRadius: "8px",
+                                borderRadius: "6px",
                                 cursor: "pointer",
                                 fontSize: "13px",
                                 fontWeight: "600",
-                                transition: "all 0.2s",
-                                boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)"
+                                transition: "background 0.2s",
                               }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = "translateY(-2px)";
-                                e.currentTarget.style.boxShadow = "0 4px 12px rgba(16, 185, 129, 0.4)";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = "translateY(0)";
-                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(16, 185, 129, 0.3)";
-                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = "#047857"; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = "#059669"; }}
                             >
                               Approve
                             </button>

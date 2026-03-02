@@ -812,7 +812,24 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         { model: JobTitle, attributes: ['id', 'name'] },
         { model: SalaryGrade, attributes: ['id', 'name', 'baseSalary'] },
         { model: User, as: 'Manager', attributes: ['id', 'name', 'employeeCode', 'email'] },
-        { model: Dependent, as: 'Dependents', attributes: ['id', 'fullName', 'relationship', 'dateOfBirth', 'gender', 'idNumber', 'phoneNumber', 'email', 'occupation', 'approvalStatus'] },
+        // Family / Dependents - include address so frontend can display it
+        { 
+          model: Dependent, 
+          as: 'Dependents', 
+          attributes: [
+            'id',
+            'fullName',
+            'relationship',
+            'dateOfBirth',
+            'gender',
+            'idNumber',
+            'address',
+            'phoneNumber',
+            'email',
+            'occupation',
+            'approvalStatus'
+          ] 
+        },
         { model: Qualification, as: 'Qualifications', attributes: ['id', 'type', 'name', 'issuedBy', 'issuedDate', 'expiryDate', 'certificateNumber', 'documentPath', 'description', 'approvalStatus'] },
         { model: WorkExperience, as: 'WorkExperiences', attributes: ['id', 'companyName', 'position', 'startDate', 'endDate', 'description', 'responsibilities', 'achievements', 'isCurrent'], order: [['startDate', 'DESC']] }
       ]
@@ -831,68 +848,144 @@ export const getEmployeeDetailedInfo = async (req, res) => {
     const currentMonth = currentDate.getMonth() + 1;
     const currentYear = currentDate.getFullYear();
 
-    const startDate = new Date(currentYear, currentMonth - 1, 1);
-    const endDate = new Date(currentYear, currentMonth, 0, 23, 59, 59);
+    // Allow caller to override month/year via query params (for the month filter UI)
+    const queryMonth = req.query.month ? parseInt(req.query.month) : null;
+    const queryYear  = req.query.year  ? parseInt(req.query.year)  : null;
+    const hasFilter  = queryMonth && queryYear &&
+                       queryMonth >= 1 && queryMonth <= 12 &&
+                       queryYear >= 2020;
 
-    const attendanceLogs = await AttendanceLog.findAll({
-      where: {
-        userId: id,
-        timestamp: {
-          [Op.between]: [startDate, endDate]
+    // Helper: split free-form address into hamlet / commune / province for frontend forms
+    // Examples:
+    //  - "Ấp 1 - Cái Bè - Tiền Giang"
+    //  - "Ấp 1, Cái Bè, Tiền Giang"
+    const parseAddressParts = (address) => {
+      if (!address) return { hamlet: "", commune: "", province: "" };
+      let parts = address.split("-").map(s => s.trim()).filter(Boolean);
+      if (parts.length < 3) {
+        parts = address.split(",").map(s => s.trim()).filter(Boolean);
+      }
+      const hamlet = parts[0] || "";
+      const commune = parts[1] || "";
+      const province = parts[2] || "";
+      return { hamlet, commune, province };
+    };
+
+    // Helper: fetch and compute attendance stats for a given year/month
+    const timeZone = 'Asia/Ho_Chi_Minh';
+    const dayKeyOf = (d) => new Date(d).toLocaleDateString('sv-SE', { timeZone }); // YYYY-MM-DD
+
+    const getAttendanceStatsForMonth = async (year, month, isCurrentMonth) => {
+      const startDate = new Date(year, month - 1, 1);
+      const endDate   = new Date(year, month, 0, 23, 59, 59, 999);
+
+      const logs = await AttendanceLog.findAll({
+        where: { userId: id, timestamp: { [Op.between]: [startDate, endDate] } },
+        order: [['timestamp', 'ASC']]
+      });
+
+      const dayMap = new Map();
+      for (const log of logs) {
+        const key = dayKeyOf(log.timestamp);
+        if (!dayMap.has(key)) {
+          dayMap.set(key, { dateKey: key, checkIn: null, checkOut: null, logs: [], isAbsent: false });
         }
-      },
-      order: [['timestamp', 'DESC']],
-      limit: 100
-    });
+        const day = dayMap.get(key);
+        day.logs.push(log);
+        if (log.type === 'IN') {
+          if (!day.checkIn || new Date(log.timestamp) < new Date(day.checkIn.timestamp)) day.checkIn = log;
+        } else if (log.type === 'OUT') {
+          if (!day.checkOut || new Date(log.timestamp) > new Date(day.checkOut.timestamp)) day.checkOut = log;
+        }
+      }
 
-    // Get leave requests
+      // Build working-day list: Mon–Fri, from start of month up to today (if current) or end of month (if past)
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const todayKeyLocal = dayKeyOf(currentDate);
+      const allWorkingDayKeys = [];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const key = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        if (isCurrentMonth && key > todayKeyLocal) break; // stop at today for current month
+        const dow = new Date(year, month - 1, d).getDay();
+        if (dow === 0 || dow === 6) continue; // skip weekends
+        allWorkingDayKeys.push(key);
+        if (!dayMap.has(key)) {
+          dayMap.set(key, { dateKey: key, checkIn: null, checkOut: null, logs: [], isAbsent: true });
+        }
+      }
+
+      const daily = Array.from(dayMap.values())
+        .filter(d => { const dow = new Date(d.dateKey).getDay(); return dow !== 0 && dow !== 6; })
+        .sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+
+      return {
+        logs,
+        daily,
+        workingDaysSoFar: allWorkingDayKeys.length,
+        workingDaysCount: daily.filter(d => !!d.checkIn).length,
+        lateCount:        daily.filter(d => d.checkIn?.isLate === true).length,
+        earlyLeaveCount:  daily.filter(d => d.checkOut?.isEarlyLeave === true).length,
+      };
+    };
+
+    // If caller specified a month/year filter, use it directly (no fallback needed)
+    // Otherwise try current month and fall back to previous if no working days elapsed yet
+    let statsMonth, statsYear, statsIsCurrentMonth, stats;
+
+    if (hasFilter) {
+      statsMonth = queryMonth;
+      statsYear  = queryYear;
+      statsIsCurrentMonth = (statsMonth === currentMonth && statsYear === currentYear);
+      stats = await getAttendanceStatsForMonth(statsYear, statsMonth, statsIsCurrentMonth);
+    } else {
+      // Try current month first; fall back to previous month if no working days elapsed yet
+      // (e.g. today is the 1st and it's a weekend) or no attendance logs exist for this month
+      statsMonth = currentMonth;
+      statsYear  = currentYear;
+      statsIsCurrentMonth = true;
+      stats = await getAttendanceStatsForMonth(currentYear, currentMonth, true);
+
+      if (stats.workingDaysSoFar === 0 || (stats.logs.length === 0 && stats.workingDaysSoFar <= 1)) {
+        statsMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+        statsYear  = currentMonth === 1 ? currentYear - 1 : currentYear;
+        statsIsCurrentMonth = false;
+        stats = await getAttendanceStatsForMonth(statsYear, statsMonth, false);
+      }
+    }
+
+    const { daily, workingDaysSoFar, workingDaysCount, lateCount, earlyLeaveCount } = stats;
+    const absentDaysCount = Math.max(0, workingDaysSoFar - workingDaysCount);
+
+    // Get leave requests (all-time, for history & stats)
     const leaveRequests = await LeaveRequest.findAll({
-      where: {
-        userId: id
-      },
+      where: { userId: id },
       order: [['startDate', 'DESC']],
       limit: 10
     });
 
+    // Get leave requests that overlap with the displayed attendance month
+    const statsMonthStart = new Date(statsYear, statsMonth - 1, 1);
+    const statsMonthEnd   = new Date(statsYear, statsMonth, 0); // last day of month
+    const monthLeaveRequests = await LeaveRequest.findAll({
+      where: {
+        userId: id,
+        startDate: { [Op.lte]: statsMonthEnd },
+        endDate:   { [Op.gte]: statsMonthStart }
+      },
+      order: [['startDate', 'ASC']]
+    });
+
     // Get salary history
     const salaries = await Salary.findAll({
-      where: {
-        userId: id
-      },
+      where: { userId: id },
       order: [['year', 'DESC'], ['month', 'DESC']],
       limit: 12
     });
 
-    // Calculate attendance statistics (group by local day, based on timestamp + IN/OUT)
-    const timeZone = 'Asia/Ho_Chi_Minh';
-    const dayKeyOf = (d) => new Date(d).toLocaleDateString('sv-SE', { timeZone }); // YYYY-MM-DD
-    const dayMap = new Map();
-
-    for (const log of attendanceLogs) {
-      const key = dayKeyOf(log.timestamp);
-      if (!dayMap.has(key)) {
-        dayMap.set(key, { dateKey: key, checkIn: null, checkOut: null, logs: [] });
-      }
-      const day = dayMap.get(key);
-      day.logs.push(log);
-
-      if (log.type === 'IN') {
-        if (!day.checkIn || new Date(log.timestamp) < new Date(day.checkIn.timestamp)) {
-          day.checkIn = log;
-        }
-      } else if (log.type === 'OUT') {
-        if (!day.checkOut || new Date(log.timestamp) > new Date(day.checkOut.timestamp)) {
-          day.checkOut = log;
-        }
-      }
-    }
-
-    const daily = Array.from(dayMap.values()).sort((a, b) => b.dateKey.localeCompare(a.dateKey)); // newest -> oldest
-    const workingDaysCount = daily.filter(d => !!d.checkIn).length;
-    const lateCount = daily.filter(d => d.checkIn?.isLate === true).length;
-    const earlyLeaveCount = daily.filter(d => d.checkOut?.isEarlyLeave === true).length;
-    const totalDaysInMonth = new Date(currentYear, currentMonth, 0).getDate();
-    const absentDaysCount = Math.max(0, totalDaysInMonth - workingDaysCount);
+    // Derive hamlet / commune / province from employee address (used by TK1-TS Appendix on frontend)
+    const addressSource =
+      employee.address || employee.permanentAddress || employee.temporaryAddress || "";
+    const addressParts = parseAddressParts(addressSource);
 
     return res.json({
       status: "success",
@@ -905,6 +998,9 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         address: employee.address,
         permanentAddress: employee.permanentAddress,
         temporaryAddress: employee.temporaryAddress,
+        addressHamlet: addressParts.hamlet,
+        addressCommune: addressParts.commune,
+        addressProvince: addressParts.province,
         dateOfBirth: employee.dateOfBirth,
         gender: employee.gender,
         idNumber: employee.idNumber,
@@ -950,30 +1046,68 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         emergencyContactPhone: employee.emergencyContactPhone,
         password: employee.password, // Include password for admin viewing
         attendanceStats: {
-          month: currentMonth,
-          year: currentYear,
-          totalDays: totalDaysInMonth,
+          month: statsMonth,
+          year: statsYear,
+          isFallback: !statsIsCurrentMonth, // true when showing previous month's data
+          totalDays: workingDaysSoFar,   // Mon-Fri working days in the displayed month
           totalDaysWorked: workingDaysCount,
           totalLate: lateCount,
-          totalAbsent: absentDaysCount,
+          totalAbsent: absentDaysCount,  // working days with no check-in
           totalEarlyLeave: earlyLeaveCount
         },
-        recentAttendance: daily.slice(0, 31).map(d => ({
-          date: d.dateKey, // YYYY-MM-DD
-          checkIn: d.checkIn ? d.checkIn.timestamp : null,
-          checkOut: d.checkOut ? d.checkOut.timestamp : null,
-          flags: {
-            isLate: d.checkIn?.isLate === true,
-            isEarlyLeave: d.checkOut?.isEarlyLeave === true,
-            isOvertime: (d.logs || []).some(l => l.isOvertime === true)
-          },
-          status: d.checkIn?.isLate ? 'Muộn' : d.checkOut?.isEarlyLeave ? 'Về sớm' : 'Bình thường'
-        })),
+        recentAttendance: daily.slice(0, 62).map(d => {
+          // Check if this absent day is covered by an approved leave request
+          let leaveInfo = null;
+          if (d.isAbsent) {
+            const dayDate = new Date(d.dateKey);
+            const covering = monthLeaveRequests.find(lr => {
+              if (lr.status !== 'approved') return false;
+              const s = new Date(lr.startDate);
+              const e = new Date(lr.endDate);
+              return dayDate >= s && dayDate <= e;
+            });
+            if (covering) {
+              leaveInfo = {
+                id: covering.id,
+                type: covering.type,
+                startDate: covering.startDate,
+                endDate: covering.endDate,
+                days: covering.days,
+                reason: covering.reason,
+                status: covering.status
+              };
+            }
+          }
+          return {
+            date: d.dateKey, // YYYY-MM-DD
+            checkIn: d.checkIn ? d.checkIn.timestamp : null,
+            checkOut: d.checkOut ? d.checkOut.timestamp : null,
+            isAbsent: d.isAbsent === true,
+            leaveInfo,
+            flags: {
+              isLate: d.checkIn?.isLate === true,
+              isEarlyLeave: d.checkOut?.isEarlyLeave === true,
+              isOvertime: (d.logs || []).some(l => l.isOvertime === true)
+            },
+            status: d.isAbsent
+              ? (leaveInfo ? 'Nghỉ phép' : 'Vắng')
+              : d.checkIn?.isLate ? 'Muộn' : d.checkOut?.isEarlyLeave ? 'Về sớm' : 'Bình thường'
+          };
+        }),
         leaveHistory: leaveRequests.map(leave => ({
           id: leave.id,
           type: leave.type,
           startDate: new Date(leave.startDate).toLocaleDateString('vi-VN'),
           endDate: new Date(leave.endDate).toLocaleDateString('vi-VN'),
+          days: leave.days,
+          status: leave.status,
+          reason: leave.reason
+        })),
+        monthLeaveRequests: monthLeaveRequests.map(leave => ({
+          id: leave.id,
+          type: leave.type,
+          startDate: leave.startDate,   // raw DATEONLY string YYYY-MM-DD
+          endDate: leave.endDate,
           days: leave.days,
           status: leave.status,
           reason: leave.reason
@@ -992,20 +1126,33 @@ export const getEmployeeDetailedInfo = async (req, res) => {
           finalSalary: salary.finalSalary,
           status: salary.status
         })),
-        dependents: employee.Dependents ? employee.Dependents.map(dep => ({
-          id: dep.id,
-          fullName: dep.fullName,
-          relationship: dep.relationship,
-          dateOfBirth: dep.dateOfBirth,
-          gender: dep.gender
-        })) : [],
-        qualifications: employee.Qualifications ? employee.Qualifications.map(qual => ({
-          id: qual.id,
-          type: qual.type,
-          name: qual.name,
-          issuedBy: qual.issuedBy,
-          issuedDate: qual.issuedDate
-        })) : [],
+        // Family / Dependents info for frontend (EmployeeProfileModal - Family tab)
+        dependents: employee.Dependents
+          ? employee.Dependents.map(dep => ({
+              id: dep.id,
+              fullName: dep.fullName,
+              relationship: dep.relationship,
+              dateOfBirth: dep.dateOfBirth,
+              gender: dep.gender,
+              idNumber: dep.idNumber,
+              address: dep.address,
+              phoneNumber: dep.phoneNumber,
+              email: dep.email
+            }))
+          : [],
+        // Qualifications / Certificates for frontend (Qualifications tab)
+        qualifications: employee.Qualifications
+          ? employee.Qualifications.map(qual => ({
+              id: qual.id,
+              type: qual.type,
+              name: qual.name,
+              issuedBy: qual.issuedBy,
+              issuedDate: qual.issuedDate,
+              expiryDate: qual.expiryDate,
+              certificateNumber: qual.certificateNumber,
+              description: qual.description
+            }))
+          : [],
         WorkExperiences: employee.WorkExperiences || []
       }
     });
