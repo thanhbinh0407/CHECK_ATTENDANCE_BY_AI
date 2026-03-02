@@ -207,6 +207,7 @@ export const getTodayAttendance = async (req, res) => {
         userId: log.userId,
         detectedName: log.detectedName,
         timestamp: log.timestamp,
+        type: log.type || 'IN',
         confidence: log.confidence,
         matchDistance: log.matchDistance
       }))

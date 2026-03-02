@@ -348,11 +348,11 @@ export default function Qualifications({ userId }) {
       }}>
         {/* Total Qualifications */}
         <div style={{
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          background: "linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)",
           borderRadius: "16px",
           padding: "28px 24px",
           color: "white",
-          boxShadow: "0 4px 15px rgba(102, 126, 234, 0.3)",
+          boxShadow: "0 4px 15px rgba(79, 70, 229, 0.35)",
           transition: "all 0.3s ease",
           cursor: "pointer"
         }}
@@ -406,11 +406,11 @@ export default function Qualifications({ userId }) {
 
         {/* Approved */}
         <div style={{
-          background: "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
+          background: "linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)",
           borderRadius: "16px",
           padding: "28px 24px",
           color: "white",
-          boxShadow: "0 4px 15px rgba(17, 153, 142, 0.3)",
+          boxShadow: "0 4px 15px rgba(79, 70, 229, 0.35)",
           transition: "all 0.3s ease",
           cursor: "pointer"
         }}
@@ -460,11 +460,11 @@ export default function Qualifications({ userId }) {
 
         {/* Pending */}
         <div style={{
-          background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+          background: "linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)",
           borderRadius: "16px",
           padding: "28px 24px",
           color: "white",
-          boxShadow: "0 4px 15px rgba(240, 147, 251, 0.3)",
+          boxShadow: "0 4px 15px rgba(79, 70, 229, 0.35)",
           transition: "all 0.3s ease",
           cursor: "pointer"
         }}
@@ -515,11 +515,11 @@ export default function Qualifications({ userId }) {
 
         {/* Rejected */}
         <div style={{
-          background: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+          background: "linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)",
           borderRadius: "16px",
           padding: "28px 24px",
           color: "white",
-          boxShadow: "0 4px 15px rgba(250, 112, 154, 0.3)",
+          boxShadow: "0 4px 15px rgba(79, 70, 229, 0.35)",
           transition: "all 0.3s ease",
           cursor: "pointer"
         }}
@@ -589,35 +589,97 @@ export default function Qualifications({ userId }) {
           <div style={{
             backgroundColor: "white",
             borderRadius: "16px",
-            padding: "32px",
-            maxWidth: "600px",
+            maxWidth: "700px",
             width: "100%",
             maxHeight: "90vh",
             overflowY: "auto",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            display: "flex",
+            flexDirection: "column"
           }}>
-            <h3 style={{ 
-              fontSize: "24px", 
-              fontWeight: "700", 
-              marginBottom: "24px",
-              color: "#1a1a1a"
+            {/* Header */}
+            <div style={{
+              background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
+              padding: "24px 32px",
+              borderTopLeftRadius: "16px",
+              borderTopRightRadius: "16px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
             }}>
-              {editingId ? "Edit Qualification" : "Add New Qualification"}
-            </h3>
+              <h3 style={{ 
+                fontSize: "22px", 
+                fontWeight: "700", 
+                color: "#fff",
+                margin: 0
+              }}>
+                {editingId ? "✏️ Edit Qualification" : "➕ Add New Qualification"}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingId(null);
+                  setFormData({ 
+                    type: "certificate", 
+                    name: "", 
+                    issuedBy: "", 
+                    issuedDate: "", 
+                    expiryDate: "", 
+                    certificateNumber: "", 
+                    description: "" 
+                  });
+                  setDocumentFile(null);
+                  setDocumentPreview(null);
+                  setDocumentPath(null);
+                  setMessage("");
+                }}
+                style={{
+                  background: "rgba(255, 255, 255, 0.2)",
+                  border: "none",
+                  borderRadius: "8px",
+                  width: "36px",
+                  height: "36px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontSize: "20px",
+                  fontWeight: "600",
+                  transition: "all 0.3s ease"
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.background = "rgba(255, 255, 255, 0.3)";
+                  e.target.style.transform = "rotate(90deg)";
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.background = "rgba(255, 255, 255, 0.2)";
+                  e.target.style.transform = "rotate(0deg)";
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Form Content */}
+            <div style={{ padding: "32px" }}>
 
             <form onSubmit={handleSubmit}>
               {/* Type */}
-              <div style={{ marginBottom: "20px" }}>
+              <div style={{ marginBottom: "24px" }}>
                 <label style={{ 
                   display: "block", 
-                  fontSize: "13px", 
+                  fontSize: "14px", 
                   fontWeight: "600", 
-                  color: "#495057", 
-                  marginBottom: "8px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
+                  color: "#333", 
+                  marginBottom: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px"
                 }}>
-                  Type <span style={{ color: "#dc3545" }}>*</span>
+                  <span>📋</span>
+                  <span>Type</span>
+                  <span style={{ color: "#dc3545" }}>*</span>
                 </label>
                 <select 
                   name="type" 
@@ -626,35 +688,47 @@ export default function Qualifications({ userId }) {
                   required
                   style={{
                     width: "100%",
-                    padding: "12px 16px",
-                    border: "2px solid #e9ecef",
-                    borderRadius: "8px",
-                    fontSize: "14px",
+                    padding: "14px 16px",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "10px",
+                    fontSize: "15px",
                     transition: "all 0.3s ease",
-                    backgroundColor: "white"
+                    backgroundColor: "#f8f9fa",
+                    color: "#333",
+                    cursor: "pointer"
                   }}
-                  onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                  onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "#A2B9ED";
+                    e.target.style.backgroundColor = "white";
+                    e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "#e0e0e0";
+                    e.target.style.backgroundColor = "#f8f9fa";
+                    e.target.style.boxShadow = "none";
+                  }}
                 >
-                  <option value="certificate">Certificate</option>
-                  <option value="degree">Degree</option>
-                  <option value="license">License</option>
-                  <option value="training">Training</option>
+                  <option value="certificate">📜 Certificate</option>
+                  <option value="degree">🎓 Degree</option>
+                  <option value="license">📄 License</option>
+                  <option value="training">🎯 Training</option>
             </select>
           </div>
 
               {/* Name */}
-              <div style={{ marginBottom: "20px" }}>
+              <div style={{ marginBottom: "24px" }}>
                 <label style={{ 
-                  display: "block", 
-                  fontSize: "13px", 
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "14px", 
                   fontWeight: "600", 
-                  color: "#495057", 
-                  marginBottom: "8px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
+                  color: "#333", 
+                  marginBottom: "10px"
                 }}>
-                  Name <span style={{ color: "#dc3545" }}>*</span>
+                  <span>🏷️</span>
+                  <span>Name</span>
+                  <span style={{ color: "#dc3545" }}>*</span>
                 </label>
             <input
               type="text"
@@ -665,29 +739,39 @@ export default function Qualifications({ userId }) {
                   placeholder="e.g., ISO 9001 Certification"
                   style={{
                     width: "100%",
-                    padding: "12px 16px",
-                    border: "2px solid #e9ecef",
-                    borderRadius: "8px",
-                    fontSize: "14px",
-                    transition: "all 0.3s ease"
+                    padding: "14px 16px",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    backgroundColor: "#f8f9fa"
                   }}
-                  onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                  onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "#A2B9ED";
+                    e.target.style.backgroundColor = "white";
+                    e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "#e0e0e0";
+                    e.target.style.backgroundColor = "#f8f9fa";
+                    e.target.style.boxShadow = "none";
+                  }}
             />
           </div>
 
               {/* Issued By */}
-              <div style={{ marginBottom: "20px" }}>
+              <div style={{ marginBottom: "24px" }}>
                 <label style={{ 
-                  display: "block", 
-                  fontSize: "13px", 
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "14px", 
                   fontWeight: "600", 
-                  color: "#495057", 
-                  marginBottom: "8px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
+                  color: "#333", 
+                  marginBottom: "10px"
                 }}>
-                  Issued By
+                  <span>🏢</span>
+                  <span>Issued By</span>
                 </label>
             <input
               type="text"
@@ -697,14 +781,23 @@ export default function Qualifications({ userId }) {
                   placeholder="e.g., Company, Institution"
                   style={{
                     width: "100%",
-                    padding: "12px 16px",
-                    border: "2px solid #e9ecef",
-                    borderRadius: "8px",
-                    fontSize: "14px",
-                    transition: "all 0.3s ease"
+                    padding: "14px 16px",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    backgroundColor: "#f8f9fa"
                   }}
-                  onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                  onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "#A2B9ED";
+                    e.target.style.backgroundColor = "white";
+                    e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "#e0e0e0";
+                    e.target.style.backgroundColor = "#f8f9fa";
+                    e.target.style.boxShadow = "none";
+                  }}
             />
           </div>
 
@@ -712,20 +805,21 @@ export default function Qualifications({ userId }) {
               <div style={{ 
                 display: "grid", 
                 gridTemplateColumns: "1fr 1fr", 
-                gap: "16px", 
-                marginBottom: "20px" 
+                gap: "20px", 
+                marginBottom: "24px" 
               }}>
             <div>
                   <label style={{ 
-                    display: "block", 
-                    fontSize: "13px", 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
                     fontWeight: "600", 
-                    color: "#495057", 
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
+                    color: "#333", 
+                    marginBottom: "10px"
                   }}>
-                    Issue Date
+                    <span>📅</span>
+                    <span>Issue Date</span>
                   </label>
               <input
                 type="date"
@@ -734,27 +828,37 @@ export default function Qualifications({ userId }) {
                 onChange={handleInputChange}
                     style={{
                       width: "100%",
-                      padding: "12px 16px",
-                      border: "2px solid #e9ecef",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      transition: "all 0.3s ease"
+                      padding: "14px 16px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      backgroundColor: "#f8f9fa"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                    onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
               />
             </div>
             <div>
                   <label style={{ 
-                    display: "block", 
-                    fontSize: "13px", 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
                     fontWeight: "600", 
-                    color: "#495057", 
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
+                    color: "#333", 
+                    marginBottom: "10px"
                   }}>
-                    Expiry Date
+                    <span>⏰</span>
+                    <span>Expiry Date</span>
                   </label>
               <input
                 type="date"
@@ -763,30 +867,40 @@ export default function Qualifications({ userId }) {
                 onChange={handleInputChange}
                     style={{
                       width: "100%",
-                      padding: "12px 16px",
-                      border: "2px solid #e9ecef",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      transition: "all 0.3s ease"
+                      padding: "14px 16px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      backgroundColor: "#f8f9fa"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                    onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
               />
             </div>
           </div>
 
               {/* Certificate Number */}
-              <div style={{ marginBottom: "20px" }}>
+              <div style={{ marginBottom: "24px" }}>
                 <label style={{ 
-                  display: "block", 
-                  fontSize: "13px", 
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "14px", 
                   fontWeight: "600", 
-                  color: "#495057", 
-                  marginBottom: "8px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
+                  color: "#333", 
+                  marginBottom: "10px"
                 }}>
-                  Certificate Number
+                  <span>🔢</span>
+                  <span>Certificate Number</span>
                 </label>
             <input
               type="text"
@@ -796,29 +910,39 @@ export default function Qualifications({ userId }) {
                   placeholder="e.g., CERT-2025-001"
                   style={{
                     width: "100%",
-                    padding: "12px 16px",
-                    border: "2px solid #e9ecef",
-                    borderRadius: "8px",
-                    fontSize: "14px",
-                    transition: "all 0.3s ease"
+                    padding: "14px 16px",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    backgroundColor: "#f8f9fa"
                   }}
-                  onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                  onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "#A2B9ED";
+                    e.target.style.backgroundColor = "white";
+                    e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "#e0e0e0";
+                    e.target.style.backgroundColor = "#f8f9fa";
+                    e.target.style.boxShadow = "none";
+                  }}
             />
           </div>
 
               {/* Description */}
               <div style={{ marginBottom: "24px" }}>
                 <label style={{ 
-                  display: "block", 
-                  fontSize: "13px", 
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "14px", 
                   fontWeight: "600", 
-                  color: "#495057", 
-                  marginBottom: "8px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
+                  color: "#333", 
+                  marginBottom: "10px"
                 }}>
-                  Description
+                  <span>📝</span>
+                  <span>Description</span>
                 </label>
             <textarea
               name="description"
@@ -827,36 +951,49 @@ export default function Qualifications({ userId }) {
                   placeholder="Additional notes or details..."
                   style={{
                     width: "100%",
-                    padding: "12px 16px",
-                    border: "2px solid #e9ecef",
-                    borderRadius: "8px",
-                    fontSize: "14px",
+                    padding: "14px 16px",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "10px",
+                    fontSize: "15px",
                     minHeight: "100px",
                     fontFamily: "inherit",
                     transition: "all 0.3s ease",
-                    resize: "vertical"
+                    resize: "vertical",
+                    backgroundColor: "#f8f9fa"
                   }}
-                  onFocus={(e) => e.target.style.borderColor = "#2196F3"}
-                  onBlur={(e) => e.target.style.borderColor = "#e9ecef"}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "#A2B9ED";
+                    e.target.style.backgroundColor = "white";
+                    e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "#e0e0e0";
+                    e.target.style.backgroundColor = "#f8f9fa";
+                    e.target.style.boxShadow = "none";
+                  }}
             />
           </div>
 
               {/* Document Upload */}
               <div style={{ 
                 marginBottom: "24px", 
-                padding: "20px", 
-                backgroundColor: "#fff3cd", 
+                padding: "24px", 
+                background: "linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 193, 7, 0.05) 100%)",
                 borderRadius: "12px", 
                 border: "2px solid #ffc107" 
               }}>
                 <label style={{ 
-                  display: "block", 
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
                   fontWeight: "600", 
                   marginBottom: "12px", 
                   color: "#856404",
-                  fontSize: "14px"
+                  fontSize: "15px"
                 }}>
-                  📄 Document Scan <span style={{ color: "#dc3545" }}>*</span>
+                  <span>📄</span>
+                  <span>Document Scan</span>
+                  <span style={{ color: "#dc3545" }}>*</span>
                 </label>
                 <div style={{ 
                   fontSize: "12px", 
@@ -990,7 +1127,14 @@ export default function Qualifications({ userId }) {
               )}
 
               {/* Action Buttons */}
-              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+              <div style={{ 
+                display: "flex", 
+                gap: "16px", 
+                justifyContent: "flex-end",
+                paddingTop: "8px",
+                borderTop: "1px solid #e0e0e0",
+                marginTop: "8px"
+              }}>
             <button
               type="button"
               onClick={() => {
@@ -1011,18 +1155,27 @@ export default function Qualifications({ userId }) {
                     setMessage("");
                   }}
                   style={{ 
-                    padding: "12px 24px", 
+                    padding: "14px 28px", 
                     backgroundColor: "#6c757d", 
                     color: "white", 
                     border: "none", 
-                    borderRadius: "8px", 
+                    borderRadius: "10px", 
                     cursor: "pointer",
-                    fontSize: "14px",
+                    fontSize: "15px",
                     fontWeight: "600",
-                    transition: "all 0.3s ease"
+                    transition: "all 0.3s ease",
+                    boxShadow: "0 2px 8px rgba(108, 117, 125, 0.2)"
                   }}
-                  onMouseOver={(e) => e.target.style.backgroundColor = "#5a6268"}
-                  onMouseOut={(e) => e.target.style.backgroundColor = "#6c757d"}
+                  onMouseOver={(e) => {
+                    e.target.style.backgroundColor = "#5a6268";
+                    e.target.style.transform = "translateY(-2px)";
+                    e.target.style.boxShadow = "0 4px 12px rgba(108, 117, 125, 0.3)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.backgroundColor = "#6c757d";
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow = "0 2px 8px rgba(108, 117, 125, 0.2)";
+                  }}
                 >
                   Cancel
                 </button>
@@ -1030,32 +1183,41 @@ export default function Qualifications({ userId }) {
                   type="submit" 
                   disabled={!editingId && !documentPath}
                   style={{ 
-                    padding: "12px 24px", 
-                    backgroundColor: (!editingId && !documentPath) ? "#ccc" : "#2196F3", 
+                    padding: "14px 28px", 
+                    background: (!editingId && !documentPath) 
+                      ? "linear-gradient(135deg, #ccc 0%, #bbb 100%)" 
+                      : "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)", 
                     color: "white", 
                     border: "none", 
-                    borderRadius: "8px", 
+                    borderRadius: "10px", 
                     cursor: (!editingId && !documentPath) ? "not-allowed" : "pointer",
-                    fontSize: "14px",
+                    fontSize: "15px",
                     fontWeight: "600",
                     transition: "all 0.3s ease",
-                    boxShadow: (!editingId && !documentPath) ? "none" : "0 2px 8px rgba(33, 150, 243, 0.3)"
+                    boxShadow: (!editingId && !documentPath) 
+                      ? "none" 
+                      : "0 4px 12px rgba(162, 185, 237, 0.3)"
                   }}
                   onMouseOver={(e) => {
                     if (editingId || documentPath) {
-                      e.target.style.backgroundColor = "#1976D2";
+                      e.target.style.background = "linear-gradient(135deg, #8BA3E0 0%, #7B93D0 100%)";
+                      e.target.style.transform = "translateY(-2px)";
+                      e.target.style.boxShadow = "0 6px 16px rgba(162, 185, 237, 0.4)";
                     }
                   }}
                   onMouseOut={(e) => {
                     if (editingId || documentPath) {
-                      e.target.style.backgroundColor = "#2196F3";
+                      e.target.style.background = "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)";
+                      e.target.style.transform = "translateY(0)";
+                      e.target.style.boxShadow = "0 4px 12px rgba(162, 185, 237, 0.3)";
                     }
                   }}
                 >
-                  {editingId ? "Update" : "Submit"}
+                  {editingId ? "✏️ Update" : "✅ Submit"}
             </button>
           </div>
         </form>
+          </div>
           </div>
         </div>
       )}
@@ -1097,7 +1259,10 @@ export default function Qualifications({ userId }) {
             <table style={{ 
               width: "100%", 
               borderCollapse: "separate",
-              borderSpacing: "0"
+              borderSpacing: "0",
+              border: "1px solid #868e96",
+              borderRadius: "8px",
+              overflow: "hidden"
             }}>
               <thead>
                 <tr style={{ backgroundColor: "#f8f9fa" }}>
@@ -1109,7 +1274,8 @@ export default function Qualifications({ userId }) {
                     color: "#495057",
                     textTransform: "uppercase",
                     letterSpacing: "0.8px",
-                    borderBottom: "2px solid #dee2e6",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96",
                     borderTopLeftRadius: "8px"
                   }}>
                     Type
@@ -1122,7 +1288,8 @@ export default function Qualifications({ userId }) {
                     color: "#495057",
                     textTransform: "uppercase",
                     letterSpacing: "0.8px",
-                    borderBottom: "2px solid #dee2e6"
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
                   }}>
                     Name
                   </th>
@@ -1134,7 +1301,8 @@ export default function Qualifications({ userId }) {
                     color: "#495057",
                     textTransform: "uppercase",
                     letterSpacing: "0.8px",
-                    borderBottom: "2px solid #dee2e6"
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
                   }}>
                     Issued By
                   </th>
@@ -1146,7 +1314,8 @@ export default function Qualifications({ userId }) {
                     color: "#495057",
                     textTransform: "uppercase",
                     letterSpacing: "0.8px",
-                    borderBottom: "2px solid #dee2e6"
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
                   }}>
                     Issue Date
                   </th>
@@ -1158,7 +1327,8 @@ export default function Qualifications({ userId }) {
                     color: "#495057",
                     textTransform: "uppercase",
                     letterSpacing: "0.8px",
-                    borderBottom: "2px solid #dee2e6"
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
                   }}>
                     Status
                   </th>
@@ -1170,7 +1340,7 @@ export default function Qualifications({ userId }) {
                     color: "#495057",
                     textTransform: "uppercase",
                     letterSpacing: "0.8px",
-                    borderBottom: "2px solid #dee2e6",
+                    borderBottom: "2px solid #868e96",
                     borderTopRightRadius: "8px"
                   }}>
                     Action
@@ -1178,8 +1348,9 @@ export default function Qualifications({ userId }) {
                 </tr>
               </thead>
               <tbody>
-                {qualifications.map(qual => {
+                {qualifications.map((qual, index) => {
                   const statusStyle = getStatusBadge(qual.approvalStatus);
+                  const isLastRow = index === qualifications.length - 1;
                   return (
                     <tr 
                       key={qual.id} 
@@ -1196,16 +1367,19 @@ export default function Qualifications({ userId }) {
                     >
                       <td style={{ 
                         padding: "16px", 
-                        borderBottom: "1px solid #e9ecef",
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        borderRight: "1px solid #868e96",
                         fontSize: "13px",
                         color: "#495057",
-                        fontWeight: "600"
+                        fontWeight: "600",
+                        borderBottomLeftRadius: isLastRow ? "8px" : "0"
                       }}>
                         {getTypeLabel(qual.type)}
                     </td>
                       <td style={{ 
                         padding: "16px", 
-                        borderBottom: "1px solid #e9ecef",
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        borderRight: "1px solid #868e96",
                         fontSize: "14px",
                         color: "#212529",
                         fontWeight: "500"
@@ -1214,7 +1388,8 @@ export default function Qualifications({ userId }) {
                       </td>
                       <td style={{ 
                         padding: "16px", 
-                        borderBottom: "1px solid #e9ecef",
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        borderRight: "1px solid #868e96",
                         fontSize: "13px",
                         color: "#6c757d"
                       }}>
@@ -1222,7 +1397,8 @@ export default function Qualifications({ userId }) {
                       </td>
                       <td style={{ 
                         padding: "16px", 
-                        borderBottom: "1px solid #e9ecef",
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        borderRight: "1px solid #868e96",
                         fontSize: "13px",
                         color: "#6c757d"
                       }}>
@@ -1230,7 +1406,8 @@ export default function Qualifications({ userId }) {
                       </td>
                       <td style={{ 
                         padding: "16px", 
-                        borderBottom: "1px solid #e9ecef"
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        borderRight: "1px solid #868e96"
                       }}>
                         <span style={{
                           padding: "6px 12px",
@@ -1258,8 +1435,9 @@ export default function Qualifications({ userId }) {
                       </td>
                       <td style={{ 
                         padding: "16px", 
-                        borderBottom: "1px solid #e9ecef",
-                        textAlign: "center"
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        textAlign: "center",
+                        borderBottomRightRadius: isLastRow ? "8px" : "0"
                       }}>
                         <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
                       <button
@@ -1284,34 +1462,34 @@ export default function Qualifications({ userId }) {
                               e.target.style.transform = "translateY(0)";
                             }}
                           >
-                            EDIT
+                            DETAILS
                       </button>
                       <button
-                            onClick={() => {
-                              setDeleteId(qual.id);
-                              setShowDeleteConfirm(true);
-                            }}
-                            style={{ 
-                              padding: "6px 14px", 
-                              backgroundColor: "#dc3545", 
-                              color: "white", 
-                              border: "none", 
-                              borderRadius: "6px", 
-                              cursor: "pointer",
-                              fontSize: "12px",
-                              fontWeight: "600",
-                              transition: "all 0.2s ease"
-                            }}
-                            onMouseOver={(e) => {
-                              e.target.style.backgroundColor = "#c82333";
-                              e.target.style.transform = "translateY(-1px)";
-                            }}
-                            onMouseOut={(e) => {
-                              e.target.style.backgroundColor = "#dc3545";
-                              e.target.style.transform = "translateY(0)";
-                            }}
-                          >
-                            DELETE
+                        onClick={() => {
+                          setDeleteId(qual.id);
+                          setShowDeleteConfirm(true);
+                        }}
+                        style={{ 
+                          padding: "6px 14px", 
+                          backgroundColor: "#dc3545", 
+                          color: "white", 
+                          border: "none", 
+                          borderRadius: "6px", 
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          transition: "all 0.2s ease"
+                        }}
+                        onMouseOver={(e) => {
+                          e.target.style.backgroundColor = "#c82333";
+                          e.target.style.transform = "translateY(-1px)";
+                        }}
+                        onMouseOut={(e) => {
+                          e.target.style.backgroundColor = "#dc3545";
+                          e.target.style.transform = "translateY(0)";
+                        }}
+                      >
+                        DELETE
                       </button>
                         </div>
                     </td>

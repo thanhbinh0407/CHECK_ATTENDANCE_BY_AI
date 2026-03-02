@@ -250,6 +250,15 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     );
   };
 
+  const formatCurrency = (amount) =>
+    `₫${(amount || 0).toLocaleString("vi-VN")}`;
+
+  const base = salary?.baseSalary || 0;
+  const bonus = salary?.bonus ?? salary?.totalBonus ?? 0;
+  const deduction = salary?.deduction ?? salary?.totalDeduction ?? 0;
+  const gross = base + bonus;
+  const net = salary?.finalSalary ?? calculateNetAdjusted();
+
   return (
     <>
       <div style={modalStyle} onClick={onClose}>
@@ -273,9 +282,112 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
           </button>
         </div>
 
-        {/* Breakdown Table */}
+        {/* Breakdown */}
         <div style={sectionStyle}>
-          {/* Breakdown content will go here */}
+          <div style={sectionTitleStyle}>
+            <span>📊</span>
+            <span>Overview</span>
+          </div>
+
+          <div style={summaryStyle}>
+            <div style={{ ...summaryItemStyle, backgroundColor: "#eff6ff", color: "#1d4ed8" }}>
+              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Gross (Base + Bonus)
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>
+                {formatCurrency(gross)}
+              </div>
+            </div>
+            <div style={{ ...summaryItemStyle, backgroundColor: "#ecfdf5", color: "#047857" }}>
+              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Net Salary
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>
+                {formatCurrency(net)}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: theme.spacing.lg }}>
+            <div style={{ marginBottom: theme.spacing.md, fontWeight: 600, color: "#111827" }}>
+              Detailed amounts
+            </div>
+            <div style={itemRowStyle}>
+              <div style={labelStyle}>Base salary</div>
+              <div style={amountStyle}>{formatCurrency(base)}</div>
+              <div style={percentStyle} />
+            </div>
+            <div style={itemRowStyle}>
+              <div style={labelStyle}>Bonus</div>
+              <div style={{ ...amountStyle, color: "#16a34a" }}>
+                +{formatCurrency(bonus)}
+              </div>
+              <div style={percentStyle} />
+            </div>
+            <div style={itemRowStyle}>
+              <div style={labelStyle}>Deduction</div>
+              <div style={{ ...amountStyle, color: "#dc2626" }}>
+                -{formatCurrency(deduction)}
+              </div>
+              <div style={percentStyle} />
+            </div>
+          </div>
+
+          <div style={{ marginTop: theme.spacing.lg }}>
+            <div style={{ marginBottom: theme.spacing.md, fontWeight: 600, color: "#111827" }}>
+              Applied salary rules
+            </div>
+            {(!rules || rules.length === 0) ? (
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                No salary rules configured. Contact the system administrator if this is unexpected.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6, color: "#b91c1c" }}>
+                    Deductions
+                  </div>
+                  {rules.filter(r => r.type === "deduction").length === 0 ? (
+                    <div style={{ fontSize: 13, color: "#9ca3af" }}>No deduction rules</div>
+                  ) : (
+                    rules
+                      .filter(r => r.type === "deduction")
+                      .map(rule => (
+                        <div key={rule.id} style={{ fontSize: 13, color: "#4b5563", marginBottom: 4 }}>
+                          • {rule.name}{" "}
+                          <span style={{ color: "#dc2626" }}>
+                            {rule.amountType === "percentage"
+                              ? `(-${rule.amount}% of base salary)`
+                              : `(-${formatCurrency(rule.amount)})`}
+                          </span>
+                        </div>
+                      ))
+                  )}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6, color: theme.accent.dark }}>
+                    Bonuses
+                  </div>
+                  {rules.filter(r => r.type === "bonus").length === 0 ? (
+                    <div style={{ fontSize: 13, color: "#9ca3af" }}>No bonus rules</div>
+                  ) : (
+                    rules
+                      .filter(r => r.type === "bonus")
+                      .map(rule => (
+                        <div key={rule.id} style={{ fontSize: 13, color: "#4b5563", marginBottom: 4 }}>
+                          • {rule.name}{" "}
+                          <span style={{ color: theme.accent.dark }}>
+                            {rule.amountType === "percentage"
+                              ? `(+${rule.amount}% of base salary)`
+                              : `(+${formatCurrency(rule.amount)})`}
+                          </span>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Edit Mode */}

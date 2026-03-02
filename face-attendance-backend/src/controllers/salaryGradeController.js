@@ -56,7 +56,7 @@ export const getSalaryGradeById = async (req, res) => {
 // Create salary grade
 export const createSalaryGrade = async (req, res) => {
   try {
-    const { code, name, level, baseSalary, description, isActive } = req.body;
+    const { code, name, level, baseSalary, description, isActive, minYearsOfService } = req.body;
 
     if (!code || !name || !baseSalary) {
       return res.status(400).json({
@@ -79,6 +79,7 @@ export const createSalaryGrade = async (req, res) => {
       name,
       level: parseInt(level) || 1,
       baseSalary: parseFloat(baseSalary) || 0,
+      minYearsOfService: parseInt(minYearsOfService) || 0,
       description: description || null,
       isActive: isActive !== undefined ? isActive : true
     });
@@ -101,7 +102,7 @@ export const createSalaryGrade = async (req, res) => {
 export const updateSalaryGrade = async (req, res) => {
   try {
     const { id } = req.params;
-    const { code, name, level, baseSalary, description, isActive } = req.body;
+    const { code, name, level, baseSalary, description, isActive, minYearsOfService } = req.body;
 
     const grade = await SalaryGrade.findByPk(id);
     if (!grade) {
@@ -127,6 +128,7 @@ export const updateSalaryGrade = async (req, res) => {
       name: name || grade.name,
       level: level !== undefined ? parseInt(level) : grade.level,
       baseSalary: baseSalary !== undefined ? parseFloat(baseSalary) : grade.baseSalary,
+      minYearsOfService: minYearsOfService !== undefined ? parseInt(minYearsOfService) : grade.minYearsOfService,
       description: description !== undefined ? description : grade.description,
       isActive: isActive !== undefined ? isActive : grade.isActive
     });
