@@ -439,6 +439,7 @@ export default function InsuranceFormTK1TS() {
   };
 
   const exportToPDF = async () => {
+    if (!validateForm()) return;
     try {
       setLoading(true);
       setMessage("Generating PDF...");
