@@ -149,6 +149,28 @@ function App() {
           background-position: 1000px 0;
         }
       }
+      
+      @keyframes slideDown {
+        from {
+          opacity: 0;
+          transform: translateY(-12px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      
+      @keyframes scaleIn {
+        from {
+          opacity: 0;
+          transform: scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
     `;
     if (!document.head.querySelector('style[data-payroll-animations]')) {
       styleSheet.setAttribute('data-payroll-animations', 'true');
@@ -165,17 +187,14 @@ function App() {
     return null; // Return null while redirecting
   }
 
-  // Modern Header Styles - Blue Pink Mystical Theme
   const headerStyle = {
-    background: "linear-gradient(135deg, #3b82f6 0%, #ec4899 50%, #f472b6 100%)",
-    backgroundSize: "200% 200%",
+    background: theme.primary.main,
     color: "#fff",
-    padding: "24px 32px",
-    boxShadow: "0 4px 30px rgba(59, 130, 246, 0.4), 0 0 60px rgba(236, 72, 153, 0.2)",
+    padding: "16px 32px",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
     position: "sticky",
     top: 0,
     zIndex: 1000,
-    animation: "fadeIn 0.5s ease-out, gradientShift 8s ease infinite"
   };
 
   const headerContentStyle = {
@@ -187,13 +206,13 @@ function App() {
   };
 
   const titleStyle = {
-    fontSize: "28px",
-    fontWeight: "800",
+    fontSize: "22px",
+    fontWeight: "700",
     margin: 0,
     letterSpacing: "-0.02em",
     display: "flex",
     alignItems: "center",
-    gap: "12px"
+    gap: "10px",
   };
 
   const userInfoStyle = {
@@ -203,64 +222,57 @@ function App() {
   };
 
   const avatarStyle = {
-    width: "48px",
-    height: "48px",
+    width: "40px",
+    height: "40px",
     borderRadius: "50%",
-    background: "rgba(255, 255, 255, 0.2)",
-    backdropFilter: "blur(10px)",
+    background: "rgba(255,255,255,0.15)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontWeight: "700",
-    fontSize: "18px",
-    border: "2px solid rgba(255, 255, 255, 0.3)",
-    transition: "all 0.3s"
+    fontWeight: "600",
+    fontSize: "16px",
+    border: "1px solid rgba(255,255,255,0.25)",
   };
 
   const logoutButtonStyle = {
-    padding: "12px 24px",
-    background: "rgba(255, 255, 255, 0.2)",
-    backdropFilter: "blur(10px)",
-    border: "2px solid rgba(255, 255, 255, 0.3)",
-    borderRadius: "12px",
+    padding: "10px 20px",
+    background: "rgba(255,255,255,0.12)",
+    border: "1px solid rgba(255,255,255,0.25)",
+    borderRadius: "8px",
     color: "#fff",
     cursor: "pointer",
     fontWeight: "600",
     fontSize: "14px",
-    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    transition: "background 0.2s, border-color 0.2s",
   };
 
-  // Modern Navigation Styles
   const navStyle = {
     display: "flex",
-    gap: "8px",
-    marginBottom: "32px",
+    gap: "4px",
+    marginBottom: "24px",
     backgroundColor: "#fff",
-    padding: "8px",
-    borderRadius: "16px",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-    border: "1px solid #e5e7eb",
+    padding: "6px",
+    borderRadius: "10px",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+    border: "1px solid #e2e8f0",
     overflowX: "auto",
-    animation: "fadeInUp 0.6s ease-out 0.1s backwards"
+    animation: "fadeInUp 0.45s ease-out 0.05s backwards",
   };
 
   const navButtonStyle = (isActive) => ({
-    padding: "14px 24px",
-    backgroundColor: isActive ? "linear-gradient(135deg, #3b82f6, #ec4899)" : "transparent",
-    background: isActive ? "linear-gradient(135deg, #3b82f6, #ec4899)" : "transparent",
-    color: isActive ? "#fff" : "#6b7280",
+    padding: "12px 20px",
+    background: isActive ? theme.accent.main : "transparent",
+    color: isActive ? "#fff" : "#64748b",
     border: "none",
-    borderRadius: "12px",
+    borderRadius: "8px",
     cursor: "pointer",
-    fontWeight: isActive ? "700" : "600",
-    fontSize: "15px",
-    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-    boxShadow: isActive ? "0 4px 20px rgba(59, 130, 246, 0.4), 0 0 20px rgba(236, 72, 153, 0.3)" : "none",
+    fontWeight: isActive ? "600" : "500",
+    fontSize: "14px",
+    transition: "background 0.25s ease, color 0.25s ease, transform 0.2s ease",
     display: "flex",
     alignItems: "center",
     gap: "8px",
     whiteSpace: "nowrap",
-    position: "relative"
   });
 
   const navigationItems = [
@@ -278,28 +290,18 @@ function App() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "linear-gradient(180deg, #f0f9ff 0%, #fdf2f8 100%)",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif"
+      background: theme.colors.light,
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
     }}>
       {/* Modern Header */}
       <header style={headerStyle}>
         <div style={headerContentStyle}>
           <h1 style={titleStyle}>
-            <span>💼</span>
+            <span aria-hidden>💼</span>
             <span>Payroll Management System</span>
           </h1>
           <div style={userInfoStyle}>
-            <div
-              style={avatarStyle}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "scale(1.1)";
-                e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "scale(1)";
-                e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
-              }}
-            >
+            <div style={avatarStyle}>
               {user?.name?.charAt(0)?.toUpperCase() || "K"}
             </div>
             <div>
@@ -314,14 +316,12 @@ function App() {
               onClick={handleLogout}
               style={logoutButtonStyle}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)";
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.2)";
+                e.currentTarget.style.background = "rgba(255,255,255,0.2)";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.4)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.background = "rgba(255,255,255,0.12)";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)";
               }}
             >
               Logout
@@ -348,14 +348,16 @@ function App() {
                 style={navButtonStyle(isActive)}
                 onMouseEnter={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.backgroundColor = "#e5e7eb";
-                    e.currentTarget.style.color = "#374151";
+                    e.currentTarget.style.backgroundColor = "#f1f5f9";
+                    e.currentTarget.style.color = "#334155";
+                    e.currentTarget.style.transform = "translateY(-1px)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive) {
                     e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "#6b7280";
+                    e.currentTarget.style.color = "#64748b";
+                    e.currentTarget.style.transform = "translateY(0)";
                   }
                 }}
               >
@@ -365,10 +367,8 @@ function App() {
           })}
         </div>
 
-        {/* Content Area - No nested divs */}
-        <div style={{
-          animation: "fadeInUp 0.5s ease-out"
-        }}>
+        {/* Content Area */}
+        <div style={{ animation: "fadeInUp 0.45s ease-out 0.1s backwards" }}>
           {currentView === "salary-calculation" && <SalaryCalculation />}
           {currentView === "salary-management" && <SalaryManagement />}
           {currentView === "salary-approval" && <SalaryApprovalDashboard />}
