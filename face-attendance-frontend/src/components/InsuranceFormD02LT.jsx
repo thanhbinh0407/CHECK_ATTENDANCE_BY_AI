@@ -982,7 +982,9 @@ export default function InsuranceFormD02LT() {
     marginRight: theme.spacing.md
   };
 
-  const isSuccessMessage = typeof message === "string" && message.trim().startsWith("✅");
+  const isSuccessMessage =
+    typeof message === "string" &&
+    (message.trim().startsWith("✅") || /successfully/i.test(message));
 
   return (
     <div style={containerStyle}>
@@ -1262,7 +1264,7 @@ export default function InsuranceFormD02LT() {
         <button
           style={{
             ...buttonStyle,
-            backgroundColor: loading ? theme.neutral.gray400 : theme.success.main,
+            backgroundColor: loading ? theme.neutral.gray400 : theme.primary.main,
             cursor: loading ? "not-allowed" : "pointer",
             opacity: loading ? 0.7 : 1
           }}
