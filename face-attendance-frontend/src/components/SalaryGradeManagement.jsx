@@ -14,6 +14,7 @@ export default function SalaryGradeManagement() {
     code: "",
     name: "",
     level: 1,
+    minYearsOfService: 0,
     baseSalary: "",
     description: "",
     isActive: true
@@ -77,6 +78,7 @@ export default function SalaryGradeManagement() {
         code: "",
         name: "",
         level: 1,
+        minYearsOfService: 0,
         baseSalary: "",
         description: "",
         isActive: true
@@ -97,6 +99,7 @@ export default function SalaryGradeManagement() {
       code: grade.code,
       name: grade.name,
       level: grade.level,
+      minYearsOfService: grade.minYearsOfService !== undefined ? grade.minYearsOfService : 0,
       baseSalary: grade.baseSalary?.toString() || "",
       description: grade.description || "",
       isActive: grade.isActive !== undefined ? grade.isActive : true
@@ -192,6 +195,7 @@ export default function SalaryGradeManagement() {
                   code: "",
                   name: "",
                   level: 1,
+                  minYearsOfService: 0,
                   baseSalary: "",
                   description: "",
                   isActive: true
@@ -230,6 +234,7 @@ export default function SalaryGradeManagement() {
                   <th style={{ padding: theme.spacing.md, textAlign: "left", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>Code</th>
                   <th style={{ padding: theme.spacing.md, textAlign: "left", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>Name</th>
                   <th style={{ padding: theme.spacing.md, textAlign: "center", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>Level</th>
+                  <th style={{ padding: theme.spacing.md, textAlign: "center", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>Min. Years</th>
                   <th style={{ padding: theme.spacing.md, textAlign: "right", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>Base Salary</th>
                   <th style={{ padding: theme.spacing.md, textAlign: "center", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>Status</th>
                   <th style={{ padding: theme.spacing.md, textAlign: "center", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>Actions</th>
@@ -243,6 +248,7 @@ export default function SalaryGradeManagement() {
                     <td style={{ padding: theme.spacing.md, fontWeight: 600 }}>{grade.code}</td>
                     <td style={{ padding: theme.spacing.md }}>{grade.name}</td>
                     <td style={{ padding: theme.spacing.md, textAlign: "center", fontWeight: 600, color: theme.primary.main }}>{grade.level}</td>
+                    <td style={{ padding: theme.spacing.md, textAlign: "center", fontWeight: 600, color: theme.primary.dark }}>{grade.minYearsOfService ?? 0} yr{grade.minYearsOfService !== 1 ? 's' : ''}</td>
                     <td style={{ padding: theme.spacing.md, textAlign: "right", fontWeight: 600, color: theme.success.main }}>{formatCurrency(grade.baseSalary)}</td>
                     <td style={{ padding: theme.spacing.md, textAlign: "center" }}>
                       <span style={{
@@ -395,15 +401,14 @@ export default function SalaryGradeManagement() {
                 </div>
                 <div>
                   <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>
-                    Base Salary (VND) *
+                    Min. Years of Service *
                   </label>
                   <input
                     type="number"
-                    value={formData.baseSalary}
-                    onChange={(e) => setFormData({ ...formData, baseSalary: e.target.value })}
+                    value={formData.minYearsOfService}
+                    onChange={(e) => setFormData({ ...formData, minYearsOfService: parseInt(e.target.value) || 0 })}
                     required
                     min="0"
-                    step="1000"
                     placeholder="0"
                     style={{
                       width: "100%",
@@ -414,6 +419,28 @@ export default function SalaryGradeManagement() {
                     }}
                   />
                 </div>
+              </div>
+
+              <div style={{ marginBottom: theme.spacing.md }}>
+                <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>
+                  Base Salary (VND) *
+                </label>
+                <input
+                  type="number"
+                  value={formData.baseSalary}
+                  onChange={(e) => setFormData({ ...formData, baseSalary: e.target.value })}
+                  required
+                  min="0"
+                  step="1000"
+                  placeholder="0"
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    border: `2px solid ${theme.neutral.gray300}`,
+                    borderRadius: theme.radius.md,
+                    fontSize: "14px"
+                  }}
+                />
               </div>
 
               <div style={{ marginBottom: theme.spacing.md }}>

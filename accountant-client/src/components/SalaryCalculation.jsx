@@ -137,6 +137,28 @@ export default function SalaryCalculation() {
     fetchRules();
   }, []);
 
+  // Auto-load existing salary records whenever month or year changes
+  useEffect(() => {
+    fetchExistingSalaries(selectedMonth, selectedYear);
+  }, [selectedMonth, selectedYear]);
+
+  const fetchExistingSalaries = async (month, year) => {
+    try {
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+      const res = await fetch(
+        `${apiBase}/api/salary?month=${month}&year=${year}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setCalculatedSalaries(data.salaries || []);
+      }
+    } catch (error) {
+      console.error("Error fetching existing salaries:", error);
+    }
+  };
+
   const fetchEmployees = async () => {
     try {
       const token = localStorage.getItem("authToken");
@@ -223,6 +245,8 @@ export default function SalaryCalculation() {
       }
 
       setCalculatedSalaries(calculatedSalariesList);
+      // Reload from API to get full data with User associations
+      await fetchExistingSalaries(selectedMonth, selectedYear);
       const successMsg = `Salary calculated for ${successCount} employee(s)${errorCount > 0 ? ` (${errorCount} error(s))` : ''}`;
       setToastPopup(successMsg);
       setTimeout(() => setToastPopup(""), 5000);
@@ -854,14 +878,14 @@ export default function SalaryCalculation() {
                     color: "#334155",
                     margin: "0 0 6px 0",
                   }}>
-                    No data yet
+                    No salary records
                   </h3>
                   <p style={{
                     fontSize: "14px",
                     color: "#64748b",
                     margin: 0,
                   }}>
-                    Click "Calculate" to start calculating salaries
+                    No data for this period. Click "Calculate" to generate salaries.
                   </p>
                 </td>
               </tr>
@@ -872,7 +896,7 @@ export default function SalaryCalculation() {
                   return (order[a.status] ?? 2) - (order[b.status] ?? 2);
                 })
                 .map((salary, index) => {
-                  const employee = employees.find(e => e.id === salary.userId);
+                  const employee = employees.find(e => e.id === salary.userId) || salary.User || {};
                   return (
                     <tr
                       key={salary.id}

@@ -618,8 +618,8 @@ export default function AdminDashboard() {
           {/* Employee Cards Grid - Leave Management style */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))",
-            gap: "28px"
+            gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
+            gap: "20px"
           }}>
             {filteredEmployees.map((emp, index) => {
               const hasFace = emp.FaceProfiles && emp.FaceProfiles.length > 0;
@@ -631,22 +631,22 @@ export default function AdminDashboard() {
                   key={emp.id}
                   style={{
                     backgroundColor: "#fff",
-                    borderRadius: "20px",
+                    borderRadius: "16px",
                     padding: "0",
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
                     border: "1px solid #e8e8e8",
                     transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                     position: "relative",
                     overflow: "hidden"
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-6px)";
-                    e.currentTarget.style.boxShadow = "0 12px 40px rgba(0,0,0,0.15)";
+                    e.currentTarget.style.transform = "translateY(-4px)";
+                    e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
                     e.currentTarget.style.borderColor = "#667eea";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.08)";
+                    e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
                     e.currentTarget.style.borderColor = "#e8e8e8";
                   }}
                 >
@@ -660,48 +660,48 @@ export default function AdminDashboard() {
                   {/* Status Badge */}
                   <div style={{
                     position: "absolute",
-                    top: "20px",
-                    right: "20px",
-                    padding: "8px 16px",
-                    borderRadius: "12px",
-                    fontSize: "12px",
-                    fontWeight: "700",
+                    top: "16px",
+                    right: "16px",
+                    padding: "5px 10px",
+                    borderRadius: "8px",
+                    fontSize: "10px",
+                    fontWeight: "600",
                     textTransform: "uppercase",
-                    letterSpacing: "0.8px",
+                    letterSpacing: "0.3px",
                     backgroundColor: statusStyle.bg,
                     color: statusStyle.color,
-                    border: `2px solid ${statusStyle.color}20`,
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                    border: `1px solid ${statusStyle.color}20`,
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
                     zIndex: 10
                   }}>
                     {statusStyle.text}
                   </div>
 
                   {/* Card Content */}
-                  <div style={{ padding: "28px" }} onClick={() => setSelectedEmployee(emp)}>
+                  <div style={{ padding: "20px" }} onClick={() => setSelectedEmployee(emp)}>
                     {/* Employee Info */}
-                    <div style={{ marginBottom: "24px", display: "flex", alignItems: "center", gap: "16px" }}>
+                    <div style={{ marginBottom: "16px", display: "flex", alignItems: "center", gap: "12px" }}>
                   <div style={{
-                    width: "64px",
-                    height: "64px",
-                    borderRadius: "16px",
+                    width: "56px",
+                    height: "56px",
+                    borderRadius: "14px",
                     background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: "28px",
+                    fontSize: "24px",
                     fontWeight: "700",
                     color: "#fff",
-                        boxShadow: "0 6px 16px rgba(102, 126, 234, 0.4)",
+                        boxShadow: "0 4px 12px rgba(102, 126, 234, 0.4)",
                         flexShrink: 0
                   }}>
                         {emp.name?.charAt(0)?.toUpperCase() || "?"}
                   </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <h3 style={{ margin: "0 0 6px 0", fontSize: "20px", fontWeight: "700", color: "#1a1a1a", lineHeight: "1.3" }}>
+                        <h3 style={{ margin: "0 0 4px 0", fontSize: "18px", fontWeight: "700", color: "#1a1a1a", lineHeight: "1.3" }}>
                           {emp.name || "N/A"}
                   </h3>
-                        <div style={{ fontSize: "14px", color: "#667eea", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
+                        <div style={{ fontSize: "13px", color: "#667eea", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
                           <span>👤</span> {emp.employeeCode || "N/A"}
                         </div>
                       </div>
@@ -710,74 +710,40 @@ export default function AdminDashboard() {
                     {/* Details Box - Leave Management style */}
                   <div style={{
                       backgroundColor: "#f8f9fa",
-                      borderRadius: "16px",
-                      padding: "20px",
-                      marginBottom: "24px",
+                      borderRadius: "12px",
+                      padding: "16px",
+                      marginBottom: "16px",
                       border: "1px solid #e8e8e8"
                     }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                        <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
-                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Email</div>
-                          <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600", wordBreak: "break-all" }}>{emp.email || "N/A"}</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                        <div style={{ padding: "10px", backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "10px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Department</div>
+                          <div style={{ fontSize: "12px", color: "#667eea", fontWeight: "700" }}>{emp.Department?.name || "N/A"}</div>
                         </div>
-                        <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
-                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Role</div>
-                          <div style={{ fontSize: "14px", color: "#1a1a1a", fontWeight: "700" }}>{emp.role || "Employee"}</div>
+                        <div style={{ padding: "10px", backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "10px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Job Title</div>
+                          <div style={{ fontSize: "12px", color: "#1a1a1a", fontWeight: "700" }}>{emp.JobTitle?.name || "N/A"}</div>
                         </div>
-                        <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
-                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Department</div>
-                          <div style={{ fontSize: "13px", color: "#667eea", fontWeight: "700" }}>{emp.Department?.name || "N/A"}</div>
+                        <div style={{ padding: "10px", backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "10px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Status</div>
+                          <div style={{ fontSize: "12px", color: 
+                            emp.employmentStatus === "active" ? "#28a745" :
+                            emp.employmentStatus === "maternity_leave" ? "#ffc107" :
+                            emp.employmentStatus === "unpaid_leave" ? "#ff9800" :
+                            emp.employmentStatus === "suspended" ? "#ff5722" :
+                            emp.employmentStatus === "terminated" || emp.employmentStatus === "resigned" ? "#dc3545" : "#666",
+                            fontWeight: "700" }}>
+                            {emp.employmentStatus === "active" ? "Active" :
+                             emp.employmentStatus === "maternity_leave" ? "Maternity Leave" :
+                             emp.employmentStatus === "unpaid_leave" ? "Unpaid Leave" :
+                             emp.employmentStatus === "suspended" ? "Suspended" :
+                             emp.employmentStatus === "terminated" ? "Terminated" :
+                             emp.employmentStatus === "resigned" ? "Resigned" : emp.employmentStatus || "Active"}
+                          </div>
                         </div>
-                        <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
-                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Job Title</div>
-                          <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "700" }}>{emp.JobTitle?.name || "N/A"}</div>
-                        </div>
-                        {emp.contractType && (
-                          <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
-                            <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Contract</div>
-                            <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600" }}>
-                              {emp.contractType === "probation" ? "Probation" :
-                               emp.contractType === "1_year" ? "1 year" :
-                               emp.contractType === "3_year" ? "3 years" :
-                               emp.contractType === "indefinite" ? "Indefinite" :
-                               emp.contractType === "other" ? "Other" : emp.contractType}
-                            </div>
-                          </div>
-                        )}
-                        {emp.employmentStatus && (
-                          <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
-                            <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Status</div>
-                            <div style={{ fontSize: "13px", color: 
-                              emp.employmentStatus === "active" ? "#28a745" :
-                              emp.employmentStatus === "maternity_leave" ? "#ffc107" :
-                              emp.employmentStatus === "unpaid_leave" ? "#ff9800" :
-                              emp.employmentStatus === "suspended" ? "#ff5722" :
-                              emp.employmentStatus === "terminated" || emp.employmentStatus === "resigned" ? "#dc3545" : "#666",
-                              fontWeight: "700" }}>
-                              {emp.employmentStatus === "active" ? "Active" :
-                               emp.employmentStatus === "maternity_leave" ? "Maternity Leave" :
-                               emp.employmentStatus === "unpaid_leave" ? "Unpaid Leave" :
-                               emp.employmentStatus === "suspended" ? "Suspended" :
-                               emp.employmentStatus === "terminated" ? "Terminated" :
-                               emp.employmentStatus === "resigned" ? "Resigned" : emp.employmentStatus}
-                            </div>
-                          </div>
-                        )}
-                        {emp.Manager && (
-                          <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
-                            <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Manager</div>
-                            <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600" }}>{emp.Manager.name || "N/A"}</div>
-                          </div>
-                        )}
-                        {emp.branchName && (
-                          <div style={{ padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
-                            <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Branch</div>
-                            <div style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: "600" }}>{emp.branchName}</div>
-                          </div>
-                        )}
-                        <div style={{ gridColumn: "1 / -1", padding: "12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e8e8e8" }}>
-                          <div style={{ fontSize: "11px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Start Date</div>
-                          <div style={{ fontSize: "14px", color: emp.startDate ? "#667eea" : "#999", fontWeight: "700" }}>
+                        <div style={{ padding: "10px", backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "10px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Start Date</div>
+                          <div style={{ fontSize: "12px", color: emp.startDate ? "#667eea" : "#999", fontWeight: "700" }}>
                             {emp.startDate
                               ? new Date(emp.startDate).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })
                               : "Not set"}
@@ -787,21 +753,21 @@ export default function AdminDashboard() {
                   </div>
 
                   {/* Action Buttons */}
-                    <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+                    <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
                     <button
                         onClick={(e) => { e.stopPropagation(); setSelectedEmployee(emp); }}
                       style={{
                         flex: 1,
-                          padding: "14px 24px",
+                          padding: "12px 20px",
                           backgroundColor: "#28a745",
                         color: "#fff",
                         border: "none",
-                          borderRadius: "12px",
+                          borderRadius: "10px",
                         cursor: "pointer",
-                          fontWeight: "700",
-                          fontSize: "14px",
+                          fontWeight: "600",
+                          fontSize: "13px",
                           transition: "all 0.3s",
-                          boxShadow: "0 4px 12px rgba(40, 167, 69, 0.3)"
+                          boxShadow: "0 3px 8px rgba(40, 167, 69, 0.3)"
                       }}
                       onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = "#218838";
@@ -818,16 +784,16 @@ export default function AdminDashboard() {
                         onClick={(e) => { e.stopPropagation(); deleteEmployee(emp.id); }}
                       style={{
                           flex: 1,
-                          padding: "14px 24px",
+                          padding: "12px 20px",
                         backgroundColor: "#dc3545",
                         color: "#fff",
                         border: "none",
-                          borderRadius: "12px",
+                          borderRadius: "10px",
                         cursor: "pointer",
-                          fontWeight: "700",
-                          fontSize: "14px",
+                          fontWeight: "600",
+                          fontSize: "13px",
                           transition: "all 0.3s",
-                          boxShadow: "0 4px 12px rgba(220, 53, 69, 0.3)"
+                          boxShadow: "0 3px 8px rgba(220, 53, 69, 0.3)"
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = "#c82333";

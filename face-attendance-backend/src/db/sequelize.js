@@ -1,4 +1,7 @@
+import 'dotenv/config';
 import { Sequelize } from 'sequelize';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const sequelize = new Sequelize({
   host: process.env.PG_HOST || '127.0.0.1',
