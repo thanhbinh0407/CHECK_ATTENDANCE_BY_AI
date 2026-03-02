@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 
-export default function SalaryHistory({ userId }) {
+const POLLING_INTERVAL = 30000; // 30 seconds
+
+export default function SalaryHistory({ userId, isActive }) {
   const [salaries, setSalaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedSalary, setSelectedSalary] = useState(null);
@@ -9,9 +11,31 @@ export default function SalaryHistory({ userId }) {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedYear, setSelectedYear] = useState("all"); // "all" or specific year
   const [statusFilter, setStatusFilter] = useState("all"); // "all", "pending", "approved", "paid"
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const pollingRef = useRef(null);
 
+  // Initial fetch
   useEffect(() => {
     fetchSalaries();
+  }, [userId]);
+
+  // Auto-polling: refresh salary data every 30s
+  useEffect(() => {
+    pollingRef.current = setInterval(() => {
+      fetchSalariesSilent();
+    }, POLLING_INTERVAL);
+    return () => clearInterval(pollingRef.current);
+  }, [userId]);
+
+  // Re-fetch when browser tab becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchSalariesSilent();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [userId]);
 
   const fetchSalaries = async () => {
@@ -32,6 +56,7 @@ export default function SalaryHistory({ userId }) {
       const data = await res.json();
       if (res.ok) {
         setSalaries(data.salaries || []);
+        setLastUpdated(new Date());
       }
     } catch (error) {
       console.error("Error fetching salaries:", error);
@@ -39,6 +64,30 @@ export default function SalaryHistory({ userId }) {
       setLoading(false);
     }
   };
+
+  // Silent fetch (no loading spinner) for background polling
+  const fetchSalariesSilent = useCallback(async () => {
+    try {
+      const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+
+      const res = await fetch(`${apiBase}/api/employee/salary`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setSalaries(data.salaries || []);
+        setLastUpdated(new Date());
+      }
+    } catch (error) {
+      // Silent fail for background polling
+    }
+  }, [userId]);
 
   const viewSalaryDetail = async (salary) => {
     setSelectedSalary(salary);
@@ -1065,7 +1114,7 @@ export default function SalaryHistory({ userId }) {
                     }}>
                       <div>
                         <div style={{ fontSize: "14px", fontWeight: "500", color: "#333", marginBottom: "4px" }}>Base Salary</div>
-                        <div style={{ fontSize: "11px", color: "#666" }}>Lương cơ bản theo hợp đồng</div>
+                        <div style={{ fontSize: "11px", color: "#666" }}>Base salary per employment contract</div>
                       </div>
                       <strong style={{ fontSize: "18px", fontWeight: "700", color: "#1a1a1a" }}>
                         {formatCurrency(salaryDetails?.baseSalary || selectedSalary.baseSalary)}
@@ -1088,12 +1137,12 @@ export default function SalaryHistory({ userId }) {
                               {item.ruleName || "Bonus"}
                             </div>
                             <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5", marginBottom: "4px" }}>
-                              {item.reason || item.ruleDescription || "Thưởng theo hiệu suất công việc"}
+                              {item.reason || item.ruleDescription || "Performance-based bonus"}
                             </div>
                             {item.quantity > 0 && (
                               <div style={{ fontSize: "10px", color: "#888", fontStyle: "italic" }}>
-                                Số lượng: {item.quantity} {item.triggerType === 'overtime' ? 'giờ' : item.triggerType === 'absent' ? 'ngày' : 'lần'}
-                                {item.amountType === 'percentage' && ` (${item.amount / salaryDetails.baseSalary * 100}% lương cơ bản)`}
+                                Quantity: {item.quantity} {item.triggerType === 'overtime' ? 'hours' : item.triggerType === 'absent' ? 'days' : 'times'}
+                                {item.amountType === 'percentage' && ` (${item.amount / salaryDetails.baseSalary * 100}% of base salary)`}
                               </div>
                             )}
                           </div>
@@ -1115,7 +1164,7 @@ export default function SalaryHistory({ userId }) {
                         <div>
                           <div style={{ fontSize: "14px", fontWeight: "500", color: "#333", marginBottom: "4px" }}>Bonus</div>
                           <div style={{ fontSize: "11px", color: "#666" }}>
-                            {selectedSalary.notes || "Thưởng theo hiệu suất công việc"}
+                            {selectedSalary.notes || "Performance-based bonus"}
                           </div>
                         </div>
                         <strong style={{ fontSize: "18px", fontWeight: "700", color: "#28a745" }}>
@@ -1139,9 +1188,9 @@ export default function SalaryHistory({ userId }) {
                       }}>
                         <div>
                           <div style={{ fontSize: "16px", fontWeight: "700", color: "#1976d2", marginBottom: "4px" }}>
-                            Tổng Thu Nhập (Gross Salary)
+                            Gross Income
                           </div>
-                          <div style={{ fontSize: "12px", color: "#666" }}>Tổng thu nhập trước thuế và bảo hiểm</div>
+                          <div style={{ fontSize: "12px", color: "#666" }}>Total income before tax and insurance</div>
                         </div>
                         <strong style={{ fontSize: "24px", fontWeight: "700", color: "#1976d2" }}>
                           {formatCurrency(salaryDetails?.grossSalary || (parseFloat(selectedSalary.baseSalary || 0) + parseFloat(selectedSalary.bonus || 0)))}
@@ -1158,11 +1207,11 @@ export default function SalaryHistory({ userId }) {
                         marginTop: "12px"
                       }}>
                         <div style={{ fontSize: "12px", fontWeight: "600", color: "#1976d2", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                          Chi Tiết Tính Toán:
+                          Calculation Details:
                         </div>
                         <div style={{ fontSize: "13px", color: "#333", lineHeight: "2", fontFamily: "monospace" }}>
                           <div style={{ marginBottom: "6px", display: "flex", justifyContent: "space-between" }}>
-                            <span>Lương cơ bản:</span>
+                            <span>Base salary:</span>
                             <strong style={{ color: "#333" }}>{formatCurrency(salaryDetails?.baseSalary || selectedSalary.baseSalary || 0)}</strong>
                           </div>
                           {salaryDetails?.bonusBreakdown && salaryDetails.bonusBreakdown.length > 0 ? (
@@ -1174,7 +1223,7 @@ export default function SalaryHistory({ userId }) {
                                 </div>
                               ))}
                               <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid #e0e0e0", display: "flex", justifyContent: "space-between", fontWeight: "600" }}>
-                                <span>Tổng thưởng:</span>
+                                <span>Total bonus:</span>
                                 <strong style={{ color: "#28a745" }}>
                                   {formatCurrency(salaryDetails.bonusBreakdown.reduce((sum, item) => sum + item.amount, 0))}
                                 </strong>
@@ -1182,7 +1231,7 @@ export default function SalaryHistory({ userId }) {
                             </>
                           ) : salaryDetails?.bonus > 0 ? (
                             <div style={{ marginBottom: "6px", display: "flex", justifyContent: "space-between", paddingLeft: "16px" }}>
-                              <span style={{ color: "#28a745" }}>+ Thưởng:</span>
+                              <span style={{ color: "#28a745" }}>+ Bonus:</span>
                               <strong style={{ color: "#28a745" }}>{formatCurrency(salaryDetails.bonus)}</strong>
                             </div>
                           ) : null}
@@ -1196,7 +1245,7 @@ export default function SalaryHistory({ userId }) {
                             fontWeight: "700",
                             color: "#1976d2"
                           }}>
-                            <span>= Tổng thu nhập (Gross Salary):</span>
+                            <span>= Gross Income:</span>
                             <strong>{formatCurrency(salaryDetails?.grossSalary || (parseFloat(selectedSalary.baseSalary || 0) + parseFloat(selectedSalary.bonus || 0)))}</strong>
                           </div>
                         </div>
@@ -1242,10 +1291,10 @@ export default function SalaryHistory({ userId }) {
                           }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: "14px", fontWeight: "600", color: "#333", marginBottom: "4px" }}>
-                                Bảo Hiểm Xã Hội (BHXH)
+                                Social Insurance
                               </div>
                               <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5" }}>
-                                8% lương cơ bản ({formatCurrency(salaryDetails.baseSalary)} × 8%)
+                                8% of base salary ({formatCurrency(salaryDetails.baseSalary)} × 8%)
                               </div>
                             </div>
                             <strong style={{ fontSize: "18px", fontWeight: "700", color: "#f57c00", marginLeft: "16px" }}>
@@ -1266,10 +1315,10 @@ export default function SalaryHistory({ userId }) {
                           }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: "14px", fontWeight: "600", color: "#333", marginBottom: "4px" }}>
-                                Bảo Hiểm Y Tế (BHYT)
+                                Health Insurance
                               </div>
                               <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5" }}>
-                                1.5% lương cơ bản ({formatCurrency(salaryDetails.baseSalary)} × 1.5%)
+                                1.5% of base salary ({formatCurrency(salaryDetails.baseSalary)} × 1.5%)
                               </div>
                             </div>
                             <strong style={{ fontSize: "18px", fontWeight: "700", color: "#f57c00", marginLeft: "16px" }}>
@@ -1290,10 +1339,10 @@ export default function SalaryHistory({ userId }) {
                           }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: "14px", fontWeight: "600", color: "#333", marginBottom: "4px" }}>
-                                Bảo Hiểm Thất Nghiệp (BHTN)
+                                Unemployment Insurance
                               </div>
                               <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5" }}>
-                                1% lương cơ bản ({formatCurrency(salaryDetails.baseSalary)} × 1%)
+                                1% of base salary ({formatCurrency(salaryDetails.baseSalary)} × 1%)
                               </div>
                             </div>
                             <strong style={{ fontSize: "18px", fontWeight: "700", color: "#f57c00", marginLeft: "16px" }}>
@@ -1313,7 +1362,7 @@ export default function SalaryHistory({ userId }) {
                             alignItems: "center"
                           }}>
                             <div style={{ fontSize: "13px", fontWeight: "600", color: "#e65100" }}>
-                              Tổng Bảo Hiểm (Nhân Viên)
+                              Total Insurance (Employee)
                             </div>
                             <strong style={{ fontSize: "16px", fontWeight: "700", color: "#e65100" }}>
                               -{formatCurrency(salaryDetails.employeeInsurance)}
@@ -1338,7 +1387,7 @@ export default function SalaryHistory({ userId }) {
                         <div>
                           <div style={{ fontSize: "14px", fontWeight: "500", color: "#333", marginBottom: "4px" }}>Social Insurance (Employee)</div>
                           <div style={{ fontSize: "11px", color: "#666" }}>
-                            Bảo hiểm xã hội, y tế, thất nghiệp (8% lương cơ bản)
+                            Social, health, unemployment insurance (8% of base salary)
                           </div>
                         </div>
                         <strong style={{ fontSize: "18px", fontWeight: "700", color: "#f57c00" }}>
@@ -1362,19 +1411,19 @@ export default function SalaryHistory({ userId }) {
                         }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: "14px", fontWeight: "600", color: "#333", marginBottom: "4px" }}>
-                              Thuế Thu Nhập Cá Nhân (TNCN)
+                              Personal Income Tax (PIT)
                             </div>
                             <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5", marginBottom: "4px" }}>
-                              Thu nhập chịu thuế: {formatCurrency(salaryDetails.taxBreakdown.taxableIncome || 0)}
+                              Taxable income: {formatCurrency(salaryDetails.taxBreakdown.taxableIncome || 0)}
                             </div>
                             {salaryDetails.taxBreakdown.taxRate && (
                               <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5" }}>
-                                Thuế suất: {salaryDetails.taxBreakdown.taxRate}%
+                                Tax rate: {salaryDetails.taxBreakdown.taxRate}%
                                 {salaryDetails.taxBreakdown.taxBrackets && salaryDetails.taxBreakdown.taxBrackets.length > 0 && (
                                   <div style={{ marginTop: "4px", paddingLeft: "8px", fontSize: "10px", color: "#888" }}>
                                     {salaryDetails.taxBreakdown.taxBrackets.map((bracket, idx) => (
                                       <div key={idx} style={{ marginBottom: "2px" }}>
-                                        Bậc {idx + 1}: {formatCurrency(bracket.amount)} (tỷ lệ: {bracket.rate}%)
+                                        Level {idx + 1}: {formatCurrency(bracket.amount)} (rate: {bracket.rate}%)
                                       </div>
                                     ))}
                                   </div>
@@ -1404,7 +1453,7 @@ export default function SalaryHistory({ userId }) {
                         <div>
                           <div style={{ fontSize: "14px", fontWeight: "500", color: "#333", marginBottom: "4px" }}>Personal Income Tax</div>
                           <div style={{ fontSize: "11px", color: "#666" }}>
-                            Thuế thu nhập cá nhân (theo biểu thuế lũy tiến)
+                            Personal income tax (progressive tax schedule)
                           </div>
                         </div>
                         <strong style={{ fontSize: "18px", fontWeight: "700", color: "#dc3545" }}>
@@ -1427,15 +1476,15 @@ export default function SalaryHistory({ userId }) {
                         }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: "14px", fontWeight: "600", color: "#333", marginBottom: "4px" }}>
-                              {item.ruleName || "Khấu trừ"}
+                              {item.ruleName || "Deduction"}
                             </div>
                             <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5", marginBottom: "4px" }}>
-                              {item.reason || item.ruleDescription || "Khấu trừ theo quy định"}
+                              {item.reason || item.ruleDescription || "Deduction per company policy"}
                             </div>
                             {item.quantity > 0 && (
                               <div style={{ fontSize: "10px", color: "#888", fontStyle: "italic" }}>
-                                Số lượng: {item.quantity} {item.triggerType === 'overtime' ? 'giờ' : item.triggerType === 'absent' ? 'ngày' : 'lần'}
-                                {item.amountType === 'percentage' && ` (${item.amount / salaryDetails.baseSalary * 100}% lương cơ bản)`}
+                                Quantity: {item.quantity} {item.triggerType === 'overtime' ? 'hours' : item.triggerType === 'absent' ? 'days' : 'times'}
+                                {item.amountType === 'percentage' && ` (${item.amount / salaryDetails.baseSalary * 100}% of base salary)`}
                               </div>
                             )}
                           </div>
@@ -1457,7 +1506,7 @@ export default function SalaryHistory({ userId }) {
                         <div>
                           <div style={{ fontSize: "14px", fontWeight: "500", color: "#333", marginBottom: "4px" }}>Other Deductions</div>
                           <div style={{ fontSize: "11px", color: "#666" }}>
-                            {selectedSalary.notes || "Các khoản khấu trừ khác (đi muộn, vắng mặt, v.v.)"}
+                            {selectedSalary.notes || "Other deductions (late arrivals, absences, etc.)"}
                           </div>
                         </div>
                         <strong style={{ fontSize: "18px", fontWeight: "700", color: "#dc3545" }}>
@@ -1506,13 +1555,13 @@ export default function SalaryHistory({ userId }) {
                       color: "#666",
                       marginBottom: "4px"
                     }}>
-                      Lương thực nhận
+                      Net Pay
                     </div>
                     <div style={{ 
                       fontSize: "12px", 
                       color: "#999"
                     }}>
-                      Net Pay
+                      Take-home salary
                     </div>
                   </div>
                   <strong style={{ 
@@ -1540,7 +1589,7 @@ export default function SalaryHistory({ userId }) {
                       paddingBottom: "12px",
                       borderBottom: "2px solid #f0f0f0"
                     }}>
-                      📊 Chi Tiết Tính Toán
+                      📊 Calculation Details
                     </div>
                     
                     {/* Gross Salary */}
@@ -1555,7 +1604,7 @@ export default function SalaryHistory({ userId }) {
                         justifyContent: "space-between",
                         alignItems: "center"
                       }}>
-                        <span style={{ fontSize: "14px", color: "#666" }}>Tổng thu nhập</span>
+                        <span style={{ fontSize: "14px", color: "#666" }}>Gross income</span>
                         <strong style={{ fontSize: "16px", color: "#1976d2", fontWeight: "600" }}>
                           {formatCurrency(salaryDetails.grossSalary)}
                         </strong>
@@ -1571,7 +1620,7 @@ export default function SalaryHistory({ userId }) {
                           marginBottom: "10px",
                           fontWeight: "500"
                         }}>
-                          Khấu trừ:
+                          Deductions:
                         </div>
                         
                         {salaryDetails.employeeInsurance > 0 && (
@@ -1583,7 +1632,7 @@ export default function SalaryHistory({ userId }) {
                             backgroundColor: "#fff3e0",
                             borderRadius: "6px"
                           }}>
-                            <span style={{ fontSize: "13px", color: "#666" }}>Bảo hiểm</span>
+                            <span style={{ fontSize: "13px", color: "#666" }}>Insurance</span>
                             <strong style={{ fontSize: "14px", color: "#f57c00", fontWeight: "600" }}>
                               -{formatCurrency(salaryDetails.employeeInsurance)}
                             </strong>
@@ -1599,7 +1648,7 @@ export default function SalaryHistory({ userId }) {
                             backgroundColor: "#ffebee",
                             borderRadius: "6px"
                           }}>
-                            <span style={{ fontSize: "13px", color: "#666" }}>Thuế TNCN</span>
+                            <span style={{ fontSize: "13px", color: "#666" }}>Income Tax</span>
                             <strong style={{ fontSize: "14px", color: "#dc3545", fontWeight: "600" }}>
                               -{formatCurrency(salaryDetails.tax)}
                             </strong>
@@ -1631,7 +1680,7 @@ export default function SalaryHistory({ userId }) {
                             backgroundColor: "#ffebee",
                             borderRadius: "6px"
                           }}>
-                            <span style={{ fontSize: "13px", color: "#666" }}>Khấu trừ khác</span>
+                            <span style={{ fontSize: "13px", color: "#666" }}>Other deductions</span>
                             <strong style={{ fontSize: "14px", color: "#dc3545", fontWeight: "600" }}>
                               -{formatCurrency(salaryDetails.deductions)}
                             </strong>
@@ -1654,7 +1703,7 @@ export default function SalaryHistory({ userId }) {
                         fontWeight: "600",
                         color: "#333"
                       }}>
-                        Lương thực nhận
+                        Net Pay
                       </span>
                       <strong style={{ 
                         fontSize: "20px", 
