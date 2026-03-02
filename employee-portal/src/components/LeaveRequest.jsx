@@ -864,7 +864,14 @@ export default function LeaveRequest({ userId }) {
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
+            <table style={{ 
+              width: "100%", 
+              borderCollapse: "separate", 
+              borderSpacing: "0",
+              border: "1px solid #868e96",
+              borderRadius: "8px",
+              overflow: "hidden"
+            }}>
               <thead>
                 <tr>
                   <th style={{ 
@@ -876,7 +883,9 @@ export default function LeaveRequest({ userId }) {
                     textTransform: "uppercase",
                     letterSpacing: "0.8px",
                     backgroundColor: "#f8f9fa",
-                    borderRadius: "8px 0 0 8px"
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96",
+                    borderTopLeftRadius: "8px"
                   }}>
                     Type
                   </th>
@@ -888,7 +897,9 @@ export default function LeaveRequest({ userId }) {
                     fontSize: "12px",
                     textTransform: "uppercase",
                     letterSpacing: "0.8px",
-                    backgroundColor: "#f8f9fa"
+                    backgroundColor: "#f8f9fa",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
                   }}>
                     Start Date
                   </th>
@@ -900,7 +911,9 @@ export default function LeaveRequest({ userId }) {
                     fontSize: "12px",
                     textTransform: "uppercase",
                     letterSpacing: "0.8px",
-                    backgroundColor: "#f8f9fa"
+                    backgroundColor: "#f8f9fa",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
                   }}>
                     End Date
                   </th>
@@ -912,7 +925,9 @@ export default function LeaveRequest({ userId }) {
                     fontSize: "12px",
                     textTransform: "uppercase",
                     letterSpacing: "0.8px",
-                    backgroundColor: "#f8f9fa"
+                    backgroundColor: "#f8f9fa",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
                   }}>
                     Days
                   </th>
@@ -924,7 +939,9 @@ export default function LeaveRequest({ userId }) {
                     fontSize: "12px",
                     textTransform: "uppercase",
                     letterSpacing: "0.8px",
-                    backgroundColor: "#f8f9fa"
+                    backgroundColor: "#f8f9fa",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
                   }}>
                     Status
                   </th>
@@ -937,14 +954,17 @@ export default function LeaveRequest({ userId }) {
                     textTransform: "uppercase",
                     letterSpacing: "0.8px",
                     backgroundColor: "#f8f9fa",
-                    borderRadius: "0 8px 8px 0"
+                    borderBottom: "2px solid #868e96",
+                    borderTopRightRadius: "8px"
                   }}>
                     Action
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {leaveRequests.map((request) => (
+                {leaveRequests.map((request, index) => {
+                  const isLastRow = index === leaveRequests.length - 1;
+                  return (
                   <tr key={request.id} style={{ 
                     backgroundColor: "#fff",
                     transition: "all 0.2s"
@@ -954,8 +974,9 @@ export default function LeaveRequest({ userId }) {
                       fontSize: "14px",
                       fontWeight: "600",
                       color: "#333",
-                      borderTop: "1px solid #f0f0f0",
-                      borderBottom: "1px solid #f0f0f0"
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      borderBottomLeftRadius: isLastRow ? "8px" : "0"
                     }}>
                       {getTypeLabel(request.type)}
                     </td>
@@ -963,8 +984,8 @@ export default function LeaveRequest({ userId }) {
                       padding: "20px 16px", 
                       fontSize: "14px",
                       color: "#666",
-                      borderTop: "1px solid #f0f0f0",
-                      borderBottom: "1px solid #f0f0f0"
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96"
                     }}>
                       {formatDate(request.startDate)}
                     </td>
@@ -972,8 +993,8 @@ export default function LeaveRequest({ userId }) {
                       padding: "20px 16px", 
                       fontSize: "14px",
                       color: "#666",
-                      borderTop: "1px solid #f0f0f0",
-                      borderBottom: "1px solid #f0f0f0"
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96"
                     }}>
                       {formatDate(request.endDate)}
                     </td>
@@ -983,24 +1004,24 @@ export default function LeaveRequest({ userId }) {
                       fontSize: "16px", 
                       fontWeight: "700",
                       color: "#1976d2",
-                      borderTop: "1px solid #f0f0f0",
-                      borderBottom: "1px solid #f0f0f0"
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96"
                     }}>
                       {request.days}
                     </td>
                     <td style={{ 
                       padding: "20px 16px", 
                       fontSize: "14px",
-                      borderTop: "1px solid #f0f0f0",
-                      borderBottom: "1px solid #f0f0f0"
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96"
                     }}>
                       {getStatusBadge(request.status)}
                     </td>
                     <td style={{ 
                       padding: "20px 16px", 
                       textAlign: "center",
-                      borderTop: "1px solid #f0f0f0",
-                      borderBottom: "1px solid #f0f0f0"
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderBottomRightRadius: isLastRow ? "8px" : "0"
                     }}>
                       {request.status === "pending" && (
                         <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
@@ -1060,7 +1081,8 @@ export default function LeaveRequest({ userId }) {
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1108,26 +1130,27 @@ export default function LeaveRequest({ userId }) {
             {/* Modal Header */}
             <div style={{ 
               padding: "24px 32px",
-              borderBottom: "2px solid #f0f0f0",
+              background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              backgroundColor: "#f8f9fa"
+              borderTopLeftRadius: "16px",
+              borderTopRightRadius: "16px"
             }}>
               <div>
                 <h2 style={{ 
                   margin: "0 0 4px 0", 
-                  fontSize: "24px", 
+                  fontSize: "22px", 
                   fontWeight: "700", 
-                  color: "#1a1a1a",
+                  color: "#fff",
                   letterSpacing: "-0.5px"
                 }}>
-                  {editingId ? "Edit Leave Request" : "Request Leave"}
+                  {editingId ? "✏️ Edit Leave Request" : "➕ Request Leave"}
                 </h2>
                 <p style={{ 
                   margin: 0, 
-                  fontSize: "14px", 
-                  color: "#666",
+                  fontSize: "13px", 
+                  color: "rgba(255, 255, 255, 0.9)",
                   fontWeight: "500"
                 }}>
                   {editingId ? "Update your leave request" : "Submit your leave request"}
@@ -1144,32 +1167,35 @@ export default function LeaveRequest({ userId }) {
                 }}
                 disabled={submitting}
                 style={{
-                  background: "none",
-                  border: "2px solid #e0e0e0",
+                  background: "rgba(255, 255, 255, 0.2)",
+                  border: "none",
                   borderRadius: "8px",
-                  width: "40px",
-                  height: "40px",
+                  width: "36px",
+                  height: "36px",
                   fontSize: "20px",
                   cursor: submitting ? "not-allowed" : "pointer",
-                  color: "#666",
+                  color: "#fff",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  transition: "all 0.2s",
-                  opacity: submitting ? 0.5 : 1
+                  transition: "all 0.3s ease",
+                  opacity: submitting ? 0.5 : 1,
+                  fontWeight: "600"
                 }}
                 onMouseEnter={(e) => {
                   if (!submitting) {
-                    e.currentTarget.style.backgroundColor = "#f5f5f5";
-                    e.currentTarget.style.borderColor = "#999";
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)";
+                    e.currentTarget.style.transform = "rotate(90deg)";
                   }
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.borderColor = "#e0e0e0";
+                  if (!submitting) {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
+                    e.currentTarget.style.transform = "rotate(0deg)";
+                  }
                 }}
               >
-                ✕
+                ×
               </button>
             </div>
 
@@ -1195,15 +1221,16 @@ export default function LeaveRequest({ userId }) {
                 {/* Leave Type */}
                 <div style={{ marginBottom: "24px" }}>
                   <label style={{ 
-                    display: "block", 
-                    marginBottom: "8px", 
-                    fontWeight: "700", 
-                    fontSize: "13px",
-                    color: "#333",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    marginBottom: "10px", 
+                    fontWeight: "600", 
+                    fontSize: "14px",
+                    color: "#333"
                   }}>
-                    Leave Type
+                    <span>📋</span>
+                    <span>Leave Type</span>
                   </label>
                   <select
                     value={formData.type}
@@ -1213,22 +1240,34 @@ export default function LeaveRequest({ userId }) {
                     }}
                     style={{
                       width: "100%",
-                      padding: "12px 16px",
+                      padding: "14px 16px",
                       border: "2px solid #e0e0e0",
-                      borderRadius: "8px",
-                      fontSize: "14px",
+                      borderRadius: "10px",
+                      fontSize: "15px",
                       fontWeight: "500",
                       cursor: "pointer",
-                      transition: "all 0.2s",
-                      outline: "none"
+                      transition: "all 0.3s ease",
+                      outline: "none",
+                      backgroundColor: "#f8f9fa",
+                      color: "#333"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
                     }}
                   >
-                    <option value="paid">Paid Leave</option>
-                    <option value="unpaid">Unpaid Leave</option>
-                    <option value="sick">Sick Leave</option>
-                    <option value="maternity">Maternity Leave</option>
-                    <option value="personal">Personal Leave</option>
-                    <option value="other">Other</option>
+                    <option value="paid">💰 Paid Leave</option>
+                    <option value="unpaid">📅 Unpaid Leave</option>
+                    <option value="sick">🏥 Sick Leave</option>
+                    <option value="maternity">👶 Maternity Leave</option>
+                    <option value="personal">👤 Personal Leave</option>
+                    <option value="other">📝 Other</option>
                   </select>
                 </div>
 
@@ -1236,15 +1275,17 @@ export default function LeaveRequest({ userId }) {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "24px" }}>
                   <div>
                     <label style={{ 
-                      display: "block", 
-                      marginBottom: "8px", 
-                      fontWeight: "700", 
-                      fontSize: "13px",
-                      color: "#333",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px"
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      marginBottom: "10px", 
+                      fontWeight: "600", 
+                      fontSize: "14px",
+                      color: "#333"
                     }}>
-                      Start Date *
+                      <span>📅</span>
+                      <span>Start Date</span>
+                      <span style={{ color: "#dc3545" }}>*</span>
                     </label>
                     <input
                       type="date"
@@ -1256,32 +1297,49 @@ export default function LeaveRequest({ userId }) {
                       }}
                       style={{
                         width: "100%",
-                        padding: "12px 16px",
+                        padding: "14px 16px",
                         border: formErrors.startDate ? "2px solid #dc3545" : "2px solid #e0e0e0",
-                        borderRadius: "8px",
-                        fontSize: "14px",
+                        borderRadius: "10px",
+                        fontSize: "15px",
                         fontWeight: "500",
-                        transition: "all 0.2s",
-                        outline: "none"
+                        transition: "all 0.3s ease",
+                        outline: "none",
+                        backgroundColor: formErrors.startDate ? "#fff" : "#f8f9fa"
+                      }}
+                      onFocus={(e) => {
+                        if (!formErrors.startDate) {
+                          e.target.style.borderColor = "#A2B9ED";
+                          e.target.style.backgroundColor = "white";
+                          e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (!formErrors.startDate) {
+                          e.target.style.borderColor = "#e0e0e0";
+                          e.target.style.backgroundColor = "#f8f9fa";
+                          e.target.style.boxShadow = "none";
+                        }
                       }}
                     />
                     {formErrors.startDate && (
-                      <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#dc3545", fontWeight: "500" }}>
+                      <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#dc3545", fontWeight: "500" }}>
                         {formErrors.startDate}
                       </p>
                     )}
                   </div>
                   <div>
                     <label style={{ 
-                      display: "block", 
-                      marginBottom: "8px", 
-                      fontWeight: "700", 
-                      fontSize: "13px",
-                      color: "#333",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px"
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      marginBottom: "10px", 
+                      fontWeight: "600", 
+                      fontSize: "14px",
+                      color: "#333"
                     }}>
-                      End Date *
+                      <span>⏰</span>
+                      <span>End Date</span>
+                      <span style={{ color: "#dc3545" }}>*</span>
                     </label>
                     <input
                       type="date"
@@ -1293,17 +1351,32 @@ export default function LeaveRequest({ userId }) {
                       min={formData.startDate}
                       style={{
                         width: "100%",
-                        padding: "12px 16px",
+                        padding: "14px 16px",
                         border: formErrors.endDate ? "2px solid #dc3545" : "2px solid #e0e0e0",
-                        borderRadius: "8px",
-                        fontSize: "14px",
+                        borderRadius: "10px",
+                        fontSize: "15px",
                         fontWeight: "500",
-                        transition: "all 0.2s",
-                        outline: "none"
+                        transition: "all 0.3s ease",
+                        outline: "none",
+                        backgroundColor: formErrors.endDate ? "#fff" : "#f8f9fa"
+                      }}
+                      onFocus={(e) => {
+                        if (!formErrors.endDate) {
+                          e.target.style.borderColor = "#A2B9ED";
+                          e.target.style.backgroundColor = "white";
+                          e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (!formErrors.endDate) {
+                          e.target.style.borderColor = "#e0e0e0";
+                          e.target.style.backgroundColor = "#f8f9fa";
+                          e.target.style.boxShadow = "none";
+                        }
                       }}
                     />
                     {formErrors.endDate && (
-                      <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#dc3545", fontWeight: "500" }}>
+                      <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#dc3545", fontWeight: "500" }}>
                         {formErrors.endDate}
                       </p>
                     )}
@@ -1313,15 +1386,17 @@ export default function LeaveRequest({ userId }) {
                 {/* Reason */}
                 <div style={{ marginBottom: "24px" }}>
                   <label style={{ 
-                    display: "block", 
-                    marginBottom: "8px", 
-                    fontWeight: "700", 
-                    fontSize: "13px",
-                    color: "#333",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    marginBottom: "10px", 
+                    fontWeight: "600", 
+                    fontSize: "14px",
+                    color: "#333"
                   }}>
-                    Reason *
+                    <span>📝</span>
+                    <span>Reason</span>
+                    <span style={{ color: "#dc3545" }}>*</span>
                   </label>
                   <textarea
                     value={formData.reason}
@@ -1331,21 +1406,36 @@ export default function LeaveRequest({ userId }) {
                     }}
                     style={{
                       width: "100%",
-                      padding: "12px 16px",
+                      padding: "14px 16px",
                       border: formErrors.reason ? "2px solid #dc3545" : "2px solid #e0e0e0",
-                      borderRadius: "8px",
-                      fontSize: "14px",
+                      borderRadius: "10px",
+                      fontSize: "15px",
                       minHeight: "120px",
                       resize: "vertical",
                       fontFamily: "inherit",
                       lineHeight: "1.6",
-                      transition: "all 0.2s",
-                      outline: "none"
+                      transition: "all 0.3s ease",
+                      outline: "none",
+                      backgroundColor: formErrors.reason ? "#fff" : "#f8f9fa"
                     }}
                     placeholder="Enter your reason for leave request..."
+                    onFocus={(e) => {
+                      if (!formErrors.reason) {
+                        e.target.style.borderColor = "#A2B9ED";
+                        e.target.style.backgroundColor = "white";
+                        e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                      }
+                    }}
+                    onBlur={(e) => {
+                      if (!formErrors.reason) {
+                        e.target.style.borderColor = "#e0e0e0";
+                        e.target.style.backgroundColor = "#f8f9fa";
+                        e.target.style.boxShadow = "none";
+                      }
+                    }}
                   />
                   {formErrors.reason && (
-                    <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#dc3545", fontWeight: "500" }}>
+                    <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#dc3545", fontWeight: "500" }}>
                       {formErrors.reason}
                     </p>
                   )}
@@ -1354,11 +1444,11 @@ export default function LeaveRequest({ userId }) {
 
               {/* Modal Footer */}
               <div style={{ 
-                padding: "20px 32px",
-                borderTop: "2px solid #f0f0f0",
+                padding: "24px 32px",
+                borderTop: "1px solid #e0e0e0",
                 backgroundColor: "#f8f9fa",
                 display: "flex",
-                gap: "12px",
+                gap: "16px",
                 justifyContent: "flex-end"
               }}>
                 <button
@@ -1373,28 +1463,31 @@ export default function LeaveRequest({ userId }) {
                   }}
                   disabled={submitting}
                   style={{
-                    padding: "12px 24px",
-                    backgroundColor: "#fff",
-                    color: "#666",
-                    border: "2px solid #e0e0e0",
-                    borderRadius: "8px",
+                    padding: "14px 28px",
+                    backgroundColor: "#6c757d",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "10px",
                     cursor: submitting ? "not-allowed" : "pointer",
-                    fontWeight: "700",
-                    fontSize: "14px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.8px",
-                    transition: "all 0.2s",
-                    opacity: submitting ? 0.5 : 1
+                    fontWeight: "600",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    opacity: submitting ? 0.5 : 1,
+                    boxShadow: "0 2px 8px rgba(108, 117, 125, 0.2)"
                   }}
                   onMouseEnter={(e) => {
                     if (!submitting) {
-                      e.currentTarget.style.backgroundColor = "#f5f5f5";
-                      e.currentTarget.style.borderColor = "#999";
+                      e.currentTarget.style.backgroundColor = "#5a6268";
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(108, 117, 125, 0.3)";
                     }
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#fff";
-                    e.currentTarget.style.borderColor = "#e0e0e0";
+                    if (!submitting) {
+                      e.currentTarget.style.backgroundColor = "#6c757d";
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "0 2px 8px rgba(108, 117, 125, 0.2)";
+                    }
                   }}
                 >
                   Cancel
@@ -1403,33 +1496,36 @@ export default function LeaveRequest({ userId }) {
                   type="submit"
                   disabled={submitting}
                   style={{
-                    padding: "12px 32px",
-                    backgroundColor: submitting ? "#90caf9" : "#1976d2",
+                    padding: "14px 32px",
+                    background: submitting 
+                      ? "linear-gradient(135deg, #90caf9 0%, #81b9f0 100%)" 
+                      : "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
                     color: "#fff",
                     border: "none",
-                    borderRadius: "8px",
+                    borderRadius: "10px",
                     cursor: submitting ? "not-allowed" : "pointer",
-                    fontWeight: "700",
-                    fontSize: "14px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.8px",
-                    transition: "all 0.2s",
+                    fontWeight: "600",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    boxShadow: submitting 
+                      ? "none" 
+                      : "0 4px 12px rgba(162, 185, 237, 0.3)",
                     display: "flex",
                     alignItems: "center",
                     gap: "8px"
                   }}
                   onMouseEnter={(e) => {
                     if (!submitting) {
-                      e.currentTarget.style.backgroundColor = "#1565c0";
-                      e.currentTarget.style.transform = "translateY(-1px)";
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(25,118,210,0.3)";
+                      e.currentTarget.style.background = "linear-gradient(135deg, #8BA3E0 0%, #7B93D0 100%)";
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow = "0 6px 16px rgba(162, 185, 237, 0.4)";
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!submitting) {
-                      e.currentTarget.style.backgroundColor = "#1976d2";
+                      e.currentTarget.style.background = "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)";
                       e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = "none";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(162, 185, 237, 0.3)";
                     }
                   }}
                 >
@@ -1446,7 +1542,7 @@ export default function LeaveRequest({ userId }) {
                       {editingId ? "Updating..." : "Submitting..."}
                     </>
                   ) : (
-                    editingId ? "Update Request" : "Submit Request"
+                    editingId ? "✏️ Update Request" : "✅ Submit Request"
                   )}
                 </button>
               </div>
