@@ -6,6 +6,20 @@ import AttendanceLog from "../models/pg/AttendanceLog.js";
 import ShiftSetting from "../models/pg/ShiftSetting.js";
 import { Op } from "sequelize";
 
+// Calculate working days in a month (exclude weekends)
+function getWorkingDaysInMonth(year, month) {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let workingDays = 0;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month - 1, day);
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      workingDays++;
+    }
+  }
+  return workingDays;
+}
+
 // Get all salary rules
 export const getAllSalaryRules = async (req, res) => {
   try {
@@ -239,16 +253,23 @@ export const calculateSalary = async (req, res) => {
       }
     }
 
-    // Calculate absent days (working days without IN log)
-    const totalDaysInMonth = new Date(year, month, 0).getDate();
-    const workingDays = new Set();
+    // Calculate absent days (working days without IN log — exclude weekends)
+    const totalWorkingDays = getWorkingDaysInMonth(parseInt(year), parseInt(month));
+    const presentDaysSet = new Set();
     logs.forEach(log => {
       if (log.type === 'IN') {
         const logDate = new Date(log.timestamp).getDate();
-        workingDays.add(logDate);
+        presentDaysSet.add(logDate);
       }
     });
-    const absentDays = totalDaysInMonth - workingDays.size;
+    const absentDays = Math.max(0, totalWorkingDays - presentDaysSet.size);
+
+    // Add allowances from employee profile
+    const allowanceFields = ['lunchAllowance', 'transportAllowance', 'phoneAllowance', 'responsibilityAllowance'];
+    for (const field of allowanceFields) {
+      const val = parseFloat(user[field]) || 0;
+      if (val > 0) bonus += val;
+    }
 
     // Apply rules
     for (const rule of rules) {
@@ -304,9 +325,9 @@ export const calculateSalary = async (req, res) => {
           }
           break;
         case 'full_attendance':
-          // Calculate full attendance (no late, no early leave, all days present with both IN and OUT)
-          const hasFullAttendance = logs.length >= totalDaysInMonth * 2 && lateCount === 0 && earlyLeaveCount === 0 && absentDays === 0;
-          if (hasFullAttendance && (!rule.threshold || totalDaysInMonth >= rule.threshold)) {
+          // Calculate full attendance (no late, no early leave, all working days present)
+          const hasFullAttendance = presentDaysSet.size >= totalWorkingDays && lateCount === 0 && earlyLeaveCount === 0 && absentDays === 0;
+          if (hasFullAttendance && (!rule.threshold || totalWorkingDays >= rule.threshold)) {
             shouldApply = true;
             ruleAmount = rule.amountType === 'percentage' 
               ? (baseSalary * parseFloat(rule.amount) / 100) 

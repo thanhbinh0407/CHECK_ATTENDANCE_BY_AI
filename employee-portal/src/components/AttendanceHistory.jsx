@@ -238,11 +238,62 @@ export default function AttendanceHistory({ userId }) {
   const stats = useMemo(() => {
     const totalDays = groupedLogs.length;
     const lateDays = groupedLogs.filter(item => item.checkIn?.isLate).length;
-    const onTimeDays = totalDays - lateDays;
-    const onTimeRate = totalDays > 0 ? ((onTimeDays / totalDays) * 100).toFixed(1) : 0;
+    const earlyLeaveDays = groupedLogs.filter(item => item.checkOut?.isEarlyLeave).length;
 
-    return { totalDays, lateDays, onTimeDays, onTimeRate };
-  }, [groupedLogs]);
+    // Calculate working days in the month (exclude weekends)
+    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+    let totalWorkingDays = 0;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(selectedYear, selectedMonth - 1, day);
+      const dayOfWeek = date.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) totalWorkingDays++;
+    }
+    const absentDays = Math.max(0, totalWorkingDays - totalDays);
+
+    return { totalDays, lateDays, earlyLeaveDays, absentDays };
+  }, [groupedLogs, selectedMonth, selectedYear]);
+
+  // Include absent days in the attendance table
+  const allWorkdayLogs = useMemo(() => {
+    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    const existingDates = new Set(groupedLogs.map(item => item.date));
+    const absentRows = [];
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(selectedYear, selectedMonth - 1, day);
+      if (date > today) continue;
+      const dayOfWeek = date.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+      const dateStr = date.toLocaleDateString("vi-VN");
+      if (!existingDates.has(dateStr)) {
+        absentRows.push({ date: dateStr, checkIn: null, checkOut: null, isAbsent: true });
+      }
+    }
+
+    const result = [...groupedLogs, ...absentRows];
+
+    result.sort((a, b) => {
+      const parseViDate = (s) => {
+        const [d, m, y] = s.split("/");
+        return new Date(+y, +m - 1, +d);
+      };
+      return sortOrder === "desc"
+        ? parseViDate(b.date) - parseViDate(a.date)
+        : parseViDate(a.date) - parseViDate(b.date);
+    });
+
+    if (searchQuery) {
+      return result.filter(item =>
+        item.date.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    return result;
+  }, [groupedLogs, selectedMonth, selectedYear, sortOrder, searchQuery]);
 
   return (
     <div style={{
@@ -403,7 +454,7 @@ export default function AttendanceHistory({ userId }) {
           gap: "24px",
           marginBottom: "32px"
         }}>
-          {/* Total Days */}
+          {/* Total Days Worked */}
           <div style={{
             background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
             borderRadius: "16px",
@@ -445,7 +496,7 @@ export default function AttendanceHistory({ userId }) {
                 textTransform: "uppercase",
                 letterSpacing: "1px"
               }}>
-                Total Days
+                Total Days Worked
               </div>
               <div style={{
                 width: "48px",
@@ -485,7 +536,7 @@ export default function AttendanceHistory({ userId }) {
             </div>
           </div>
 
-          {/* On Time */}
+          {/* Late Days */}
           <div style={{
             background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
             borderRadius: "16px",
@@ -527,7 +578,7 @@ export default function AttendanceHistory({ userId }) {
                 textTransform: "uppercase",
                 letterSpacing: "1px"
               }}>
-                On Time
+                Late Days
               </div>
               <div style={{
                 width: "48px",
@@ -552,7 +603,7 @@ export default function AttendanceHistory({ userId }) {
               lineHeight: "1",
               marginBottom: "4px"
             }}>
-              {stats.onTimeDays}
+              {stats.lateDays}
             </div>
             
             <div style={{
@@ -560,11 +611,11 @@ export default function AttendanceHistory({ userId }) {
               color: "rgba(255,255,255,0.8)",
               fontWeight: "500"
             }}>
-              Punctual arrivals
+              Delayed check-ins
             </div>
           </div>
 
-          {/* Late Arrivals */}
+          {/* Early Leave Days */}
           <div style={{
             background: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
             borderRadius: "16px",
@@ -606,7 +657,7 @@ export default function AttendanceHistory({ userId }) {
                 textTransform: "uppercase",
                 letterSpacing: "1px"
               }}>
-                Late Arrivals
+                Early Leave Days
               </div>
               <div style={{
                 width: "48px",
@@ -632,7 +683,7 @@ export default function AttendanceHistory({ userId }) {
               lineHeight: "1",
               marginBottom: "4px"
             }}>
-              {stats.lateDays}
+              {stats.earlyLeaveDays}
             </div>
             
             <div style={{
@@ -640,11 +691,11 @@ export default function AttendanceHistory({ userId }) {
               color: "rgba(255,255,255,0.8)",
               fontWeight: "500"
             }}>
-              Delayed check-ins
+              Left before schedule
             </div>
           </div>
 
-          {/* On-Time Rate */}
+          {/* Absent Days */}
           <div style={{
             background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
             borderRadius: "16px",
@@ -686,7 +737,7 @@ export default function AttendanceHistory({ userId }) {
                 textTransform: "uppercase",
                 letterSpacing: "1px"
               }}>
-                On-Time Rate
+                Absent Days
               </div>
               <div style={{
                 width: "48px",
@@ -712,7 +763,7 @@ export default function AttendanceHistory({ userId }) {
               lineHeight: "1",
               marginBottom: "4px"
             }}>
-              {stats.onTimeRate}%
+              {stats.absentDays}
             </div>
             
             <div style={{
@@ -720,7 +771,7 @@ export default function AttendanceHistory({ userId }) {
               color: "rgba(255,255,255,0.8)",
               fontWeight: "500"
             }}>
-              Punctuality score
+              Days not recorded
             </div>
           </div>
         </div>
@@ -859,11 +910,11 @@ export default function AttendanceHistory({ userId }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {groupedLogs.map((item, index) => (
+                  {allWorkdayLogs.map((item, index) => (
                     <tr 
                       key={index} 
                       style={{ 
-                        backgroundColor: "#fff",
+                        backgroundColor: item.isAbsent ? "#fff5f5" : "#fff",
                         transition: "all 0.2s",
                         cursor: "default"
                       }}
@@ -873,7 +924,7 @@ export default function AttendanceHistory({ userId }) {
                         e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "#fff";
+                        e.currentTarget.style.backgroundColor = item.isAbsent ? "#fff5f5" : "#fff";
                         e.currentTarget.style.transform = "translateY(0)";
                         e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.06)";
                       }}
@@ -974,7 +1025,11 @@ export default function AttendanceHistory({ userId }) {
                             <span style={{ backgroundColor: "#007bff", color: "#fff", padding: "5px 14px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Overtime</span>
                           )}
                           {!item.checkIn && !item.checkOut && (
-                            <span style={{ color: "#999", fontSize: "14px" }}>—</span>
+                            item.isAbsent ? (
+                              <span style={{ backgroundColor: "#dc3545", color: "#fff", padding: "5px 14px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Absent</span>
+                            ) : (
+                              <span style={{ color: "#999", fontSize: "14px" }}>—</span>
+                            )
                           )}
                         </div>
                       </td>
