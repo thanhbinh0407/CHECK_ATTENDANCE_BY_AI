@@ -23,6 +23,40 @@ export default function SalaryGradeManagement() {
   const [seniorityLoading, setSeniorityLoading] = useState(false);
   const [seniorityResults, setSeniorityResults] = useState(null);
 
+  // Custom confirm modal state
+  const [confirmModal, setConfirmModal] = useState({
+    show: false,
+    title: "",
+    message: "",
+    detail: "",
+    type: "warning", // warning | danger | info
+    confirmText: "Confirm",
+    cancelText: "Cancel",
+    onConfirm: null
+  });
+
+  const showConfirm = ({ title, message, detail, type = "warning", confirmText = "Confirm", cancelText = "Cancel" }) => {
+    return new Promise((resolve) => {
+      setConfirmModal({
+        show: true,
+        title,
+        message,
+        detail,
+        type,
+        confirmText,
+        cancelText,
+        onConfirm: () => {
+          setConfirmModal(prev => ({ ...prev, show: false }));
+          resolve(true);
+        },
+        onCancel: () => {
+          setConfirmModal(prev => ({ ...prev, show: false }));
+          resolve(false);
+        }
+      });
+    });
+  };
+
   useEffect(() => {
     fetchGrades();
   }, []);
@@ -48,6 +82,23 @@ export default function SalaryGradeManagement() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Check if base salary changed during edit — warn user
+      if (editingGrade) {
+        const oldBase = parseFloat(editingGrade.baseSalary) || 0;
+        const newBase = parseFloat(formData.baseSalary) || 0;
+        if (oldBase !== newBase) {
+          const confirmed = await showConfirm({
+            title: "Base Salary Change",
+            message: `Base salary will change from ${formatCurrency(oldBase)} to ${formatCurrency(newBase)}.`,
+            detail: `This will update the base salary for ALL employees currently assigned to grade "${editingGrade.code} - ${editingGrade.name}".`,
+            type: "warning",
+            confirmText: "Update All",
+            cancelText: "Cancel"
+          });
+          if (!confirmed) return;
+        }
+      }
+
       setLoading(true);
       setMessage("");
       const url = editingGrade
@@ -71,7 +122,15 @@ export default function SalaryGradeManagement() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Operation failed");
       
-      setMessage(`✅ Salary grade ${editingGrade ? "updated" : "created"} successfully!`);
+      let successMsg = `✅ Salary grade ${editingGrade ? "updated" : "created"} successfully!`;
+      if (data.updatedEmployeeCount > 0) {
+        successMsg += ` (${data.updatedEmployeeCount} employee(s) base salary updated`;
+        if (data.recalculatedSalaryCount > 0) {
+          successMsg += `, ${data.recalculatedSalaryCount} salary record(s) recalculated`;
+        }
+        successMsg += `)`;
+      }
+      setMessage(successMsg);
       setShowForm(false);
       setEditingGrade(null);
       setFormData({
@@ -107,8 +166,16 @@ export default function SalaryGradeManagement() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this salary grade?")) return;
+  const handleDelete = async (id) => { // eslint-disable-line
+    const confirmed = await showConfirm({
+      title: "Delete Salary Grade",
+      message: "Are you sure you want to delete this salary grade?",
+      detail: "This action cannot be undone. Employees assigned to this grade may be affected.",
+      type: "danger",
+      confirmText: "Delete",
+      cancelText: "Cancel"
+    });
+    if (!confirmed) return;
     
     try {
       setLoading(true);
@@ -607,7 +674,15 @@ export default function SalaryGradeManagement() {
                   </button>
                   <button
                     onClick={async () => {
-                      if (!window.confirm("Are you sure you want to apply salary increases for all eligible employees? This action cannot be undone.")) return;
+                      const confirmed = await showConfirm({
+                        title: "Apply Salary Increases",
+                        message: "Apply salary increases for all eligible employees?",
+                        detail: "This will upgrade salaries based on seniority for all active employees. This action cannot be undone.",
+                        type: "warning",
+                        confirmText: "Apply Now",
+                        cancelText: "Cancel"
+                      });
+                      if (!confirmed) return;
                       try {
                         setSeniorityLoading(true);
                         setMessage("");
@@ -745,6 +820,180 @@ export default function SalaryGradeManagement() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Professional Confirm Modal */}
+      {confirmModal.show && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
+            padding: "20px",
+            animation: "fadeIn 0.2s ease-out"
+          }}
+          onClick={() => confirmModal.onCancel?.()}
+        >
+          <div
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "440px",
+              boxShadow: "0 24px 48px rgba(0,0,0,0.2), 0 4px 8px rgba(0,0,0,0.1)",
+              overflow: "hidden",
+              animation: "slideUp 0.25s ease-out"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top color bar */}
+            <div style={{
+              height: "4px",
+              background: confirmModal.type === "danger"
+                ? "linear-gradient(90deg, #dc3545, #ff6b6b)"
+                : confirmModal.type === "info"
+                  ? "linear-gradient(90deg, #1976d2, #42a5f5)"
+                  : "linear-gradient(90deg, #f59e0b, #fbbf24)"
+            }} />
+
+            {/* Content */}
+            <div style={{ padding: "28px 32px 24px" }}>
+              {/* Icon + Title */}
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", marginBottom: "16px" }}>
+                <div style={{
+                  width: "48px",
+                  height: "48px",
+                  borderRadius: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  fontSize: "24px",
+                  backgroundColor: confirmModal.type === "danger"
+                    ? "#fef2f2"
+                    : confirmModal.type === "info"
+                      ? "#eff6ff"
+                      : "#fffbeb"
+                }}>
+                  {confirmModal.type === "danger" ? "🗑️" : confirmModal.type === "info" ? "ℹ️" : "⚠️"}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h3 style={{
+                    margin: "0 0 8px 0",
+                    fontSize: "18px",
+                    fontWeight: "700",
+                    color: "#111827",
+                    lineHeight: "1.3"
+                  }}>
+                    {confirmModal.title}
+                  </h3>
+                  <p style={{
+                    margin: 0,
+                    fontSize: "14px",
+                    color: "#374151",
+                    lineHeight: "1.6"
+                  }}>
+                    {confirmModal.message}
+                  </p>
+                </div>
+              </div>
+
+              {/* Detail box */}
+              {confirmModal.detail && (
+                <div style={{
+                  margin: "0 0 0 64px",
+                  padding: "12px 16px",
+                  backgroundColor: confirmModal.type === "danger" ? "#fef2f2" : "#fffbeb",
+                  borderRadius: "8px",
+                  borderLeft: `3px solid ${confirmModal.type === "danger" ? "#dc3545" : "#f59e0b"}`,
+                  fontSize: "13px",
+                  color: "#4b5563",
+                  lineHeight: "1.6"
+                }}>
+                  {confirmModal.detail}
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "12px",
+              padding: "16px 32px 24px",
+              backgroundColor: "#f9fafb"
+            }}>
+              <button
+                onClick={() => confirmModal.onCancel?.()}
+                style={{
+                  padding: "10px 24px",
+                  backgroundColor: "#fff",
+                  color: "#374151",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "10px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  fontSize: "14px",
+                  transition: "all 0.15s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#f3f4f6";
+                  e.currentTarget.style.borderColor = "#9ca3af";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#fff";
+                  e.currentTarget.style.borderColor = "#d1d5db";
+                }}
+              >
+                {confirmModal.cancelText}
+              </button>
+              <button
+                onClick={() => confirmModal.onConfirm?.()}
+                style={{
+                  padding: "10px 24px",
+                  backgroundColor: confirmModal.type === "danger" ? "#dc3545" : confirmModal.type === "info" ? "#1976d2" : "#f59e0b",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "10px",
+                  cursor: "pointer",
+                  fontWeight: "700",
+                  fontSize: "14px",
+                  boxShadow: `0 2px 8px ${confirmModal.type === "danger" ? "rgba(220,53,69,0.3)" : confirmModal.type === "info" ? "rgba(25,118,210,0.3)" : "rgba(245,158,11,0.3)"}`,
+                  transition: "all 0.15s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                  e.currentTarget.style.boxShadow = `0 4px 12px ${confirmModal.type === "danger" ? "rgba(220,53,69,0.4)" : confirmModal.type === "info" ? "rgba(25,118,210,0.4)" : "rgba(245,158,11,0.4)"}`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = `0 2px 8px ${confirmModal.type === "danger" ? "rgba(220,53,69,0.3)" : confirmModal.type === "info" ? "rgba(25,118,210,0.3)" : "rgba(245,158,11,0.3)"}`;
+                }}
+              >
+                {confirmModal.confirmText}
+              </button>
+            </div>
+          </div>
+
+          <style>{`
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes slideUp {
+              from { opacity: 0; transform: translateY(16px) scale(0.97); }
+              to { opacity: 1; transform: translateY(0) scale(1); }
+            }
+          `}</style>
         </div>
       )}
     </div>

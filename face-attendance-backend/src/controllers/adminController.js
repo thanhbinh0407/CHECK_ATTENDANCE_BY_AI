@@ -11,6 +11,7 @@ import Qualification from "../models/pg/Qualification.js";
 import WorkExperience from "../models/pg/WorkExperience.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
+import { recalculatePendingSalariesForUsers } from "../services/salaryCalculationService.js";
 
 // Get all employees
 export const getAllEmployees = async (req, res) => {
@@ -248,7 +249,21 @@ export const updateEmployee = async (req, res) => {
     if (contractType !== undefined) updateData.contractType = contractType === "" ? null : contractType;
     if (employmentStatus !== undefined) updateData.employmentStatus = employmentStatus === "" ? null : employmentStatus;
 
+    // Detect if salary-affecting fields changed
+    const salaryAffectingFields = ['baseSalary', 'lunchAllowance', 'transportAllowance', 'phoneAllowance', 'responsibilityAllowance', 'startDate'];
+    const salaryFieldsChanged = salaryAffectingFields.some(field => updateData[field] !== undefined);
+
     await employee.update(updateData);
+
+    // Recalculate pending/approved salary records if salary-affecting fields changed
+    let recalculatedSalaryCount = 0;
+    if (salaryFieldsChanged) {
+      const recalcResult = await recalculatePendingSalariesForUsers([parseInt(id)]);
+      recalculatedSalaryCount = recalcResult.recalculatedCount;
+      if (recalcResult.errors.length > 0) {
+        console.warn("Some salary recalculations failed:", recalcResult.errors);
+      }
+    }
 
     // Reload with associations
     await employee.reload({
@@ -259,11 +274,14 @@ export const updateEmployee = async (req, res) => {
       ]
     });
 
-    console.log(`Employee updated: ${employee.name} (ID: ${id})`);
+    console.log(`Employee updated: ${employee.name} (ID: ${id})${salaryFieldsChanged ? ` - ${recalculatedSalaryCount} salary record(s) recalculated` : ''}`);
 
     return res.json({
       status: "success",
-      message: "Employee updated successfully",
+      message: salaryFieldsChanged && recalculatedSalaryCount > 0
+        ? `Employee updated successfully. ${recalculatedSalaryCount} salary record(s) recalculated.`
+        : "Employee updated successfully",
+      recalculatedSalaryCount,
       employee: {
         id: employee.id,
         name: employee.name,
