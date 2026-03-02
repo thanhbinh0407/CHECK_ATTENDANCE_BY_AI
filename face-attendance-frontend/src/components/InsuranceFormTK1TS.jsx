@@ -164,20 +164,13 @@ export default function InsuranceFormTK1TS() {
     }
 
     const missing = [];
-
+``
     if (formType === "new") {
       if (!formData.name.trim()) {
         missing.push("[01] Full name");
       }
       if (!formData.dateOfBirth.trim()) {
         missing.push("[02] Date of birth");
-      } else {
-        // Expect DD/MM/YYYY for the "new" declaration type
-        const datePattern = /^\d{2}\/\d{2}\/\d{4}$/;
-        if (!datePattern.test(formData.dateOfBirth.trim())) {
-          setMessage("Please enter date of birth in DD/MM/YYYY format.");
-          return false;
-        }
       }
       if (!formData.gender) {
         missing.push("[03] Gender");
@@ -348,13 +341,9 @@ export default function InsuranceFormTK1TS() {
         setFormData(() => ({
           ...initialFormData,
           name: (emp.name || "").toUpperCase(),
-          // Hiển thị theo đúng thứ tự ngày/tháng/năm
-          // - Mode "new": dùng định dạng DD/MM/YYYY cho input text
-          // - Mode "update": dùng YYYY-MM-DD cho input type="date"
+          // Hiển thị theo format YYYY-MM-DD cho input type="date"
           dateOfBirth: emp.dateOfBirth
-            ? (formType === "new"
-              ? formatDateDDMMYYYY(emp.dateOfBirth)
-              : new Date(emp.dateOfBirth).toISOString().split("T")[0])
+            ? new Date(emp.dateOfBirth).toISOString().split("T")[0]
             : "",
           gender: emp.gender === "male" ? "Male" : emp.gender === "female" ? "Female" : "",
           nationality: "VN",
@@ -1147,6 +1136,13 @@ export default function InsuranceFormTK1TS() {
     marginRight: theme.spacing.md
   };
 
+  const readOnlyInputStyle = {
+    ...inputStyle,
+    backgroundColor: theme.neutral.gray100,
+    cursor: "not-allowed",
+    color: theme.neutral.gray600
+  };
+
   const isSuccessMessage = typeof message === "string" && message.trim().startsWith("✅");
 
   return (
@@ -1215,20 +1211,21 @@ export default function InsuranceFormTK1TS() {
                 <label style={labelStyle}>[01] Full name (UPPERCASE): *</label>
                 <input
                   type="text"
-                  style={inputStyle}
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value.toUpperCase())}
                   placeholder="NGUYEN VAN A"
+                  readOnly={!!selectedEmployee}
                 />
               </div>
               <div>
                 <label style={labelStyle}>[02] Date of birth: *</label>
                 <input
-                  type="text"
-                  style={inputStyle}
+                  type="date"
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                   value={formData.dateOfBirth}
                   onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
-                  placeholder="DD/MM/YYYY"
+                  readOnly={!!selectedEmployee}
                 />
               </div>
             </div>
@@ -1237,9 +1234,10 @@ export default function InsuranceFormTK1TS() {
               <div>
                 <label style={labelStyle}>[03] Gender: *</label>
                 <select
-                  style={inputStyle}
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                   value={formData.gender}
                   onChange={(e) => handleInputChange("gender", e.target.value)}
+                  disabled={!!selectedEmployee}
                 >
                   <option value="">-- Select --</option>
                   <option value="Male">Male</option>
@@ -1389,18 +1387,20 @@ export default function InsuranceFormTK1TS() {
                       <label style={{ ...labelStyle, fontSize: "11px" }}>[07.1] House no./Street/Hamlet:</label>
                       <input
                         type="text"
-                        style={inputStyle}
+                        style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                         value={formData.addressStreet}
                         onChange={(e) => handleInputChange("addressStreet", e.target.value)}
+                        readOnly={!!selectedEmployee}
                       />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: "11px" }}>[07.2] Hamlet:</label>
                       <input
                         type="text"
-                        style={inputStyle}
+                        style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                         value={formData.addressWard}
                         onChange={(e) => handleInputChange("addressWard", e.target.value)}
+                        readOnly={!!selectedEmployee}
                       />
                     </div>
                   </div>
@@ -1409,21 +1409,23 @@ export default function InsuranceFormTK1TS() {
                     <label style={{ ...labelStyle, fontSize: "11px" }}>[07.3] Commune:</label>
                       <input
                         type="text"
-                        style={inputStyle}
+                        style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                         value={formData.addressDistrict}
                         onChange={(e) => handleInputChange("addressDistrict", e.target.value)}
+                        readOnly={!!selectedEmployee}
                       />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: "11px" }}>[07.4] Province/City:</label>
                       <select
-                        style={inputStyle}
+                        style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                         value={formData.addressProvinceCode}
                         onChange={(e) => {
                           const province = vietnamProvinces.find(p => p.code === e.target.value);
                           handleInputChange("addressProvinceCode", e.target.value);
                           handleInputChange("addressProvince", province?.name || "");
                         }}
+                        disabled={!!selectedEmployee}
                       >
                         <option value="">-- Select province/city --</option>
                         {vietnamProvinces.map(province => (
@@ -1455,18 +1457,20 @@ export default function InsuranceFormTK1TS() {
                 <label style={labelStyle}>[08] ID/Passport/Citizen ID:</label>
                 <input
                   type="text"
-                  style={inputStyle}
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                   value={formData.idNumber}
                   onChange={(e) => handleInputChange("idNumber", e.target.value)}
+                  readOnly={!!selectedEmployee}
                 />
               </div>
               <div>
                 <label style={labelStyle}>[09] Phone number:</label>
                 <input
                   type="text"
-                  style={inputStyle}
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                   value={formData.phoneNumber}
                   onChange={(e) => handleInputChange("phoneNumber", e.target.value)}
+                  readOnly={!!selectedEmployee}
                 />
               </div>
             </div>
@@ -1527,18 +1531,20 @@ export default function InsuranceFormTK1TS() {
                 <label style={labelStyle}>[01] Full name (UPPERCASE): *</label>
                 <input
                   type="text"
-                  style={inputStyle}
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value.toUpperCase())}
+                  readOnly={!!selectedEmployee}
                 />
               </div>
               <div>
                 <label style={labelStyle}>[02] Date of birth: *</label>
                 <input
                   type="date"
-                  style={inputStyle}
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                   value={formData.dateOfBirth}
                   onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
+                  readOnly={!!selectedEmployee}
                 />
               </div>
             </div>
@@ -1547,9 +1553,10 @@ export default function InsuranceFormTK1TS() {
               <label style={labelStyle}>[03] Social Insurance number: *</label>
               <input
                 type="text"
-                style={inputStyle}
+                style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                 value={formData.socialInsuranceNumber}
                 onChange={(e) => handleInputChange("socialInsuranceNumber", e.target.value)}
+                readOnly={!!selectedEmployee}
               />
             </div>
 
@@ -1588,18 +1595,20 @@ export default function InsuranceFormTK1TS() {
               <label style={labelStyle}>Household head full name:</label>
               <input
                 type="text"
-                style={inputStyle}
+                style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                 value={formData.householdHeadName}
                 onChange={(e) => handleInputChange("householdHeadName", e.target.value)}
+                readOnly={!!selectedEmployee}
               />
             </div>
             <div>
               <label style={labelStyle}>Phone number (optional):</label>
               <input
                 type="text"
-                style={inputStyle}
+                style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                 value={formData.householdHeadPhone}
                 onChange={(e) => handleInputChange("householdHeadPhone", e.target.value)}
+                readOnly={!!selectedEmployee}
               />
             </div>
           </div>
@@ -1633,30 +1642,33 @@ export default function InsuranceFormTK1TS() {
                 <label style={labelStyle}>Hamlet:</label>
                 <input
                   type="text"
-                  style={inputStyle}
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                   value={formData.householdAddressWard}
                   onChange={(e) => handleInputChange("householdAddressWard", e.target.value)}
+                  readOnly={!!selectedEmployee}
                 />
               </div>
               <div>
                 <label style={labelStyle}>Commune:</label>
                 <input
                   type="text"
-                  style={inputStyle}
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                   value={formData.householdAddressDistrict}
                   onChange={(e) => handleInputChange("householdAddressDistrict", e.target.value)}
+                  readOnly={!!selectedEmployee}
                 />
               </div>
               <div>
                 <label style={labelStyle}>Province/City:</label>
                 <select
-                  style={inputStyle}
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
                   value={formData.householdAddressProvinceCode}
                   onChange={(e) => {
                     const province = vietnamProvinces.find(p => p.code === e.target.value);
                     handleInputChange("householdAddressProvinceCode", e.target.value);
                     handleInputChange("householdAddressProvince", province?.name || "");
                   }}
+                  disabled={!!selectedEmployee}
                 >
                   <option value="">-- Select province/city --</option>
                   {vietnamProvinces.map(province => (
