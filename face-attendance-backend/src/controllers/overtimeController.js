@@ -7,10 +7,17 @@ import { Op } from "sequelize";
 // Get all overtime requests
 export const getOvertimeRequests = async (req, res) => {
   try {
-    const { userId, status, month, year } = req.query;
+    const { userId: queryUserId, status, month, year } = req.query;
+    // Token contains userId, not id
+    const tokenUserId = req.user?.userId ?? req.user?.id;
 
     const where = {};
-    if (userId) where.userId = userId;
+    // If userId is provided in query, use it (for admin), otherwise use token userId (for employee)
+    if (queryUserId) {
+      where.userId = queryUserId;
+    } else if (tokenUserId) {
+      where.userId = tokenUserId;
+    }
     if (status) where.approvalStatus = status;
     if (month && year) {
       where.date = {
@@ -48,8 +55,10 @@ export const getOvertimeRequests = async (req, res) => {
 export const createOvertimeRequest = async (req, res) => {
   try {
     const { date, startTime, endTime, reason, projectName } = req.body;
-    const userId = req.user.id;
+    // Token contains userId, not id
+    const userId = req.user?.userId ?? req.user?.id;
 
+    // Validate required fields
     if (!date || !startTime || !endTime || !reason) {
       return res.status(400).json({
         status: "error",
@@ -57,15 +66,38 @@ export const createOvertimeRequest = async (req, res) => {
       });
     }
 
+    // Validate user authentication
+    if (!userId) {
+      return res.status(401).json({
+        status: "error",
+        message: "User not authenticated"
+      });
+    }
+
     // Calculate total hours
+    // Handle both same-day and overnight scenarios
     const start = new Date(`${date}T${startTime}`);
-    const end = new Date(`${date}T${endTime}`);
+    let end = new Date(`${date}T${endTime}`);
+    
+    // If end time is before start time, assume it's the next day (overnight work)
+    if (end < start) {
+      end = new Date(end.getTime() + 24 * 60 * 60 * 1000); // Add 24 hours
+    }
+    
     const totalHours = (end - start) / (1000 * 60 * 60);
 
     if (totalHours <= 0) {
       return res.status(400).json({
         status: "error",
         message: "End time must be after start time"
+      });
+    }
+
+    // Validate total hours is reasonable (not more than 24 hours)
+    if (totalHours > 24) {
+      return res.status(400).json({
+        status: "error",
+        message: "Overtime hours cannot exceed 24 hours"
       });
     }
 
@@ -125,7 +157,7 @@ export const approveOvertimeRequest = async (req, res) => {
   try {
     const { id } = req.params;
     const { action, comments } = req.body; // action: 'approve' or 'reject'
-    const approverId = req.user.id;
+    const approverId = req.user?.userId ?? req.user?.id;
 
     const request = await OvertimeRequest.findByPk(id, {
       include: [

@@ -70,7 +70,7 @@ export default function BusinessTripRequest({ userId }) {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("✅ Yêu cầu đi công tác đã được gửi thành công!");
+        setMessage("✅ Business trip request submitted successfully!");
         setShowForm(false);
         setFormData({
           startDate: new Date().toISOString().split('T')[0],
@@ -84,11 +84,11 @@ export default function BusinessTripRequest({ userId }) {
         fetchRequests();
         setTimeout(() => setMessage(""), 5000);
       } else {
-        setMessage(`❌ Lỗi: ${data.message || "Không thể tạo yêu cầu"}`);
+        setMessage(`❌ Error: ${data.message || "Unable to create request"}`);
       }
     } catch (error) {
       console.error("Error creating business trip request:", error);
-      setMessage(`❌ Lỗi: ${error.message}`);
+      setMessage(`❌ Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -116,22 +116,25 @@ export default function BusinessTripRequest({ userId }) {
       rejected: { backgroundColor: "#dc3545", color: "#fff" }
     };
     const labels = {
-      pending: "ĐANG CHỜ DUYỆT",
-      approved: "ĐÃ DUYỆT",
-      rejected: "ĐÃ TỪ CHỐI"
+      pending: "PENDING",
+      approved: "APPROVED",
+      rejected: "REJECTED"
     };
     const style = styles[status] || styles.pending;
+    const label = labels[status] || status.toUpperCase();
+    
     return (
       <span style={{
-        ...style,
+        backgroundColor: style.backgroundColor,
+        color: style.color,
         padding: "5px 14px",
         borderRadius: "4px",
         fontSize: "11px",
         fontWeight: "600",
-        textTransform: "uppercase",
-        letterSpacing: "0.5px"
+        letterSpacing: "0.5px",
+        display: "inline-block"
       }}>
-        {labels[status] || status}
+        {label}
       </span>
     );
   };
@@ -164,14 +167,14 @@ export default function BusinessTripRequest({ userId }) {
               fontWeight: "700",
               color: "#1a1a1a"
             }}>
-              🧳 Yêu Cầu Đi Công Tác
+              🧳 Business Trip Request
             </h2>
             <p style={{
               margin: 0,
               color: "#666",
               fontSize: "14px"
             }}>
-              Tạo và theo dõi yêu cầu đi công tác
+              Create and track business trip requests
             </p>
           </div>
           <button
@@ -190,23 +193,26 @@ export default function BusinessTripRequest({ userId }) {
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#138496"}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#17a2b8"}
           >
-            + Tạo Yêu Cầu Mới
+            + Create New Request
           </button>
         </div>
       </div>
 
       {message && (
-        <div style={{
-          padding: "16px 20px",
-          backgroundColor: message.includes("✅") ? "#d4edda" : "#f8d7da",
-          border: `2px solid ${message.includes("✅") ? "#c3e6cb" : "#f5c6cb"}`,
-          borderRadius: "12px",
-          color: message.includes("✅") ? "#155724" : "#721c24",
-          marginBottom: "24px",
-          fontSize: "14px",
-          fontWeight: "500"
-        }}>
-          {message}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "24px" }}>
+          <div style={{
+            display: "inline-block",
+            padding: "10px 16px",
+            backgroundColor: message.includes("✅") ? "#d4edda" : "#f8d7da",
+            border: `2px solid ${message.includes("✅") ? "#c3e6cb" : "#f5c6cb"}`,
+            borderRadius: "999px",
+            color: message.includes("✅") ? "#155724" : "#721c24",
+            fontSize: "14px",
+            fontWeight: "500",
+            textAlign: "center"
+          }}>
+            {message}
+          </div>
         </div>
       )}
 
@@ -232,37 +238,93 @@ export default function BusinessTripRequest({ userId }) {
             style={{
               backgroundColor: "white",
               borderRadius: "16px",
-              padding: "32px",
               maxWidth: "700px",
               width: "100%",
               maxHeight: "90vh",
               overflowY: "auto",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+              display: "flex",
+              flexDirection: "column"
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{
-              margin: "0 0 24px 0",
-              fontSize: "24px",
-              fontWeight: "700",
-              color: "#1a1a1a"
+            {/* Modal header */}
+            <div style={{
+              padding: "24px 32px",
+              background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
+              color: "#fff",
+              borderBottom: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: "16px 16px 0 0",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              boxShadow: "0 4px 15px rgba(162, 185, 237, 0.3)"
             }}>
-              Tạo Yêu Cầu Đi Công Tác
-            </h3>
+              <div>
+                <h3 style={{
+                  margin: "0 0 4px 0",
+                  fontSize: "24px",
+                  fontWeight: "700",
+                  color: "#fff",
+                  letterSpacing: "-0.5px"
+                }}>
+                  Create Business Trip Request
+                </h3>
+                <p style={{
+                  margin: 0,
+                  fontSize: "14px",
+                  color: "rgba(255,255,255,0.9)",
+                  fontWeight: "500"
+                }}>
+                  Submit a new request for business travel
+                </p>
+              </div>
+              <button
+                onClick={() => setShowForm(false)}
+                style={{
+                  background: "rgba(255,255,255,0.2)",
+                  border: "none",
+                  borderRadius: "8px",
+                  width: "40px",
+                  height: "40px",
+                  fontSize: "20px",
+                  cursor: "pointer",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s",
+                  transform: "rotate(0deg)"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.3)";
+                  e.currentTarget.style.transform = "rotate(90deg)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.2)";
+                  e.currentTarget.style.transform = "rotate(0deg)";
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div style={{ padding: "32px" }}>
             <form onSubmit={handleSubmit}>
-              <div style={{ marginBottom: "20px" }}>
+              <div style={{ marginBottom: "24px" }}>
                 <label style={{
                   display: "block",
-                  marginBottom: "8px",
+                  marginBottom: "10px",
                   fontWeight: "600",
                   fontSize: "14px",
                   color: "#333"
                 }}>
-                  Thời Gian Công Tác *
+                  📅 Trip Duration *
                 </label>
-                <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: "16px", alignItems: "flex-end" }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>Ngày Bắt Đầu</div>
+                    <div style={{ fontSize: "12px", color: "#666", marginBottom: "6px", fontWeight: "500" }}>Start Date</div>
                     <input
                       type="date"
                       value={formData.startDate}
@@ -270,15 +332,28 @@ export default function BusinessTripRequest({ userId }) {
                       required
                       style={{
                         width: "100%",
-                        padding: "12px",
+                        padding: "14px",
                         border: "2px solid #e0e0e0",
-                        borderRadius: "8px",
-                        fontSize: "14px"
+                        borderRadius: "10px",
+                        fontSize: "15px",
+                        background: "#f8f9fa",
+                        transition: "all 0.3s",
+                        outline: "none"
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.border = "2px solid #A2B9ED";
+                        e.currentTarget.style.background = "#fff";
+                        e.currentTarget.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.border = "2px solid #e0e0e0";
+                        e.currentTarget.style.background = "#f8f9fa";
+                        e.currentTarget.style.boxShadow = "none";
                       }}
                     />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>Ngày Kết Thúc</div>
+                    <div style={{ fontSize: "12px", color: "#666", marginBottom: "6px", fontWeight: "500" }}>End Date</div>
                     <input
                       type="date"
                       value={formData.endDate}
@@ -287,38 +362,53 @@ export default function BusinessTripRequest({ userId }) {
                       min={formData.startDate}
                       style={{
                         width: "100%",
-                        padding: "12px",
+                        padding: "14px",
                         border: "2px solid #e0e0e0",
-                        borderRadius: "8px",
-                        fontSize: "14px"
+                        borderRadius: "10px",
+                        fontSize: "15px",
+                        background: "#f8f9fa",
+                        transition: "all 0.3s",
+                        outline: "none"
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.border = "2px solid #A2B9ED";
+                        e.currentTarget.style.background = "#fff";
+                        e.currentTarget.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.border = "2px solid #e0e0e0";
+                        e.currentTarget.style.background = "#f8f9fa";
+                        e.currentTarget.style.boxShadow = "none";
                       }}
                     />
                   </div>
                   {calculateDays() > 0 && (
                     <div style={{
-                      padding: "8px 12px",
+                      padding: "14px 16px",
                       backgroundColor: "#e3f2fd",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      fontWeight: "600",
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      fontWeight: "700",
                       color: "#17a2b8",
-                      whiteSpace: "nowrap"
+                      whiteSpace: "nowrap",
+                      minWidth: "80px",
+                      textAlign: "center"
                     }}>
-                      {calculateDays()} ngày
+                      {calculateDays()} {calculateDays() === 1 ? "day" : "days"}
                     </div>
                   )}
                 </div>
               </div>
 
-              <div style={{ marginBottom: "20px" }}>
+              <div style={{ marginBottom: "24px" }}>
                 <label style={{
                   display: "block",
-                  marginBottom: "8px",
+                  marginBottom: "10px",
                   fontWeight: "600",
                   fontSize: "14px",
                   color: "#333"
                 }}>
-                  Địa Điểm Công Tác *
+                  📍 Destination *
                 </label>
                 <select
                   value={formData.destination}
@@ -326,85 +416,127 @@ export default function BusinessTripRequest({ userId }) {
                   required
                   style={{
                     width: "100%",
-                    padding: "12px",
+                    padding: "14px",
                     border: "2px solid #e0e0e0",
-                    borderRadius: "8px",
-                    fontSize: "14px"
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    background: "#f8f9fa",
+                    transition: "all 0.3s",
+                    outline: "none",
+                    cursor: "pointer"
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.border = "2px solid #A2B9ED";
+                    e.currentTarget.style.background = "#fff";
+                    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.border = "2px solid #e0e0e0";
+                    e.currentTarget.style.background = "#f8f9fa";
+                    e.currentTarget.style.boxShadow = "none";
                   }}
                 >
-                  <option value="">Chọn địa điểm (tỉnh/thành phố)</option>
+                  <option value="">Select destination (province/city)</option>
                   {vietnamProvinces.map((name) => (
                     <option key={name} value={name}>{name}</option>
                   ))}
                 </select>
               </div>
 
-              <div style={{ marginBottom: "20px" }}>
+              <div style={{ marginBottom: "24px" }}>
                 <label style={{
                   display: "block",
-                  marginBottom: "8px",
+                  marginBottom: "10px",
                   fontWeight: "600",
                   fontSize: "14px",
                   color: "#333"
                 }}>
-                  Mục Đích Công Tác *
+                  📝 Purpose *
                 </label>
                 <textarea
                   value={formData.purpose}
                   onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
                   required
-                  placeholder="Mô tả mục đích và công việc cần thực hiện..."
+                  placeholder="Describe the purpose and work to be performed..."
                   rows="4"
                   style={{
                     width: "100%",
-                    padding: "12px",
+                    padding: "14px",
                     border: "2px solid #e0e0e0",
-                    borderRadius: "8px",
-                    fontSize: "14px",
-                    resize: "vertical"
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    resize: "vertical",
+                    background: "#f8f9fa",
+                    transition: "all 0.3s",
+                    outline: "none",
+                    fontFamily: "inherit"
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.border = "2px solid #A2B9ED";
+                    e.currentTarget.style.background = "#fff";
+                    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.border = "2px solid #e0e0e0";
+                    e.currentTarget.style.background = "#f8f9fa";
+                    e.currentTarget.style.boxShadow = "none";
                   }}
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "24px" }}>
                 <div>
                   <label style={{
                     display: "block",
-                    marginBottom: "8px",
+                    marginBottom: "10px",
                     fontWeight: "600",
                     fontSize: "14px",
                     color: "#333"
                   }}>
-                    Phương Tiện Di Chuyển
+                    🚗 Transport Type
                   </label>
                   <select
                     value={formData.transportType}
                     onChange={(e) => setFormData({ ...formData, transportType: e.target.value })}
                     style={{
                       width: "100%",
-                      padding: "12px",
+                      padding: "14px",
                       border: "2px solid #e0e0e0",
-                      borderRadius: "8px",
-                      fontSize: "14px"
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      background: "#f8f9fa",
+                      transition: "all 0.3s",
+                      outline: "none",
+                      cursor: "pointer"
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.border = "2px solid #A2B9ED";
+                      e.currentTarget.style.background = "#fff";
+                      e.currentTarget.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.border = "2px solid #e0e0e0";
+                      e.currentTarget.style.background = "#f8f9fa";
+                      e.currentTarget.style.boxShadow = "none";
                     }}
                   >
-                    <option value="">Chọn phương tiện</option>
-                    <option value="plane">Máy bay</option>
-                    <option value="train">Tàu hỏa</option>
-                    <option value="bus">Xe khách</option>
-                    <option value="car">Ô tô</option>
-                    <option value="other">Khác</option>
+                    <option value="">Select transport</option>
+                    <option value="plane">✈️ Plane</option>
+                    <option value="train">🚂 Train</option>
+                    <option value="bus">🚌 Bus</option>
+                    <option value="car">🚗 Car</option>
+                    <option value="other">🚲 Other</option>
                   </select>
                 </div>
                 <div>
                   <label style={{
                     display: "block",
-                    marginBottom: "8px",
+                    marginBottom: "10px",
                     fontWeight: "600",
                     fontSize: "14px",
                     color: "#333"
                   }}>
-                    Chi Phí Dự Kiến (VND)
+                    💰 Estimated Cost (VND)
                   </label>
                   <input
                     type="number"
@@ -412,13 +544,26 @@ export default function BusinessTripRequest({ userId }) {
                     onChange={(e) => setFormData({ ...formData, estimatedCost: e.target.value })}
                     min="0"
                     step="1000"
-                    placeholder="Nhập chi phí dự kiến"
+                    placeholder="Enter estimated cost"
                     style={{
                       width: "100%",
-                      padding: "12px",
+                      padding: "14px",
                       border: "2px solid #e0e0e0",
-                      borderRadius: "8px",
-                      fontSize: "14px"
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      background: "#f8f9fa",
+                      transition: "all 0.3s",
+                      outline: "none"
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.border = "2px solid #A2B9ED";
+                      e.currentTarget.style.background = "#fff";
+                      e.currentTarget.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.border = "2px solid #e0e0e0";
+                      e.currentTarget.style.background = "#f8f9fa";
+                      e.currentTarget.style.boxShadow = "none";
                     }}
                   />
                 </div>
@@ -427,66 +572,122 @@ export default function BusinessTripRequest({ userId }) {
               <div style={{ marginBottom: "24px" }}>
                 <label style={{
                   display: "block",
-                  marginBottom: "8px",
+                  marginBottom: "10px",
                   fontWeight: "600",
                   fontSize: "14px",
                   color: "#333"
                 }}>
-                  Nơi Ở (Tùy chọn)
+                  🏨 Accommodation (Optional)
                 </label>
                 <input
                   type="text"
                   value={formData.accommodation}
                   onChange={(e) => setFormData({ ...formData, accommodation: e.target.value })}
-                  placeholder="Tên khách sạn hoặc nơi ở"
+                  placeholder="Hotel name or accommodation"
                   style={{
                     width: "100%",
-                    padding: "12px",
+                    padding: "14px",
                     border: "2px solid #e0e0e0",
-                    borderRadius: "8px",
-                    fontSize: "14px"
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    background: "#f8f9fa",
+                    transition: "all 0.3s",
+                    outline: "none"
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.border = "2px solid #A2B9ED";
+                    e.currentTarget.style.background = "#fff";
+                    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.border = "2px solid #e0e0e0";
+                    e.currentTarget.style.background = "#f8f9fa";
+                    e.currentTarget.style.boxShadow = "none";
                   }}
                 />
               </div>
 
-              <div style={{ display: "flex", gap: "12px" }}>
+              <div style={{ 
+                display: "flex", 
+                gap: "16px", 
+                paddingTop: "24px",
+                borderTop: "2px solid #f0f0f0",
+                marginTop: "8px"
+              }}>
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
                   style={{
                     flex: 1,
-                    padding: "14px",
+                    padding: "14px 28px",
                     backgroundColor: "#6c757d",
                     color: "#fff",
                     border: "none",
-                    borderRadius: "8px",
+                    borderRadius: "10px",
                     cursor: "pointer",
                     fontWeight: "700",
-                    fontSize: "14px"
+                    fontSize: "15px",
+                    transition: "all 0.3s",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#5a6268";
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(108, 117, 125, 0.3)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#6c757d";
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
                   }}
                 >
-                  Hủy
+                  ✏️ Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading || calculateDays() <= 0}
                   style={{
                     flex: 1,
-                    padding: "14px",
-                    backgroundColor: "#17a2b8",
+                    padding: "14px 32px",
+                    background: loading || calculateDays() <= 0 
+                      ? "linear-gradient(135deg, #ccc 0%, #aaa 100%)" 
+                      : "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
                     color: "#fff",
                     border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
+                    borderRadius: "10px",
+                    cursor: loading || calculateDays() <= 0 ? "not-allowed" : "pointer",
                     fontWeight: "700",
-                    fontSize: "14px",
-                    opacity: (loading || calculateDays() <= 0) ? 0.6 : 1
+                    fontSize: "15px",
+                    transition: "all 0.3s",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    boxShadow: loading || calculateDays() <= 0 
+                      ? "none" 
+                      : "0 4px 15px rgba(162, 185, 237, 0.3)"
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!loading && calculateDays() > 0) {
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow = "0 6px 20px rgba(162, 185, 237, 0.4)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!loading && calculateDays() > 0) {
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "0 4px 15px rgba(162, 185, 237, 0.3)";
+                    }
                   }}
                 >
-                  {loading ? "Đang gửi..." : "Gửi Yêu Cầu"}
+                  {loading ? "⏳ Submitting..." : "✅ Submit Request"}
                 </button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       )}
@@ -509,7 +710,7 @@ export default function BusinessTripRequest({ userId }) {
               margin: "0 auto 16px",
               animation: "spin 1s linear infinite"
             }}></div>
-            <p style={{ margin: 0, fontSize: "16px", fontWeight: "500" }}>Đang tải...</p>
+            <p style={{ margin: 0, fontSize: "16px", fontWeight: "500" }}>Loading...</p>
             <style>{`
               @keyframes spin {
                 0% { transform: rotate(0deg); }
@@ -526,209 +727,312 @@ export default function BusinessTripRequest({ userId }) {
               fontWeight: "600",
               color: "#666"
             }}>
-              Chưa có yêu cầu đi công tác
+              No business trip requests yet
             </p>
             <p style={{ margin: 0, fontSize: "14px", color: "#999" }}>
-              Nhấn "Tạo Yêu Cầu Mới" để bắt đầu
+              Click "Create New Request" to get started
             </p>
           </div>
         ) : (
-          <div style={{ display: "grid", gap: "16px" }}>
-            {requests.map((request) => {
-              const startDate = new Date(request.startDate);
-              const endDate = new Date(request.endDate);
-              const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
-              
-              return (
-                <div
-                  key={request.id}
-                  style={{
-                    border: "2px solid #e0e0e0",
-                    borderRadius: "12px",
-                    padding: "24px",
-                    transition: "all 0.3s",
-                    backgroundColor: "#fff"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "#17a2b8";
-                    e.currentTarget.style.boxShadow = "0 4px 16px rgba(23,162,184,0.15)";
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "#e0e0e0";
-                    e.currentTarget.style.boxShadow = "none";
-                    e.currentTarget.style.transform = "translateY(0)";
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{
-                        fontSize: "22px",
-                        fontWeight: "700",
-                        color: "#1a1a1a",
-                        marginBottom: "8px",
-                        letterSpacing: "-0.5px"
-                      }}>
-                        {request.destination}
-                      </div>
-                      <div style={{ marginBottom: "4px" }}>
-                        {getStatusBadge(request.approvalStatus)}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "13px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                        Thời Gian
-                      </div>
-                      <div style={{ fontSize: "20px", fontWeight: "700", color: "#17a2b8", letterSpacing: "-0.5px" }}>
-                        {days} ngày
-                      </div>
-                    </div>
-                  </div>
+          <table style={{
+            width: "100%",
+            borderCollapse: "separate",
+            borderSpacing: "0",
+            border: "1px solid #868e96",
+            borderRadius: "8px",
+            overflow: "hidden"
+          }}>
+            <thead>
+              <tr style={{ backgroundColor: "#f8f9fa" }}>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96",
+                  borderTopLeftRadius: "8px"
+                }}>
+                  Destination
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Start Date
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  End Date
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "center",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Duration (Days)
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Purpose
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Transport
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "right",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Est. Cost
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Accommodation
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "center",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Status
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderRight: "1px solid #868e96"
+                }}>
+                  Created Date
+                </th>
+                <th style={{
+                  padding: "16px",
+                  textAlign: "left",
+                  fontWeight: "700",
+                  color: "#333",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  borderBottom: "2px solid #868e96",
+                  borderTopRightRadius: "8px"
+                }}>
+                  Approved Date
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((request, index) => {
+                const startDate = new Date(request.startDate);
+                const endDate = new Date(request.endDate);
+                const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+                const isLastRow = index === requests.length - 1;
 
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, 1fr)",
-                    gap: "12px",
-                    marginBottom: "12px",
-                    padding: "12px",
-                    backgroundColor: "#f8f9fa",
-                    borderRadius: "8px"
-                  }}>
-                    <div>
-                      <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                        Ngày Bắt Đầu
-                      </div>
-                      <div style={{ fontSize: "14px", fontWeight: "600", color: "#333" }}>
-                        {new Date(request.startDate).toLocaleDateString("vi-VN")}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                        Ngày Kết Thúc
-                      </div>
-                      <div style={{ fontSize: "14px", fontWeight: "600", color: "#333" }}>
-                        {new Date(request.endDate).toLocaleDateString("vi-VN")}
-                      </div>
-                    </div>
-                  </div>
+                const renderTransport = () => {
+                  if (!request.transportType) return "-";
+                  switch (request.transportType) {
+                    case "plane":
+                      return "Plane";
+                    case "train":
+                      return "Train";
+                    case "bus":
+                      return "Bus";
+                    case "car":
+                      return "Car";
+                    default:
+                      return request.transportType;
+                  }
+                };
 
-                  {request.purpose && (
-                    <div style={{
-                      padding: "12px 16px",
-                      backgroundColor: "#f8f9fa",
-                      borderRadius: "8px",
-                      marginBottom: "12px"
+                return (
+                  <tr key={request.id} style={{ backgroundColor: "#fff" }}>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333",
+                      fontWeight: "600",
+                      borderBottomLeftRadius: isLastRow ? "8px" : "0"
                     }}>
-                      <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                        Mục Đích
-                      </div>
-                      <div style={{ fontSize: "14px", color: "#333" }}>
-                        {request.purpose}
-                      </div>
-                    </div>
-                  )}
-
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, 1fr)",
-                    gap: "12px",
-                    marginBottom: "12px"
-                  }}>
-                    {request.transportType && (
-                      <div style={{
-                        padding: "12px",
-                        backgroundColor: "#e3f2fd",
-                        borderRadius: "8px"
-                      }}>
-                        <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                          Phương Tiện
-                        </div>
-                        <div style={{ fontSize: "13px", fontWeight: "600", color: "#333" }}>
-                          {request.transportType === "plane" ? "Máy bay" :
-                           request.transportType === "train" ? "Tàu hỏa" :
-                           request.transportType === "bus" ? "Xe khách" :
-                           request.transportType === "car" ? "Ô tô" :
-                           request.transportType}
-                        </div>
-                      </div>
-                    )}
-                    {request.estimatedCost && (
-                      <div style={{
-                        padding: "12px",
-                        backgroundColor: "#fff3e0",
-                        borderRadius: "8px"
-                      }}>
-                        <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                          Chi Phí Dự Kiến
-                        </div>
-                        <div style={{ fontSize: "13px", fontWeight: "600", color: "#f57c00" }}>
-                          {formatCurrency(request.estimatedCost)}
-                        </div>
-                      </div>
-                    )}
-                    {request.accommodation && (
-                      <div style={{
-                        padding: "12px",
-                        backgroundColor: "#e8f5e9",
-                        borderRadius: "8px"
-                      }}>
-                        <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                          Nơi Ở
-                        </div>
-                        <div style={{ fontSize: "13px", fontWeight: "600", color: "#333" }}>
-                          {request.accommodation}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, 1fr)",
-                    gap: "12px",
-                    paddingTop: "20px",
-                    borderTop: "2px solid #f0f0f0"
-                  }}>
-                    <div>
-                      <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                        Ngày Tạo
-                      </div>
-                      <div style={{ fontSize: "13px", fontWeight: "600", color: "#333" }}>
-                        {new Date(request.createdAt).toLocaleDateString("vi-VN")}
-                      </div>
-                    </div>
-                    {request.approvedAt && (
-                      <div>
-                        <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                          Ngày Duyệt
-                        </div>
-                        <div style={{ fontSize: "13px", fontWeight: "600", color: "#333" }}>
-                          {new Date(request.approvedAt).toLocaleDateString("vi-VN")}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {request.approverComments && (
-                    <div style={{
-                      marginTop: "12px",
-                      padding: "12px 16px",
-                      backgroundColor: "#e3f2fd",
-                      borderRadius: "8px",
-                      borderLeft: "4px solid #17a2b8"
+                      {request.destination}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333"
                     }}>
-                      <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px", textTransform: "uppercase", fontWeight: "600", letterSpacing: "0.5px" }}>
-                        Ghi Chú Từ Người Duyệt
+                      {new Date(request.startDate).toLocaleDateString("en-US")}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333"
+                    }}>
+                      {new Date(request.endDate).toLocaleDateString("en-US")}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      fontWeight: "700",
+                      textAlign: "center",
+                      color: "#17a2b8"
+                    }}>
+                      {days} days
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333",
+                      maxWidth: "260px"
+                    }}>
+                      <div style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap"
+                      }}>
+                        {request.purpose || "-"}
                       </div>
-                      <div style={{ fontSize: "13px", color: "#333" }}>
-                        {request.approverComments}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333"
+                    }}>
+                      {renderTransport()}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#f57c00",
+                      fontWeight: "600",
+                      textAlign: "right"
+                    }}>
+                      {request.estimatedCost ? formatCurrency(request.estimatedCost) : "-"}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333"
+                    }}>
+                      {request.accommodation || "-"}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      textAlign: "center"
+                    }}>
+                      {getStatusBadge(request.approvalStatus)}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333"
+                    }}>
+                      {new Date(request.createdAt).toLocaleDateString("en-US")}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      fontSize: "14px",
+                      color: "#333",
+                      borderBottomRightRadius: isLastRow ? "8px" : "0"
+                    }}>
+                      {request.approvedAt
+                        ? new Date(request.approvedAt).toLocaleDateString("en-US")
+                        : "-"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

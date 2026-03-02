@@ -92,10 +92,10 @@ function App() {
   }
 
   const headerStyle = {
-    backgroundColor: "#1a1a1a",
+    background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
     color: "#fff",
     padding: "20px 24px",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+    boxShadow: "0 4px 12px rgba(162, 185, 237, 0.3)"
   };
 
   const headerContentStyle = {
@@ -110,26 +110,49 @@ function App() {
     maxWidth: "1400px",
     margin: "0 auto",
     display: "flex",
-    gap: "4px",
+    gap: "2px",
     backgroundColor: "#fff",
-    borderBottom: "1px solid #e0e0e0",
-    padding: "0 24px"
+    borderBottom: "2px solid #e8eaf6",
+    padding: "0 24px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
   };
 
   const tabStyle = (active) => ({
-    padding: "14px 24px",
+    padding: "16px 28px",
     cursor: "pointer",
     fontWeight: "600",
     fontSize: "13px",
     textTransform: "uppercase",
-    letterSpacing: "0.5px",
+    letterSpacing: "0.8px",
     border: "none",
-    borderBottom: active ? "3px solid #1976d2" : "3px solid transparent",
-    color: active ? "#1976d2" : "#666",
-    backgroundColor: active ? "#f5f5f5" : "transparent",
-    transition: "all 0.2s ease",
-    outline: "none"
+    borderBottom: active ? "3px solid #A2B9ED" : "3px solid transparent",
+    color: active ? "#A2B9ED" : "#666",
+    background: active 
+      ? "linear-gradient(135deg, rgba(162, 185, 237, 0.12) 0%, rgba(139, 163, 224, 0.12) 100%)" 
+      : "transparent",
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    outline: "none",
+    position: "relative",
+    borderRadius: active ? "8px 8px 0 0" : "0",
+    transform: active ? "translateY(-2px)" : "translateY(0)",
+    boxShadow: active ? "0 4px 12px rgba(162, 185, 237, 0.15)" : "none"
   });
+
+  const handleTabHover = (e, isActive) => {
+    if (!isActive) {
+      e.target.style.background = "linear-gradient(135deg, rgba(162, 185, 237, 0.06) 0%, rgba(139, 163, 224, 0.06) 100%)";
+      e.target.style.color = "#A2B9ED";
+      e.target.style.transform = "translateY(-1px)";
+    }
+  };
+
+  const handleTabLeave = (e, isActive) => {
+    if (!isActive) {
+      e.target.style.background = "transparent";
+      e.target.style.color = "#666";
+      e.target.style.transform = "translateY(0)";
+    }
+  };
 
   const contentStyle = {
     maxWidth: "1400px",
@@ -199,48 +222,64 @@ function App() {
         <button
           onClick={() => setActiveTab("attendance")}
           style={tabStyle(activeTab === "attendance")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "attendance")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "attendance")}
         >
           Attendance
         </button>
         <button
           onClick={() => setActiveTab("salary")}
           style={tabStyle(activeTab === "salary")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "salary")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "salary")}
         >
           Salary
         </button>
         <button
           onClick={() => setActiveTab("leave")}
           style={tabStyle(activeTab === "leave")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "leave")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "leave")}
         >
           Leave Request
         </button>
         <button
           onClick={() => setActiveTab("qualifications")}
           style={tabStyle(activeTab === "qualifications")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "qualifications")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "qualifications")}
         >
           Qualifications
         </button>
         <button
           onClick={() => setActiveTab("dependents")}
           style={tabStyle(activeTab === "dependents")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "dependents")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "dependents")}
         >
           Dependents
         </button>
         <button
           onClick={() => setActiveTab("salary-advance")}
           style={tabStyle(activeTab === "salary-advance")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "salary-advance")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "salary-advance")}
         >
           Salary Advance
         </button>
         <button
           onClick={() => setActiveTab("overtime")}
           style={tabStyle(activeTab === "overtime")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "overtime")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "overtime")}
         >
           Overtime
         </button>
         <button
           onClick={() => setActiveTab("business-trip")}
           style={tabStyle(activeTab === "business-trip")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "business-trip")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "business-trip")}
         >
           Business Trip
         </button>
@@ -249,12 +288,16 @@ function App() {
             <button
               onClick={() => setActiveTab("approval")}
               style={tabStyle(activeTab === "approval")}
+              onMouseEnter={(e) => handleTabHover(e, activeTab === "approval")}
+              onMouseLeave={(e) => handleTabLeave(e, activeTab === "approval")}
             >
               Approval
             </button>
             <button
               onClick={() => setActiveTab("rules")}
               style={tabStyle(activeTab === "rules")}
+              onMouseEnter={(e) => handleTabHover(e, activeTab === "rules")}
+              onMouseLeave={(e) => handleTabLeave(e, activeTab === "rules")}
             >
               Salary Rules
             </button>
@@ -270,7 +313,7 @@ function App() {
         {activeTab === "qualifications" && <Qualifications userId={user?.id} />}
         {activeTab === "dependents" && <Dependents userId={user?.id} />}
         {activeTab === "salary-advance" && <SalaryAdvanceRequest userId={user?.id} />}
-        {activeTab === "overtime" && <OvertimeRequest userId={user?.id} />}
+        {activeTab === "overtime" && <OvertimeRequest userId={user?.id || user?.userId} />}
         {activeTab === "business-trip" && <BusinessTripRequest userId={user?.id} />}
         {activeTab === "approval" && user?.role === "admin" && <ApprovalManagement />}
         {activeTab === "rules" && user?.role === "admin" && <SalaryRulesManagement />}
