@@ -250,18 +250,26 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     );
   };
 
+  const formatCurrency = (value) => {
+    return (value || 0).toLocaleString('vi-VN', { 
+      style: 'decimal',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2 
+    });
+  };
+
   return (
     <>
       <div style={modalStyle} onClick={onClose}>
         <div style={contentStyle} onClick={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <div>
-            <h2 style={titleStyle}>💰 Salary Breakdown</h2>
+            <h2 style={titleStyle}>💰 Chi Tiết Lương Tháng</h2>
             <div style={{ fontSize: "14px", color: "#666", marginTop: "5px" }}>
-              {employee?.name} - {new Date(salary?.month).toLocaleDateString("vi-VN", {
-                month: "long",
-                year: "numeric"
-              })}
+              <strong>{employee?.name}</strong> - Tháng {salary?.month}/{salary?.year}
+            </div>
+            <div style={{ fontSize: "12px", color: "#999", marginTop: "3px" }}>
+              Mã nhân viên: <strong>{employee?.employeeId}</strong>
             </div>
           </div>
           <button
@@ -273,9 +281,168 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
           </button>
         </div>
 
+        {/* Employee Info */}
+        <div style={{
+          ...sectionStyle,
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: theme.spacing.lg,
+          marginBottom: theme.spacing.xl
+        }}>
+          <div style={{ padding: theme.spacing.md, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+            <div style={{ fontSize: "12px", color: "#999", marginBottom: "4px" }}>Bộ Phận</div>
+            <div style={{ fontSize: "15px", fontWeight: "600", color: "#333" }}>{employee?.department || "N/A"}</div>
+          </div>
+          <div style={{ padding: theme.spacing.md, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+            <div style={{ fontSize: "12px", color: "#999", marginBottom: "4px" }}>Chức Vụ</div>
+            <div style={{ fontSize: "15px", fontWeight: "600", color: "#333" }}>{employee?.jobTitle || "N/A"}</div>
+          </div>
+          <div style={{ padding: theme.spacing.md, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+            <div style={{ fontSize: "12px", color: "#999", marginBottom: "4px" }}>Cấp Bậc Lương</div>
+            <div style={{ fontSize: "15px", fontWeight: "600", color: "#333" }}>{employee?.salaryGrade || "N/A"}</div>
+          </div>
+        </div>
+
         {/* Breakdown Table */}
         <div style={sectionStyle}>
-          {/* Breakdown content will go here */}
+          <h3 style={sectionTitleStyle}>📊 Chi Tiết Thành Phần Lương</h3>
+          <div style={{ display: "grid", gap: theme.spacing.md }}>
+            {/* Base Salary */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: theme.spacing.lg,
+              padding: theme.spacing.lg,
+              backgroundColor: "#e3f2fd",
+              borderRadius: theme.radius.md,
+              borderLeft: `4px solid #1976d2`
+            }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "#1976d2", marginBottom: "4px" }}>Lương Cơ Bản</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>Mức lương hàng tháng cơ bản</div>
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#1976d2" }}>
+                ₫{formatCurrency(salary?.baseSalary)}
+              </div>
+            </div>
+
+            {/* Bonus */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: theme.spacing.lg,
+              padding: theme.spacing.lg,
+              backgroundColor: "#c8e6c9",
+              borderRadius: theme.radius.md,
+              borderLeft: `4px solid #388e3c`
+            }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "#388e3c", marginBottom: "4px" }}>Thưởng</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>Thưởng hiệu suất, khác</div>
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#388e3c" }}>
+                +₫{formatCurrency(salary?.bonus)}
+              </div>
+            </div>
+
+            {/* Gross Salary */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: theme.spacing.lg,
+              padding: theme.spacing.lg,
+              backgroundColor: "#fff3e0",
+              borderRadius: theme.radius.md,
+              borderLeft: `4px solid #f57c00`
+            }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "#f57c00", marginBottom: "4px" }}>Tổng Lương Brutto</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>Lương cơ bản + Thưởng</div>
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#f57c00" }}>
+                ₫{formatCurrency(calculateGrossAdjusted())}
+              </div>
+            </div>
+
+            {/* Deduction */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: theme.spacing.lg,
+              padding: theme.spacing.lg,
+              backgroundColor: "#ffcdd2",
+              borderRadius: theme.radius.md,
+              borderLeft: `4px solid #d32f2f`
+            }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "#d32f2f", marginBottom: "4px" }}>Các Khoản Giảm Trừ</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>Thuế, BHXH, BHYT, v.v.</div>
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#d32f2f" }}>
+                -₫{formatCurrency((salary?.deduction || 0) + adjustments.deductionAdjustment)}
+              </div>
+            </div>
+
+            {/* Net Salary */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: theme.spacing.lg,
+              padding: theme.spacing.xl,
+              backgroundColor: "#2196f3",
+              borderRadius: theme.radius.md,
+              borderLeft: `4px solid #1565c0`,
+              marginTop: theme.spacing.md
+            }}>
+              <div>
+                <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>LƯƠNG NHẬN (NETTO)</div>
+                <div style={{ fontSize: "12px", color: "#e3f2fd" }}>Số tiền lương thực tế nhận được</div>
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "20px", color: "#fff" }}>
+                ₫{formatCurrency(calculateNetAdjusted())}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Status & Additional Info */}
+        <div style={{
+          ...sectionStyle,
+          marginTop: theme.spacing.xl
+        }}>
+          <h3 style={sectionTitleStyle}>📋 Trạng Thái & Thông Tin Khác</h3>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: theme.spacing.lg
+          }}>
+            <div style={{ padding: theme.spacing.lg, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+              <div style={{ fontSize: "12px", color: "#999", textTransform: "uppercase", marginBottom: "8px", fontWeight: "600" }}>Trạng Thái</div>
+              <div style={{
+                display: "inline-block",
+                padding: "6px 16px",
+                borderRadius: "20px",
+                fontSize: "13px",
+                fontWeight: "600",
+                backgroundColor: salary?.status === "paid" ? "#c8e6c9" : salary?.status === "approved" ? "#fff9c4" : "#ffccbc",
+                color: salary?.status === "paid" ? "#2e7d32" : salary?.status === "approved" ? "#f57f17" : "#d84315"
+              }}>
+                {salary?.status === "pending" ? "Chờ Duyệt" : salary?.status === "approved" ? "Đã Duyệt" : "Đã Chi"}
+              </div>
+            </div>
+            <div style={{ padding: theme.spacing.lg, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+              <div style={{ fontSize: "12px", color: "#999", textTransform: "uppercase", marginBottom: "8px", fontWeight: "600" }}>Thời Gian Tính Lương</div>
+              <div style={{ fontSize: "14px", fontWeight: "600", color: "#333" }}>
+                {salary?.calculatedAt ? new Date(salary.calculatedAt).toLocaleDateString("vi-VN") : "N/A"}
+              </div>
+            </div>
+            {salary?.notes && (
+              <div style={{ padding: theme.spacing.lg, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md, gridColumn: "1 / -1" }}>
+                <div style={{ fontSize: "12px", color: "#999", textTransform: "uppercase", marginBottom: "8px", fontWeight: "600" }}>Ghi Chú</div>
+                <div style={{ fontSize: "14px", color: "#333", whiteSpace: "pre-wrap" }}>{salary.notes}</div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Edit Mode */}

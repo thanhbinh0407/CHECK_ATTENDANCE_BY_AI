@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from "express";
 import cors from "cors";
+import { createServer } from 'http';
+import { initSocket } from './socket.js';
 import bodyParser from "body-parser";
 import sequelize from "./db/sequelize.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -59,7 +61,7 @@ app.use((req, res, next) => {
 try {
   await sequelize.authenticate();
   console.log("PostgreSQL 17 connection successful");
-  
+
   // Create ENUM types first (if not exists) to avoid "syntax error at or near USING"
   try {
     await sequelize.query(`
@@ -69,7 +71,7 @@ try {
         WHEN duplicate_object THEN null;
       END $$;
     `);
-    
+
     await sequelize.query(`
       DO $$ BEGIN
         CREATE TYPE "enum_users_employmentStatus" AS ENUM ('active', 'maternity_leave', 'unpaid_leave', 'suspended', 'terminated', 'resigned');
@@ -77,7 +79,7 @@ try {
         WHEN duplicate_object THEN null;
       END $$;
     `);
-    
+
     await sequelize.query(`
       DO $$ BEGIN
         CREATE TYPE "enum_users_gender" AS ENUM ('male', 'female', 'other');
@@ -85,7 +87,7 @@ try {
         WHEN duplicate_object THEN null;
       END $$;
     `);
-    
+
     await sequelize.query(`
       DO $$ BEGIN
         CREATE TYPE "enum_users_educationLevel" AS ENUM ('high_school', 'vocational', 'college', 'university', 'master', 'phd', 'other');
@@ -100,7 +102,7 @@ try {
       EXCEPTION
         WHEN duplicate_object THEN null;
       END $$;
-    `).catch(() => {});
+    `).catch(() => { });
 
     await sequelize.query(`
       DO $$ BEGIN
@@ -108,7 +110,7 @@ try {
       EXCEPTION
         WHEN duplicate_object THEN null;
       END $$;
-    `).catch(() => {});
+    `).catch(() => { });
 
     await sequelize.query(`
       DO $$ BEGIN
@@ -116,7 +118,7 @@ try {
       EXCEPTION
         WHEN duplicate_object THEN null;
       END $$;
-    `).catch(() => {});
+    `).catch(() => { });
 
     await sequelize.query(`
       DO $$ BEGIN
@@ -124,7 +126,7 @@ try {
       EXCEPTION
         WHEN duplicate_object THEN null;
       END $$;
-    `).catch(() => {});
+    `).catch(() => { });
 
     await sequelize.query(`
       DO $$ BEGIN
@@ -132,17 +134,17 @@ try {
       EXCEPTION
         WHEN duplicate_object THEN null;
       END $$;
-    `).catch(() => {});
-    
+    `).catch(() => { });
+
     console.log("✅ ENUM types created/verified");
   } catch (enumErr) {
     console.warn("⚠️ ENUM types creation warning:", enumErr.message);
   }
-  
+
   // Use sync without alter to avoid "USING" syntax errors with ENUM types
   // Migrations should handle schema changes instead
   try {
-    await sequelize.sync({ alter: false });
+    await sequelize.sync({ alter: true });
     console.log("PostgreSQL schema synced");
   } catch (syncErr) {
     // If sync fails (e.g., due to ENUM type issues), log warning but continue
@@ -219,4 +221,8 @@ app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 app.get("/", (req, res) => res.send("Face Attendance Backend Running"));
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Backend trên http://localhost:${PORT}`));
+const httpServer = createServer(app);
+initSocket(httpServer);
+httpServer.listen(PORT, () => {
+  console.log(`🚀 Backend trên http://localhost:${PORT} (Socket.io enabled)`);
+});

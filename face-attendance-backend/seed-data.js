@@ -473,11 +473,11 @@ async function seedDB() {
     // Create Job Titles
     console.log('Step 8: Creating job titles...');
     const titles = await JobTitle.bulkCreate([
-      { code: 'TP', name: 'Department Head' },
-      { code: 'PTP', name: 'Deputy Head' },
-      { code: 'NVC', name: 'Senior Staff' },
-      { code: 'NV', name: 'Staff' },
-      { code: 'TTS', name: 'Intern' }
+      { code: 'TP', name: 'Department Head', level: 'Manager', baseSalaryMin: 25000000, baseSalaryMax: 35000000 },
+      { code: 'PTP', name: 'Deputy Head', level: 'Senior Manager', baseSalaryMin: 20000000, baseSalaryMax: 28000000 },
+      { code: 'NVC', name: 'Senior Staff', level: 'Senior', baseSalaryMin: 15000000, baseSalaryMax: 22000000 },
+      { code: 'NV', name: 'Staff', level: 'Junior', baseSalaryMin: 10000000, baseSalaryMax: 16000000 },
+      { code: 'TTS', name: 'Intern', level: 'Trainee', baseSalaryMin: 5000000, baseSalaryMax: 10000000 }
     ]);
     console.log(`Done: created ${titles.length} job titles\n`);
 
