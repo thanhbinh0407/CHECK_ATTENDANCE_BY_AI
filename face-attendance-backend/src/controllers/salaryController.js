@@ -4,6 +4,7 @@ import { calculateSeniority } from "../services/senioritySalaryService.js";
 import User from "../models/pg/User.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import ShiftSetting from "../models/pg/ShiftSetting.js";
+import SalaryAdvance from "../models/pg/SalaryAdvance.js";
 import { Op } from "sequelize";
 
 // Calculate working days in a month (exclude weekends)
@@ -369,6 +370,26 @@ export const calculateSalary = async (req, res) => {
 
     const finalSalary = baseSalary + bonus - deduction;
 
+    // Check for approved salary advance to deduct
+    const salaryAdvance = await SalaryAdvance.findOne({
+      where: {
+        userId,
+        month: parseInt(month),
+        year: parseInt(year),
+        approvalStatus: 'approved',
+        isDeducted: false
+      }
+    });
+
+    let advanceDeduction = 0;
+    if (salaryAdvance) {
+      advanceDeduction = salaryAdvance.amount;
+      deduction += advanceDeduction;
+      finalSalary -= advanceDeduction;
+    }
+
+    const grossSalary = baseSalary + bonus;
+
     // Create or update salary record
     const [salary, created] = await Salary.findOrCreate({
       where: { userId, month, year },
@@ -376,7 +397,9 @@ export const calculateSalary = async (req, res) => {
         userId,
         baseSalary,
         bonus,
+        grossSalary,
         deduction,
+        advanceDeduction,
         finalSalary,
         month,
         year,
@@ -389,10 +412,17 @@ export const calculateSalary = async (req, res) => {
       await salary.update({
         baseSalary,
         bonus,
+        grossSalary,
         deduction,
+        advanceDeduction,
         finalSalary,
         calculatedAt: new Date()
       });
+    }
+
+    // Mark salary advance as deducted if it was applied
+    if (salaryAdvance) {
+      await salaryAdvance.update({ isDeducted: true });
     }
 
     return res.json({

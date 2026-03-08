@@ -4,6 +4,7 @@ import nodemailer from "nodemailer";
 import Salary from "../models/pg/Salary.js";
 import User from "../models/pg/User.js";
 import Department from "../models/pg/Department.js";
+import SalaryAdvance from "../models/pg/SalaryAdvance.js";
 import { calculateInsurance } from "./insuranceService.js";
 import { calculatePersonalIncomeTax } from "./taxService.js";
 
@@ -69,6 +70,9 @@ export const generatePayslipPDF = async (salaryId) => {
     const insurance = await calculateInsurance(user.id, salary.month, salary.year);
     const tax = await calculatePersonalIncomeTax(user.id, salary.finalSalary || 0, salary.month, salary.year);
 
+    // Calculate salary advance deduction
+    const advanceDeduction = salary.advanceDeduction || 0;
+
     // Salary Breakdown Table
     yPos += 15;
     const tableData = [
@@ -87,9 +91,10 @@ export const generatePayslipPDF = async (salaryId) => {
       ["Health Insurance (Employee)", new Intl.NumberFormat('en-US').format(insurance.employee.healthInsurance) + " VND"],
       ["Unemployment Insurance (Employee)", new Intl.NumberFormat('en-US').format(insurance.employee.unemploymentInsurance) + " VND"],
       ["Personal Income Tax", new Intl.NumberFormat('en-US').format(tax.taxAmount) + " VND"],
+      ["Salary Advance Deduction", new Intl.NumberFormat('en-US').format(advanceDeduction) + " VND"],
       ["Other Deductions", new Intl.NumberFormat('en-US').format(salary.deduction || 0) + " VND"],
       ["Total Deductions", new Intl.NumberFormat('en-US').format(
-        insurance.employee.total + tax.taxAmount + (salary.deduction || 0)
+        insurance.employee.total + tax.taxAmount + advanceDeduction + (salary.deduction || 0)
       ) + " VND"],
       ["", ""],
       ["NET SALARY", new Intl.NumberFormat('en-US').format(salary.finalSalary || 0) + " VND"]

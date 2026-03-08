@@ -1147,10 +1147,10 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         // Family / Dependents info for frontend (EmployeeProfileModal - Family tab)
         dependents: employee.Dependents
           ? employee.Dependents.map(dep => ({
-              id: dep.id,
-              fullName: dep.fullName,
-              relationship: dep.relationship,
-              dateOfBirth: dep.dateOfBirth,
+          id: dep.id,
+          fullName: dep.fullName,
+          relationship: dep.relationship,
+          dateOfBirth: dep.dateOfBirth,
               gender: dep.gender,
               idNumber: dep.idNumber,
               address: dep.address,
@@ -1161,10 +1161,10 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         // Qualifications / Certificates for frontend (Qualifications tab)
         qualifications: employee.Qualifications
           ? employee.Qualifications.map(qual => ({
-              id: qual.id,
-              type: qual.type,
-              name: qual.name,
-              issuedBy: qual.issuedBy,
+          id: qual.id,
+          type: qual.type,
+          name: qual.name,
+          issuedBy: qual.issuedBy,
               issuedDate: qual.issuedDate,
               expiryDate: qual.expiryDate,
               certificateNumber: qual.certificateNumber,

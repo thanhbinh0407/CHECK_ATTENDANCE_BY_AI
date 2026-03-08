@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from 'recharts';
 
 export default function EmployeeDetailView() {
   const [employees, setEmployees] = useState([]);
@@ -364,6 +365,34 @@ export default function EmployeeDetailView() {
                       ) : (
                         <p style={{ color: "#999", fontStyle: "italic" }}>No qualifications or certificates</p>
                       )}
+
+                      {/* Qualifications Chart */}
+                      {employeeDetails.qualifications && employeeDetails.qualifications.length > 0 && (
+                        <div style={{ marginTop: "30px" }}>
+                          <h4 style={{ marginBottom: "15px", color: theme.colors.primary }}>Qualifications by Type</h4>
+                          <ResponsiveContainer width="100%" height={300}>
+                            <BarChart
+                              data={(() => {
+                                const typeCount = {};
+                                employeeDetails.qualifications.forEach(q => {
+                                  const type = q.type || 'Other';
+                                  typeCount[type] = (typeCount[type] || 0) + 1;
+                                });
+                                return Object.entries(typeCount).map(([type, count]) => ({
+                                  type: type === 'degree' ? 'Degree' : type === 'certificate' ? 'Certificate' : type === 'license' ? 'License' : type === 'training' ? 'Training' : type,
+                                  count
+                                }));
+                              })()}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="type" />
+                              <YAxis />
+                              <Tooltip />
+                              <Bar dataKey="count" fill="#8884d8" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "20px" }}>
@@ -478,6 +507,45 @@ export default function EmployeeDetailView() {
                       </div>
                     </div>
 
+                    {/* Attendance Status Chart */}
+                    {employeeDetails.recentAttendance && employeeDetails.recentAttendance.length > 0 && (() => {
+                      const statusCount = {};
+                      employeeDetails.recentAttendance.forEach(record => {
+                        const status = record.status || 'Unknown';
+                        statusCount[status] = (statusCount[status] || 0) + 1;
+                      });
+                      const chartData = Object.entries(statusCount).map(([status, count]) => ({
+                        name: status,
+                        value: count
+                      }));
+                      const colors = ['#28a745', '#ffc107', '#dc3545', '#6c757d'];
+
+                      return (
+                        <div style={{ marginTop: "30px" }}>
+                          <h4 style={{ marginBottom: "15px", color: theme.colors.primary }}>Attendance Status Distribution</h4>
+                          <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                              <Pie
+                                data={chartData}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                outerRadius={80}
+                                fill="#8884d8"
+                                dataKey="value"
+                              >
+                                {chartData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      );
+                    })()}
+
                     {employeeDetails.recentAttendance && employeeDetails.recentAttendance.length > 0 && (
                       <div>
                         <h4 style={{ marginBottom: "10px" }}>Recent attendance:</h4>
@@ -513,7 +581,7 @@ export default function EmployeeDetailView() {
                   <div>
                     <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Leave History</h3>
 
-                    {employeeDetails.leaveHistory && employeeDetails.leaveHistory.length > 0 ? (
+                    {(employeeDetails.leaveHistory && employeeDetails.leaveHistory.length > 0) ? (
                       <div>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "20px" }}>
                           <div
@@ -544,6 +612,45 @@ export default function EmployeeDetailView() {
                             <div style={{ fontSize: "0.9em", color: "#666" }}>Days remaining</div>
                           </div>
                         </div>
+
+                        {/* Leave Types Chart */}
+                        {(() => {
+                          const typeCount = {};
+                          employeeDetails.leaveHistory.forEach(leave => {
+                            const type = leave.type || 'Other';
+                            typeCount[type] = (typeCount[type] || 0) + 1;
+                          });
+                          const chartData = Object.entries(typeCount).map(([type, count]) => ({
+                            name: type,
+                            value: count
+                          }));
+                          const colors = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+
+                          return (
+                            <div style={{ marginTop: "30px" }}>
+                              <h4 style={{ marginBottom: "15px", color: theme.colors.primary }}>Leave Types Distribution</h4>
+                              <ResponsiveContainer width="100%" height={300}>
+                                <PieChart>
+                                  <Pie
+                                    data={chartData}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                    outerRadius={80}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                  >
+                                    {chartData.map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                                    ))}
+                                  </Pie>
+                                  <Tooltip />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                          );
+                        })()}
 
                         <div style={{ maxHeight: "400px", overflowY: "auto" }}>
                           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -595,72 +702,101 @@ export default function EmployeeDetailView() {
                   </div>
                 )}
 
-                {/* Salary Tab */}
-                {activeTab === "salary" && employeeDetails && (
-                  <div>
-                    <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Salary History</h3>
+            {/* Salary Tab */}
+            {activeTab === "salary" && employeeDetails && (
+              <div>
+                <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Salary History</h3>
 
-                    {employeeDetails.salaryHistory && employeeDetails.salaryHistory.length > 0 ? (
-                      <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                          <thead style={{ backgroundColor: "#f5f5f5" }}>
-                            <tr>
-                              <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Month/Year</th>
-                              <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Base Salary</th>
-                              <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Bonus</th>
-                              <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Deduction</th>
-                              <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Net Pay</th>
-                              <th style={{ padding: "8px", textAlign: "center", borderBottom: `1px solid ${theme.colors.border}` }}>Status</th>
+                {employeeDetails.salaryHistory && employeeDetails.salaryHistory.length > 0 ? (
+                  <div>
+                    {/* Salary Trend Chart */}
+                    <div style={{ marginBottom: "30px" }}>
+                      <h4 style={{ marginBottom: "15px", color: theme.colors.primary }}>Salary Trend Over Time</h4>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart
+                          data={employeeDetails.salaryHistory.map(salary => ({
+                            period: `${salary.month}/${salary.year}`,
+                            netPay: salary.finalSalary || 0,
+                            baseSalary: salary.baseSalary || 0,
+                            bonus: salary.bonus || 0
+                          }))}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="period" />
+                          <YAxis />
+                          <Tooltip formatter={(value) => [`₫${value.toLocaleString("vi-VN")}`, '']} />
+                          <Legend />
+                          <Line type="monotone" dataKey="netPay" stroke="#8884d8" strokeWidth={2} name="Net Pay" />
+                          <Line type="monotone" dataKey="baseSalary" stroke="#82ca9d" strokeWidth={2} name="Base Salary" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <thead style={{ backgroundColor: "#f5f5f5" }}>
+                          <tr>
+                            <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Month/Year</th>
+                            <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Base Salary</th>
+                            <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Bonus</th>
+                            <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Advance Deduction</th>
+                            <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Other Deductions</th>
+                            <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Net Pay</th>
+                            <th style={{ padding: "8px", textAlign: "center", borderBottom: `1px solid ${theme.colors.border}` }}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {employeeDetails.salaryHistory.map((salary, idx) => (
+                            <tr key={idx} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
+                              <td style={{ padding: "8px" }}>{salary.month}/{salary.year}</td>
+                              <td style={{ padding: "8px", textAlign: "right" }}>
+                                ₫{salary.baseSalary?.toLocaleString("vi-VN") || "0"}
+                              </td>
+                              <td style={{ padding: "8px", textAlign: "right", color: "#28a745" }}>
+                                +₫{(salary.bonus || 0).toLocaleString("vi-VN")}
+                              </td>
+                              <td style={{ padding: "8px", textAlign: "right", color: "#dc3545" }}>
+                                -₫{(salary.advanceDeduction || 0).toLocaleString("vi-VN")}
+                              </td>
+                              <td style={{ padding: "8px", textAlign: "right", color: "#dc3545" }}>
+                                -₫{((salary.deduction || 0) - (salary.advanceDeduction || 0)).toLocaleString("vi-VN")}
+                              </td>
+                              <td style={{ padding: "8px", textAlign: "right", fontWeight: "bold", color: theme.colors.primary }}>
+                                ₫{salary.finalSalary?.toLocaleString("vi-VN") || "0"}
+                              </td>
+                              <td style={{ padding: "8px", textAlign: "center" }}>
+                                <span
+                                  style={{
+                                    display: "inline-block",
+                                    padding: "4px 8px",
+                                    borderRadius: "4px",
+                                    fontSize: "0.85em",
+                                    backgroundColor:
+                                      salary.status === "paid" ? "#d4edda" : salary.status === "approved" ? "#cfe2ff" : "#fff3cd",
+                                    color:
+                                      salary.status === "paid" ? "#155724" : salary.status === "approved" ? "#084298" : "#997404"
+                                  }}
+                                >
+                                  {salary.status === "paid"
+                                    ? "Paid"
+                                    : salary.status === "approved"
+                                    ? "Approved"
+                                    : "Pending"}
+                                </span>
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {employeeDetails.salaryHistory.map((salary, idx) => (
-                              <tr key={idx} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
-                                <td style={{ padding: "8px" }}>{salary.month}/{salary.year}</td>
-                                <td style={{ padding: "8px", textAlign: "right" }}>
-                                  ₫{salary.baseSalary?.toLocaleString("vi-VN") || "0"}
-                                </td>
-                                <td style={{ padding: "8px", textAlign: "right", color: "#28a745" }}>
-                                  +₫{(salary.bonus || 0).toLocaleString("vi-VN")}
-                                </td>
-                                <td style={{ padding: "8px", textAlign: "right", color: "#dc3545" }}>
-                                  -₫{(salary.deduction || 0).toLocaleString("vi-VN")}
-                                </td>
-                                <td style={{ padding: "8px", textAlign: "right", fontWeight: "bold", color: theme.colors.primary }}>
-                                  ₫{salary.finalSalary?.toLocaleString("vi-VN") || "0"}
-                                </td>
-                                <td style={{ padding: "8px", textAlign: "center" }}>
-                                  <span
-                                    style={{
-                                      display: "inline-block",
-                                      padding: "4px 8px",
-                                      borderRadius: "4px",
-                                      fontSize: "0.85em",
-                                      backgroundColor:
-                                        salary.status === "paid" ? "#d4edda" : salary.status === "approved" ? "#cfe2ff" : "#fff3cd",
-                                      color:
-                                        salary.status === "paid" ? "#155724" : salary.status === "approved" ? "#084298" : "#997404"
-                                    }}
-                                  >
-                                    {salary.status === "paid"
-                                      ? "Paid"
-                                      : salary.status === "approved"
-                                      ? "Approved"
-                                      : "Pending"}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <p style={{ color: "#999", textAlign: "center", padding: "20px" }}>
-                        No salary history
-                      </p>
-                    )}
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
+                ) : (
+                  <p style={{ color: "#999", textAlign: "center", padding: "20px" }}>
+                    No salary history
+                  </p>
                 )}
+              </div>
+            )}
               </div>
             </div>
           )}
