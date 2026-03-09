@@ -10,17 +10,17 @@ const ROLE_PORTS = {
 }
 
 const ROLE_LABELS = {
-  admin: 'Quản trị viên',
-  employee: 'Nhân viên',
-  accountant: 'Kế toán',
-  'payroll-admin': 'Quản lý lương'
+  admin: 'Administrator',
+  employee: 'Employee',
+  accountant: 'Accountant',
+  'payroll-admin': 'Payroll Manager'
 }
 
 const ROLE_DESCRIPTIONS = {
-  admin: 'Quản lý toàn bộ hệ thống, nhân viên và cài đặt (Chỉ dành cho admin@company.com)',
-  employee: 'Xem thông tin cá nhân, lịch sử chấm công và lương',
-  accountant: 'Quản lý và phê duyệt bảng lương (Dành cho admin@company.com và accountant@company.com)',
-  'payroll-admin': 'Quản lý hệ thống tính lương và chính sách'
+  admin: 'Manage entire system, employees & settings (For admin@company.com)',
+  employee: 'View personal info, attendance history & salary',
+  accountant: 'Manage & approve payroll (For admin@company.com & accountant@company.com)',
+  'payroll-admin': 'Manage payroll system & policies'
 }
 
 function App() {
@@ -35,12 +35,12 @@ function App() {
     setError('')
     
     if (!selectedRole) {
-      setError('Vui lòng chọn vai trò đăng nhập')
+      setError('Please select a login role')
       return
     }
 
     if (!email || !password) {
-      setError('Vui lòng nhập đầy đủ email và mật khẩu')
+      setError('Please enter email and password')
       return
     }
 
@@ -70,7 +70,7 @@ function App() {
           (selectedRole === 'payroll-admin' && (userRole === 'admin' || userRole === 'accountant'));
 
         if (!canAccess) {
-          setError(`Tài khoản này không có quyền đăng nhập với vai trò ${ROLE_LABELS[selectedRole]}`)
+          setError(`This account does not have access to ${ROLE_LABELS[selectedRole]}`)
           setLoading(false)
           return
         }
@@ -87,14 +87,14 @@ function App() {
           const userParam = encodeURIComponent(JSON.stringify(data.user))
           window.location.href = `http://localhost:${port}?token=${tokenParam}&user=${userParam}`
         } else {
-          setError('Không tìm thấy ứng dụng cho vai trò này')
+          setError('Application not found for this role')
         }
       } else {
-        setError(data.message || 'Đăng nhập thất bại')
+        setError(data.message || 'Login failed')
       }
     } catch (err) {
       console.error('Login error:', err)
-      setError('Không thể kết nối đến server. Vui lòng kiểm tra lại.')
+      setError('Cannot connect to server. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -104,13 +104,12 @@ function App() {
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          <h1>Hệ thống Quản lý Nhân sự</h1>
-          <p>Project KY-9</p>
+          <h1>Human Resource Management System</h1>
         </div>
 
         <form onSubmit={handleLogin} className="login-form">
           <div className="form-group">
-            <label htmlFor="role">Đăng nhập với vai trò</label>
+            <label htmlFor="role">Login Role</label>
             <select
               id="role"
               value={selectedRole}
@@ -118,11 +117,11 @@ function App() {
               className="form-select"
               required
             >
-              <option value="">-- Chọn vai trò --</option>
-              <option value="admin">Quản trị viên (Quản lý nhân sự)</option>
-              <option value="accountant">Kế toán (Quản lý lương)</option>
-              <option value="employee">Nhân viên</option>
-              <option value="payroll-admin">Quản lý lương</option>
+              <option value="">-- Select a role --</option>
+              <option value="admin">Administrator (HR Management)</option>
+              <option value="accountant">Accountant (Payroll Management)</option>
+              <option value="employee">Employee</option>
+              <option value="payroll-admin">Payroll Manager</option>
             </select>
             {selectedRole && (
               <p className="role-description">
@@ -139,20 +138,20 @@ function App() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="form-input"
-              placeholder="Nhập email của bạn"
+              placeholder="Enter your email"
               required
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Mật khẩu</label>
+            <label htmlFor="password">Password</label>
             <input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="form-input"
-              placeholder="Nhập mật khẩu"
+              placeholder="Enter your password"
               required
             />
           </div>
@@ -168,14 +167,14 @@ function App() {
             className="login-button"
             disabled={loading}
           >
-            {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+            {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
 
         <div className="login-footer">
-          <p>Chọn đúng vai trò để truy cập vào ứng dụng tương ứng</p>
+          <p>Select the correct role to access the corresponding application</p>
           <p style={{ fontSize: '11px', color: '#a0aec0', marginTop: '8px' }}>
-            💡 Lưu ý: admin@company.com có thể đăng nhập với cả "Quản trị viên" và "Kế toán"
+            💡 Note: admin@company.com can login as both "Administrator" and "Accountant"
           </p>
         </div>
       </div>

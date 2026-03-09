@@ -27,7 +27,15 @@ const Salary = sequelize.define('Salary', {
     type: DataTypes.DECIMAL(12, 2),
     defaultValue: 0
   },
+  grossSalary: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0
+  },
   deduction: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0
+  },
+  advanceDeduction: {
     type: DataTypes.DECIMAL(12, 2),
     defaultValue: 0
   },

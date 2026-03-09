@@ -19,6 +19,7 @@ import InsuranceFormTK1TS from "./components/InsuranceFormTK1TS.jsx";
 import InsuranceFormD02LT from "./components/InsuranceFormD02LT.jsx";
 import ReportsDashboard from "./components/ReportsDashboard.jsx";
 import { theme, commonStyles } from "./styles/theme.js";
+import socket from "./socket.js";
 import "./App.css";
 
 function App() {
@@ -88,6 +89,32 @@ function App() {
       return;
     }
     setIsChecking(false);
+  }, []);
+
+  useEffect(() => {
+    // Socket connection for real-time updates
+    socket.on('connect', () => {
+      console.log('Connected to server');
+      socket.emit('join-room', { room: 'admin' }); // Join admin room for updates
+    });
+
+    socket.on('attendance-update', (data) => {
+      console.log('Real-time attendance update:', data);
+      // You can trigger a refresh or update state here
+      // For example, refresh attendance logs or show notification
+    });
+
+    socket.on('new-notification', (data) => {
+      console.log('Real-time notification:', data);
+      // Show toast or update notification count
+      alert(`New notification: ${data.title}`);
+    });
+
+    return () => {
+      socket.off('connect');
+      socket.off('attendance-update');
+      socket.off('new-notification');
+    };
   }, []);
 
   const handleLoginSuccess = (token, userData) => {
