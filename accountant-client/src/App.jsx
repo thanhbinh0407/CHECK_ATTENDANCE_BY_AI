@@ -7,6 +7,7 @@ import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
 import EmployeeDetailView from "./components/EmployeeDetailView.jsx";
 import EmployeeManagement from "./components/EmployeeManagement.jsx";
 import { theme } from "./theme.js";
+import socket from "./socket.js";
 import "./App.css";
 
 function App() {
@@ -63,6 +64,30 @@ function App() {
       localStorage.clear();
     }
     setIsChecking(false);
+  }, []);
+
+  useEffect(() => {
+    // Socket connection for real-time updates
+    socket.on('connect', () => {
+      console.log('Connected to server');
+      socket.emit('join-room', { room: 'admin' });
+    });
+
+    socket.on('attendance-update', (data) => {
+      console.log('Real-time attendance update:', data);
+      // Trigger refresh for salary calculations or approvals
+    });
+
+    socket.on('new-notification', (data) => {
+      console.log('Real-time notification:', data);
+      alert(`New notification: ${data.title}`);
+    });
+
+    return () => {
+      socket.off('connect');
+      socket.off('attendance-update');
+      socket.off('new-notification');
+    };
   }, []);
 
   const handleLogout = () => {

@@ -163,11 +163,15 @@ export default function EmployeeDetailView() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Cập nhật thông tin nhân viên thành công!");
+        let msg = "✅ Cập nhật thông tin nhân viên thành công!";
+        if (data.recalculatedSalaryCount > 0) {
+          msg += ` (${data.recalculatedSalaryCount} bản ghi lương đã được tính lại)`;
+        }
+        setMessage(msg);
         setIsEditing(false);
         openEmployeeModal(selectedEmployeeForModal.id); // Refresh data
         fetchEmployees(); // Refresh list
-        setTimeout(() => setMessage(""), 3000);
+        setTimeout(() => setMessage(""), 5000);
       } else {
         setMessage("Lỗi: " + (data.message || "Không thể cập nhật"));
       }
