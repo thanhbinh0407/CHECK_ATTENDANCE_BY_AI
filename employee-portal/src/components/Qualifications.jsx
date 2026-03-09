@@ -23,6 +23,16 @@ export default function Qualifications({ userId }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
 
+  const today = new Date().toISOString().split("T")[0];
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "-";
+    // Use substring to avoid timezone shift: take the YYYY-MM-DD part directly
+    const ymd = dateStr.substring(0, 10); // "YYYY-MM-DD"
+    const [y, m, d] = ymd.split("-");
+    return `${d}/${m}/${y}`; // DD/MM/YYYY
+  };
+
   const showMessage = (text, type) => {
     setMessage(text);
     setMessageType(type);
@@ -144,6 +154,16 @@ export default function Qualifications({ userId }) {
     // Validate document upload for new qualifications
     if (!editingId && !documentPath) {
       showMessage("Please upload a document before submitting!", "error");
+      return;
+    }
+
+    // Validate date logic
+    if (formData.issuedDate && formData.issuedDate > today) {
+      showMessage("Issue Date cannot be in the future!", "error");
+      return;
+    }
+    if (formData.issuedDate && formData.expiryDate && formData.expiryDate <= formData.issuedDate) {
+      showMessage("Expiry Date must be strictly after Issue Date!", "error");
       return;
     }
 
@@ -825,7 +845,14 @@ export default function Qualifications({ userId }) {
                 type="date"
                 name="issuedDate"
                 value={formData.issuedDate}
-                onChange={handleInputChange}
+                onChange={(e) => {
+                  handleInputChange(e);
+                  // Clear expiry if it's now before new issue date
+                  if (formData.expiryDate && e.target.value && formData.expiryDate < e.target.value) {
+                    setFormData(prev => ({ ...prev, issuedDate: e.target.value, expiryDate: "" }));
+                  }
+                }}
+                max={today}
                     style={{
                       width: "100%",
                       padding: "14px 16px",
@@ -859,12 +886,14 @@ export default function Qualifications({ userId }) {
                   }}>
                     <span>⏰</span>
                     <span>Expiry Date</span>
+                    <span style={{ fontSize: "11px", fontWeight: "400", color: "#adb5bd", fontStyle: "italic" }}>(Optional)</span>
                   </label>
               <input
                 type="date"
                 name="expiryDate"
                 value={formData.expiryDate}
                 onChange={handleInputChange}
+                min={formData.issuedDate ? (() => { const d = new Date(formData.issuedDate); d.setDate(d.getDate() + 1); return d.toISOString().split("T")[0]; })() : undefined}
                     style={{
                       width: "100%",
                       padding: "14px 16px",
@@ -885,6 +914,9 @@ export default function Qualifications({ userId }) {
                       e.target.style.boxShadow = "none";
                     }}
               />
+                  <div style={{ fontSize: "11px", color: "#adb5bd", marginTop: "6px", fontStyle: "italic" }}>
+                    Leave blank if no expiry (e.g. university degree)
+                  </div>
             </div>
           </div>
 
@@ -1402,7 +1434,7 @@ export default function Qualifications({ userId }) {
                         fontSize: "13px",
                         color: "#6c757d"
                       }}>
-                        {qual.issuedDate ? new Date(qual.issuedDate).toLocaleDateString("en-US") : "-"}
+                        {formatDate(qual.issuedDate)}
                       </td>
                       <td style={{ 
                         padding: "16px", 
