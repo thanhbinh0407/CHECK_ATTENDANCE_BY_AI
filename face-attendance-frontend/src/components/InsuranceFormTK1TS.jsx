@@ -58,6 +58,7 @@ export default function InsuranceFormTK1TS() {
   const [loadingWord, setLoadingWord] = useState(false);
   const [formType, setFormType] = useState("new"); // "new" or "update"
   const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const [formData, setFormData] = useState(initialFormData);
   const [householdMember, setHouseholdMember] = useState({
     name: "",
@@ -164,44 +165,68 @@ export default function InsuranceFormTK1TS() {
     }
 
     const missing = [];
-``
+    const errors = {};
+
     if (formType === "new") {
       if (!formData.name.trim()) {
         missing.push("[01] Full name");
+        errors.name = true;
       }
       if (!formData.dateOfBirth.trim()) {
         missing.push("[02] Date of birth");
+        errors.dateOfBirth = true;
       }
       if (!formData.gender) {
         missing.push("[03] Gender");
+        errors.gender = true;
       }
-      if (!formData.addressStreet.trim() ||
-          !formData.addressWard.trim() ||
-          !formData.addressDistrict.trim() ||
-          !formData.addressProvince.trim()) {
-        missing.push("[07] Address to receive results");
+      const missingAddressParts = [];
+      if (!formData.addressStreet.trim()) {
+        missingAddressParts.push("[07.1] Street/hamlet");
+        errors.addressStreet = true;
+      }
+      if (!formData.addressWard.trim()) {
+        missingAddressParts.push("[07.2] Hamlet");
+        errors.addressWard = true;
+      }
+      if (!formData.addressDistrict.trim()) {
+        missingAddressParts.push("[07.3] Commune/ward");
+        errors.addressDistrict = true;
+      }
+      if (!formData.addressProvince.trim()) {
+        missingAddressParts.push("[07.4] Province/City");
+        errors.addressProvince = true;
+      }
+      if (missingAddressParts.length > 0) {
+        missing.push(...missingAddressParts);
       }
     } else {
       // update mode (has SI number)
       if (!formData.name.trim()) {
         missing.push("[01] Full name");
+        errors.name = true;
       }
       if (!formData.dateOfBirth) {
         missing.push("[02] Date of birth");
+        errors.dateOfBirth = true;
       }
       if (!formData.socialInsuranceNumber.trim()) {
         missing.push("[03] Social Insurance number");
+        errors.socialInsuranceNumber = true;
       }
       if (!formData.changeContent.trim()) {
         missing.push("[04] Requested changes");
+        errors.changeContent = true;
       }
     }
 
     if (missing.length > 0) {
       setMessage("Please fill all required fields: " + missing.join(", "));
+      setFieldErrors(errors);
       return false;
     }
 
+    setFieldErrors({});
     return true;
   };
 
@@ -428,6 +453,7 @@ export default function InsuranceFormTK1TS() {
   };
 
   const exportToPDF = async () => {
+    if (!validateForm()) return;
     try {
       setLoading(true);
       setMessage("Generating PDF...");
@@ -1143,7 +1169,9 @@ export default function InsuranceFormTK1TS() {
     color: theme.neutral.gray600
   };
 
-  const isSuccessMessage = typeof message === "string" && message.trim().startsWith("✅");
+  const isSuccessMessage =
+    typeof message === "string" &&
+    (message.trim().startsWith("✅") || /successfully/i.test(message));
 
   return (
     <div style={containerStyle}>
@@ -1211,7 +1239,10 @@ export default function InsuranceFormTK1TS() {
                 <label style={labelStyle}>[01] Full name (UPPERCASE): *</label>
                 <input
                   type="text"
-                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                  style={selectedEmployee
+                    ? { ...readOnlyInputStyle, ...(fieldErrors.name && { borderColor: "#dc2626" }) }
+                    : { ...inputStyle, ...(fieldErrors.name && { borderColor: "#dc2626" }) }
+                  }
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value.toUpperCase())}
                   placeholder="NGUYEN VAN A"
@@ -1222,7 +1253,10 @@ export default function InsuranceFormTK1TS() {
                 <label style={labelStyle}>[02] Date of birth: *</label>
                 <input
                   type="date"
-                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                  style={selectedEmployee
+                    ? { ...readOnlyInputStyle, ...(fieldErrors.dateOfBirth && { borderColor: "#dc2626" }) }
+                    : { ...inputStyle, ...(fieldErrors.dateOfBirth && { borderColor: "#dc2626" }) }
+                  }
                   value={formData.dateOfBirth}
                   onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
                   readOnly={!!selectedEmployee}
@@ -1234,7 +1268,10 @@ export default function InsuranceFormTK1TS() {
               <div>
                 <label style={labelStyle}>[03] Gender: *</label>
                 <select
-                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                  style={selectedEmployee
+                    ? { ...readOnlyInputStyle, ...(fieldErrors.gender && { borderColor: "#dc2626" }) }
+                    : { ...inputStyle, ...(fieldErrors.gender && { borderColor: "#dc2626" }) }
+                  }
                   value={formData.gender}
                   onChange={(e) => handleInputChange("gender", e.target.value)}
                   disabled={!!selectedEmployee}
@@ -1387,20 +1424,18 @@ export default function InsuranceFormTK1TS() {
                       <label style={{ ...labelStyle, fontSize: "11px" }}>[07.1] House no./Street/Hamlet:</label>
                       <input
                         type="text"
-                        style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                      style={{ ...inputStyle, ...(fieldErrors.addressStreet && { borderColor: "#dc2626" }) }}
                         value={formData.addressStreet}
                         onChange={(e) => handleInputChange("addressStreet", e.target.value)}
-                        readOnly={!!selectedEmployee}
                       />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: "11px" }}>[07.2] Hamlet:</label>
                       <input
                         type="text"
-                        style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                      style={{ ...inputStyle, ...(fieldErrors.addressWard && { borderColor: "#dc2626" }) }}
                         value={formData.addressWard}
                         onChange={(e) => handleInputChange("addressWard", e.target.value)}
-                        readOnly={!!selectedEmployee}
                       />
                     </div>
                   </div>
@@ -1409,23 +1444,21 @@ export default function InsuranceFormTK1TS() {
                     <label style={{ ...labelStyle, fontSize: "11px" }}>[07.3] Commune:</label>
                       <input
                         type="text"
-                        style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                      style={{ ...inputStyle, ...(fieldErrors.addressDistrict && { borderColor: "#dc2626" }) }}
                         value={formData.addressDistrict}
                         onChange={(e) => handleInputChange("addressDistrict", e.target.value)}
-                        readOnly={!!selectedEmployee}
                       />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: "11px" }}>[07.4] Province/City:</label>
                       <select
-                        style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                      style={{ ...inputStyle, ...(fieldErrors.addressProvince && { borderColor: "#dc2626" }) }}
                         value={formData.addressProvinceCode}
                         onChange={(e) => {
                           const province = vietnamProvinces.find(p => p.code === e.target.value);
                           handleInputChange("addressProvinceCode", e.target.value);
                           handleInputChange("addressProvince", province?.name || "");
-                        }}
-                        disabled={!!selectedEmployee}
+                      }}
                       >
                         <option value="">-- Select province/city --</option>
                         {vietnamProvinces.map(province => (
@@ -1531,7 +1564,10 @@ export default function InsuranceFormTK1TS() {
                 <label style={labelStyle}>[01] Full name (UPPERCASE): *</label>
                 <input
                   type="text"
-                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                  style={selectedEmployee
+                    ? { ...readOnlyInputStyle, ...(fieldErrors.name && { borderColor: "#dc2626" }) }
+                    : { ...inputStyle, ...(fieldErrors.name && { borderColor: "#dc2626" }) }
+                  }
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value.toUpperCase())}
                   readOnly={!!selectedEmployee}
@@ -1541,7 +1577,10 @@ export default function InsuranceFormTK1TS() {
                 <label style={labelStyle}>[02] Date of birth: *</label>
                 <input
                   type="date"
-                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                  style={selectedEmployee
+                    ? { ...readOnlyInputStyle, ...(fieldErrors.dateOfBirth && { borderColor: "#dc2626" }) }
+                    : { ...inputStyle, ...(fieldErrors.dateOfBirth && { borderColor: "#dc2626" }) }
+                  }
                   value={formData.dateOfBirth}
                   onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
                   readOnly={!!selectedEmployee}
@@ -1553,7 +1592,10 @@ export default function InsuranceFormTK1TS() {
               <label style={labelStyle}>[03] Social Insurance number: *</label>
               <input
                 type="text"
-                style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                style={selectedEmployee
+                  ? { ...readOnlyInputStyle, ...(fieldErrors.socialInsuranceNumber && { borderColor: "#dc2626" }) }
+                  : { ...inputStyle, ...(fieldErrors.socialInsuranceNumber && { borderColor: "#dc2626" }) }
+                }
                 value={formData.socialInsuranceNumber}
                 onChange={(e) => handleInputChange("socialInsuranceNumber", e.target.value)}
                 readOnly={!!selectedEmployee}
@@ -1563,7 +1605,11 @@ export default function InsuranceFormTK1TS() {
             <div style={{ marginBottom: theme.spacing.md }}>
               <label style={labelStyle}>[04] Requested changes: *</label>
               <textarea
-                style={{ ...inputStyle, minHeight: "100px" }}
+                style={{
+                  ...inputStyle,
+                  minHeight: "100px",
+                  ...(fieldErrors.changeContent && { borderColor: "#dc2626" })
+                }}
                 value={formData.changeContent}
                 onChange={(e) => handleInputChange("changeContent", e.target.value)}
                 placeholder="Describe the requested changes..."
@@ -1867,9 +1913,9 @@ export default function InsuranceFormTK1TS() {
         <button
           style={{
             ...buttonStyle,
-            backgroundColor: loading ? theme.neutral.gray400 : theme.success.main,
-            cursor: loading ? "not-allowed" : "pointer",
-            opacity: loading ? 0.7 : 1
+          backgroundColor: loading ? theme.neutral.gray400 : theme.primary.main,
+          cursor: loading ? "not-allowed" : "pointer",
+          opacity: loading ? 0.7 : 1
           }}
           onClick={exportToPDF}
           disabled={loading || loadingWord}

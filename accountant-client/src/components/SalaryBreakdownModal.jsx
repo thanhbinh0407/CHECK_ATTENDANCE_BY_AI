@@ -250,6 +250,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     );
   };
 
+
   const formatCurrency = (value) => {
     return (value || 0).toLocaleString('vi-VN', { 
       style: 'decimal',
@@ -280,7 +281,6 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
             ×
           </button>
         </div>
-
         {/* Employee Info */}
         <div style={{
           ...sectionStyle,
@@ -440,6 +440,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
               <div style={{ padding: theme.spacing.lg, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md, gridColumn: "1 / -1" }}>
                 <div style={{ fontSize: "12px", color: "#999", textTransform: "uppercase", marginBottom: "8px", fontWeight: "600" }}>Ghi Chú</div>
                 <div style={{ fontSize: "14px", color: "#333", whiteSpace: "pre-wrap" }}>{salary.notes}</div>
+
               </div>
             )}
           </div>

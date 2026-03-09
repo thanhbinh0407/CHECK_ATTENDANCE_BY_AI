@@ -348,11 +348,11 @@ export default function Qualifications({ userId }) {
       }}>
         {/* Total Qualifications */}
         <div style={{
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          background: "linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)",
           borderRadius: "16px",
           padding: "28px 24px",
           color: "white",
-          boxShadow: "0 4px 15px rgba(102, 126, 234, 0.3)",
+          boxShadow: "0 4px 15px rgba(79, 70, 229, 0.35)",
           transition: "all 0.3s ease",
           cursor: "pointer"
         }}
@@ -406,11 +406,11 @@ export default function Qualifications({ userId }) {
 
         {/* Approved */}
         <div style={{
-          background: "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
+          background: "linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)",
           borderRadius: "16px",
           padding: "28px 24px",
           color: "white",
-          boxShadow: "0 4px 15px rgba(17, 153, 142, 0.3)",
+          boxShadow: "0 4px 15px rgba(79, 70, 229, 0.35)",
           transition: "all 0.3s ease",
           cursor: "pointer"
         }}
@@ -460,11 +460,11 @@ export default function Qualifications({ userId }) {
 
         {/* Pending */}
         <div style={{
-          background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+          background: "linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)",
           borderRadius: "16px",
           padding: "28px 24px",
           color: "white",
-          boxShadow: "0 4px 15px rgba(240, 147, 251, 0.3)",
+          boxShadow: "0 4px 15px rgba(79, 70, 229, 0.35)",
           transition: "all 0.3s ease",
           cursor: "pointer"
         }}
@@ -515,11 +515,11 @@ export default function Qualifications({ userId }) {
 
         {/* Rejected */}
         <div style={{
-          background: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+          background: "linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)",
           borderRadius: "16px",
           padding: "28px 24px",
           color: "white",
-          boxShadow: "0 4px 15px rgba(250, 112, 154, 0.3)",
+          boxShadow: "0 4px 15px rgba(79, 70, 229, 0.35)",
           transition: "all 0.3s ease",
           cursor: "pointer"
         }}
@@ -1462,34 +1462,34 @@ export default function Qualifications({ userId }) {
                               e.target.style.transform = "translateY(0)";
                             }}
                           >
-                            EDIT
+                            DETAILS
                       </button>
                       <button
-                            onClick={() => {
-                              setDeleteId(qual.id);
-                              setShowDeleteConfirm(true);
-                            }}
-                            style={{ 
-                              padding: "6px 14px", 
-                              backgroundColor: "#dc3545", 
-                              color: "white", 
-                              border: "none", 
-                              borderRadius: "6px", 
-                              cursor: "pointer",
-                              fontSize: "12px",
-                              fontWeight: "600",
-                              transition: "all 0.2s ease"
-                            }}
-                            onMouseOver={(e) => {
-                              e.target.style.backgroundColor = "#c82333";
-                              e.target.style.transform = "translateY(-1px)";
-                            }}
-                            onMouseOut={(e) => {
-                              e.target.style.backgroundColor = "#dc3545";
-                              e.target.style.transform = "translateY(0)";
-                            }}
-                          >
-                            DELETE
+                        onClick={() => {
+                          setDeleteId(qual.id);
+                          setShowDeleteConfirm(true);
+                        }}
+                        style={{ 
+                          padding: "6px 14px", 
+                          backgroundColor: "#dc3545", 
+                          color: "white", 
+                          border: "none", 
+                          borderRadius: "6px", 
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          transition: "all 0.2s ease"
+                        }}
+                        onMouseOver={(e) => {
+                          e.target.style.backgroundColor = "#c82333";
+                          e.target.style.transform = "translateY(-1px)";
+                        }}
+                        onMouseOut={(e) => {
+                          e.target.style.backgroundColor = "#dc3545";
+                          e.target.style.transform = "translateY(0)";
+                        }}
+                      >
+                        DELETE
                       </button>
                         </div>
                     </td>
