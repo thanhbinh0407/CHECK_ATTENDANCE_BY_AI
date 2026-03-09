@@ -44,15 +44,7 @@ export default function EmployeeManagement() {
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
-      
-      // First, set the employee data we already have
-      setSelectedEmployee(employee);
-      
-      // Then try to fetch full details
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+      if (!token) return;
 
       const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}/details`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -60,17 +52,10 @@ export default function EmployeeManagement() {
 
       if (res.ok) {
         const data = await res.json();
-        // Merge fetched details with existing employee data
-        setSelectedEmployee(data.employee || employee);
-      } else {
-        // If API fails, keep the employee data we already have
-        setSelectedEmployee(employee);
+        setSelectedEmployee(data.employee || {});
       }
     } catch (error) {
       console.error("Error fetching details:", error);
-      // On error, still show the employee data
-      setSelectedEmployee(employee);
-      setMessage("⚠ Loaded basic employee information");
     } finally {
       setLoading(false);
     }
@@ -120,186 +105,6 @@ export default function EmployeeManagement() {
     emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.employeeCode?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const containerStyle = {
-    padding: "20px",
-    backgroundColor: theme.colors.light,
-    minHeight: "100vh"
-  };
-
-  const headerStyle = {
-    color: theme.colors.primary,
-    marginBottom: "20px",
-    fontSize: "24px",
-    fontWeight: "700"
-  };
-
-  const searchBoxStyle = {
-    marginBottom: "20px",
-    display: "flex",
-    gap: "10px"
-  };
-
-  const searchInputStyle = {
-    flex: 1,
-    padding: "10px 15px",
-    border: `1px solid ${theme.colors.border}`,
-    borderRadius: "5px",
-    fontSize: "14px",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
-  };
-
-  const tableContainerStyle = {
-    backgroundColor: "white",
-    borderRadius: "8px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-    overflow: "hidden"
-  };
-
-  const tableStyle = {
-    width: "100%",
-    borderCollapse: "collapse"
-  };
-
-  const headerCellStyle = {
-    padding: "15px",
-    backgroundColor: theme.colors.primary,
-    color: "white",
-    fontWeight: "600",
-    textAlign: "left",
-    borderBottom: `2px solid ${theme.colors.border}`
-  };
-
-  const cellStyle = {
-    padding: "12px 15px",
-    borderBottom: `1px solid ${theme.colors.border}`,
-    fontSize: "14px"
-  };
-
-  const rowStyle = {
-    transition: "background-color 0.2s",
-    cursor: "pointer"
-  };
-
-  const actionButtonStyle = {
-    padding: "6px 12px",
-    marginRight: "5px",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-    fontSize: "12px",
-    fontWeight: "600",
-    transition: "all 0.2s"
-  };
-
-  const editButtonStyle = {
-    ...actionButtonStyle,
-    backgroundColor: theme.colors.primary,
-    color: "white"
-  };
-
-  const detailsButtonStyle = {
-    ...actionButtonStyle,
-    backgroundColor: "#17a2b8",
-    color: "white"
-  };
-
-  const modalOverlayStyle = {
-    display: showEditModal ? "flex" : "none",
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1000
-  };
-
-  const modalStyle = {
-    backgroundColor: "white",
-    borderRadius: "8px",
-    padding: "30px",
-    maxWidth: "500px",
-    width: "90%",
-    maxHeight: "80vh",
-    overflowY: "auto",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
-  };
-
-  const formGroupStyle = {
-    marginBottom: "15px"
-  };
-
-  const labelStyle = {
-    display: "block",
-    fontWeight: "600",
-    marginBottom: "5px",
-    color: theme.colors.primary
-  };
-
-  const inputStyle = {
-    width: "100%",
-    padding: "10px",
-    border: `1px solid ${theme.colors.border}`,
-    borderRadius: "4px",
-    fontSize: "14px",
-    boxSizing: "border-box"
-  };
-
-  const buttonGroupStyle = {
-    display: "flex",
-    gap: "10px",
-    marginTop: "20px",
-    justifyContent: "flex-end"
-  };
-
-  const cancelButtonStyle = {
-    padding: "10px 20px",
-    backgroundColor: "#6c757d",
-    color: "white",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-    fontWeight: "600"
-  };
-
-  const saveButtonStyle = {
-    padding: "10px 20px",
-    backgroundColor: theme.colors.primary,
-    color: "white",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-    fontWeight: "600"
-  };
-
-  const detailsModalStyle = {
-    ...modalStyle,
-    maxWidth: "700px"
-  };
-
-  const detailSectionStyle = {
-    marginBottom: "20px",
-    paddingBottom: "15px",
-    borderBottom: `1px solid ${theme.colors.border}`
-  };
-
-  const detailTitleStyle = {
-    color: theme.colors.primary,
-    fontWeight: "700",
-    marginBottom: "10px",
-    fontSize: "16px"
-  };
-
-  const detailItemStyle = {
-    display: "grid",
-    gridTemplateColumns: "150px 1fr",
-    gap: "10px",
-    marginBottom: "8px",
-    fontSize: "14px"
-  };
 
   return (
     <div className="emp-container">
