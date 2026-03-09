@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 export default function Qualifications({ userId }) {
   const [qualifications, setQualifications] = useState([]);
@@ -22,6 +22,39 @@ export default function Qualifications({ userId }) {
   const [messageType, setMessageType] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+
+  // Use local date (not UTC) to correctly reflect the user's timezone (e.g. UTC+7 Vietnam)
+  const getLocalToday = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+  // Recalculated on every render — always reflects real-time current date
+  const today = getLocalToday();
+  const isMounted = useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
+  // Per-type expiry config
+  const expiryConfig = {
+    degree:      { required: false, hidden: true,  hint: "Degrees do not expire — leave blank." },
+    certificate: { required: false, hidden: false, hint: "e.g. IELTS/TOEFL: 2 yrs · IT/Marketing certs: 1–3 yrs · Office skills: no expiry" },
+    license:     { required: true,  hidden: false, hint: "Check the expiry date printed directly on your license/ID card." },
+    training:    { required: false, hidden: false, hint: "Leave blank unless this is a safety/fire training course (typically 1–2 yrs)." },
+  };
+  const currentExpiry = expiryConfig[formData.type] || expiryConfig.certificate;
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "-";
+    // Use substring to avoid timezone shift: take the YYYY-MM-DD part directly
+    const ymd = dateStr.substring(0, 10); // "YYYY-MM-DD"
+    const [y, m, d] = ymd.split("-");
+    return `${d}/${m}/${y}`; // DD/MM/YYYY
+  };
 
   const showMessage = (text, type) => {
     setMessage(text);
@@ -64,6 +97,11 @@ export default function Qualifications({ userId }) {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    // When switching to Degree, clear expiry date automatically
+    if (name === "type" && value === "degree") {
+      setFormData(prev => ({ ...prev, type: value, expiryDate: "" }));
+      return;
+    }
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -147,6 +185,28 @@ export default function Qualifications({ userId }) {
       return;
     }
 
+    // Validate date logic
+    if (!formData.issuedDate) {
+      showMessage("Issue Date is required!", "error");
+      return;
+    }
+    if (formData.issuedDate && formData.issuedDate > today) {
+      showMessage("Issue Date cannot be in the future!", "error");
+      return;
+    }
+    if (formData.expiryDate && formData.expiryDate <= today) {
+      showMessage("Expiry Date must be in the future (after today)!", "error");
+      return;
+    }
+    if (formData.issuedDate && formData.expiryDate && formData.expiryDate <= formData.issuedDate) {
+      showMessage("Expiry Date must be strictly after Issue Date!", "error");
+      return;
+    }
+    if (currentExpiry.required && !formData.expiryDate) {
+      showMessage("Expiry Date is required for License — please check your license card.", "error");
+      return;
+    }
+
     try {
       const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
       const token = localStorage.getItem("authToken");
@@ -177,17 +237,18 @@ export default function Qualifications({ userId }) {
         showMessage(data.message || "Submitted successfully! Awaiting approval.", "success");
         await fetchQualifications();
         setTimeout(() => {
-        setShowForm(false);
-        setEditingId(null);
-        setFormData({
-          type: "certificate",
-          name: "",
-          issuedBy: "",
-          issuedDate: "",
-          expiryDate: "",
-          certificateNumber: "",
-          description: ""
-        });
+          if (!isMounted.current) return;
+          setShowForm(false);
+          setEditingId(null);
+          setFormData({
+            type: "certificate",
+            name: "",
+            issuedBy: "",
+            issuedDate: "",
+            expiryDate: "",
+            certificateNumber: "",
+            description: ""
+          });
           setDocumentFile(null);
           setDocumentPreview(null);
           setDocumentPath(null);
@@ -217,6 +278,7 @@ export default function Qualifications({ userId }) {
     setDocumentPath(qual.documentPath || null);
     setDocumentFile(null);
     setDocumentPreview(null);
+    setMessage("");
     setShowForm(true);
   };
 
@@ -668,14 +730,13 @@ export default function Qualifications({ userId }) {
               {/* Type */}
               <div style={{ marginBottom: "24px" }}>
                 <label style={{ 
-                  display: "block", 
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
                   fontSize: "14px", 
                   fontWeight: "600", 
                   color: "#333", 
-                  marginBottom: "10px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px"
+                  marginBottom: "10px"
                 }}>
                   <span>📋</span>
                   <span>Type</span>
@@ -820,12 +881,21 @@ export default function Qualifications({ userId }) {
                   }}>
                     <span>📅</span>
                     <span>Issue Date</span>
+                    <span style={{ color: "#dc3545" }}>*</span>
                   </label>
               <input
                 type="date"
                 name="issuedDate"
                 value={formData.issuedDate}
-                onChange={handleInputChange}
+                required
+                onChange={(e) => {
+                  handleInputChange(e);
+                  // Clear expiry if it's now before new issue date
+                  if (formData.expiryDate && e.target.value && formData.expiryDate <= e.target.value) {
+                    setFormData(prev => ({ ...prev, issuedDate: e.target.value, expiryDate: "" }));
+                  }
+                }}
+                max={today}
                     style={{
                       width: "100%",
                       padding: "14px 16px",
@@ -859,16 +929,44 @@ export default function Qualifications({ userId }) {
                   }}>
                     <span>⏰</span>
                     <span>Expiry Date</span>
+                    {currentExpiry.required
+                      ? <span style={{ color: "#dc3545" }}>*</span>
+                      : <span style={{ fontSize: "11px", fontWeight: "400", color: "#adb5bd", fontStyle: "italic" }}>(Optional)</span>
+                    }
                   </label>
+              {currentExpiry.hidden ? (
+                <div style={{
+                  padding: "14px 16px",
+                  border: "2px dashed #dee2e6",
+                  borderRadius: "10px",
+                  backgroundColor: "#f8f9fa",
+                  color: "#adb5bd",
+                  fontSize: "13px",
+                  fontStyle: "italic"
+                }}>
+                  Not applicable for Degree
+                </div>
+              ) : (
               <input
                 type="date"
                 name="expiryDate"
                 value={formData.expiryDate}
                 onChange={handleInputChange}
+                required={currentExpiry.required}
+                min={(() => {
+                  const tomorrow = new Date(today);
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  const tomorrowStr = tomorrow.toISOString().split("T")[0];
+                  if (!formData.issuedDate) return tomorrowStr;
+                  const afterIssue = new Date(formData.issuedDate);
+                  afterIssue.setDate(afterIssue.getDate() + 1);
+                  const afterIssueStr = afterIssue.toISOString().split("T")[0];
+                  return afterIssueStr > tomorrowStr ? afterIssueStr : tomorrowStr;
+                })()}
                     style={{
                       width: "100%",
                       padding: "14px 16px",
-                      border: "2px solid #e0e0e0",
+                      border: `2px solid ${currentExpiry.required ? "#ffc107" : "#e0e0e0"}`,
                       borderRadius: "10px",
                       fontSize: "15px",
                       transition: "all 0.3s ease",
@@ -880,11 +978,15 @@ export default function Qualifications({ userId }) {
                       e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
                     }}
                     onBlur={(e) => {
-                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.borderColor = currentExpiry.required ? "#ffc107" : "#e0e0e0";
                       e.target.style.backgroundColor = "#f8f9fa";
                       e.target.style.boxShadow = "none";
                     }}
               />
+              )}
+                  <div style={{ fontSize: "11px", color: currentExpiry.required ? "#856404" : "#adb5bd", marginTop: "6px", fontStyle: "italic" }}>
+                    {currentExpiry.hint}
+                  </div>
             </div>
           </div>
 
@@ -1402,7 +1504,7 @@ export default function Qualifications({ userId }) {
                         fontSize: "13px",
                         color: "#6c757d"
                       }}>
-                        {qual.issuedDate ? new Date(qual.issuedDate).toLocaleDateString("en-US") : "-"}
+                        {formatDate(qual.issuedDate)}
                       </td>
                       <td style={{ 
                         padding: "16px", 
@@ -1442,51 +1544,63 @@ export default function Qualifications({ userId }) {
                         <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
                       <button
                         onClick={() => handleEdit(qual)}
+                        disabled={qual.approvalStatus === "approved"}
                             style={{ 
                               padding: "6px 14px", 
-                              backgroundColor: "#FFC107", 
+                              backgroundColor: qual.approvalStatus === "approved" ? "#ccc" : "#FFC107", 
                               color: "white", 
                               border: "none", 
                               borderRadius: "6px", 
-                              cursor: "pointer",
+                              cursor: qual.approvalStatus === "approved" ? "not-allowed" : "pointer",
                               fontSize: "12px",
                               fontWeight: "600",
-                              transition: "all 0.2s ease"
+                              transition: "all 0.2s ease",
+                              title: qual.approvalStatus === "approved" ? "Cannot edit an approved qualification" : ""
                             }}
                             onMouseOver={(e) => {
-                              e.target.style.backgroundColor = "#FFB300";
-                              e.target.style.transform = "translateY(-1px)";
+                              if (qual.approvalStatus !== "approved") {
+                                e.target.style.backgroundColor = "#FFB300";
+                                e.target.style.transform = "translateY(-1px)";
+                              }
                             }}
                             onMouseOut={(e) => {
-                              e.target.style.backgroundColor = "#FFC107";
-                              e.target.style.transform = "translateY(0)";
+                              if (qual.approvalStatus !== "approved") {
+                                e.target.style.backgroundColor = "#FFC107";
+                                e.target.style.transform = "translateY(0)";
+                              }
                             }}
                           >
-                            DETAILS
+                            EDIT
                       </button>
                       <button
                         onClick={() => {
+                          if (qual.approvalStatus === "approved") return;
                           setDeleteId(qual.id);
                           setShowDeleteConfirm(true);
                         }}
+                        disabled={qual.approvalStatus === "approved"}
                         style={{ 
                           padding: "6px 14px", 
-                          backgroundColor: "#dc3545", 
+                          backgroundColor: qual.approvalStatus === "approved" ? "#ccc" : "#dc3545", 
                           color: "white", 
                           border: "none", 
                           borderRadius: "6px", 
-                          cursor: "pointer",
+                          cursor: qual.approvalStatus === "approved" ? "not-allowed" : "pointer",
                           fontSize: "12px",
                           fontWeight: "600",
                           transition: "all 0.2s ease"
                         }}
                         onMouseOver={(e) => {
-                          e.target.style.backgroundColor = "#c82333";
-                          e.target.style.transform = "translateY(-1px)";
+                          if (qual.approvalStatus !== "approved") {
+                            e.target.style.backgroundColor = "#c82333";
+                            e.target.style.transform = "translateY(-1px)";
+                          }
                         }}
                         onMouseOut={(e) => {
-                          e.target.style.backgroundColor = "#dc3545";
-                          e.target.style.transform = "translateY(0)";
+                          if (qual.approvalStatus !== "approved") {
+                            e.target.style.backgroundColor = "#dc3545";
+                            e.target.style.transform = "translateY(0)";
+                          }
                         }}
                       >
                         DELETE
