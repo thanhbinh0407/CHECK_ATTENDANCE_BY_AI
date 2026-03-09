@@ -9,7 +9,7 @@
 
 const {
   Payroll, PayrollDetail, PayrollComponent, SalaryPolicy,
-  User, Department, JobTitle, Attendance, sequelize
+  User, Department, JobTitle, Attendance, SalaryAdvance, sequelize
 } = require('../models');
 const { Op } = require('sequelize');
 const ExcelJS = require('exceljs');
@@ -1357,6 +1357,12 @@ exports.autoCalculatePayrollComponents = async (
   transaction
 ) => {
   try {
+    // Get payroll to get userId, month, year for salary advance lookup
+    const payroll = await Payroll.findByPk(payrollId, { transaction });
+    if (!payroll) {
+      throw new Error('Payroll not found');
+    }
+
     const components = await PayrollComponent.findAll({
       where: { isActive: true },
       transaction,
@@ -1365,6 +1371,11 @@ exports.autoCalculatePayrollComponents = async (
     const details = [];
     
     for (const component of components) {
+      // Skip advance_deduction component - we'll handle it separately
+      if (component.category === 'advance_deduction') {
+        continue;
+      }
+
       let amount = 0;
       
       // Calculate based on component type and calculation method
@@ -1402,6 +1413,66 @@ exports.autoCalculatePayrollComponents = async (
           isEdited: false,
         });
       }
+    }
+    
+    // Handle salary advance deduction
+    // Find approved salary advance that hasn't been deducted yet for this month/year
+    const salaryAdvance = await SalaryAdvance.findOne({
+      where: {
+        userId: payroll.userId,
+        month: payroll.month,
+        year: payroll.year,
+        approvalStatus: 'approved',
+        isDeducted: false
+      },
+      transaction,
+    });
+
+    if (salaryAdvance && salaryAdvance.amount > 0) {
+      // Find or get advance_deduction component
+      let advanceComponent = await PayrollComponent.findOne({
+        where: {
+          category: 'advance_deduction',
+          type: 'deduction',
+          isActive: true
+        },
+        transaction,
+      });
+
+      // If component doesn't exist, create it
+      if (!advanceComponent) {
+        advanceComponent = await PayrollComponent.create({
+          code: 'ADVANCE_DEDUCTION',
+          name: 'Trừ ứng lương',
+          type: 'deduction',
+          category: 'advance_deduction',
+          calculationMethod: 'fixed_amount',
+          defaultValue: 0,
+          isRequired: false,
+          isEditable: false,
+          isActive: true,
+          displayOrder: 999,
+        }, { transaction });
+      }
+
+      // Add advance deduction to details
+      details.push({
+        payrollId,
+        payrollComponentId: advanceComponent.id,
+        quantity: 1,
+        unitAmount: parseFloat(salaryAdvance.amount),
+        amount: parseFloat(salaryAdvance.amount),
+        calculationFormula: `Salary Advance #${salaryAdvance.id}`,
+        notes: `Trừ ứng lương tháng ${salaryAdvance.month}/${salaryAdvance.year}. Lý do: ${salaryAdvance.reason || 'N/A'}`,
+        isEdited: false,
+      });
+
+      // Mark salary advance as deducted
+      await salaryAdvance.update({
+        isDeducted: true,
+        deductedAt: new Date(),
+        salaryId: payrollId
+      }, { transaction });
     }
     
     if (details.length > 0) {

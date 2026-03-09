@@ -12,15 +12,16 @@
   },
   "dependencies": {
     "@tensorflow/tfjs": "3.21.0",
+    "docx": "^8.5.0",
     "face-api.js": "^0.22.2",
+    "file-saver": "^2.0.5",
+    "html2canvas": "^1.4.1",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
-    "html2canvas": "^1.4.1",
-    "docx": "^8.5.0",
-    "file-saver": "^2.0.5",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "recharts": "^3.5.1",
+    "socket.io-client": "^4.8.3",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

@@ -249,8 +249,8 @@ export default function ReportsDashboard() {
 
   const renderAttendanceReport = () => {
     if (!reportData.report || !Array.isArray(reportData.report)) return null;
-    
-    return (
+
+  return (
       <div style={{ marginTop: theme.spacing.xl }}>
         <div style={{ ...cardStyle, marginBottom: theme.spacing.lg }}>
           <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: theme.spacing.md, color: theme.primary.main }}>
@@ -262,7 +262,7 @@ export default function ReportsDashboard() {
               <div style={{ fontSize: 24, fontWeight: 800, color: theme.primary.main }}>{reportData.totalEmployees || 0}</div>
             </div>
           </div>
-        </div>
+      </div>
 
         <div style={cardStyle}>
           <div style={{ overflowX: "auto" }}>

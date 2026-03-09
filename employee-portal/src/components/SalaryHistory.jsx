@@ -1,25 +1,113 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 
-export default function SalaryHistory({ userId }) {
+
+const POLLING_INTERVAL = 30000; // 30 seconds
+
+export default function SalaryHistory({ userId, isActive }) {
   const [salaries, setSalaries] = useState([]);
+
   const [loading, setLoading] = useState(true);
+
   const [selectedSalary, setSelectedSalary] = useState(null);
+
   const [salaryDetails, setSalaryDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+
   const [selectedYear, setSelectedYear] = useState("all"); // "all" or specific year
+
   const [statusFilter, setStatusFilter] = useState("all"); // "all", "pending", "approved", "paid"
 
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const pollingRef = useRef(null);
+
+
+  // Initial fetch
   useEffect(() => {
+
     fetchSalaries();
+
   }, [userId]);
 
+
+  // Auto-polling: refresh salary data every 30s
+  useEffect(() => {
+    pollingRef.current = setInterval(() => {
+      fetchSalariesSilent();
+    }, POLLING_INTERVAL);
+    return () => clearInterval(pollingRef.current);
+  }, [userId]);
+
+  // Re-fetch when browser tab becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchSalariesSilent();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [userId]);
+
+
   const fetchSalaries = async () => {
+
     try {
+
       setLoading(true);
+
       const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
       const token = localStorage.getItem("authToken");
 
+
+
+      if (!token) return;
+
+
+
+      const res = await fetch(`${apiBase}/api/employee/salary`, {
+
+        headers: {
+
+          "Authorization": `Bearer ${token}`,
+
+          "Content-Type": "application/json"
+
+        }
+
+      });
+
+
+
+      const data = await res.json();
+
+      if (res.ok) {
+
+        setSalaries(data.salaries || []);
+
+        setLastUpdated(new Date());
+      }
+
+    } catch (error) {
+
+      console.error("Error fetching salaries:", error);
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  };
+
+
+
+  // Silent fetch (no loading spinner) for background polling
+  const fetchSalariesSilent = useCallback(async () => {
+    try {
+      const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+      const token = localStorage.getItem("authToken");
       if (!token) return;
 
       const res = await fetch(`${apiBase}/api/employee/salary`, {
@@ -32,17 +120,18 @@ export default function SalaryHistory({ userId }) {
       const data = await res.json();
       if (res.ok) {
         setSalaries(data.salaries || []);
+        setLastUpdated(new Date());
       }
     } catch (error) {
-      console.error("Error fetching salaries:", error);
-    } finally {
-      setLoading(false);
+      // Silent fail for background polling
     }
-  };
+  }, [userId]);
 
   const viewSalaryDetail = async (salary) => {
     setSelectedSalary(salary);
+
     setShowDetailModal(true);
+
     setSalaryDetails(null);
     setLoadingDetails(true);
     
@@ -72,6 +161,8 @@ export default function SalaryHistory({ userId }) {
       const employeeInsurance = insuranceData?.insurance?.employee?.total || 0;
       const employerInsurance = insuranceData?.insurance?.employer?.total || 0;
       const tax = taxData?.taxAmount || 0;
+      const advanceDeduction = parseFloat(salary.advanceDeduction || 0);
+      const otherDeductions = parseFloat(salary.deduction || 0) - advanceDeduction; // Deduction minus advance
       const deductions = parseFloat(salary.deduction || 0);
       const netSalary = grossSalary - employeeInsurance - tax - deductions;
       
@@ -84,6 +175,8 @@ export default function SalaryHistory({ userId }) {
         employeeInsurance,
         employerInsurance,
         tax,
+        advanceDeduction,
+        otherDeductions,
         deductions,
         netSalary,
         insuranceBreakdown: insuranceData?.insurance || null,
@@ -104,6 +197,8 @@ export default function SalaryHistory({ userId }) {
         employeeInsurance: 0,
         employerInsurance: 0,
         tax: 0,
+        advanceDeduction: parseFloat(salary.advanceDeduction || 0),
+        otherDeductions: parseFloat(salary.deduction || 0) - parseFloat(salary.advanceDeduction || 0),
         deductions,
         netSalary: grossSalary - deductions,
         insuranceBreakdown: null,
@@ -115,570 +210,1136 @@ export default function SalaryHistory({ userId }) {
     }
   };
 
+
+
   const formatCurrency = (amount) => {
+
     return new Intl.NumberFormat("vi-VN", {
+
       style: "currency",
+
       currency: "VND"
+
     }).format(amount || 0);
+
   };
+
+
 
   const getStatusBadge = (status) => {
+
     const styles = {
+
       pending: { backgroundColor: "#ff9800", color: "#fff" },
+
       approved: { backgroundColor: "#2196f3", color: "#fff" },
+
       paid: { backgroundColor: "#28a745", color: "#fff" }
+
     };
+
     const labels = {
+
       pending: "PENDING APPROVAL",
+
       approved: "APPROVED",
+
       paid: "PAID"
+
     };
+
     const style = styles[status] || styles.pending;
+
     return (
+
       <span style={{
+
         ...style,
+
         padding: "5px 14px",
+
         borderRadius: "4px",
+
         fontSize: "11px",
+
         fontWeight: "600",
+
         textTransform: "uppercase",
+
         letterSpacing: "0.5px"
+
       }}>
+
         {labels[status] || status}
+
       </span>
+
     );
+
   };
 
+
+
   // Filter and sort salaries
+
   const filteredSalaries = useMemo(() => {
+
     let filtered = [...salaries];
+
     
+
     // Filter by status
+
     if (statusFilter !== "all") {
+
       filtered = filtered.filter(s => s.status === statusFilter);
+
     }
+
     
+
     // Filter by year (only if specific year is selected)
+
     if (selectedYear !== "all") {
+
       filtered = filtered.filter(s => s.year === selectedYear);
+
     }
+
     
+
     // Sort by month (newest first)
+
     filtered.sort((a, b) => {
+
       if (b.year !== a.year) return b.year - a.year;
+
       return b.month - a.month;
+
     });
+
     
+
     return filtered;
+
   }, [salaries, statusFilter, selectedYear]);
 
+
+
   // Calculate statistics
+
   const stats = useMemo(() => {
+
     const yearSalaries = selectedYear === "all" ? salaries : salaries.filter(s => s.year === selectedYear);
+
     const totalEarnings = yearSalaries.reduce((sum, s) => {
+
       const salary = parseFloat(s.finalSalary) || 0;
+
       return sum + salary;
+
     }, 0);
+
     const pendingCount = yearSalaries.filter(s => s.status === "pending").length;
+
     const approvedCount = yearSalaries.filter(s => s.status === "approved").length;
+
     const paidCount = yearSalaries.filter(s => s.status === "paid").length;
+
     
+
     return { totalEarnings, pendingCount, approvedCount, paidCount };
+
   }, [salaries, selectedYear]);
 
+
+
   // Get available years from salary data
+
   const years = useMemo(() => {
+
     const yearSet = new Set(salaries.map(s => s.year));
+
     const yearArray = Array.from(yearSet).sort((a, b) => b - a);
+
     return yearArray;
+
   }, [salaries]);
 
+
+
   return (
+
     <div style={{
+
       backgroundColor: "#f8f9fa",
+
       minHeight: "100vh",
+
       padding: "24px"
+
     }}>
+
       {/* Header Section */}
+
       <div style={{
+
         backgroundColor: "#fff",
+
         borderRadius: "16px",
+
         padding: "24px 32px",
+
         marginBottom: "24px",
+
         boxShadow: "0 2px 12px rgba(0,0,0,0.06)"
+
       }}>
+
         <div style={{ 
+
           display: "flex", 
+
           justifyContent: "space-between", 
+
           alignItems: "center",
+
           flexWrap: "wrap",
+
           gap: "16px"
+
         }}>
+
           <div>
+
             <h2 style={{ 
+
               margin: "0 0 8px 0", 
+
               fontSize: "28px", 
+
               fontWeight: "700", 
+
               color: "#1a1a1a"
+
             }}>
+
               Salary History
+
             </h2>
+
             <p style={{ 
+
               margin: 0, 
+
               color: "#666", 
+
               fontSize: "14px" 
+
             }}>
+
               View your monthly salary records and payment status
+
             </p>
+
           </div>
+
           
+
           {/* Filter Controls */}
+
           <div style={{ 
+
             display: "flex", 
+
             gap: "12px",
+
             flexWrap: "wrap",
+
             alignItems: "center"
+
           }}>
+
             <select
+
               value={selectedYear}
+
               onChange={(e) => {
+
                 const value = e.target.value;
+
                 setSelectedYear(value === "all" ? "all" : parseInt(value));
+
               }}
+
               style={{
+
                 padding: "10px 16px",
+
                 border: "2px solid #e0e0e0",
+
                 borderRadius: "8px",
+
                 fontSize: "14px",
+
                 cursor: "pointer",
+
                 backgroundColor: "#fff",
+
                 fontWeight: "500",
+
                 transition: "all 0.2s"
+
               }}
+
             >
+
               <option value="all">All Years</option>
+
               {years.map(y => (
+
                 <option key={y} value={y}>{y}</option>
+
               ))}
+
             </select>
+
           </div>
+
         </div>
+
+
 
         {/* Filter Tabs */}
+
         <div style={{ 
+
           marginTop: "20px",
+
           display: "flex",
+
           gap: "8px",
+
           flexWrap: "wrap"
+
         }}>
+
           {[
+
             { value: "all", label: "All Records" },
+
             { value: "pending", label: "Pending" },
+
             { value: "approved", label: "Approved" },
+
             { value: "paid", label: "Paid" }
+
           ].map(tab => (
+
             <button
+
               key={tab.value}
+
               onClick={() => setStatusFilter(tab.value)}
+
               style={{
+
                 padding: "8px 20px",
+
                 backgroundColor: statusFilter === tab.value ? "#1976d2" : "#f5f5f5",
+
                 color: statusFilter === tab.value ? "#fff" : "#333",
+
                 border: statusFilter === tab.value ? "2px solid #1976d2" : "2px solid #e0e0e0",
+
                 borderRadius: "6px",
+
                 fontSize: "13px",
+
                 fontWeight: "600",
+
                 cursor: "pointer",
+
                 transition: "all 0.2s",
+
                 textTransform: "uppercase",
+
                 letterSpacing: "0.5px"
+
               }}
+
             >
+
               {tab.label}
+
             </button>
+
           ))}
+
         </div>
+
       </div>
 
+
+
       {/* Statistics Cards */}
+
       {!loading && filteredSalaries.length > 0 && (
+
         <div style={{
+
           display: "grid",
+
           gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+
           gap: "24px",
+
           marginBottom: "32px"
+
         }}>
+
           {/* Total Earnings */}
+
           <div style={{
+
             background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+
             borderRadius: "16px",
+
             padding: "28px 24px",
+
             boxShadow: "0 8px 24px rgba(102, 126, 234, 0.25)",
+
             position: "relative",
+
             overflow: "hidden",
+
             transition: "all 0.3s ease",
+
             cursor: "pointer"
+
           }}
+
           onMouseEnter={(e) => {
+
             e.currentTarget.style.transform = "translateY(-4px)";
+
             e.currentTarget.style.boxShadow = "0 12px 32px rgba(102, 126, 234, 0.35)";
+
           }}
+
           onMouseLeave={(e) => {
+
             e.currentTarget.style.transform = "translateY(0)";
+
             e.currentTarget.style.boxShadow = "0 8px 24px rgba(102, 126, 234, 0.25)";
+
           }}>
+
             <div style={{
+
               position: "absolute",
+
               top: "-20px",
+
               right: "-20px",
+
               width: "100px",
+
               height: "100px",
+
               backgroundColor: "rgba(255,255,255,0.1)",
+
               borderRadius: "50%"
+
             }}></div>
+
             
+
             <div style={{
+
               display: "flex",
+
               justifyContent: "space-between",
+
               alignItems: "flex-start",
+
               marginBottom: "16px"
+
             }}>
+
               <div style={{
+
                 fontSize: "13px",
+
                 fontWeight: "600",
+
                 color: "rgba(255,255,255,0.9)",
+
                 textTransform: "uppercase",
+
                 letterSpacing: "1px"
+
               }}>
+
                 Total Earnings
+
               </div>
+
               <div style={{
+
                 width: "48px",
+
                 height: "48px",
+
                 backgroundColor: "rgba(255,255,255,0.2)",
+
                 borderRadius: "12px",
+
                 display: "flex",
+
                 alignItems: "center",
+
                 justifyContent: "center",
+
                 backdropFilter: "blur(10px)"
+
               }}>
+
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+
                   <line x1="12" y1="1" x2="12" y2="23"></line>
+
                   <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+
                 </svg>
+
               </div>
+
             </div>
+
             
+
             <div style={{
+
               fontSize: "24px",
+
               fontWeight: "800",
+
               color: "#fff",
+
               lineHeight: "1.2",
+
               marginBottom: "4px"
+
             }}>
+
               {!isNaN(stats.totalEarnings) && stats.totalEarnings !== undefined ? formatCurrency(stats.totalEarnings) : "0 ₫"}
+
             </div>
+
             
+
             <div style={{
+
               fontSize: "13px",
+
               color: "rgba(255,255,255,0.8)",
+
               fontWeight: "500"
+
             }}>
+
               Total compensation
+
             </div>
+
           </div>
+
+
 
           {/* Pending */}
+
           <div style={{
+
             background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+
             borderRadius: "16px",
+
             padding: "28px 24px",
+
             boxShadow: "0 8px 24px rgba(240, 147, 251, 0.25)",
+
             position: "relative",
+
             overflow: "hidden",
+
             transition: "all 0.3s ease",
+
             cursor: "pointer"
+
           }}
+
           onMouseEnter={(e) => {
+
             e.currentTarget.style.transform = "translateY(-4px)";
+
             e.currentTarget.style.boxShadow = "0 12px 32px rgba(240, 147, 251, 0.35)";
+
           }}
+
           onMouseLeave={(e) => {
+
             e.currentTarget.style.transform = "translateY(0)";
+
             e.currentTarget.style.boxShadow = "0 8px 24px rgba(240, 147, 251, 0.25)";
+
           }}>
+
             <div style={{
+
               position: "absolute",
+
               top: "-20px",
+
               right: "-20px",
+
               width: "100px",
+
               height: "100px",
+
               backgroundColor: "rgba(255,255,255,0.1)",
+
               borderRadius: "50%"
+
             }}></div>
+
             
+
             <div style={{
+
               display: "flex",
+
               justifyContent: "space-between",
+
               alignItems: "flex-start",
+
               marginBottom: "16px"
+
             }}>
+
               <div style={{
+
                 fontSize: "13px",
+
                 fontWeight: "600",
+
                 color: "rgba(255,255,255,0.9)",
+
                 textTransform: "uppercase",
+
                 letterSpacing: "1px"
+
               }}>
+
                 Pending
+
               </div>
+
               <div style={{
+
                 width: "48px",
+
                 height: "48px",
+
                 backgroundColor: "rgba(255,255,255,0.2)",
+
                 borderRadius: "12px",
+
                 display: "flex",
+
                 alignItems: "center",
+
                 justifyContent: "center",
+
                 backdropFilter: "blur(10px)"
+
               }}>
+
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+
                   <circle cx="12" cy="12" r="10"></circle>
+
                   <polyline points="12 6 12 12 16 14"></polyline>
+
                 </svg>
+
               </div>
+
             </div>
+
             
+
             <div style={{
+
               fontSize: "40px",
+
               fontWeight: "800",
+
               color: "#fff",
+
               lineHeight: "1",
+
               marginBottom: "4px"
+
             }}>
+
               {stats.pendingCount}
+
             </div>
+
             
+
             <div style={{
+
               fontSize: "13px",
+
               color: "rgba(255,255,255,0.8)",
+
               fontWeight: "500"
+
             }}>
+
               Awaiting approval
+
             </div>
+
           </div>
+
+
 
           {/* Approved */}
+
           <div style={{
+
             background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+
             borderRadius: "16px",
+
             padding: "28px 24px",
+
             boxShadow: "0 8px 24px rgba(79, 172, 254, 0.25)",
+
             position: "relative",
+
             overflow: "hidden",
+
             transition: "all 0.3s ease",
+
             cursor: "pointer"
+
           }}
+
           onMouseEnter={(e) => {
+
             e.currentTarget.style.transform = "translateY(-4px)";
+
             e.currentTarget.style.boxShadow = "0 12px 32px rgba(79, 172, 254, 0.35)";
+
           }}
+
           onMouseLeave={(e) => {
+
             e.currentTarget.style.transform = "translateY(0)";
+
             e.currentTarget.style.boxShadow = "0 8px 24px rgba(79, 172, 254, 0.25)";
+
           }}>
+
             <div style={{
+
               position: "absolute",
+
               top: "-20px",
+
               right: "-20px",
+
               width: "100px",
+
               height: "100px",
+
               backgroundColor: "rgba(255,255,255,0.1)",
+
               borderRadius: "50%"
+
             }}></div>
+
             
+
             <div style={{
+
               display: "flex",
+
               justifyContent: "space-between",
+
               alignItems: "flex-start",
+
               marginBottom: "16px"
+
             }}>
+
               <div style={{
+
                 fontSize: "13px",
+
                 fontWeight: "600",
+
                 color: "rgba(255,255,255,0.9)",
+
                 textTransform: "uppercase",
+
                 letterSpacing: "1px"
+
               }}>
+
                 Approved
+
               </div>
+
               <div style={{
+
                 width: "48px",
+
                 height: "48px",
+
                 backgroundColor: "rgba(255,255,255,0.2)",
+
                 borderRadius: "12px",
+
                 display: "flex",
+
                 alignItems: "center",
+
                 justifyContent: "center",
+
                 backdropFilter: "blur(10px)"
+
               }}>
+
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+
                   <polyline points="20 6 9 17 4 12"></polyline>
+
                 </svg>
+
               </div>
+
             </div>
+
             
+
             <div style={{
+
               fontSize: "40px",
+
               fontWeight: "800",
+
               color: "#fff",
+
               lineHeight: "1",
+
               marginBottom: "4px"
+
             }}>
+
               {stats.approvedCount}
+
             </div>
+
             
+
             <div style={{
+
               fontSize: "13px",
+
               color: "rgba(255,255,255,0.8)",
+
               fontWeight: "500"
+
             }}>
+
               Ready for payment
+
             </div>
+
           </div>
+
+
 
           {/* Paid */}
+
           <div style={{
+
             background: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
+
             borderRadius: "16px",
+
             padding: "28px 24px",
+
             boxShadow: "0 8px 24px rgba(67, 233, 123, 0.25)",
+
             position: "relative",
+
             overflow: "hidden",
+
             transition: "all 0.3s ease",
+
             cursor: "pointer"
+
           }}
+
           onMouseEnter={(e) => {
+
             e.currentTarget.style.transform = "translateY(-4px)";
+
             e.currentTarget.style.boxShadow = "0 12px 32px rgba(67, 233, 123, 0.35)";
+
           }}
+
           onMouseLeave={(e) => {
+
             e.currentTarget.style.transform = "translateY(0)";
+
             e.currentTarget.style.boxShadow = "0 8px 24px rgba(67, 233, 123, 0.25)";
+
           }}>
+
             <div style={{
+
               position: "absolute",
+
               top: "-20px",
+
               right: "-20px",
+
               width: "100px",
+
               height: "100px",
+
               backgroundColor: "rgba(255,255,255,0.1)",
+
               borderRadius: "50%"
+
             }}></div>
+
             
+
             <div style={{
+
               display: "flex",
+
               justifyContent: "space-between",
+
               alignItems: "flex-start",
+
               marginBottom: "16px"
+
             }}>
+
               <div style={{
+
                 fontSize: "13px",
+
                 fontWeight: "600",
+
                 color: "rgba(255,255,255,0.9)",
+
                 textTransform: "uppercase",
+
                 letterSpacing: "1px"
+
               }}>
+
                 Paid
+
               </div>
+
               <div style={{
+
                 width: "48px",
+
                 height: "48px",
+
                 backgroundColor: "rgba(255,255,255,0.2)",
+
                 borderRadius: "12px",
+
                 display: "flex",
+
                 alignItems: "center",
+
                 justifyContent: "center",
+
                 backdropFilter: "blur(10px)"
+
               }}>
+
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+
                   <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+
                   <polyline points="22 4 12 14.01 9 11.01"></polyline>
+
                 </svg>
+
               </div>
+
             </div>
+
             
+
             <div style={{
+
               fontSize: "40px",
+
               fontWeight: "800",
+
               color: "#fff",
+
               lineHeight: "1",
+
               marginBottom: "4px"
+
             }}>
+
               {stats.paidCount}
+
             </div>
+
             
+
             <div style={{
+
               fontSize: "13px",
+
               color: "rgba(255,255,255,0.8)",
+
               fontWeight: "500"
+
             }}>
+
               Completed payments
+
             </div>
+
           </div>
+
         </div>
+
       )}
 
+
+
       {/* Main Content */}
+
       <div style={{
+
         backgroundColor: "#fff",
+
         borderRadius: "16px",
+
         padding: "32px",
+
         boxShadow: "0 2px 12px rgba(0,0,0,0.06)"
+
       }}>
+
         {loading ? (
+
           <div style={{ 
+
             textAlign: "center", 
+
             padding: "60px 20px",
+
             color: "#666"
+
           }}>
+
             <div style={{
+
               width: "50px",
+
               height: "50px",
+
               border: "4px solid #f0f0f0",
+
               borderTop: "4px solid #1976d2",
+
               borderRadius: "50%",
+
               margin: "0 auto 16px",
+
               animation: "spin 1s linear infinite"
+
             }}></div>
+
             <p style={{ margin: 0, fontSize: "16px", fontWeight: "500" }}>Loading salary data...</p>
+
             <style>{`
+
               @keyframes spin {
+
                 0% { transform: rotate(0deg); }
+
                 100% { transform: rotate(360deg); }
+
               }
+
             `}</style>
+
           </div>
+
         ) : filteredSalaries.length === 0 ? (
+
           <div style={{ 
+
             textAlign: "center", 
+
             padding: "60px 20px",
+
             color: "#999"
+
           }}>
+
             <div style={{ fontSize: "64px", marginBottom: "16px", opacity: 0.3 }}>—</div>
+
             <p style={{ 
+
               margin: "0 0 8px 0", 
+
               fontSize: "18px", 
+
               fontWeight: "600",
+
               color: "#666"
+
             }}>
+
               No Salary Records
+
             </p>
+
             <p style={{ margin: 0, fontSize: "14px", color: "#999" }}>
+
               No salary records found for the selected filters
+
             </p>
+
           </div>
+
         ) : (
+
           <table style={{
             width: "100%",
             borderCollapse: "separate",
@@ -788,17 +1449,25 @@ export default function SalaryHistory({ userId }) {
                 const isLastRow = index === filteredSalaries.length - 1;
                 return (
                   <tr 
-                    key={salary.id}
-                    style={{ 
+                key={salary.id}
+
+                style={{
+
                       backgroundColor: "#fff",
-                      cursor: "pointer",
+                  cursor: "pointer",
+
                       transition: "all 0.2s"
-                    }}
-                    onClick={() => viewSalaryDetail(salary)}
-                    onMouseEnter={(e) => {
+                }}
+
+                onClick={() => viewSalaryDetail(salary)}
+
+                onMouseEnter={(e) => {
+
                       e.currentTarget.style.backgroundColor = "#f8f9fa";
-                    }}
-                    onMouseLeave={(e) => {
+                }}
+
+                onMouseLeave={(e) => {
+
                       e.currentTarget.style.backgroundColor = "#fff";
                     }}
                   >
@@ -811,7 +1480,9 @@ export default function SalaryHistory({ userId }) {
                       color: "#333",
                       borderBottomLeftRadius: isLastRow ? "8px" : "0"
                     }}>
+
                       {new Date(salary.year, salary.month - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+
                     </td>
                     <td style={{
                       padding: "16px",
@@ -820,6 +1491,7 @@ export default function SalaryHistory({ userId }) {
                       textAlign: "center"
                     }}>
                       {getStatusBadge(salary.status)}
+
                     </td>
                     <td style={{
                       padding: "16px",
@@ -831,6 +1503,7 @@ export default function SalaryHistory({ userId }) {
                       fontWeight: "500"
                     }}>
                       {formatCurrency(salary.baseSalary)}
+
                     </td>
                     <td style={{
                       padding: "16px",
@@ -842,6 +1515,7 @@ export default function SalaryHistory({ userId }) {
                       fontWeight: "600"
                     }}>
                       +{formatCurrency(salary.bonus)}
+
                     </td>
                     <td style={{
                       padding: "16px",
@@ -853,6 +1527,7 @@ export default function SalaryHistory({ userId }) {
                       fontWeight: "600"
                     }}>
                       -{formatCurrency(salary.deduction)}
+
                     </td>
                     <td style={{
                       padding: "16px",
@@ -883,8 +1558,10 @@ export default function SalaryHistory({ userId }) {
                           border: "none",
                           borderRadius: "6px",
                           cursor: "pointer",
-                          fontSize: "12px",
-                          fontWeight: "600",
+                    fontSize: "12px", 
+
+                    fontWeight: "600",
+
                           transition: "all 0.2s"
                         }}
                         onMouseEnter={(e) => {
@@ -907,124 +1584,244 @@ export default function SalaryHistory({ userId }) {
             </tbody>
           </table>
         )}
+
       </div>
 
+
+
       {/* Salary Detail Modal */}
+
       {showDetailModal && selectedSalary && (
+
         <div
+
           style={{
+
             position: "fixed",
+
             top: 0,
+
             left: 0,
+
             right: 0,
+
             bottom: 0,
+
             backgroundColor: "rgba(0,0,0,0.5)",
+
             display: "flex",
+
             alignItems: "center",
+
             justifyContent: "center",
+
             zIndex: 1000,
+
             padding: "20px"
+
           }}
+
           onClick={() => {
+
             setShowDetailModal(false);
+
             setSelectedSalary(null);
+
           }}
+
         >
+
           <div
+
             style={{
+
               backgroundColor: "white",
+
               borderRadius: "16px",
+
               padding: "0",
+
               maxWidth: "650px",
+
               width: "100%",
+
               maxHeight: "90vh",
+
               overflowY: "auto",
+
               boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+
             }}
+
             onClick={(e) => e.stopPropagation()}
+
           >
+
             {/* Modal Header */}
+
             <div style={{ 
+
               padding: "24px 32px",
+
               borderBottom: "2px solid #f0f0f0",
+
               display: "flex",
+
               justifyContent: "space-between",
+
               alignItems: "center",
+
               backgroundColor: "#f8f9fa"
+
             }}>
+
               <div>
+
                 <h2 style={{ 
+
                   margin: "0 0 4px 0", 
+
                   fontSize: "24px", 
+
                   fontWeight: "700", 
+
                   color: "#1a1a1a",
+
                   letterSpacing: "-0.5px"
+
                 }}>
+
                   Salary Details
+
                 </h2>
+
                 <p style={{ 
+
                   margin: 0, 
+
                   fontSize: "14px", 
+
                   color: "#666",
+
                   fontWeight: "500"
+
                 }}>
+
                   {new Date(selectedSalary.year, selectedSalary.month - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+
                 </p>
+
               </div>
+
               <button
+
                 onClick={() => {
+
                   setShowDetailModal(false);
+
                   setSelectedSalary(null);
+
                 }}
+
                 style={{
+
                   background: "none",
+
                   border: "2px solid #e0e0e0",
+
                   borderRadius: "8px",
+
                   width: "40px",
+
                   height: "40px",
+
                   fontSize: "20px",
+
                   cursor: "pointer",
+
                   color: "#666",
+
                   display: "flex",
+
                   alignItems: "center",
+
                   justifyContent: "center",
+
                   transition: "all 0.2s"
+
                 }}
+
                 onMouseEnter={(e) => {
+
                   e.currentTarget.style.backgroundColor = "#f5f5f5";
+
                   e.currentTarget.style.borderColor = "#999";
+
                 }}
+
                 onMouseLeave={(e) => {
+
                   e.currentTarget.style.backgroundColor = "transparent";
+
                   e.currentTarget.style.borderColor = "#e0e0e0";
+
                 }}
+
               >
+
                 ✕
+
               </button>
+
             </div>
 
+
+
             {/* Modal Body */}
+
             <div style={{ padding: "32px" }}>
+
               {/* Status Section */}
+
               <div style={{ 
+
                 marginBottom: "28px",
+
                 padding: "20px",
+
                 backgroundColor: "#f8f9fa",
+
                 borderRadius: "12px",
+
                 borderLeft: "4px solid #1976d2"
+
               }}>
+
                 <div style={{ 
+
                   fontSize: "11px", 
+
                   color: "#666", 
+
                   marginBottom: "8px",
+
                   textTransform: "uppercase",
+
                   fontWeight: "600",
+
                   letterSpacing: "0.8px"
+
                 }}>
+
                   Payment Status
+
                 </div>
+
                 <div>{getStatusBadge(selectedSalary.status)}</div>
+
               </div>
+
+
 
               {loadingDetails ? (
                 <div style={{ textAlign: "center", padding: "40px" }}>
@@ -1032,45 +1829,79 @@ export default function SalaryHistory({ userId }) {
                 </div>
               ) : (
                 <>
-                  {/* Earnings Section */}
-                  <div style={{ marginBottom: "28px" }}>
-                    <h3 style={{ 
-                      fontSize: "16px", 
-                      fontWeight: "700", 
-                      marginBottom: "16px", 
-                      color: "#1a1a1a",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px"
-                    }}>
-                      <span style={{ 
-                        width: "4px", 
-                        height: "20px", 
-                        backgroundColor: "#28a745",
-                        borderRadius: "2px"
-                      }}></span>
-                      Earnings
-                    </h3>
-                    <div style={{ 
-                      display: "flex", 
-                      justifyContent: "space-between", 
-                      alignItems: "center",
-                      marginBottom: "12px", 
-                      padding: "16px 20px", 
-                      backgroundColor: "#f8f9fa", 
-                      borderRadius: "8px",
-                      border: "1px solid #e0e0e0"
-                    }}>
+              {/* Earnings Section */}
+
+              <div style={{ marginBottom: "28px" }}>
+
+                <h3 style={{ 
+
+                  fontSize: "16px", 
+
+                  fontWeight: "700", 
+
+                  marginBottom: "16px", 
+
+                  color: "#1a1a1a",
+
+                  textTransform: "uppercase",
+
+                  letterSpacing: "0.5px",
+
+                  display: "flex",
+
+                  alignItems: "center",
+
+                  gap: "8px"
+
+                }}>
+
+                  <span style={{ 
+
+                    width: "4px", 
+
+                    height: "20px", 
+
+                    backgroundColor: "#28a745",
+
+                    borderRadius: "2px"
+
+                  }}></span>
+
+                  Earnings
+
+                </h3>
+
+                <div style={{ 
+
+                  display: "flex", 
+
+                  justifyContent: "space-between", 
+
+                  alignItems: "center",
+
+                  marginBottom: "12px", 
+
+                  padding: "16px 20px", 
+
+                  backgroundColor: "#f8f9fa", 
+
+                  borderRadius: "8px",
+
+                  border: "1px solid #e0e0e0"
+
+                }}>
+
                       <div>
                         <div style={{ fontSize: "14px", fontWeight: "500", color: "#333", marginBottom: "4px" }}>Base Salary</div>
-                        <div style={{ fontSize: "11px", color: "#666" }}>Lương cơ bản theo hợp đồng</div>
+                        <div style={{ fontSize: "11px", color: "#666" }}>Base salary per employment contract</div>
                       </div>
-                      <strong style={{ fontSize: "18px", fontWeight: "700", color: "#1a1a1a" }}>
+                  <strong style={{ fontSize: "18px", fontWeight: "700", color: "#1a1a1a" }}>
+
                         {formatCurrency(salaryDetails?.baseSalary || selectedSalary.baseSalary)}
-                      </strong>
-                    </div>
+                  </strong>
+
+                </div>
+
                     {salaryDetails?.bonusBreakdown && salaryDetails.bonusBreakdown.length > 0 ? (
                       salaryDetails.bonusBreakdown.map((item, idx) => (
                         <div key={idx} style={{ 
@@ -1088,12 +1919,12 @@ export default function SalaryHistory({ userId }) {
                               {item.ruleName || "Bonus"}
                             </div>
                             <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5", marginBottom: "4px" }}>
-                              {item.reason || item.ruleDescription || "Thưởng theo hiệu suất công việc"}
+                              {item.reason || item.ruleDescription || "Performance-based bonus"}
                             </div>
                             {item.quantity > 0 && (
                               <div style={{ fontSize: "10px", color: "#888", fontStyle: "italic" }}>
-                                Số lượng: {item.quantity} {item.triggerType === 'overtime' ? 'giờ' : item.triggerType === 'absent' ? 'ngày' : 'lần'}
-                                {item.amountType === 'percentage' && ` (${item.amount / salaryDetails.baseSalary * 100}% lương cơ bản)`}
+                                Quantity: {item.quantity} {item.triggerType === 'overtime' ? 'hours' : item.triggerType === 'absent' ? 'days' : 'times'}
+                                {item.amountType === 'percentage' && ` (${item.amount / salaryDetails.baseSalary * 100}% of base salary)`}
                               </div>
                             )}
                           </div>
@@ -1103,24 +1934,35 @@ export default function SalaryHistory({ userId }) {
                         </div>
                       ))
                     ) : salaryDetails?.bonus > 0 ? (
-                      <div style={{ 
-                        display: "flex", 
-                        justifyContent: "space-between", 
-                        alignItems: "center",
-                        padding: "16px 20px", 
-                        backgroundColor: "#e8f5e9", 
-                        borderRadius: "8px",
-                        border: "1px solid #c8e6c9"
-                      }}>
+                <div style={{ 
+
+                  display: "flex", 
+
+                  justifyContent: "space-between", 
+
+                  alignItems: "center",
+
+                  padding: "16px 20px", 
+
+                  backgroundColor: "#e8f5e9", 
+
+                  borderRadius: "8px",
+
+                  border: "1px solid #c8e6c9"
+
+                }}>
+
                         <div>
                           <div style={{ fontSize: "14px", fontWeight: "500", color: "#333", marginBottom: "4px" }}>Bonus</div>
                           <div style={{ fontSize: "11px", color: "#666" }}>
-                            {selectedSalary.notes || "Thưởng theo hiệu suất công việc"}
+                            {selectedSalary.notes || "Performance-based bonus"}
                           </div>
                         </div>
-                        <strong style={{ fontSize: "18px", fontWeight: "700", color: "#28a745" }}>
+                  <strong style={{ fontSize: "18px", fontWeight: "700", color: "#28a745" }}>
+
                           +{formatCurrency(salaryDetails.bonus)}
-                        </strong>
+                  </strong>
+
                       </div>
                     ) : null}
                     {/* Gross Salary Summary */}
@@ -1139,9 +1981,9 @@ export default function SalaryHistory({ userId }) {
                       }}>
                         <div>
                           <div style={{ fontSize: "16px", fontWeight: "700", color: "#1976d2", marginBottom: "4px" }}>
-                            Tổng Thu Nhập (Gross Salary)
+                            Gross Income
                           </div>
-                          <div style={{ fontSize: "12px", color: "#666" }}>Tổng thu nhập trước thuế và bảo hiểm</div>
+                          <div style={{ fontSize: "12px", color: "#666" }}>Total income before tax and insurance</div>
                         </div>
                         <strong style={{ fontSize: "24px", fontWeight: "700", color: "#1976d2" }}>
                           {formatCurrency(salaryDetails?.grossSalary || (parseFloat(selectedSalary.baseSalary || 0) + parseFloat(selectedSalary.bonus || 0)))}
@@ -1158,11 +2000,11 @@ export default function SalaryHistory({ userId }) {
                         marginTop: "12px"
                       }}>
                         <div style={{ fontSize: "12px", fontWeight: "600", color: "#1976d2", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                          Chi Tiết Tính Toán:
+                          Calculation Details:
                         </div>
                         <div style={{ fontSize: "13px", color: "#333", lineHeight: "2", fontFamily: "monospace" }}>
                           <div style={{ marginBottom: "6px", display: "flex", justifyContent: "space-between" }}>
-                            <span>Lương cơ bản:</span>
+                            <span>Base salary:</span>
                             <strong style={{ color: "#333" }}>{formatCurrency(salaryDetails?.baseSalary || selectedSalary.baseSalary || 0)}</strong>
                           </div>
                           {salaryDetails?.bonusBreakdown && salaryDetails.bonusBreakdown.length > 0 ? (
@@ -1174,7 +2016,7 @@ export default function SalaryHistory({ userId }) {
                                 </div>
                               ))}
                               <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid #e0e0e0", display: "flex", justifyContent: "space-between", fontWeight: "600" }}>
-                                <span>Tổng thưởng:</span>
+                                <span>Total bonus:</span>
                                 <strong style={{ color: "#28a745" }}>
                                   {formatCurrency(salaryDetails.bonusBreakdown.reduce((sum, item) => sum + item.amount, 0))}
                                 </strong>
@@ -1182,7 +2024,7 @@ export default function SalaryHistory({ userId }) {
                             </>
                           ) : salaryDetails?.bonus > 0 ? (
                             <div style={{ marginBottom: "6px", display: "flex", justifyContent: "space-between", paddingLeft: "16px" }}>
-                              <span style={{ color: "#28a745" }}>+ Thưởng:</span>
+                              <span style={{ color: "#28a745" }}>+ Bonus:</span>
                               <strong style={{ color: "#28a745" }}>{formatCurrency(salaryDetails.bonus)}</strong>
                             </div>
                           ) : null}
@@ -1196,35 +2038,59 @@ export default function SalaryHistory({ userId }) {
                             fontWeight: "700",
                             color: "#1976d2"
                           }}>
-                            <span>= Tổng thu nhập (Gross Salary):</span>
+                            <span>= Gross Income:</span>
                             <strong>{formatCurrency(salaryDetails?.grossSalary || (parseFloat(selectedSalary.baseSalary || 0) + parseFloat(selectedSalary.bonus || 0)))}</strong>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
+                </div>
 
-                  {/* Deductions Section */}
-                  <div style={{ marginBottom: "28px" }}>
-                    <h3 style={{ 
-                      fontSize: "16px", 
-                      fontWeight: "700", 
-                      marginBottom: "16px", 
-                      color: "#1a1a1a",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px"
-                    }}>
-                      <span style={{ 
-                        width: "4px", 
-                        height: "20px", 
-                        backgroundColor: "#dc3545",
-                        borderRadius: "2px"
-                      }}></span>
-                      Deductions
-                    </h3>
+              </div>
+
+
+
+              {/* Deductions Section */}
+
+              <div style={{ marginBottom: "28px" }}>
+
+                <h3 style={{ 
+
+                  fontSize: "16px", 
+
+                  fontWeight: "700", 
+
+                  marginBottom: "16px", 
+
+                  color: "#1a1a1a",
+
+                  textTransform: "uppercase",
+
+                  letterSpacing: "0.5px",
+
+                  display: "flex",
+
+                  alignItems: "center",
+
+                  gap: "8px"
+
+                }}>
+
+                  <span style={{ 
+
+                    width: "4px", 
+
+                    height: "20px", 
+
+                    backgroundColor: "#dc3545",
+
+                    borderRadius: "2px"
+
+                  }}></span>
+
+                  Deductions
+
+                </h3>
+
                     
                     {/* Insurance Breakdown - Individual Items */}
                     {salaryDetails?.insuranceBreakdown?.employee && (
@@ -1242,10 +2108,10 @@ export default function SalaryHistory({ userId }) {
                           }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: "14px", fontWeight: "600", color: "#333", marginBottom: "4px" }}>
-                                Bảo Hiểm Xã Hội (BHXH)
+                                Social Insurance
                               </div>
                               <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5" }}>
-                                8% lương cơ bản ({formatCurrency(salaryDetails.baseSalary)} × 8%)
+                                8% of base salary ({formatCurrency(salaryDetails.baseSalary)} × 8%)
                               </div>
                             </div>
                             <strong style={{ fontSize: "18px", fontWeight: "700", color: "#f57c00", marginLeft: "16px" }}>
@@ -1266,10 +2132,10 @@ export default function SalaryHistory({ userId }) {
                           }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: "14px", fontWeight: "600", color: "#333", marginBottom: "4px" }}>
-                                Bảo Hiểm Y Tế (BHYT)
+                                Health Insurance
                               </div>
                               <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5" }}>
-                                1.5% lương cơ bản ({formatCurrency(salaryDetails.baseSalary)} × 1.5%)
+                                1.5% of base salary ({formatCurrency(salaryDetails.baseSalary)} × 1.5%)
                               </div>
                             </div>
                             <strong style={{ fontSize: "18px", fontWeight: "700", color: "#f57c00", marginLeft: "16px" }}>
@@ -1290,10 +2156,10 @@ export default function SalaryHistory({ userId }) {
                           }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: "14px", fontWeight: "600", color: "#333", marginBottom: "4px" }}>
-                                Bảo Hiểm Thất Nghiệp (BHTN)
+                                Unemployment Insurance
                               </div>
                               <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5" }}>
-                                1% lương cơ bản ({formatCurrency(salaryDetails.baseSalary)} × 1%)
+                                1% of base salary ({formatCurrency(salaryDetails.baseSalary)} × 1%)
                               </div>
                             </div>
                             <strong style={{ fontSize: "18px", fontWeight: "700", color: "#f57c00", marginLeft: "16px" }}>
@@ -1313,7 +2179,7 @@ export default function SalaryHistory({ userId }) {
                             alignItems: "center"
                           }}>
                             <div style={{ fontSize: "13px", fontWeight: "600", color: "#e65100" }}>
-                              Tổng Bảo Hiểm (Nhân Viên)
+                              Total Insurance (Employee)
                             </div>
                             <strong style={{ fontSize: "16px", fontWeight: "700", color: "#e65100" }}>
                               -{formatCurrency(salaryDetails.employeeInsurance)}
@@ -1325,10 +2191,14 @@ export default function SalaryHistory({ userId }) {
                     
                     {/* Fallback if insurance breakdown not available */}
                     {!salaryDetails?.insuranceBreakdown?.employee && salaryDetails?.employeeInsurance > 0 && (
-                      <div style={{ 
-                        display: "flex", 
-                        justifyContent: "space-between", 
-                        alignItems: "center",
+                <div style={{ 
+
+                  display: "flex", 
+
+                  justifyContent: "space-between", 
+
+                  alignItems: "center",
+
                         marginBottom: "12px",
                         padding: "16px 20px", 
                         backgroundColor: "#fff3e0", 
@@ -1338,7 +2208,7 @@ export default function SalaryHistory({ userId }) {
                         <div>
                           <div style={{ fontSize: "14px", fontWeight: "500", color: "#333", marginBottom: "4px" }}>Social Insurance (Employee)</div>
                           <div style={{ fontSize: "11px", color: "#666" }}>
-                            Bảo hiểm xã hội, y tế, thất nghiệp (8% lương cơ bản)
+                            Social, health, unemployment insurance (8% of base salary)
                           </div>
                         </div>
                         <strong style={{ fontSize: "18px", fontWeight: "700", color: "#f57c00" }}>
@@ -1355,26 +2225,31 @@ export default function SalaryHistory({ userId }) {
                           justifyContent: "space-between", 
                           alignItems: "flex-start",
                           marginBottom: "12px",
-                          padding: "16px 20px", 
-                          backgroundColor: "#ffebee", 
-                          borderRadius: "8px",
-                          border: "1px solid #ffcdd2"
-                        }}>
+                  padding: "16px 20px", 
+
+                  backgroundColor: "#ffebee", 
+
+                  borderRadius: "8px",
+
+                  border: "1px solid #ffcdd2"
+
+                }}>
+
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: "14px", fontWeight: "600", color: "#333", marginBottom: "4px" }}>
-                              Thuế Thu Nhập Cá Nhân (TNCN)
+                              Personal Income Tax (PIT)
                             </div>
                             <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5", marginBottom: "4px" }}>
-                              Thu nhập chịu thuế: {formatCurrency(salaryDetails.taxBreakdown.taxableIncome || 0)}
+                              Taxable income: {formatCurrency(salaryDetails.taxBreakdown.taxableIncome || 0)}
                             </div>
                             {salaryDetails.taxBreakdown.taxRate && (
                               <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5" }}>
-                                Thuế suất: {salaryDetails.taxBreakdown.taxRate}%
+                                Tax rate: {salaryDetails.taxBreakdown.taxRate}%
                                 {salaryDetails.taxBreakdown.taxBrackets && salaryDetails.taxBreakdown.taxBrackets.length > 0 && (
                                   <div style={{ marginTop: "4px", paddingLeft: "8px", fontSize: "10px", color: "#888" }}>
                                     {salaryDetails.taxBreakdown.taxBrackets.map((bracket, idx) => (
                                       <div key={idx} style={{ marginBottom: "2px" }}>
-                                        Bậc {idx + 1}: {formatCurrency(bracket.amount)} (tỷ lệ: {bracket.rate}%)
+                                        Level {idx + 1}: {formatCurrency(bracket.amount)} (rate: {bracket.rate}%)
                                       </div>
                                     ))}
                                   </div>
@@ -1404,11 +2279,41 @@ export default function SalaryHistory({ userId }) {
                         <div>
                           <div style={{ fontSize: "14px", fontWeight: "500", color: "#333", marginBottom: "4px" }}>Personal Income Tax</div>
                           <div style={{ fontSize: "11px", color: "#666" }}>
-                            Thuế thu nhập cá nhân (theo biểu thuế lũy tiến)
+                            Personal income tax (progressive tax schedule)
                           </div>
                         </div>
-                        <strong style={{ fontSize: "18px", fontWeight: "700", color: "#dc3545" }}>
+                  <strong style={{ fontSize: "18px", fontWeight: "700", color: "#dc3545" }}>
+
                           -{formatCurrency(salaryDetails.tax)}
+                  </strong>
+
+                </div>
+
+                    )}
+                    
+                    {/* Salary Advance Deduction */}
+                    {(selectedSalary.advanceDeduction > 0 || parseFloat(selectedSalary.advanceDeduction || 0) > 0) && (
+                      <div style={{ 
+                        display: "flex", 
+                        justifyContent: "space-between", 
+                        alignItems: "flex-start",
+                        marginBottom: "12px",
+                        padding: "16px 20px", 
+                        backgroundColor: "#fff9e6", 
+                        borderRadius: "8px",
+                        border: "2px solid #ffd54f"
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: "14px", fontWeight: "600", color: "#333", marginBottom: "4px" }}>
+                            💸 Salary Advance Deduction
+              </div>
+
+                          <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5" }}>
+                            Deduction for salary advance taken in {new Date(selectedSalary.year, selectedSalary.month - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                          </div>
+                        </div>
+                        <strong style={{ fontSize: "18px", fontWeight: "700", color: "#f57c00", marginLeft: "16px" }}>
+                          -{formatCurrency(parseFloat(selectedSalary.advanceDeduction || 0))}
                         </strong>
                       </div>
                     )}
@@ -1427,15 +2332,15 @@ export default function SalaryHistory({ userId }) {
                         }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: "14px", fontWeight: "600", color: "#333", marginBottom: "4px" }}>
-                              {item.ruleName || "Khấu trừ"}
+                              {item.ruleName || "Deduction"}
                             </div>
                             <div style={{ fontSize: "11px", color: "#666", lineHeight: "1.5", marginBottom: "4px" }}>
-                              {item.reason || item.ruleDescription || "Khấu trừ theo quy định"}
+                              {item.reason || item.ruleDescription || "Deduction per company policy"}
                             </div>
                             {item.quantity > 0 && (
                               <div style={{ fontSize: "10px", color: "#888", fontStyle: "italic" }}>
-                                Số lượng: {item.quantity} {item.triggerType === 'overtime' ? 'giờ' : item.triggerType === 'absent' ? 'ngày' : 'lần'}
-                                {item.amountType === 'percentage' && ` (${item.amount / salaryDetails.baseSalary * 100}% lương cơ bản)`}
+                                Quantity: {item.quantity} {item.triggerType === 'overtime' ? 'hours' : item.triggerType === 'absent' ? 'days' : 'times'}
+                                {item.amountType === 'percentage' && ` (${item.amount / salaryDetails.baseSalary * 100}% of base salary)`}
                               </div>
                             )}
                           </div>
@@ -1457,7 +2362,7 @@ export default function SalaryHistory({ userId }) {
                         <div>
                           <div style={{ fontSize: "14px", fontWeight: "500", color: "#333", marginBottom: "4px" }}>Other Deductions</div>
                           <div style={{ fontSize: "11px", color: "#666" }}>
-                            {selectedSalary.notes || "Các khoản khấu trừ khác (đi muộn, vắng mặt, v.v.)"}
+                            {selectedSalary.notes || "Other deductions (late arrivals, absences, etc.)"}
                           </div>
                         </div>
                         <strong style={{ fontSize: "18px", fontWeight: "700", color: "#dc3545" }}>
@@ -1483,13 +2388,19 @@ export default function SalaryHistory({ userId }) {
                 </>
               )}
 
+
               {/* Net Pay Section */}
+
               <div style={{ 
+
                 borderTop: "3px solid #A2B9ED", 
                 paddingTop: "24px", 
+
                 marginTop: "28px",
+
                 background: "linear-gradient(135deg, rgba(162, 185, 237, 0.1) 0%, rgba(162, 185, 237, 0.05) 100%)",
                 padding: "24px",
+
                 borderRadius: "12px",
                 border: "1px solid rgba(162, 185, 237, 0.2)"
               }}>
@@ -1506,13 +2417,13 @@ export default function SalaryHistory({ userId }) {
                       color: "#666",
                       marginBottom: "4px"
                     }}>
-                      Lương thực nhận
+                      Net Pay
                     </div>
                     <div style={{ 
                       fontSize: "12px", 
                       color: "#999"
                     }}>
-                      Net Pay
+                      Take-home salary
                     </div>
                   </div>
                   <strong style={{ 
@@ -1540,7 +2451,7 @@ export default function SalaryHistory({ userId }) {
                       paddingBottom: "12px",
                       borderBottom: "2px solid #f0f0f0"
                     }}>
-                      📊 Chi Tiết Tính Toán
+                      📊 Calculation Details
                     </div>
                     
                     {/* Gross Salary */}
@@ -1549,13 +2460,15 @@ export default function SalaryHistory({ userId }) {
                       padding: "12px 16px",
                       backgroundColor: "#f8f9fa",
                       borderRadius: "8px"
-                    }}>
-                      <div style={{ 
+              }}>
+
+                <div style={{ 
+
                         display: "flex", 
                         justifyContent: "space-between",
                         alignItems: "center"
                       }}>
-                        <span style={{ fontSize: "14px", color: "#666" }}>Tổng thu nhập</span>
+                        <span style={{ fontSize: "14px", color: "#666" }}>Gross income</span>
                         <strong style={{ fontSize: "16px", color: "#1976d2", fontWeight: "600" }}>
                           {formatCurrency(salaryDetails.grossSalary)}
                         </strong>
@@ -1571,7 +2484,7 @@ export default function SalaryHistory({ userId }) {
                           marginBottom: "10px",
                           fontWeight: "500"
                         }}>
-                          Khấu trừ:
+                          Deductions:
                         </div>
                         
                         {salaryDetails.employeeInsurance > 0 && (
@@ -1583,7 +2496,7 @@ export default function SalaryHistory({ userId }) {
                             backgroundColor: "#fff3e0",
                             borderRadius: "6px"
                           }}>
-                            <span style={{ fontSize: "13px", color: "#666" }}>Bảo hiểm</span>
+                            <span style={{ fontSize: "13px", color: "#666" }}>Insurance</span>
                             <strong style={{ fontSize: "14px", color: "#f57c00", fontWeight: "600" }}>
                               -{formatCurrency(salaryDetails.employeeInsurance)}
                             </strong>
@@ -1599,7 +2512,7 @@ export default function SalaryHistory({ userId }) {
                             backgroundColor: "#ffebee",
                             borderRadius: "6px"
                           }}>
-                            <span style={{ fontSize: "13px", color: "#666" }}>Thuế TNCN</span>
+                            <span style={{ fontSize: "13px", color: "#666" }}>Income Tax</span>
                             <strong style={{ fontSize: "14px", color: "#dc3545", fontWeight: "600" }}>
                               -{formatCurrency(salaryDetails.tax)}
                             </strong>
@@ -1631,7 +2544,7 @@ export default function SalaryHistory({ userId }) {
                             backgroundColor: "#ffebee",
                             borderRadius: "6px"
                           }}>
-                            <span style={{ fontSize: "13px", color: "#666" }}>Khấu trừ khác</span>
+                            <span style={{ fontSize: "13px", color: "#666" }}>Other deductions</span>
                             <strong style={{ fontSize: "14px", color: "#dc3545", fontWeight: "600" }}>
                               -{formatCurrency(salaryDetails.deductions)}
                             </strong>
@@ -1645,119 +2558,228 @@ export default function SalaryHistory({ userId }) {
                       marginTop: "16px",
                       paddingTop: "16px",
                       borderTop: "2px solid #A2B9ED",
-                      display: "flex", 
-                      justifyContent: "space-between",
-                      alignItems: "center"
-                    }}>
-                      <span style={{ 
-                        fontSize: "16px", 
+                  display: "flex", 
+
+                  justifyContent: "space-between", 
+
+                  alignItems: "center" 
+
+                }}>
+
+                  <span style={{ 
+
+                    fontSize: "16px", 
+
                         fontWeight: "600",
                         color: "#333"
-                      }}>
-                        Lương thực nhận
-                      </span>
-                      <strong style={{ 
+                  }}>
+
+                    Net Pay
+
+                  </span>
+
+                  <strong style={{ 
+
                         fontSize: "20px", 
-                        fontWeight: "700",
+                    fontWeight: "700", 
+
                         color: "#A2B9ED"
-                      }}>
+                  }}>
+
                         {formatCurrency(salaryDetails.netSalary)}
-                      </strong>
-                    </div>
+                  </strong>
+
+                </div>
+
                   </div>
                 )}
               </div>
 
+
+
               {/* Notes Section */}
+
               {selectedSalary.notes && (
+
                 <div style={{ 
+
                   marginTop: "24px", 
+
                   padding: "20px", 
+
                   backgroundColor: "#fffbea", 
+
                   borderRadius: "12px",
+
                   border: "1px solid #ffe082",
+
                   borderLeft: "4px solid #ff9800"
+
                 }}>
+
                   <div style={{ 
+
                     fontSize: "11px", 
+
                     fontWeight: "700", 
+
                     marginBottom: "8px",
+
                     color: "#666",
+
                     textTransform: "uppercase",
+
                     letterSpacing: "0.8px"
+
                   }}>
+
                     Note
+
                   </div>
+
                   <div style={{ fontSize: "14px", color: "#666", lineHeight: "1.6" }}>
+
                     {selectedSalary.notes}
+
                   </div>
+
                 </div>
+
               )}
+
+
 
               {/* Timestamp */}
+
               {selectedSalary.calculatedAt && (
+
                 <div style={{ 
+
                   marginTop: "20px", 
+
                   fontSize: "12px", 
+
                   color: "#999", 
+
                   textAlign: "center",
+
                   paddingTop: "20px",
+
                   borderTop: "1px solid #f0f0f0"
+
                 }}>
+
                   Calculated on {new Date(selectedSalary.calculatedAt).toLocaleDateString("en-US", { 
+
                     year: "numeric", 
+
                     month: "long", 
+
                     day: "numeric",
+
                     hour: "2-digit",
+
                     minute: "2-digit"
+
                   })}
+
                 </div>
+
               )}
+
             </div>
 
+
+
             {/* Modal Footer */}
+
             <div style={{ 
+
               padding: "20px 32px",
+
               borderTop: "2px solid #f0f0f0",
+
               backgroundColor: "#f8f9fa"
+
             }}>
+
               <button
+
                 onClick={() => {
+
                   setShowDetailModal(false);
+
                   setSelectedSalary(null);
+
                 }}
+
                 style={{
+
                   width: "100%",
+
                   padding: "14px",
+
                   backgroundColor: "#1976d2",
+
                   color: "white",
+
                   border: "none",
+
                   borderRadius: "8px",
+
                   cursor: "pointer",
+
                   fontWeight: "700",
+
                   fontSize: "14px",
+
                   textTransform: "uppercase",
+
                   letterSpacing: "0.8px",
+
                   transition: "all 0.2s"
+
                 }}
+
                 onMouseEnter={(e) => {
+
                   e.currentTarget.style.backgroundColor = "#1565c0";
+
                   e.currentTarget.style.transform = "translateY(-1px)";
+
                   e.currentTarget.style.boxShadow = "0 4px 12px rgba(25,118,210,0.3)";
+
                 }}
+
                 onMouseLeave={(e) => {
+
                   e.currentTarget.style.backgroundColor = "#1976d2";
+
                   e.currentTarget.style.transform = "translateY(0)";
+
                   e.currentTarget.style.boxShadow = "none";
+
                 }}
+
               >
+
                 Close
+
               </button>
+
             </div>
+
           </div>
+
         </div>
+
       )}
+
     </div>
+
   );
+
 }
+
+
 

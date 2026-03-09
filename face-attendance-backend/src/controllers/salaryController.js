@@ -4,7 +4,22 @@ import { calculateSeniority } from "../services/senioritySalaryService.js";
 import User from "../models/pg/User.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import ShiftSetting from "../models/pg/ShiftSetting.js";
+import SalaryAdvance from "../models/pg/SalaryAdvance.js";
 import { Op } from "sequelize";
+
+// Calculate working days in a month (exclude weekends)
+function getWorkingDaysInMonth(year, month) {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let workingDays = 0;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month - 1, day);
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      workingDays++;
+    }
+  }
+  return workingDays;
+}
 
 // Get all salary rules
 export const getAllSalaryRules = async (req, res) => {
@@ -239,16 +254,23 @@ export const calculateSalary = async (req, res) => {
       }
     }
 
-    // Calculate absent days (working days without IN log)
-    const totalDaysInMonth = new Date(year, month, 0).getDate();
-    const workingDays = new Set();
+    // Calculate absent days (working days without IN log — exclude weekends)
+    const totalWorkingDays = getWorkingDaysInMonth(parseInt(year), parseInt(month));
+    const presentDaysSet = new Set();
     logs.forEach(log => {
       if (log.type === 'IN') {
         const logDate = new Date(log.timestamp).getDate();
-        workingDays.add(logDate);
+        presentDaysSet.add(logDate);
       }
     });
-    const absentDays = totalDaysInMonth - workingDays.size;
+    const absentDays = Math.max(0, totalWorkingDays - presentDaysSet.size);
+
+    // Add allowances from employee profile
+    const allowanceFields = ['lunchAllowance', 'transportAllowance', 'phoneAllowance', 'responsibilityAllowance'];
+    for (const field of allowanceFields) {
+      const val = parseFloat(user[field]) || 0;
+      if (val > 0) bonus += val;
+    }
 
     // Apply rules
     for (const rule of rules) {
@@ -304,9 +326,9 @@ export const calculateSalary = async (req, res) => {
           }
           break;
         case 'full_attendance':
-          // Calculate full attendance (no late, no early leave, all days present with both IN and OUT)
-          const hasFullAttendance = logs.length >= totalDaysInMonth * 2 && lateCount === 0 && earlyLeaveCount === 0 && absentDays === 0;
-          if (hasFullAttendance && (!rule.threshold || totalDaysInMonth >= rule.threshold)) {
+          // Calculate full attendance (no late, no early leave, all working days present)
+          const hasFullAttendance = presentDaysSet.size >= totalWorkingDays && lateCount === 0 && earlyLeaveCount === 0 && absentDays === 0;
+          if (hasFullAttendance && (!rule.threshold || totalWorkingDays >= rule.threshold)) {
             shouldApply = true;
             ruleAmount = rule.amountType === 'percentage' 
               ? (baseSalary * parseFloat(rule.amount) / 100) 
@@ -348,6 +370,26 @@ export const calculateSalary = async (req, res) => {
 
     const finalSalary = baseSalary + bonus - deduction;
 
+    // Check for approved salary advance to deduct
+    const salaryAdvance = await SalaryAdvance.findOne({
+      where: {
+        userId,
+        month: parseInt(month),
+        year: parseInt(year),
+        approvalStatus: 'approved',
+        isDeducted: false
+      }
+    });
+
+    let advanceDeduction = 0;
+    if (salaryAdvance) {
+      advanceDeduction = salaryAdvance.amount;
+      deduction += advanceDeduction;
+      finalSalary -= advanceDeduction;
+    }
+
+    const grossSalary = baseSalary + bonus;
+
     // Create or update salary record
     const [salary, created] = await Salary.findOrCreate({
       where: { userId, month, year },
@@ -355,7 +397,9 @@ export const calculateSalary = async (req, res) => {
         userId,
         baseSalary,
         bonus,
+        grossSalary,
         deduction,
+        advanceDeduction,
         finalSalary,
         month,
         year,
@@ -368,10 +412,17 @@ export const calculateSalary = async (req, res) => {
       await salary.update({
         baseSalary,
         bonus,
+        grossSalary,
         deduction,
+        advanceDeduction,
         finalSalary,
         calculatedAt: new Date()
       });
+    }
+
+    // Mark salary advance as deducted if it was applied
+    if (salaryAdvance) {
+      await salaryAdvance.update({ isDeducted: true });
     }
 
     return res.json({
