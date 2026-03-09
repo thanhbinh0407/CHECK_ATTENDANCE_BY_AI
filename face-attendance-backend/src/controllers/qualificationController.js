@@ -146,7 +146,12 @@ export const updateQualification = async (req, res) => {
       certificateNumber: certificateNumber !== undefined ? certificateNumber : qualification.certificateNumber,
       documentPath: documentPath !== undefined ? documentPath : qualification.documentPath,
       description: description !== undefined ? description : qualification.description,
-      isActive: isActive !== undefined ? isActive : qualification.isActive
+      isActive: isActive !== undefined ? isActive : qualification.isActive,
+      // Reset to pending so admin must re-review any changes
+      approvalStatus: 'pending',
+      approvedAt: null,
+      approvedBy: null,
+      rejectionReason: null
     });
 
     return res.json({
