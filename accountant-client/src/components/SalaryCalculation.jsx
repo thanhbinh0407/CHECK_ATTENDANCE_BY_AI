@@ -244,9 +244,28 @@ export default function SalaryCalculation() {
         }
       }
 
+      // Set the calculated salaries
       setCalculatedSalaries(calculatedSalariesList);
-      // Reload from API to get full data with User associations
-      await fetchExistingSalaries(selectedMonth, selectedYear);
+      
+      // Try to reload from API to get full data with User associations
+      // But if it fails, keep the calculated data
+      try {
+        const res = await fetch(
+          `${apiBase}/api/salary?month=${selectedMonth}&year=${selectedYear}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.salaries && data.salaries.length > 0) {
+            // Only update if API returns data
+            setCalculatedSalaries(data.salaries);
+          }
+        }
+      } catch (error) {
+        // If reload fails, keep the initially calculated data
+        console.warn("Could not reload from API, using calculated data instead:", error);
+      }
+      
       const successMsg = `Salary calculated for ${successCount} employee(s)${errorCount > 0 ? ` (${errorCount} error(s))` : ''}`;
       setToastPopup(successMsg);
       setTimeout(() => setToastPopup(""), 5000);
