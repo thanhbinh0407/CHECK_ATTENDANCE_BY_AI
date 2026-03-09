@@ -308,7 +308,7 @@ function App() {
       {/* Content */}
       <div style={contentStyle}>
         {activeTab === "attendance" && <AttendanceHistory userId={user?.id} />}
-        {activeTab === "salary" && <SalaryHistory userId={user?.id} />}
+        {activeTab === "salary" && <SalaryHistory userId={user?.id} isActive={true} />}
         {activeTab === "leave" && <LeaveRequest userId={user?.id} />}
         {activeTab === "qualifications" && <Qualifications userId={user?.id} />}
         {activeTab === "dependents" && <Dependents userId={user?.id} />}

@@ -6,6 +6,21 @@ import User from "../models/pg/User.js";
 import SalaryRule from "../models/pg/SalaryRule.js";
 import { ShiftSetting } from "../models/pg/index.js";
 import { Op } from "sequelize";
+import { calculateSeniority } from "../services/senioritySalaryService.js";
+
+// Calculate working days in a month (exclude weekends)
+function getWorkingDaysInMonth(year, month) {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let workingDays = 0;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month - 1, day);
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      workingDays++;
+    }
+  }
+  return workingDays;
+}
 
 const router = express.Router();
 
@@ -59,8 +74,7 @@ router.get("/salary", async (req, res) => {
 
     const salaries = await Salary.findAll({
       where,
-      order: [['year', 'DESC'], ['month', 'DESC']],
-      limit: 12 // Last 12 months
+      order: [['year', 'DESC'], ['month', 'DESC']]
     });
 
     return res.json({
@@ -150,19 +164,41 @@ router.get("/salary/breakdown", async (req, res) => {
       }
     }
 
-    const totalDaysInMonth = new Date(year, month, 0).getDate();
-    const workingDays = new Set();
+    const totalWorkingDays = getWorkingDaysInMonth(parseInt(year), parseInt(month));
+    const presentDaysSet = new Set();
     logs.forEach(log => {
       if (log.type === 'IN') {
         const logDate = new Date(log.timestamp).getDate();
-        workingDays.add(logDate);
+        presentDaysSet.add(logDate);
       }
     });
-    const absentDays = totalDaysInMonth - workingDays.size;
+    const absentDays = Math.max(0, totalWorkingDays - presentDaysSet.size);
 
     const baseSalary = parseFloat(user.baseSalary) || 0;
     const bonusBreakdown = [];
     const deductionBreakdown = [];
+
+    // Add allowances from employee profile
+    const allowances = [
+      { field: 'lunchAllowance', name: 'Lunch allowance', reason: 'Monthly lunch allowance' },
+      { field: 'transportAllowance', name: 'Transport allowance', reason: 'Monthly transport allowance' },
+      { field: 'phoneAllowance', name: 'Phone allowance', reason: 'Monthly phone allowance' },
+      { field: 'responsibilityAllowance', name: 'Responsibility allowance', reason: 'Responsibility allowance' }
+    ];
+    for (const al of allowances) {
+      const val = parseFloat(user[al.field]) || 0;
+      if (val > 0) {
+        bonusBreakdown.push({
+          ruleName: al.name,
+          ruleDescription: al.reason,
+          reason: al.reason,
+          amount: val,
+          quantity: 1,
+          amountType: 'fixed',
+          triggerType: 'allowance'
+        });
+      }
+    }
 
     // Apply rules and build breakdown
     for (const rule of rules) {
@@ -181,7 +217,7 @@ router.get("/salary/breakdown", async (req, res) => {
             } else {
               ruleAmount = parseFloat(rule.amount) * (rule.threshold ? Math.floor(lateCount / rule.threshold) : lateCount);
             }
-            reason = `Đi muộn ${lateCount} lần${rule.threshold ? ` (áp dụng khi >= ${rule.threshold} lần)` : ''}`;
+            reason = `Late ${lateCount} time(s)${rule.threshold ? ` (applied when >= ${rule.threshold} times)` : ''}`;
           }
           break;
         case 'early_leave':
@@ -193,7 +229,7 @@ router.get("/salary/breakdown", async (req, res) => {
             } else {
               ruleAmount = parseFloat(rule.amount) * (rule.threshold ? Math.floor(earlyLeaveCount / rule.threshold) : earlyLeaveCount);
             }
-            reason = `Về sớm ${earlyLeaveCount} lần${rule.threshold ? ` (áp dụng khi >= ${rule.threshold} lần)` : ''}`;
+            reason = `Early leave ${earlyLeaveCount} time(s)${rule.threshold ? ` (applied when >= ${rule.threshold} times)` : ''}`;
           }
           break;
         case 'overtime':
@@ -205,7 +241,7 @@ router.get("/salary/breakdown", async (req, res) => {
             } else {
               ruleAmount = parseFloat(rule.amount) * totalOvertimeHours;
             }
-            reason = `Làm thêm ${totalOvertimeHours.toFixed(2)} giờ${rule.threshold ? ` (áp dụng khi >= ${rule.threshold} giờ)` : ''}`;
+            reason = `Overtime ${totalOvertimeHours.toFixed(2)} hours${rule.threshold ? ` (applied when >= ${rule.threshold} hours)` : ''}`;
           }
           break;
         case 'absent':
@@ -217,22 +253,43 @@ router.get("/salary/breakdown", async (req, res) => {
             } else {
               ruleAmount = parseFloat(rule.amount) * absentDays;
             }
-            reason = `Vắng mặt ${absentDays} ngày${rule.threshold ? ` (áp dụng khi >= ${rule.threshold} ngày)` : ''}`;
+            reason = `Absent ${absentDays} day(s)${rule.threshold ? ` (applied when >= ${rule.threshold} days)` : ''}`;
           }
           break;
-        case 'full_attendance':
-          const hasFullAttendance = logs.length >= totalDaysInMonth * 2 && lateCount === 0 && earlyLeaveCount === 0 && absentDays === 0;
-          if (hasFullAttendance && (!rule.threshold || totalDaysInMonth >= rule.threshold)) {
+        case 'full_attendance': {
+          const hasFullAttendance = presentDaysSet.size >= totalWorkingDays && lateCount === 0 && earlyLeaveCount === 0 && absentDays === 0;
+          if (hasFullAttendance && (!rule.threshold || totalWorkingDays >= rule.threshold)) {
             shouldApply = true;
-            quantity = totalDaysInMonth;
+            quantity = totalWorkingDays;
             ruleAmount = rule.amountType === 'percentage' 
               ? (baseSalary * parseFloat(rule.amount) / 100) 
               : parseFloat(rule.amount);
-            reason = `Chấm công đầy đủ ${totalDaysInMonth} ngày (không đi muộn, không về sớm, không vắng mặt)`;
+            reason = `Full attendance ${totalWorkingDays} days (no late, no early leave, no absence)`;
           }
           break;
-        case 'custom':
+        }
+        case 'custom': {
+          // Seniority bonus
+          if (rule.name && rule.name.toLowerCase().includes('seniority')) {
+            const seniority = calculateSeniority(user.startDate);
+            let tier = 0;
+            if (seniority >= 10) tier = 4;
+            else if (seniority >= 5) tier = 3;
+            else if (seniority >= 3) tier = 2;
+            else if (seniority >= 1) tier = 1;
+            if (tier > 0) {
+              shouldApply = true;
+              quantity = seniority;
+              if (rule.amountType === 'percentage') {
+                ruleAmount = baseSalary * parseFloat(rule.amount) / 100 * tier;
+              } else {
+                ruleAmount = parseFloat(rule.amount) * tier;
+              }
+              reason = `Seniority ${seniority} years (tier ${tier})`;
+            }
+          }
           break;
+        }
       }
 
       if (shouldApply) {
@@ -263,8 +320,8 @@ router.get("/salary/breakdown", async (req, res) => {
         totalBonus: bonusBreakdown.reduce((sum, item) => sum + item.amount, 0),
         totalDeduction: deductionBreakdown.reduce((sum, item) => sum + item.amount, 0),
         attendance: {
-          totalDays: totalDaysInMonth,
-          presentDays: workingDays.size,
+          totalDays: totalWorkingDays,
+          presentDays: presentDaysSet.size,
           absentDays,
           lateCount,
           earlyLeaveCount,

@@ -1,4 +1,6 @@
 import SalaryGrade from "../models/pg/SalaryGrade.js";
+import User from "../models/pg/User.js";
+import { recalculatePendingSalariesForUsers } from "../services/salaryCalculationService.js";
 
 // Get all salary grades
 export const getSalaryGrades = async (req, res) => {
@@ -123,20 +125,58 @@ export const updateSalaryGrade = async (req, res) => {
       }
     }
 
+    const oldBaseSalary = parseFloat(grade.baseSalary) || 0;
+    const newBaseSalary = baseSalary !== undefined ? parseFloat(baseSalary) : oldBaseSalary;
+    const baseSalaryChanged = baseSalary !== undefined && newBaseSalary !== oldBaseSalary;
+
     await grade.update({
       code: code || grade.code,
       name: name || grade.name,
       level: level !== undefined ? parseInt(level) : grade.level,
-      baseSalary: baseSalary !== undefined ? parseFloat(baseSalary) : grade.baseSalary,
+      baseSalary: newBaseSalary,
       minYearsOfService: minYearsOfService !== undefined ? parseInt(minYearsOfService) : grade.minYearsOfService,
       description: description !== undefined ? description : grade.description,
       isActive: isActive !== undefined ? isActive : grade.isActive
     });
 
+    // If baseSalary changed, update all employees in this grade
+    let updatedEmployeeCount = 0;
+    let recalculatedSalaryCount = 0;
+    if (baseSalaryChanged) {
+      // Get affected user IDs before updating
+      const affectedUsers = await User.findAll({
+        where: { salaryGradeId: id },
+        attributes: ['id']
+      });
+      const affectedUserIds = affectedUsers.map(u => u.id);
+
+      const [affectedCount] = await User.update(
+        { 
+          baseSalary: newBaseSalary,
+          insuranceBaseSalary: newBaseSalary
+        },
+        { where: { salaryGradeId: id } }
+      );
+      updatedEmployeeCount = affectedCount;
+
+      // Recalculate all pending/approved salary records for affected employees
+      if (affectedUserIds.length > 0) {
+        const recalcResult = await recalculatePendingSalariesForUsers(affectedUserIds);
+        recalculatedSalaryCount = recalcResult.recalculatedCount;
+        if (recalcResult.errors.length > 0) {
+          console.warn("Some salary recalculations failed:", recalcResult.errors);
+        }
+      }
+    }
+
     return res.json({
       status: "success",
-      message: "Salary grade updated successfully",
-      grade
+      message: baseSalaryChanged
+        ? `Salary grade updated successfully. ${updatedEmployeeCount} employee(s) base salary updated. ${recalculatedSalaryCount} salary record(s) recalculated.`
+        : "Salary grade updated successfully",
+      grade,
+      updatedEmployeeCount,
+      recalculatedSalaryCount
     });
   } catch (err) {
     console.error("Error updating salary grade:", err);

@@ -250,14 +250,14 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     );
   };
 
-  const formatCurrency = (amount) =>
-    `₫${(amount || 0).toLocaleString("vi-VN")}`;
 
-  const base = salary?.baseSalary || 0;
-  const bonus = salary?.bonus ?? salary?.totalBonus ?? 0;
-  const deduction = salary?.deduction ?? salary?.totalDeduction ?? 0;
-  const gross = base + bonus;
-  const net = salary?.finalSalary ?? calculateNetAdjusted();
+  const formatCurrency = (value) => {
+    return (value || 0).toLocaleString('vi-VN', { 
+      style: 'decimal',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2 
+    });
+  };
 
   return (
     <>
@@ -265,12 +265,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
         <div style={contentStyle} onClick={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <div>
-            <h2 style={titleStyle}>💰 Salary Breakdown</h2>
+            <h2 style={titleStyle}>💰 Chi Tiết Lương Tháng</h2>
             <div style={{ fontSize: "14px", color: "#666", marginTop: "5px" }}>
-              {employee?.name} - {new Date(salary?.month).toLocaleDateString("vi-VN", {
-                month: "long",
-                year: "numeric"
-              })}
+              <strong>{employee?.name}</strong> - Tháng {salary?.month}/{salary?.year}
+            </div>
+            <div style={{ fontSize: "12px", color: "#999", marginTop: "3px" }}>
+              Mã nhân viên: <strong>{employee?.employeeId}</strong>
             </div>
           </div>
           <button
@@ -281,110 +281,166 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
             ×
           </button>
         </div>
+        {/* Employee Info */}
+        <div style={{
+          ...sectionStyle,
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: theme.spacing.lg,
+          marginBottom: theme.spacing.xl
+        }}>
+          <div style={{ padding: theme.spacing.md, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+            <div style={{ fontSize: "12px", color: "#999", marginBottom: "4px" }}>Bộ Phận</div>
+            <div style={{ fontSize: "15px", fontWeight: "600", color: "#333" }}>{employee?.department || "N/A"}</div>
+          </div>
+          <div style={{ padding: theme.spacing.md, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+            <div style={{ fontSize: "12px", color: "#999", marginBottom: "4px" }}>Chức Vụ</div>
+            <div style={{ fontSize: "15px", fontWeight: "600", color: "#333" }}>{employee?.jobTitle || "N/A"}</div>
+          </div>
+          <div style={{ padding: theme.spacing.md, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+            <div style={{ fontSize: "12px", color: "#999", marginBottom: "4px" }}>Cấp Bậc Lương</div>
+            <div style={{ fontSize: "15px", fontWeight: "600", color: "#333" }}>{employee?.salaryGrade || "N/A"}</div>
+          </div>
+        </div>
 
-        {/* Breakdown */}
+        {/* Breakdown Table */}
         <div style={sectionStyle}>
-          <div style={sectionTitleStyle}>
-            <span>📊</span>
-            <span>Overview</span>
-          </div>
+          <h3 style={sectionTitleStyle}>📊 Chi Tiết Thành Phần Lương</h3>
+          <div style={{ display: "grid", gap: theme.spacing.md }}>
+            {/* Base Salary */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: theme.spacing.lg,
+              padding: theme.spacing.lg,
+              backgroundColor: "#e3f2fd",
+              borderRadius: theme.radius.md,
+              borderLeft: `4px solid #1976d2`
+            }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "#1976d2", marginBottom: "4px" }}>Lương Cơ Bản</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>Mức lương hàng tháng cơ bản</div>
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#1976d2" }}>
+                ₫{formatCurrency(salary?.baseSalary)}
+              </div>
+            </div>
 
-          <div style={summaryStyle}>
-            <div style={{ ...summaryItemStyle, backgroundColor: "#eff6ff", color: "#1d4ed8" }}>
-              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                Gross (Base + Bonus)
+            {/* Bonus */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: theme.spacing.lg,
+              padding: theme.spacing.lg,
+              backgroundColor: "#c8e6c9",
+              borderRadius: theme.radius.md,
+              borderLeft: `4px solid #388e3c`
+            }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "#388e3c", marginBottom: "4px" }}>Thưởng</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>Thưởng hiệu suất, khác</div>
               </div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>
-                {formatCurrency(gross)}
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#388e3c" }}>
+                +₫{formatCurrency(salary?.bonus)}
               </div>
             </div>
-            <div style={{ ...summaryItemStyle, backgroundColor: "#ecfdf5", color: "#047857" }}>
-              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                Net Salary
+
+            {/* Gross Salary */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: theme.spacing.lg,
+              padding: theme.spacing.lg,
+              backgroundColor: "#fff3e0",
+              borderRadius: theme.radius.md,
+              borderLeft: `4px solid #f57c00`
+            }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "#f57c00", marginBottom: "4px" }}>Tổng Lương Brutto</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>Lương cơ bản + Thưởng</div>
               </div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>
-                {formatCurrency(net)}
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#f57c00" }}>
+                ₫{formatCurrency(calculateGrossAdjusted())}
+              </div>
+            </div>
+
+            {/* Deduction */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: theme.spacing.lg,
+              padding: theme.spacing.lg,
+              backgroundColor: "#ffcdd2",
+              borderRadius: theme.radius.md,
+              borderLeft: `4px solid #d32f2f`
+            }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "#d32f2f", marginBottom: "4px" }}>Các Khoản Giảm Trừ</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>Thuế, BHXH, BHYT, v.v.</div>
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#d32f2f" }}>
+                -₫{formatCurrency((salary?.deduction || 0) + adjustments.deductionAdjustment)}
+              </div>
+            </div>
+
+            {/* Net Salary */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: theme.spacing.lg,
+              padding: theme.spacing.xl,
+              backgroundColor: "#2196f3",
+              borderRadius: theme.radius.md,
+              borderLeft: `4px solid #1565c0`,
+              marginTop: theme.spacing.md
+            }}>
+              <div>
+                <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>LƯƠNG NHẬN (NETTO)</div>
+                <div style={{ fontSize: "12px", color: "#e3f2fd" }}>Số tiền lương thực tế nhận được</div>
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "20px", color: "#fff" }}>
+                ₫{formatCurrency(calculateNetAdjusted())}
               </div>
             </div>
           </div>
+        </div>
 
-          <div style={{ marginTop: theme.spacing.lg }}>
-            <div style={{ marginBottom: theme.spacing.md, fontWeight: 600, color: "#111827" }}>
-              Detailed amounts
-            </div>
-            <div style={itemRowStyle}>
-              <div style={labelStyle}>Base salary</div>
-              <div style={amountStyle}>{formatCurrency(base)}</div>
-              <div style={percentStyle} />
-            </div>
-            <div style={itemRowStyle}>
-              <div style={labelStyle}>Bonus</div>
-              <div style={{ ...amountStyle, color: "#16a34a" }}>
-                +{formatCurrency(bonus)}
+        {/* Status & Additional Info */}
+        <div style={{
+          ...sectionStyle,
+          marginTop: theme.spacing.xl
+        }}>
+          <h3 style={sectionTitleStyle}>📋 Trạng Thái & Thông Tin Khác</h3>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: theme.spacing.lg
+          }}>
+            <div style={{ padding: theme.spacing.lg, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+              <div style={{ fontSize: "12px", color: "#999", textTransform: "uppercase", marginBottom: "8px", fontWeight: "600" }}>Trạng Thái</div>
+              <div style={{
+                display: "inline-block",
+                padding: "6px 16px",
+                borderRadius: "20px",
+                fontSize: "13px",
+                fontWeight: "600",
+                backgroundColor: salary?.status === "paid" ? "#c8e6c9" : salary?.status === "approved" ? "#fff9c4" : "#ffccbc",
+                color: salary?.status === "paid" ? "#2e7d32" : salary?.status === "approved" ? "#f57f17" : "#d84315"
+              }}>
+                {salary?.status === "pending" ? "Chờ Duyệt" : salary?.status === "approved" ? "Đã Duyệt" : "Đã Chi"}
               </div>
-              <div style={percentStyle} />
             </div>
-            <div style={itemRowStyle}>
-              <div style={labelStyle}>Deduction</div>
-              <div style={{ ...amountStyle, color: "#dc2626" }}>
-                -{formatCurrency(deduction)}
+            <div style={{ padding: theme.spacing.lg, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+              <div style={{ fontSize: "12px", color: "#999", textTransform: "uppercase", marginBottom: "8px", fontWeight: "600" }}>Thời Gian Tính Lương</div>
+              <div style={{ fontSize: "14px", fontWeight: "600", color: "#333" }}>
+                {salary?.calculatedAt ? new Date(salary.calculatedAt).toLocaleDateString("vi-VN") : "N/A"}
               </div>
-              <div style={percentStyle} />
             </div>
-          </div>
+            {salary?.notes && (
+              <div style={{ padding: theme.spacing.lg, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md, gridColumn: "1 / -1" }}>
+                <div style={{ fontSize: "12px", color: "#999", textTransform: "uppercase", marginBottom: "8px", fontWeight: "600" }}>Ghi Chú</div>
+                <div style={{ fontSize: "14px", color: "#333", whiteSpace: "pre-wrap" }}>{salary.notes}</div>
 
-          <div style={{ marginTop: theme.spacing.lg }}>
-            <div style={{ marginBottom: theme.spacing.md, fontWeight: 600, color: "#111827" }}>
-              Applied salary rules
-            </div>
-            {(!rules || rules.length === 0) ? (
-              <div style={{ fontSize: 13, color: "#6b7280" }}>
-                No salary rules configured. Contact the system administrator if this is unexpected.
-              </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6, color: "#b91c1c" }}>
-                    Deductions
-                  </div>
-                  {rules.filter(r => r.type === "deduction").length === 0 ? (
-                    <div style={{ fontSize: 13, color: "#9ca3af" }}>No deduction rules</div>
-                  ) : (
-                    rules
-                      .filter(r => r.type === "deduction")
-                      .map(rule => (
-                        <div key={rule.id} style={{ fontSize: 13, color: "#4b5563", marginBottom: 4 }}>
-                          • {rule.name}{" "}
-                          <span style={{ color: "#dc2626" }}>
-                            {rule.amountType === "percentage"
-                              ? `(-${rule.amount}% of base salary)`
-                              : `(-${formatCurrency(rule.amount)})`}
-                          </span>
-                        </div>
-                      ))
-                  )}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6, color: theme.accent.dark }}>
-                    Bonuses
-                  </div>
-                  {rules.filter(r => r.type === "bonus").length === 0 ? (
-                    <div style={{ fontSize: 13, color: "#9ca3af" }}>No bonus rules</div>
-                  ) : (
-                    rules
-                      .filter(r => r.type === "bonus")
-                      .map(rule => (
-                        <div key={rule.id} style={{ fontSize: 13, color: "#4b5563", marginBottom: 4 }}>
-                          • {rule.name}{" "}
-                          <span style={{ color: theme.accent.dark }}>
-                            {rule.amountType === "percentage"
-                              ? `(+${rule.amount}% of base salary)`
-                              : `(+${formatCurrency(rule.amount)})`}
-                          </span>
-                        </div>
-                      ))
-                  )}
-                </div>
               </div>
             )}
           </div>

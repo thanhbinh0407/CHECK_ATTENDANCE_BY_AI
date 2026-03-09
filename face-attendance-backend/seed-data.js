@@ -39,6 +39,13 @@ const DESTINATIONS = ['Ha Noi', 'Da Nang', 'Can Tho', 'Hai Phong', 'Nha Trang', 
 const TRANSPORT_TYPES = ['plane', 'train', 'bus', 'car'];
 const STATUS_CYCLE = ['approved', 'approved', 'pending', 'rejected'];
 const LEAVE_TYPES = ['paid', 'personal', 'sick', 'unpaid'];
+// Attendance overrides for specific employees (by 1-based index)
+const ATTENDANCE_OVERRIDES = {
+  18: { // EMP018 (Bui Thi Ngoc) — add late & early leave days for Feb 2026
+    lateDates: ['2026-02-03', '2026-02-10'],
+    earlyLeaveDates: ['2026-02-05', '2026-02-19']
+  }
+};
 const EXPERIENCE_COMPANIES_BY_DEPT = [
   ['FPT Software', 'Viettel Solutions', 'CMC Global', 'TMA Solutions', 'NashTech Vietnam'],
   ['Masan Consumer', 'Unilever Vietnam', 'PNJ', 'The Gioi Di Dong', 'VNPT Business'],
@@ -174,13 +181,28 @@ function createStartDateByBand(band, indexInBand) {
   return addDays(new Date('2025-06-10T00:00:00.000Z'), indexInBand * 25);
 }
 
+// Salary grade definitions (must match what's seeded into SalaryGrade table)
+// Sorted from highest to lowest minYearsOfService for lookup
+const SALARY_GRADES_DEF = [
+  { code: 'A', minYears: 10, baseSalary: 30000000 },
+  { code: 'B', minYears: 8,  baseSalary: 25000000 },
+  { code: 'C', minYears: 5,  baseSalary: 20000000 },
+  { code: 'D', minYears: 3,  baseSalary: 15000000 },
+  { code: 'E', minYears: 1,  baseSalary: 12000000 },
+  { code: 'F', minYears: 0,  baseSalary: 9000000  }
+];
+
+function gradeCodeBySeniority(startDate) {
+  const years = yearsOfService(startDate);
+  for (const g of SALARY_GRADES_DEF) {
+    if (years >= g.minYears) return g.code;
+  }
+  return 'F';
+}
+
 function baseSalaryFromGradeCode(gradeCode) {
-  if (gradeCode === 'A') return 30000000;
-  if (gradeCode === 'B') return 25000000;
-  if (gradeCode === 'C') return 20000000;
-  if (gradeCode === 'D') return 15000000;
-  if (gradeCode === 'E') return 12000000;
-  return 9000000;
+  const found = SALARY_GRADES_DEF.find(g => g.code === gradeCode);
+  return found ? found.baseSalary : 9000000;
 }
 
 function buildEmployeeProfiles() {
@@ -216,11 +238,7 @@ function buildEmployeeProfiles() {
     const dept = (i - 1) % 5;
     const jobTitleCode = i <= TITLE_CODES_FOR_FIRST_30.length ? TITLE_CODES_FOR_FIRST_30[i - 1] : null;
 
-    let salaryGradeCode = 'F';
-    if (seniorityBand === 'ten_years') salaryGradeCode = ['A', 'A', 'B', 'B', 'B', 'B', 'C', 'C', 'C', 'C'][indexInBand];
-    if (seniorityBand === 'five_years') salaryGradeCode = ['B', 'B', 'C', 'C', 'C', 'C', 'D', 'D', 'C', 'D', 'D', 'D', 'C', 'D', 'D'][indexInBand];
-    if (seniorityBand === 'three_years') salaryGradeCode = ['C', 'D', 'D', 'D', 'E', 'E', 'D', 'E', 'E', 'D', 'E', 'E', 'D', 'E', 'E'][indexInBand];
-    if (seniorityBand === 'new_joiner') salaryGradeCode = ['E', 'F', 'F', 'E', 'F', 'F', 'E', 'F', 'F', 'F'][indexInBand];
+    let salaryGradeCode = gradeCodeBySeniority(startDate);
 
     let contractType = '1_year';
     if (seniorityBand === 'ten_years') contractType = ['indefinite', 'indefinite', 'indefinite', '3_year', 'indefinite', '3_year', '3_year', '1_year', '1_year', '1_year'][indexInBand];
@@ -455,23 +473,23 @@ async function seedDB() {
     // Create Job Titles
     console.log('Step 8: Creating job titles...');
     const titles = await JobTitle.bulkCreate([
-      { code: 'TP', name: 'Department Head' },
-      { code: 'PTP', name: 'Deputy Head' },
-      { code: 'NVC', name: 'Senior Staff' },
-      { code: 'NV', name: 'Staff' },
-      { code: 'TTS', name: 'Intern' }
+      { code: 'TP', name: 'Department Head', level: 'Manager', baseSalaryMin: 25000000, baseSalaryMax: 35000000 },
+      { code: 'PTP', name: 'Deputy Head', level: 'Senior Manager', baseSalaryMin: 20000000, baseSalaryMax: 28000000 },
+      { code: 'NVC', name: 'Senior Staff', level: 'Senior', baseSalaryMin: 15000000, baseSalaryMax: 22000000 },
+      { code: 'NV', name: 'Staff', level: 'Junior', baseSalaryMin: 10000000, baseSalaryMax: 16000000 },
+      { code: 'TTS', name: 'Intern', level: 'Trainee', baseSalaryMin: 5000000, baseSalaryMax: 10000000 }
     ]);
     console.log(`Done: created ${titles.length} job titles\n`);
 
     // Create Salary Grades
     console.log('Step 9: Creating salary grades...');
     const grades = await SalaryGrade.bulkCreate([
-      { code: 'A', name: 'Grade A', level: 1, baseSalary: 25000000, minYearsOfService: 10 },
-      { code: 'B', name: 'Grade B', level: 2, baseSalary: 20000000, minYearsOfService: 8  },
-      { code: 'C', name: 'Grade C', level: 3, baseSalary: 15000000, minYearsOfService: 5  },
-      { code: 'D', name: 'Grade D', level: 4, baseSalary: 12000000, minYearsOfService: 3  },
-      { code: 'E', name: 'Grade E', level: 5, baseSalary: 10000000, minYearsOfService: 1  },
-      { code: 'F', name: 'Grade F', level: 6, baseSalary: 8000000,  minYearsOfService: 0  }
+      { code: 'A', name: 'Grade A', level: 1, baseSalary: 30000000, minYearsOfService: 10 },
+      { code: 'B', name: 'Grade B', level: 2, baseSalary: 25000000, minYearsOfService: 8  },
+      { code: 'C', name: 'Grade C', level: 3, baseSalary: 20000000, minYearsOfService: 5  },
+      { code: 'D', name: 'Grade D', level: 4, baseSalary: 15000000, minYearsOfService: 3  },
+      { code: 'E', name: 'Grade E', level: 5, baseSalary: 12000000, minYearsOfService: 1  },
+      { code: 'F', name: 'Grade F', level: 6, baseSalary: 9000000,  minYearsOfService: 0  }
     ]);
     console.log(`Done: created ${grades.length} salary grades\n`);
 
@@ -842,9 +860,11 @@ async function seedDB() {
         const isAbsent = (i + serial) % 17 === 0 || (profile.seniorityBand === 'new_joiner' && (i + serial) % 23 === 0);
         if (isAbsent) continue;
 
-        const isLate = (i + serial) % 14 === 0;
+        const dateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+        const overrides = ATTENDANCE_OVERRIDES[profile.index];
+        const isLate = overrides?.lateDates?.includes(dateStr) || ((i + serial) % 14 === 0);
         const hasOvertime = profile.hasOvertime && (i + serial) % 9 === 0;
-        const isEarlyLeave = !hasOvertime && (i + serial) % 21 === 0;
+        const isEarlyLeave = overrides?.earlyLeaveDates?.includes(dateStr) || (!hasOvertime && (i + serial) % 21 === 0);
 
         const inHour = isLate ? 8 : 7;
         const inMin = isLate ? 10 + ((i + serial) % 30) : 35 + ((i + serial) % 20);

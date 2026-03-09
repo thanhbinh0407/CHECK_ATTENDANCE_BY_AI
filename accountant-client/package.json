@@ -11,10 +11,12 @@
     "test": "echo \"No tests specified\" && exit 0"
   },
   "dependencies": {
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "recharts": "^3.7.0",
+    "socket.io-client": "^4.8.3",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -29,4 +31,3 @@
     "vite": "^7.2.5"
   }
 }
-
