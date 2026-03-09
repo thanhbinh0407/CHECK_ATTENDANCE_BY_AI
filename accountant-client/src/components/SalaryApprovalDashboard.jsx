@@ -90,7 +90,7 @@ export default function SalaryApprovalDashboard() {
       if (res.ok) {
         await fetchPendingSalaries();
         setApprovalInProgress(prev => ({ ...prev, [salaryId]: "approved" }));
-        setMessage("✅ Phê duyệt lương thành công!");
+        setMessage("✅ Salary approved successfully!");
         setTimeout(() => {
           setApprovalInProgress(prev => {
             const newState = { ...prev };
@@ -102,13 +102,13 @@ export default function SalaryApprovalDashboard() {
     } catch (error) {
       console.error("Error approving salary:", error);
       setApprovalInProgress(prev => ({ ...prev, [salaryId]: "error" }));
-      setMessage("❌ Lỗi khi phê duyệt lương");
+      setMessage("❌ Error while approving salary");
     }
   };
 
   const rejectSalary = async (salaryId) => {
     if (!rejectReasons[salaryId]) {
-      setMessage("❌ Vui lòng nhập lý do từ chối");
+      setMessage("❌ Please enter a rejection reason");
       return;
     }
 
@@ -135,7 +135,7 @@ export default function SalaryApprovalDashboard() {
           return newReasons;
         });
         setApprovalInProgress(prev => ({ ...prev, [salaryId]: "rejected" }));
-        setMessage("✅ Từ chối lương thành công!");
+        setMessage("✅ Salary rejected successfully!");
         setTimeout(() => {
           setApprovalInProgress(prev => {
             const newState = { ...prev };
@@ -147,7 +147,7 @@ export default function SalaryApprovalDashboard() {
     } catch (error) {
       console.error("Error rejecting salary:", error);
       setApprovalInProgress(prev => ({ ...prev, [salaryId]: "error" }));
-      setMessage("❌ Lỗi khi từ chối lương");
+      setMessage("❌ Error while rejecting salary");
     }
   };
 
@@ -172,7 +172,7 @@ export default function SalaryApprovalDashboard() {
 
   return (
     <div style={{ padding: "20px", backgroundColor: theme.colors.light }}>
-      <h1 style={{ color: theme.colors.primary, marginBottom: "20px" }}>📋 Phê duyệt lương</h1>
+      <h1 style={{ color: theme.colors.primary, marginBottom: "20px" }}>📋 Salary Approval</h1>
 
       {message && (
         <div
@@ -203,7 +203,7 @@ export default function SalaryApprovalDashboard() {
 
       <div style={{ marginBottom: "20px", display: "flex", gap: "20px", alignItems: "center" }}>
         <div>
-          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Tháng:</label>
+          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Month:</label>
           <input
             type="number"
             min="1"
@@ -220,7 +220,7 @@ export default function SalaryApprovalDashboard() {
         </div>
 
         <div>
-          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Năm:</label>
+          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Year:</label>
           <input
             type="number"
             value={selectedYear}
@@ -235,7 +235,7 @@ export default function SalaryApprovalDashboard() {
         </div>
 
         <span style={{ color: "#666", fontWeight: "500" }}>
-          {pendingSalaries.length} nhân viên chờ phê duyệt
+          {pendingSalaries.length} employees pending approval
         </span>
       </div>
 
@@ -254,13 +254,13 @@ export default function SalaryApprovalDashboard() {
           >
             <thead style={{ backgroundColor: theme.colors.primary, color: "white" }}>
               <tr>
-                <th style={{ padding: "12px", textAlign: "left", borderBottom: "none" }}>👥 Nhân viên</th>
-                <th style={{ padding: "12px", textAlign: "left", borderBottom: "none" }}>🎫 Mã NV</th>
-                <th style={{ padding: "12px", textAlign: "right", borderBottom: "none" }}>💵 Lương cơ bản</th>
-                <th style={{ padding: "12px", textAlign: "right", borderBottom: "none" }}>📈 Thưởng</th>
-                <th style={{ padding: "12px", textAlign: "right", borderBottom: "none" }}>📉 Khấu trừ</th>
-                <th style={{ padding: "12px", textAlign: "right", borderBottom: "none" }}>💰 Lương cuối cùng</th>
-                <th style={{ padding: "12px", textAlign: "center", borderBottom: "none" }}>⚙️ Hành động</th>
+                <th style={{ padding: "12px", textAlign: "left", borderBottom: "none" }}>👥 Employee</th>
+                <th style={{ padding: "12px", textAlign: "left", borderBottom: "none" }}>🎫 Emp. ID</th>
+                <th style={{ padding: "12px", textAlign: "right", borderBottom: "none" }}>💵 Base Salary</th>
+                <th style={{ padding: "12px", textAlign: "right", borderBottom: "none" }}>📈 Bonus</th>
+                <th style={{ padding: "12px", textAlign: "right", borderBottom: "none" }}>📉 Deduction</th>
+                <th style={{ padding: "12px", textAlign: "right", borderBottom: "none" }}>💰 Net Salary</th>
+                <th style={{ padding: "12px", textAlign: "center", borderBottom: "none" }}>⚙️ Actions</th>
               </tr>
             </thead>
             <tbody>
