@@ -10,7 +10,9 @@ import {
   getLateEarlyDetailReport,
   getAbsentDetailReport,
   getOvertimeDetailReport,
-  getAllowancesAndBonusesReport
+  getAllowancesAndBonusesReport,
+  getD02LTData,
+  saveD02LTData
 } from "../services/reportService.js";
 
 // Get employee turnover report
@@ -277,6 +279,81 @@ export const getAllowancesAndBonusesReportController = async (req, res) => {
     });
   } catch (err) {
     console.error("Error generating allowances and bonuses report:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+};
+
+// Get D02-LT report data
+export const getD02LTDataController = async (req, res) => {
+  try {
+    const data = await getD02LTData();
+    return res.json({
+      status: "success",
+      data
+    });
+  } catch (err) {
+    console.error("Error getting D02-LT data:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+};
+
+// Save D02-LT report data
+export const saveD02LTDataController = async (req, res) => {
+  try {
+    const {
+      tenDonVi,
+      maDonVi,
+      maSoThue,
+      diaChi,
+      soDienThoai,
+      email,
+      ngay,
+      thang,
+      nam
+    } = req.body;
+
+    // Validate required fields
+    if (!tenDonVi || !maDonVi || !maSoThue || !diaChi || !soDienThoai || !email) {
+      return res.status(400).json({
+        status: "error",
+        message: "All fields are required"
+      });
+    }
+
+    // Validate date fields
+    if (!ngay || !thang || !nam || ngay < 1 || ngay > 31 || thang < 1 || thang > 12 || nam < 2000 || nam > 2100) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid date values"
+      });
+    }
+
+    const data = {
+      tenDonVi,
+      maDonVi,
+      maSoThue,
+      diaChi,
+      soDienThoai,
+      email,
+      ngay: parseInt(ngay),
+      thang: parseInt(thang),
+      nam: parseInt(nam)
+    };
+
+    const savedData = await saveD02LTData(data);
+    return res.json({
+      status: "success",
+      message: "D02-LT data saved successfully",
+      data: savedData
+    });
+  } catch (err) {
+    console.error("Error saving D02-LT data:", err);
     return res.status(500).json({
       status: "error",
       message: err.message

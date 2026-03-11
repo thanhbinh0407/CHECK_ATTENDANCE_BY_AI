@@ -9,6 +9,7 @@ import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
 import SalaryAdvanceRequest from "./components/SalaryAdvanceRequest.jsx";
 import OvertimeRequest from "./components/OvertimeRequest.jsx";
 import BusinessTripRequest from "./components/BusinessTripRequest.jsx";
+import ChangePassword from "./components/ChangePassword.jsx";
 import "./App.css";
 
 function App() {
@@ -283,6 +284,14 @@ function App() {
         >
           Business Trip
         </button>
+        <button
+          onClick={() => setActiveTab("account")}
+          style={tabStyle(activeTab === "account")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "account")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "account")}
+        >
+          Account
+        </button>
         {user?.role === "admin" && (
           <>
             <button
@@ -315,6 +324,7 @@ function App() {
         {activeTab === "salary-advance" && <SalaryAdvanceRequest userId={user?.id} />}
         {activeTab === "overtime" && <OvertimeRequest userId={user?.id || user?.userId} />}
         {activeTab === "business-trip" && <BusinessTripRequest userId={user?.id} />}
+        {activeTab === "account" && <ChangePassword />}
         {activeTab === "approval" && user?.role === "admin" && <ApprovalManagement />}
         {activeTab === "rules" && user?.role === "admin" && <SalaryRulesManagement />}
       </div>

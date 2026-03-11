@@ -118,7 +118,7 @@ export const getEmployeeWithPassword = async (req, res) => {
         role: employee.role,
         isActive: employee.isActive,
         baseSalary: employee.baseSalary,
-        password: employee.password,
+        password: employee.password, // bcrypt hash (not plaintext)
         createdAt: employee.createdAt,
         updatedAt: employee.updatedAt,
         FaceProfiles: employee.FaceProfiles
@@ -1062,7 +1062,7 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         emergencyContactName: employee.emergencyContactName,
         emergencyContactRelationship: employee.emergencyContactRelationship,
         emergencyContactPhone: employee.emergencyContactPhone,
-        password: employee.password, // Include password for admin viewing
+        // password is intentionally omitted (stored as bcrypt hash)
         attendanceStats: {
           month: statsMonth,
           year: statsYear,

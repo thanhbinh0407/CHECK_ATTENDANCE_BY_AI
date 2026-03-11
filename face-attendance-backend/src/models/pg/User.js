@@ -89,15 +89,13 @@ const User = sequelize.define('User', {
 
   contractType: {
     type: DataTypes.ENUM('probation', '1_year', '3_year', 'indefinite', 'other'),
-    allowNull: true,
-    comment: 'Loại hợp đồng: Thử việc, 1 năm, 3 năm, Không xác định thời hạn, Khác'
+    allowNull: true
   },
 
   employmentStatus: {
     type: DataTypes.ENUM('active', 'maternity_leave', 'unpaid_leave', 'suspended', 'terminated', 'resigned'),
     allowNull: true,
-    defaultValue: 'active',
-    comment: 'Trạng thái lao động: Đang làm việc, Nghỉ thai sản, Nghỉ không lương, Tạm nghỉ, Đã nghỉ việc, Đã từ chức'
+    defaultValue: 'active'
   },
 
   managerId: {
@@ -108,14 +106,12 @@ const User = sequelize.define('User', {
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE'
     },
-    allowNull: true,
-    comment: 'Quản lý trực tiếp - Người duyệt đơn từ, chấm công, nghỉ phép'
+    allowNull: true
   },
 
   branchName: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Chi nhánh/Office - Tên chi nhánh nơi nhân viên làm việc'
+    allowNull: true
   },
 
   // SALARY INFORMATION
@@ -127,26 +123,22 @@ const User = sequelize.define('User', {
   // Allowances (Các khoản phụ cấp)
   lunchAllowance: {
     type: DataTypes.DECIMAL(12, 2),
-    defaultValue: 0,
-    comment: 'Phụ cấp ăn trưa'
+    defaultValue: 0
   },
 
   transportAllowance: {
     type: DataTypes.DECIMAL(12, 2),
-    defaultValue: 0,
-    comment: 'Phụ cấp xăng xe'
+    defaultValue: 0
   },
 
   phoneAllowance: {
     type: DataTypes.DECIMAL(12, 2),
-    defaultValue: 0,
-    comment: 'Phụ cấp điện thoại'
+    defaultValue: 0
   },
 
   responsibilityAllowance: {
     type: DataTypes.DECIMAL(12, 2),
-    defaultValue: 0,
-    comment: 'Phụ cấp trách nhiệm'
+    defaultValue: 0
   },
 
   // PERSONAL INFORMATION
@@ -183,8 +175,7 @@ const User = sequelize.define('User', {
 
   bankBranch: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Chi nhánh ngân hàng - Để thực hiện chuyển khoản lương hàng loạt'
+    allowNull: true
   },
 
   taxCode: {
@@ -195,20 +186,17 @@ const User = sequelize.define('User', {
   // Social Insurance & Health Insurance (Bảo hiểm)
   socialInsuranceNumber: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Số sổ Bảo hiểm xã hội - Để theo dõi quá trình đóng bảo hiểm'
+    allowNull: true
   },
 
   healthInsuranceProvider: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Nơi đăng ký khám chữa bệnh ban đầu - Thông tin trên thẻ BHYT'
+    allowNull: true
   },
 
   dependentCount: {
     type: DataTypes.INTEGER,
-    defaultValue: 0,
-    comment: 'Số người phụ thuộc - Để tính giảm trừ gia cảnh khi kê khai thuế TNCN'
+    defaultValue: 0
   },
 
   idNumber: {
@@ -250,33 +238,28 @@ const User = sequelize.define('User', {
   // EDUCATION & SKILLS INFORMATION
   educationLevel: {
     type: DataTypes.ENUM('high_school', 'vocational', 'college', 'university', 'master', 'phd', 'other'),
-    allowNull: true,
-    comment: 'Trình độ học vấn: Trung học, Trung cấp, Cao đẳng, Đại học, Thạc sĩ, Tiến sĩ, Khác'
+    allowNull: true
   },
 
   major: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Chuyên ngành đào tạo'
+    allowNull: true
   },
 
   // EMERGENCY CONTACT INFORMATION
   emergencyContactName: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Tên người liên hệ khẩn cấp - Dùng trong trường hợp tai nạn lao động hoặc sự cố'
+    allowNull: true
   },
 
   emergencyContactRelationship: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Mối quan hệ với người liên hệ khẩn cấp: Vợ/Chồng, Bố/Mẹ, Anh/Chị/Em, Bạn bè, Đồng nghiệp, Khác'
+    allowNull: true
   },
 
   emergencyContactPhone: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Số điện thoại liên hệ khẩn cấp - BẮT BUỘC trong trường hợp khẩn cấp'
+    allowNull: true
   }
 }, {
   timestamps: true,

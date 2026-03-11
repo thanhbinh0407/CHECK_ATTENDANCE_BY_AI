@@ -311,6 +311,20 @@ router.get("/salary/breakdown", async (req, res) => {
       }
     }
 
+    // Include salary advance deduction (stored on Salary record)
+    const advanceDeduction = parseFloat(salary.advanceDeduction) || 0;
+    if (advanceDeduction > 0) {
+      deductionBreakdown.push({
+        ruleName: "Salary advance deduction",
+        ruleDescription: "Deduct approved salary advance from net salary",
+        reason: `Salary advance ${month}/${year}`,
+        amount: parseFloat(advanceDeduction.toFixed(2)),
+        quantity: 1,
+        amountType: "fixed",
+        triggerType: "salary_advance"
+      });
+    }
+
     return res.json({
       status: "success",
       breakdown: {
