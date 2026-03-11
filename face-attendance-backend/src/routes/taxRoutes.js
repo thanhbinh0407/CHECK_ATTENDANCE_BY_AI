@@ -1,14 +1,20 @@
 import express from "express";
 import {
   getEmployeeAnnualTaxSummary,
-  getAllEmployeesAnnualTaxSummaryController
+  getAllEmployeesAnnualTaxSummaryController,
+  calculateTax
 } from "../controllers/taxController.js";
 import { authMiddleware, adminOrAccountant } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// All routes require authentication and admin/accountant role
+// All routes require authentication
 router.use(authMiddleware);
+
+// Calculate tax for current user (employees can access their own)
+router.get("/calculate", calculateTax);
+
+// Admin/accountant only routes
 router.use(adminOrAccountant);
 
 // Get annual tax summary for a specific employee

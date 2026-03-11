@@ -10,6 +10,7 @@ import { Op } from "sequelize";
 import sequelize from "../db/sequelize.js";
 import { calculateAllEmployeesInsurance } from "./insuranceService.js";
 import { calculatePersonalIncomeTax } from "./taxService.js";
+import D02LTReport from "../models/pg/D02LTReport.js";
 
 // Employee Turnover Report
 export const getEmployeeTurnoverReport = async (startDate, endDate) => {
@@ -988,6 +989,69 @@ export const getAllowancesAndBonusesReport = async (month, year) => {
     };
   } catch (error) {
     console.error("[Report Service] Error generating allowances and bonuses report:", error);
+    throw error;
+  }
+};
+
+// D02-LT Report Data Management
+export const getD02LTData = async () => {
+  try {
+    const report = await D02LTReport.findOne({
+      order: [['updatedAt', 'DESC']]
+    });
+
+    if (report) {
+      return {
+        tenDonVi: report.tenDonVi,
+        maDonVi: report.maDonVi,
+        maSoThue: report.maSoThue,
+        diaChi: report.diaChi,
+        soDienThoai: report.soDienThoai,
+        email: report.email,
+        ngay: report.ngay,
+        thang: report.thang,
+        nam: report.nam
+      };
+    }
+
+    // Return default empty data if no record exists
+    return {
+      tenDonVi: "",
+      maDonVi: "",
+      maSoThue: "",
+      diaChi: "",
+      soDienThoai: "",
+      email: "",
+      ngay: "",
+      thang: "",
+      nam: ""
+    };
+  } catch (error) {
+    console.error("[Report Service] Error getting D02-LT data:", error);
+    throw error;
+  }
+};
+
+export const saveD02LTData = async (data) => {
+  try {
+    // Upsert - create or update the latest record
+    const [report, created] = await D02LTReport.upsert(data, {
+      returning: true
+    });
+
+    return {
+      tenDonVi: report.tenDonVi,
+      maDonVi: report.maDonVi,
+      maSoThue: report.maSoThue,
+      diaChi: report.diaChi,
+      soDienThoai: report.soDienThoai,
+      email: report.email,
+      ngay: report.ngay,
+      thang: report.thang,
+      nam: report.nam
+    };
+  } catch (error) {
+    console.error("[Report Service] Error saving D02-LT data:", error);
     throw error;
   }
 };

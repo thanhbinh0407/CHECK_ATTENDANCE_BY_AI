@@ -185,3 +185,54 @@ export const getCurrentUser = async (req, res) => {
     });
   }
 };
+
+// Change password (authenticated user)
+export const changePassword = async (req, res) => {
+  try {
+    const tokenUserId = req.user?.userId ?? req.user?.id;
+    const { currentPassword, newPassword } = req.body || {};
+
+    if (!tokenUserId) {
+      return res.status(401).json({ status: "error", message: "Unauthorized" });
+    }
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        status: "error",
+        message: "currentPassword and newPassword are required"
+      });
+    }
+
+    if (typeof newPassword !== "string" || newPassword.length < 8) {
+      return res.status(400).json({
+        status: "error",
+        message: "New password must be at least 8 characters"
+      });
+    }
+
+    const user = await User.findByPk(tokenUserId);
+    if (!user) {
+      return res.status(404).json({ status: "error", message: "User not found" });
+    }
+
+    if (!user.password) {
+      return res.status(400).json({
+        status: "error",
+        message: "Password not set. Please contact administrator."
+      });
+    }
+
+    const ok = await bcrypt.compare(currentPassword, user.password);
+    if (!ok) {
+      return res.status(400).json({ status: "error", message: "Current password is incorrect" });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await user.update({ password: hashed });
+
+    return res.json({ status: "success", message: "Password changed successfully" });
+  } catch (err) {
+    console.error("Change password error:", err);
+    return res.status(500).json({ status: "error", message: err.message });
+  }
+};
