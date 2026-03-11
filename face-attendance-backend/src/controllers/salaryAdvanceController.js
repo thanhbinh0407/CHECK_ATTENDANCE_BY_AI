@@ -1,6 +1,7 @@
 import SalaryAdvance from "../models/pg/SalaryAdvance.js";
 import User from "../models/pg/User.js";
 import Notification from "../models/pg/Notification.js";
+import { recalculateSalaryRecord } from "../services/salaryCalculationService.js";
 import { Op } from "sequelize";
 
 // Get all salary advances
@@ -185,6 +186,9 @@ export const approveSalaryAdvance = async (req, res) => {
         message: `Your salary advance request for ${advance.month}/${advance.year} has been approved`,
         isRead: false
       });
+
+      // Recalculate salary to include the advance deduction
+      await recalculateSalaryRecord(advance.userId, advance.month, advance.year);
     }
 
     return res.json({

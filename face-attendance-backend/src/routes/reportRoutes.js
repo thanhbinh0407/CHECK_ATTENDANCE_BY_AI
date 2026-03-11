@@ -11,7 +11,9 @@ import {
   getLateEarlyDetailReportController,
   getAbsentDetailReportController,
   getOvertimeDetailReportController,
-  getAllowancesAndBonusesReportController
+  getAllowancesAndBonusesReportController,
+  getD02LTDataController,
+  saveD02LTDataController
 } from "../controllers/reportController.js";
 import { authMiddleware, adminOrAccountant } from "../middleware/authMiddleware.js";
 
@@ -56,6 +58,12 @@ router.get("/overtime", getOvertimeDetailReportController);
 
 // Get allowances and bonuses report
 router.get("/allowances-bonuses", getAllowancesAndBonusesReportController);
+
+// Get D02-LT report data
+router.get("/d02-lt", getD02LTDataController);
+
+// Save D02-LT report data
+router.post("/d02-lt", saveD02LTDataController);
 
 export default router;
 

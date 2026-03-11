@@ -4,6 +4,7 @@ import { calculateSeniority } from "./senioritySalaryService.js";
 import User from "../models/pg/User.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import ShiftSetting from "../models/pg/ShiftSetting.js";
+import SalaryAdvance from "../models/pg/SalaryAdvance.js";
 import { Op } from "sequelize";
 
 // Calculate working days in a month (exclude weekends)
@@ -186,25 +187,58 @@ export async function recalculateSalaryRecord(userId, month, year) {
       }
     }
 
-    const finalSalary = baseSalary + bonus - deduction;
-
-    // Update existing salary record
+    // Find the salary record first (we need its id to bind salary advance if any)
     const salary = await Salary.findOne({
       where: { userId, month, year }
     });
 
-    if (salary) {
-      await salary.update({
-        baseSalary,
-        bonus,
-        deduction,
-        finalSalary,
-        calculatedAt: new Date()
-      });
-      return { success: true, salary };
+    if (!salary) {
+      return { success: false, error: "Salary record not found" };
     }
 
-    return { success: false, error: "Salary record not found" };
+    // Salary advance deduction (approved & not yet deducted, OR already linked to this salary record)
+    const salaryAdvance = await SalaryAdvance.findOne({
+      where: {
+        userId,
+        month: parseInt(month),
+        year: parseInt(year),
+        approvalStatus: "approved",
+        [Op.or]: [
+          { isDeducted: false },
+          { salaryId: salary.id }
+        ]
+      }
+    });
+
+    let advanceDeduction = 0;
+    if (salaryAdvance && parseFloat(salaryAdvance.amount) > 0) {
+      advanceDeduction = parseFloat(salaryAdvance.amount);
+      deduction += advanceDeduction;
+    }
+
+    const grossSalary = baseSalary + bonus;
+    const finalSalary = grossSalary - deduction;
+
+    await salary.update({
+      baseSalary,
+      bonus,
+      grossSalary,
+      deduction,
+      advanceDeduction,
+      finalSalary,
+      calculatedAt: new Date()
+    });
+
+    // Mark salary advance as deducted if it was applied and not yet deducted
+    if (salaryAdvance && salaryAdvance.isDeducted === false && advanceDeduction > 0) {
+      await salaryAdvance.update({
+        isDeducted: true,
+        deductedAt: new Date(),
+        salaryId: salary.id
+      });
+    }
+
+    return { success: true, salary };
   } catch (err) {
     console.error(`Error recalculating salary for user ${userId}, ${month}/${year}:`, err);
     return { success: false, error: err.message };

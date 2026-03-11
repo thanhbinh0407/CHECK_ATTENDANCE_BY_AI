@@ -22,8 +22,22 @@ export default function Dependents({ userId }) {
   const [errors, setErrors] = useState({
     fullName: "",
     phoneNumber: "",
-    email: ""
+    email: "",
+    dateOfBirth: "",
+    idNumber: ""
   });
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [fileUploadError, setFileUploadError] = useState("");
+  const [uploadingDocs, setUploadingDocs] = useState(false);
+
+  const getLocalToday = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+  const today = getLocalToday();
 
   const showMessage = (text, type) => {
     setMessage(text);
@@ -125,6 +139,31 @@ export default function Dependents({ userId }) {
     return "";
   };
 
+  const validateDateOfBirth = (value) => {
+    if (!value) {
+      return "";
+    }
+    const selectedDate = new Date(value);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
+    
+    if (selectedDate > today) {
+      return "Date of Birth cannot be in the future";
+    }
+    return "";
+  };
+
+  const validateIdNumber = (value) => {
+    if (!value || value.trim() === "") {
+      return "ID Number is required";
+    }
+    // Must be exactly 12 digits
+    if (!/^\d{12}$/.test(value)) {
+      return "ID Number must be exactly 12 digits";
+    }
+    return "";
+  };
+
   // Capitalize first letter of each word while preserving Vietnamese accents
   // Only capitalize if the first letter is lowercase, preserve accents
   const capitalizeWords = (str) => {
@@ -167,6 +206,14 @@ export default function Dependents({ userId }) {
       error = validatePhoneNumber(processedValue);
     } else if (name === "email") {
       error = validateEmail(value);
+    } else if (name === "dateOfBirth") {
+      error = validateDateOfBirth(value);
+    } else if (name === "idNumber") {
+      processedValue = value.replace(/\D/g, "");
+      if (processedValue.length > 12) {
+        processedValue = processedValue.substring(0, 12);
+      }
+      error = validateIdNumber(processedValue);
     }
 
     setFormData(prev => ({
@@ -202,12 +249,75 @@ export default function Dependents({ userId }) {
       error = validatePhoneNumber(value);
     } else if (name === "email") {
       error = validateEmail(value);
+    } else if (name === "dateOfBirth") {
+      error = validateDateOfBirth(value);
+    } else if (name === "idNumber") {
+      error = validateIdNumber(value);
     }
 
     setErrors(prev => ({
       ...prev,
       [name]: error
     }));
+  };
+
+  const handleDependentDocsChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    setFileUploadError("");
+
+    if (files.length === 0) {
+      setUploadedFiles([]);
+      return;
+    }
+
+    if (files.length > 10) {
+      setUploadedFiles([]);
+      setFileUploadError("You can upload up to 10 PDF files.");
+      return;
+    }
+
+    const invalid = files.find((f) => f.type !== "application/pdf" || !f.name.toLowerCase().endsWith(".pdf"));
+    if (invalid) {
+      setUploadedFiles([]);
+      setFileUploadError("Only PDF files are allowed.");
+      return;
+    }
+
+    const tooLarge = files.find((f) => f.size > 10 * 1024 * 1024);
+    if (tooLarge) {
+      setUploadedFiles([]);
+      setFileUploadError("Each file must not exceed 10MB.");
+      return;
+    }
+
+    setUploadedFiles(files);
+  };
+
+  const uploadDependentDocs = async (dependentId, token, apiBase) => {
+    if (!uploadedFiles || uploadedFiles.length === 0) return true;
+
+    const fd = new FormData();
+    uploadedFiles.forEach((f) => fd.append("documents", f));
+
+    setUploadingDocs(true);
+    try {
+      const res = await fetch(`${apiBase}/api/dependents/${dependentId}/documents`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: fd
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showMessage(`Upload failed: ${data.message || "Unable to upload documents"}`, "error");
+        return false;
+      }
+      return true;
+    } catch (err) {
+      showMessage(`Upload error: ${err.message}`, "error");
+      return false;
+    } finally {
+      setUploadingDocs(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -217,16 +327,30 @@ export default function Dependents({ userId }) {
     const fullNameError = validateFullName(formData.fullName);
     const phoneNumberError = validatePhoneNumber(formData.phoneNumber);
     const emailError = validateEmail(formData.email);
+    const dateOfBirthError = validateDateOfBirth(formData.dateOfBirth);
+    const idNumberError = validateIdNumber(formData.idNumber);
 
     setErrors({
       fullName: fullNameError,
       phoneNumber: phoneNumberError,
-      email: emailError
+      email: emailError,
+      dateOfBirth: dateOfBirthError,
+      idNumber: idNumberError
     });
 
     // If there are validation errors, don't submit
-    if (fullNameError || phoneNumberError || emailError) {
+    if (fullNameError || phoneNumberError || emailError || dateOfBirthError || idNumberError) {
       showMessage("Please fix the validation errors before submitting.", "error");
+      return;
+    }
+
+    // For new dependent, require at least one PDF document
+    if (!editingId && (!uploadedFiles || uploadedFiles.length === 0)) {
+      showMessage("Please upload at least one PDF document for this dependent.", "error");
+      return;
+    }
+    if (fileUploadError) {
+      showMessage(fileUploadError, "error");
       return;
     }
 
@@ -277,6 +401,12 @@ export default function Dependents({ userId }) {
       console.log("API Response:", responseData);
 
       if (res.ok) {
+        const depId = responseData?.dependent?.id || responseData?.dependentId || editingId;
+        if (depId) {
+          const uploadedOk = await uploadDependentDocs(depId, token, apiBase);
+          if (!uploadedOk) return;
+        }
+
         showMessage(editingId ? "Dependent updated successfully!" : "Dependent added successfully!", "success");
         await fetchDependents();
         setTimeout(() => {
@@ -295,8 +425,12 @@ export default function Dependents({ userId }) {
           setErrors({
             fullName: "",
             phoneNumber: "",
-            email: ""
+            email: "",
+            dateOfBirth: "",
+            idNumber: ""
           });
+          setUploadedFiles([]);
+          setFileUploadError("");
         }, 2000);
       } else {
         const errorMsg = responseData.message || responseData.error || "Failed to save dependent";
@@ -321,6 +455,8 @@ export default function Dependents({ userId }) {
       phoneNumber: dep.phoneNumber || "",
       email: dep.email || ""
     });
+    setUploadedFiles([]);
+    setFileUploadError("");
     setShowForm(true);
   };
 
@@ -956,26 +1092,41 @@ export default function Dependents({ userId }) {
                     name="dateOfBirth"
                     value={formData.dateOfBirth}
                     onChange={handleInputChange}
+                    max={today}
                     style={{
                       width: "100%",
                       padding: "14px 16px",
-                      border: "2px solid #e0e0e0",
+                      border: `2px solid ${errors.dateOfBirth ? "#dc3545" : "#e0e0e0"}`,
                       borderRadius: "10px",
                       fontSize: "15px",
                       transition: "all 0.3s ease",
                       backgroundColor: "#f8f9fa"
                     }}
                     onFocus={(e) => {
-                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.borderColor = errors.dateOfBirth ? "#dc3545" : "#A2B9ED";
                       e.target.style.backgroundColor = "white";
-                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                      e.target.style.boxShadow = `0 0 0 3px ${errors.dateOfBirth ? "rgba(220, 53, 69, 0.1)" : "rgba(162, 185, 237, 0.1)"}`;
                     }}
                     onBlur={(e) => {
+                      handleBlur(e);
                       e.target.style.borderColor = "#e0e0e0";
                       e.target.style.backgroundColor = "#f8f9fa";
                       e.target.style.boxShadow = "none";
                     }}
                   />
+                  {errors.dateOfBirth && (
+                    <div style={{
+                      marginTop: "6px",
+                      fontSize: "12px",
+                      color: "#dc3545",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}>
+                      <span>⚠️</span>
+                      <span>{errors.dateOfBirth}</span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label style={{ 
@@ -989,34 +1140,145 @@ export default function Dependents({ userId }) {
                   }}>
                     <span>🆔</span>
                     <span>ID Number</span>
+                    <span style={{ color: "#dc3545" }}>*</span>
                   </label>
                   <input
                     type="text"
                     name="idNumber"
                     value={formData.idNumber}
                     onChange={handleInputChange}
+                    onBlur={handleBlur}
+                    required
+                    inputMode="numeric"
+                    pattern="\\d{12}"
+                    maxLength={12}
                     placeholder="ID/Passport number"
                     style={{
                       width: "100%",
                       padding: "14px 16px",
-                      border: "2px solid #e0e0e0",
+                      border: `2px solid ${errors.idNumber ? "#dc3545" : "#e0e0e0"}`,
                       borderRadius: "10px",
                       fontSize: "15px",
                       transition: "all 0.3s ease",
                       backgroundColor: "#f8f9fa"
                     }}
                     onFocus={(e) => {
-                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.borderColor = errors.idNumber ? "#dc3545" : "#A2B9ED";
                       e.target.style.backgroundColor = "white";
-                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                      e.target.style.boxShadow = `0 0 0 3px ${errors.idNumber ? "rgba(220, 53, 69, 0.1)" : "rgba(162, 185, 237, 0.1)"}`;
                     }}
                     onBlur={(e) => {
-                      e.target.style.borderColor = "#e0e0e0";
+                      handleBlur(e);
+                      e.target.style.borderColor = errors.idNumber ? "#dc3545" : "#e0e0e0";
                       e.target.style.backgroundColor = "#f8f9fa";
                       e.target.style.boxShadow = "none";
                     }}
                   />
+                  {errors.idNumber && (
+                    <div style={{
+                      marginTop: "6px",
+                      fontSize: "12px",
+                      color: "#dc3545",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}>
+                      <span>⚠️</span>
+                      <span>{errors.idNumber}</span>
+                    </div>
+                  )}
                 </div>
+              </div>
+
+              {/* Dependent Documents Upload */}
+              <div style={{
+                marginBottom: "24px",
+                padding: "20px",
+                background: "linear-gradient(135deg, rgba(255, 193, 7, 0.12) 0%, rgba(255, 193, 7, 0.06) 100%)",
+                borderRadius: "12px",
+                border: "2px solid #ffc107"
+              }}>
+                <label style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontWeight: "600",
+                  marginBottom: "10px",
+                  color: "#856404",
+                  fontSize: "15px"
+                }}>
+                  <span>📄</span>
+                  <span>Dependent Documents (PDF)</span>
+                  {!editingId && <span style={{ color: "#dc3545" }}>*</span>}
+                </label>
+                <div style={{
+                  fontSize: "12px",
+                  color: "#856404",
+                  marginBottom: "12px",
+                  lineHeight: "1.5"
+                }}>
+                  Upload supporting documents for your dependent (PDF only, up to 10 files, max 10MB each).
+                </div>
+
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  multiple
+                  onChange={handleDependentDocsChange}
+                  style={{ marginBottom: "10px" }}
+                />
+
+                {fileUploadError && (
+                  <div style={{
+                    marginTop: "6px",
+                    fontSize: "12px",
+                    color: "#dc3545",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}>
+                    <span>⚠️</span>
+                    <span>{fileUploadError}</span>
+                  </div>
+                )}
+
+                {uploadedFiles?.length > 0 && (
+                  <div style={{
+                    marginTop: "10px",
+                    padding: "10px 12px",
+                    backgroundColor: "#fff",
+                    borderRadius: "10px",
+                    border: "1px solid #ffe08a"
+                  }}>
+                    <div style={{ fontSize: "12px", fontWeight: "700", color: "#856404", marginBottom: "6px" }}>
+                      Selected files
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "#495057" }}>
+                      {uploadedFiles.map((f, idx) => (
+                        <li key={idx}>
+                          {f.name} ({(f.size / 1024 / 1024).toFixed(2)} MB)
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      type="button"
+                      onClick={() => setUploadedFiles([])}
+                      style={{
+                        marginTop: "10px",
+                        padding: "6px 12px",
+                        backgroundColor: "#dc3545",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "8px",
+                        cursor: "pointer",
+                        fontSize: "12px",
+                        fontWeight: "600"
+                      }}
+                    >
+                      Remove selected
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Address */}
@@ -1255,6 +1517,7 @@ export default function Dependents({ userId }) {
                 </button>
                 <button 
                   type="submit"
+                  disabled={uploadingDocs}
                   style={{ 
                     padding: "14px 28px", 
                     background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
@@ -1278,7 +1541,7 @@ export default function Dependents({ userId }) {
                     e.target.style.boxShadow = "0 4px 12px rgba(162, 185, 237, 0.3)";
                   }}
                 >
-                  {editingId ? "✏️ Update" : "✅ Add"}
+                  {uploadingDocs ? "⏳ Uploading..." : (editingId ? "✏️ Update" : "✅ Add")}
                 </button>
               </div>
             </form>

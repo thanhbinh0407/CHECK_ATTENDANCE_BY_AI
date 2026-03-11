@@ -1154,6 +1154,7 @@ async function seedDB() {
             baseSalary: base,
             bonus: totalBonus,
             deduction: totalDeduction,
+            advanceDeduction,
             finalSalary,
             status: year === refYear && month === refMonth ? 'pending' : 'paid',
             notes: `Salary ${month}/${year}. Attendance ${attendanceDays}/${workingDays}`

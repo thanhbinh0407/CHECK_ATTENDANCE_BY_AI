@@ -7,9 +7,12 @@ import {
   deleteDependent,
   approveDependentRequest,
   rejectDependentRequest,
-  getMyDependents
+  getMyDependents,
+  uploadDependentDocuments,
+  getDependentDocuments
 } from "../controllers/dependentController.js";
 import { authMiddleware, adminOnly } from "../middleware/authMiddleware.js";
+import { uploadDependentDocuments as uploadDependentMulter } from "../utils/fileUpload.js";
 
 const router = express.Router();
 
@@ -21,6 +24,8 @@ router.get("/my", getMyDependents);
 router.post("/", createDependent);
 router.put("/:id", updateDependent);
 router.delete("/:id", deleteDependent);
+router.get("/:id/documents", getDependentDocuments);
+router.post("/:id/documents", uploadDependentMulter.array("documents", 10), uploadDependentDocuments);
 
 // Admin only routes
 router.get("/", adminOnly, getAllDependents);

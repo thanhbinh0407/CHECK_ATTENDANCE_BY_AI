@@ -6,6 +6,8 @@ import ApprovalManagement from "./components/ApprovalManagement.jsx";
 import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
 import EmployeeDetailView from "./components/EmployeeDetailView.jsx";
 import EmployeeManagement from "./components/EmployeeManagement.jsx";
+import D02LTReport from "./components/D02LTReport.jsx";
+import TK1TSForm from "./components/TK1TSForm.jsx";
 import { theme } from "./theme.js";
 import socket from "./socket.js";
 import "./App.css";
@@ -306,7 +308,9 @@ function App() {
     { id: "salary-approval", label: "✅ Approve Payroll", icon: "✅" },
     ...(user?.role === "admin" ? [
       { id: "approvals", label: "🆗 Approve Records", icon: "🆗" },
-      { id: "rules", label: "⚙️ Salary Rules", icon: "⚙️" }
+      { id: "rules", label: "⚙️ Salary Rules", icon: "⚙️" },
+      { id: "d02-lt-report", label: "📋 Báo Cáo D02-LT", icon: "📋" },
+      { id: "tk1-ts-form", label: "🏥 Mẫu TK1-TS", icon: "🏥" }
     ] : []),
     { id: "employee-details", label: "👤 Employee Info", icon: "👤" },
     { id: "employee-management", label: "🏢 Employee Management", icon: "🏢" }
@@ -399,6 +403,8 @@ function App() {
           {currentView === "salary-approval" && <SalaryApprovalDashboard />}
           {currentView === "approvals" && <ApprovalManagement />}
           {currentView === "rules" && <SalaryRulesManagement />}
+          {currentView === "d02-lt-report" && <D02LTReport />}
+          {currentView === "tk1-ts-form" && <TK1TSForm />}
           {currentView === "employee-details" && <EmployeeDetailView />}
           {currentView === "employee-management" && <EmployeeManagement />}
         </div>
