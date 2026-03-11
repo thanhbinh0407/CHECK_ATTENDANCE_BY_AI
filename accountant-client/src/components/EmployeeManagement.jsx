@@ -10,6 +10,9 @@ export default function EmployeeManagement() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [tempPassword, setTempPassword] = useState("");
+  const [showTempPassword, setShowTempPassword] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
@@ -62,6 +65,8 @@ export default function EmployeeManagement() {
         const data = await res.json();
         // Merge fetched details with existing employee data
         setSelectedEmployee(data.employee || employee);
+        setTempPassword("");
+        setShowTempPassword(false);
       } else {
         // If API fails, keep the employee data we already have
         setSelectedEmployee(employee);
@@ -73,6 +78,34 @@ export default function EmployeeManagement() {
       setMessage("⚠ Loaded basic employee information");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resetAndRevealPassword = async () => {
+    if (!selectedEmployee?.id) return;
+    try {
+      setPasswordLoading(true);
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/admin/employees/${selectedEmployee.id}/reset-password`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage("✗ Error resetting password: " + (data.message || "Unknown error"));
+        return;
+      }
+      setTempPassword(data.newPassword || "");
+      setShowTempPassword(true);
+      setMessage("✓ Password has been reset. Share the temporary password with the employee.");
+    } catch (err) {
+      setMessage("✗ Error: " + err.message);
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -583,6 +616,42 @@ export default function EmployeeManagement() {
                 <div className="emp-detail-item">
                   <span className="emp-detail-label">Gender:</span>
                   <span>{selectedEmployee?.gender || "—"}</span>
+                </div>
+                <div className="emp-detail-item">
+                  <span className="emp-detail-label">Password:</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontFamily: "monospace", letterSpacing: "0.5px" }}>
+                      {showTempPassword && tempPassword ? tempPassword : "••••••••••"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={resetAndRevealPassword}
+                      className="emp-btn emp-btn-view"
+                      disabled={passwordLoading}
+                      title="Reset & reveal temporary password"
+                      style={{ padding: "4px 10px" }}
+                    >
+                      {passwordLoading ? "..." : "👁"}
+                    </button>
+                    {showTempPassword && tempPassword && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(tempPassword);
+                            setMessage("✓ Copied temporary password to clipboard");
+                          } catch {
+                            setMessage("✗ Cannot copy to clipboard");
+                          }
+                        }}
+                        className="emp-btn emp-btn-edit"
+                        title="Copy"
+                        style={{ padding: "4px 10px" }}
+                      >
+                        Copy
+                      </button>
+                    )}
+                  </span>
                 </div>
               </div>
             </div>

@@ -23,6 +23,7 @@ import PayrollComponent from "./PayrollComponent.js";
 import Payroll from "./Payroll.js";
 import PayrollDetail from "./PayrollDetail.js";
 import InsuranceForm from "./InsuranceForm.js";
+import D02LTReport from "./D02LTReport.js";
 
 // USER ASSOCIATIONS - Organizational Structure
 User.belongsTo(Department, { foreignKey: "departmentId" });

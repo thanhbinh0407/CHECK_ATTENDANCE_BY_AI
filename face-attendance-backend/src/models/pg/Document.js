@@ -20,53 +20,43 @@ const Document = sequelize.define('Document', {
   },
   documentType: {
     type: DataTypes.ENUM('id_card', 'contract', 'certificate', 'appointment_decision', 'salary_decision', 'other'),
-    allowNull: false,
-    comment: 'Loại tài liệu: CCCD, Hợp đồng, Chứng chỉ, Quyết định bổ nhiệm, Quyết định tăng lương, Khác'
+    allowNull: false
   },
   title: {
     type: DataTypes.STRING,
-    allowNull: false,
-    comment: 'Tiêu đề tài liệu'
+    allowNull: false
   },
   documentPath: {
     type: DataTypes.STRING,
-    allowNull: false,
-    comment: 'Đường dẫn file scan'
+    allowNull: false
   },
   fileName: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Tên file gốc'
+    allowNull: true
   },
   fileSize: {
     type: DataTypes.INTEGER,
-    allowNull: true,
-    comment: 'Kích thước file (bytes)'
+    allowNull: true
   },
   mimeType: {
     type: DataTypes.STRING,
-    allowNull: true,
-    comment: 'Loại file (image/jpeg, application/pdf, etc.)'
+    allowNull: true
   },
   uploadDate: {
     type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW,
-    comment: 'Ngày upload'
+    defaultValue: DataTypes.NOW
   },
   expiryDate: {
     type: DataTypes.DATE,
-    allowNull: true,
-    comment: 'Ngày hết hạn (nếu có, ví dụ: CCCD, chứng chỉ)'
+    allowNull: true
   },
   description: {
     type: DataTypes.TEXT,
-    allowNull: true,
-    comment: 'Mô tả tài liệu'
+    allowNull: true
   },
   isActive: {
     type: DataTypes.BOOLEAN,
-    defaultValue: true,
-    comment: 'Tài liệu còn hiệu lực'
+    defaultValue: true
   },
   uploadedBy: {
     type: DataTypes.INTEGER,
@@ -74,13 +64,11 @@ const Document = sequelize.define('Document', {
       model: User,
       key: 'id'
     },
-    allowNull: true,
-    comment: 'Người upload (admin/HR)'
+    allowNull: true
   },
   notes: {
     type: DataTypes.TEXT,
-    allowNull: true,
-    comment: 'Ghi chú'
+    allowNull: true
   }
 }, {
   timestamps: true,
