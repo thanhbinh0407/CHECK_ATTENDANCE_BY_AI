@@ -1,0 +1,306 @@
+@startuml 06_Document_Management_Class_Diagram
+
+title Document Management & File Upload Class Diagram
+
+class Document {
+    +id: Integer
+    +employeeId: Integer
+    +documentType: String
+    +title: String
+    +fileName: String
+    +originalFileName: String
+    +filePath: String
+    +fileUrl: String
+    +fileSize: Integer
+    +mimeType: String
+    +fileHash: String
+    +expiryDate: Date
+    +uploadedBy: Integer
+    +isActive: Boolean
+    +deletedAt: DateTime
+    +createdAt: DateTime
+    +updatedAt: DateTime
+    --
+    +isExpired(): Boolean
+    +daysUntilExpiry(): Integer
+    +getFileExtension(): String
+    +getFileSizeFormatted(): String
+    +validateDocument(): Boolean
+    +getDownloadUrl(): String
+    +markAsDeleted(): void
+    +updateExpiryDate(newDate: Date): void
+}
+
+class DocumentAudit {
+    +id: Integer
+    +documentId: Integer
+    +action: String
+    +performedBy: Integer
+    +oldValue: String
+    +newValue: String
+    +ipAddress: String
+    +userAgent: String
+    +details: String
+    +createdAt: DateTime
+    --
+    +getActionDescription(): String
+    +isSystemAction(): Boolean
+    +getPerformerInfo(): UserInfo
+    +formatAuditDetails(): String
+}
+
+class DocumentType {
+    +id: Integer
+    +code: String
+    +name: String
+    +description: String
+    +allowedExtensions: String[]
+    +maxFileSize: Integer
+    +requiresExpiry: Boolean
+    +defaultExpiryDays: Integer
+    +isActive: Boolean
+    +createdAt: DateTime
+    +updatedAt: DateTime
+    --
+    +isExtensionAllowed(extension: String): Boolean
+    +isFileSizeValid(size: Integer): Boolean
+    +getDefaultExpiryDate(): Date
+    +validateDocumentType(): Boolean
+}
+
+class FileUploadService {
+    -storageProvider: StorageProvider
+    -fileValidator: FileValidator
+    -securityScanner: SecurityScanner
+    --
+    +uploadFile(file: File, path: String): FileInfo
+    +deleteFile(filePath: String): Boolean
+    +getFileUrl(filePath: String): String
+    +validateFile(file: File): ValidationResult
+    +generateSecureFileName(originalName: String): String
+    +scanFileForViruses(file: File): ScanResult
+    +compressImage(file: File): File
+    +createThumbnail(file: File): File
+    +getFileMetadata(filePath: String): FileMetadata
+    +moveFile(oldPath: String, newPath: String): Boolean
+}
+
+class DocumentService {
+    -documentModel: DocumentModel
+    -documentAuditModel: DocumentAuditModel
+    -fileUploadService: FileUploadService
+    -notificationService: NotificationService
+    -permissionService: PermissionService
+    --
+    +uploadDocument(file: File, type: String, employeeId: Integer): Document
+    +downloadDocument(documentId: Integer, userId: Integer): FileStream
+    +updateDocument(documentId: Integer, file: File, userId: Integer): Document
+    +deleteDocument(documentId: Integer, userId: Integer): Boolean
+    +getEmployeeDocuments(employeeId: Integer, userId: Integer): Document[]
+    +searchDocuments(criteria: SearchCriteria): Document[]
+    +getDocumentHistory(documentId: Integer): AuditLog[]
+    +bulkDownloadDocuments(documentIds: Integer[], userId: Integer): ZipFile
+    +validateDocumentAccess(documentId: Integer, userId: Integer): Boolean
+    +scheduleExpiryAlerts(): void
+    +processExpiredDocuments(): void
+    +getDocumentStatistics(filters: Filters): Statistics
+}
+
+class DocumentController {
+    -documentService: DocumentService
+    -fileUploadService: FileUploadService
+    --
+    +uploadDocument(req: UploadDocumentRequest): UploadDocumentResponse
+    +downloadDocument(req: DownloadDocumentRequest): FileResponse
+    +updateDocument(req: UpdateDocumentRequest): UpdateDocumentResponse
+    +deleteDocument(req: DeleteDocumentRequest): DeleteDocumentResponse
+    +getDocuments(req: GetDocumentsRequest): GetDocumentsResponse
+    +searchDocuments(req: SearchDocumentsRequest): SearchDocumentsResponse
+    +getDocumentHistory(req: GetDocumentHistoryRequest): GetDocumentHistoryResponse
+    +bulkDownloadDocuments(req: BulkDownloadRequest): FileResponse
+    +getDocumentTypes(req: GetDocumentTypesRequest): GetDocumentTypesResponse
+    +getDocumentStatistics(req: GetDocumentStatisticsRequest): GetDocumentStatisticsResponse
+}
+
+class DocumentModel {
+    -dbConnection: DatabaseConnection
+    -cacheService: CacheService
+    --
+    +create(documentData: DocumentData): Document
+    +findById(id: Integer): Document
+    +findByEmployeeId(employeeId: Integer): Document[]
+    +findExpiringDocuments(daysAhead: Integer): Document[]
+    +findExpiredDocuments(): Document[]
+    +searchDocuments(criteria: SearchCriteria): Document[]
+    +update(id: Integer, data: UpdateData): Document
+    +softDelete(id: Integer): Boolean
+    +hardDelete(id: Integer): Boolean
+    +countByEmployee(employeeId: Integer): Integer
+    +countByType(type: String): Integer
+    +getDocumentStatistics(filters: Filters): Statistics
+}
+
+class DocumentAuditModel {
+    -dbConnection: DatabaseConnection
+    --
+    +create(auditData: AuditData): DocumentAudit
+    +findByDocumentId(documentId: Integer): DocumentAudit[]
+    +findByUserId(userId: Integer): DocumentAudit[]
+    +findByAction(action: String): DocumentAudit[]
+    +findByDateRange(startDate: Date, endDate: Date): DocumentAudit[]
+    +getAuditStatistics(filters: Filters): AuditStatistics
+    +deleteOldAudits(daysToKeep: Integer): Integer
+}
+
+class StorageProvider {
+    -bucketName: String
+    -region: String
+    -accessKey: String
+    -secretKey: String
+    --
+    +uploadFile(file: File, key: String): UploadResult
+    +downloadFile(key: String): FileStream
+    +deleteFile(key: String): Boolean
+    +getFileUrl(key: String, expiry: Integer): String
+    +copyFile(sourceKey: String, destinationKey: String): Boolean
+    +listFiles(prefix: String): FileInfo[]
+    +getFileMetadata(key: String): FileMetadata
+}
+
+class FileValidator {
+    -allowedTypes: String[]
+    -maxFileSize: Integer
+    -dangerousExtensions: String[]
+    --
+    +validateFileType(mimeType: String): Boolean
+    +validateFileSize(size: Integer): Boolean
+    +validateFileName(fileName: String): Boolean
+    +isDangerousFile(fileName: String): Boolean
+    +getFileExtension(fileName: String): String
+    +sanitizeFileName(fileName: String): String
+}
+
+class SecurityScanner {
+    -virusScanner: VirusScanner
+    -contentScanner: ContentScanner
+    --
+    +scanFile(file: File): ScanResult
+    +checkFileSignature(file: File): Boolean
+    +detectMalware(file: File): MalwareResult
+    +validateContent(file: File): ContentValidation
+    +isFileSafe(file: File): Boolean
+}
+
+class NotificationService {
+    -emailService: EmailService
+    -pushService: PushNotificationService
+    -smsService: SMSService
+    --
+    +notifyDocumentUploaded(employeeId: Integer, documentId: Integer): void
+    +notifyDocumentUpdated(employeeId: Integer, documentId: Integer): void
+    +notifyDocumentDeleted(employeeId: Integer, documentId: Integer): void
+    +notifyDocumentExpiry(employeeId: Integer, documents: Document[]): void
+    +notifyDocumentExpired(employeeId: Integer, document: Document): void
+    +sendBulkNotifications(employeeIds: Integer[], message: String): void
+}
+
+class PermissionService {
+    -roleService: RoleService
+    -userService: UserService
+    --
+    +canUploadDocument(userId: Integer, employeeId: Integer): Boolean
+    +canDownloadDocument(userId: Integer, document: Document): Boolean
+    +canUpdateDocument(userId: Integer, document: Document): Boolean
+    +canDeleteDocument(userId: Integer, document: Document): Boolean
+    +canViewDocument(userId: Integer, document: Document): Boolean
+    +isDocumentOwner(userId: Integer, document: Document): Boolean
+    +isHRManager(userId: Integer): Boolean
+    +isAdmin(userId: Integer): Boolean
+}
+
+' Relationships
+Document --> Employee : belongs to
+DocumentAudit --> Document : belongs to
+Document --> DocumentType : references
+DocumentController --> DocumentService : uses
+DocumentController --> FileUploadService : uses
+DocumentService --> DocumentModel : uses
+DocumentService --> DocumentAuditModel : uses
+DocumentService --> FileUploadService : uses
+DocumentService --> NotificationService : uses
+DocumentService --> PermissionService : uses
+FileUploadService --> StorageProvider : uses
+FileUploadService --> FileValidator : uses
+FileUploadService --> SecurityScanner : uses
+DocumentModel --> Document : manages
+DocumentAuditModel --> DocumentAudit : manages
+
+' DTOs
+class UploadDocumentRequest {
+    +employeeId: Integer
+    +documentType: String
+    +file: File
+    +title: String
+    +expiryDate: Date
+    +metadata: Object
+}
+
+class UploadDocumentResponse {
+    +success: Boolean
+    +document: DocumentDTO
+    +message: String
+}
+
+class DocumentDTO {
+    +id: Integer
+    +documentType: String
+    +title: String
+    +fileName: String
+    +fileSize: Integer
+    +fileUrl: String
+    +expiryDate: Date
+    +uploadedAt: DateTime
+    +uploadedBy: UserDTO
+}
+
+class SearchDocumentsRequest {
+    +query: String
+    +documentType: String
+    +employeeId: Integer
+    +dateFrom: Date
+    +dateTo: Date
+    +page: Integer
+    +limit: Integer
+    +sortBy: String
+    +sortOrder: String
+}
+
+class SearchDocumentsResponse {
+    +documents: DocumentDTO[]
+    +pagination: PaginationInfo
+    +totalCount: Integer
+}
+
+class FileInfo {
+    +fileName: String
+    +filePath: String
+    +fileUrl: String
+    +fileSize: Integer
+    +mimeType: String
+    +uploadedAt: DateTime
+}
+
+class ValidationResult {
+    +isValid: Boolean
+    +errors: String[]
+    +warnings: String[]
+}
+
+class ScanResult {
+    +isSafe: Boolean
+    +threats: ThreatInfo[]
+    +scanTime: DateTime
+}
+
+@enduml</content>
+<parameter name="filePath">d:\PROJECCT_KY_9\class_diagram\06_document_management_class.puml
