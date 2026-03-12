@@ -1,0 +1,245 @@
+@startuml 06_Document_Management_Sequence_Diagram
+
+title Document Management & File Upload Sequence Diagram
+
+actor "Employee" as EMP
+participant "Employee Portal" as EP
+participant "DocumentController" as DC
+participant "DocumentService" as DS
+participant "FileUploadService" as FUS
+participant "DocumentModel" as DM
+participant "DocumentAuditModel" as DAM
+participant "EmployeeModel" as EM
+participant "NotificationService" as NS
+participant "EmailService" as ES
+participant "FileStorage" as FS
+participant "Database" as DB
+
+== Upload Document ==
+EMP -> EP: Select document type, choose file
+EP -> EP: Validate file client-side (size, type)
+EP -> DC: POST /api/documents/upload
+DC -> DS: uploadDocument(file, documentType, employeeId, metadata)
+DS -> FUS: validateFile(file, allowedTypes, maxSize)
+FUS -> FUS: checkFileType(file.mimeType)
+FUS -> FUS: checkFileSize(file.size)
+FUS --> DS: validationResult
+
+alt File valid
+    DS -> FUS: generateSecureFileName(file.originalName)
+    FUS -> FUS: createUniqueFileName()
+    FUS --> DS: secureFileName
+    DS -> FUS: uploadFileToStorage(file, secureFileName)
+    FUS -> FS: Store file with secure name
+    FS --> FUS: fileUrl, storagePath
+    FUS --> DS: fileInfo
+    DS -> DM: createDocumentRecord(documentData)
+    DM -> DB: INSERT INTO documents (employeeId, documentType, fileName, filePath, ...)
+    DB --> DM: documentId
+    DM --> DS: documentId
+    DS -> DAM: createAuditLog(documentId, 'uploaded', employeeId)
+    DAM -> DB: INSERT INTO document_audits (documentId, action, performedBy, ...)
+    DB --> DAM: auditId
+    DAM --> DS: success
+    DS -> DS: checkDocumentExpiry(documentType, uploadDate)
+    DS -> DS: scheduleExpiryAlert(documentId, expiryDate)
+    DS -> NS: notifyDocumentUploaded(employeeId, documentId)
+    NS -> ES: sendDocumentUploadConfirmation(employee.email, documentInfo)
+    ES --> NS: email sent
+    NS --> DS: notifications sent
+    DS --> DC: {success: true, document}
+    DC --> EP: {success: true, document}
+    EP --> EMP: Show upload success, document details
+else File invalid
+    DS --> DC: {error: validationError}
+    DC --> EP: {error: validationError}
+    EP --> EMP: Show validation error
+end
+
+== Download Document ==
+EMP -> EP: Click download document
+EP -> DC: GET /api/documents/{documentId}/download
+DC -> DS: getDocumentForDownload(documentId, userId)
+DS -> DM: findDocumentById(documentId)
+DM -> DB: SELECT * FROM documents WHERE id = ?
+DB --> DM: document
+DM --> DS: document
+DS -> DS: checkDownloadPermission(userId, document)
+DS -> DS: validateDocumentStatus(document)
+
+alt Has permission and document active
+    DS -> DAM: createAuditLog(documentId, 'downloaded', userId)
+    DAM -> DB: INSERT INTO document_audits (documentId, action, performedBy, ...)
+    DB --> DAM: auditId
+    DAM --> DS: success
+    DS -> FUS: getFileDownloadUrl(document.filePath)
+    FUS -> FS: Generate secure download URL
+    FS --> FUS: downloadUrl
+    FUS --> DS: downloadUrl
+    DS --> DC: {downloadUrl, fileName}
+    DC --> EP: File download initiated
+    EP -> EP: Trigger file download
+    EP --> EMP: File downloaded
+else No permission
+    DS --> DC: {error: "Access denied"}
+    DC --> EP: {error: "Access denied"}
+    EP --> EMP: Show access denied
+end
+
+== Update Document ==
+EMP -> EP: Click update document, select new file
+EP -> DC: PUT /api/documents/{documentId}
+DC -> DS: updateDocument(documentId, newFile, metadata, userId)
+DS -> DM: findDocumentById(documentId)
+DM -> DB: SELECT * FROM documents WHERE id = ?
+DB --> DM: document
+DM --> DS: document
+DS -> DS: checkUpdatePermission(userId, document)
+
+alt Has permission
+    DS -> FUS: validateFile(newFile)
+    FUS --> DS: validationResult
+    DS -> FUS: uploadNewFileVersion(newFile, document.filePath)
+    FUS -> FS: Replace existing file
+    FS --> FUS: newFileInfo
+    FUS --> DS: newFileInfo
+    DS -> DM: updateDocumentRecord(documentId, newFileInfo, metadata)
+    DM -> DB: UPDATE documents SET fileName = ?, filePath = ?, updatedAt = NOW()
+    DB --> DM: updated
+    DM --> DS: success
+    DS -> DAM: createAuditLog(documentId, 'updated', userId, 'File replaced')
+    DAM -> DB: INSERT INTO document_audits (documentId, action, performedBy, details)
+    DB --> DAM: auditId
+    DAM --> DS: success
+    DS -> NS: notifyDocumentUpdated(employeeId, documentId)
+    NS --> DS: notifications sent
+    DS --> DC: {success: true, document}
+    DC --> EP: Update successful
+    EP --> EMP: Show update success
+else No permission
+    DS --> DC: {error: "Access denied"}
+    DC --> EP: {error: "Access denied"}
+end
+
+== Delete Document ==
+EMP -> EP: Click delete document
+EP -> EP: Show confirmation dialog
+EMP -> EP: Confirm deletion
+EP -> DC: DELETE /api/documents/{documentId}
+DC -> DS: deleteDocument(documentId, userId)
+DS -> DM: findDocumentById(documentId)
+DM -> DB: SELECT * FROM documents WHERE id = ?
+DB --> DM: document
+DM --> DS: document
+DS -> DS: checkDeletePermission(userId, document)
+
+alt Has permission
+    DS -> FUS: deleteFileFromStorage(document.filePath)
+    FUS -> FS: Delete file
+    FS --> FUS: deletionResult
+    FUS --> DS: deletionResult
+    DS -> DM: softDeleteDocument(documentId)
+    DM -> DB: UPDATE documents SET isActive = false, deletedAt = NOW()
+    DB --> DM: deleted
+    DM --> DS: success
+    DS -> DAM: createAuditLog(documentId, 'deleted', userId)
+    DAM -> DB: INSERT INTO document_audits (documentId, action, performedBy)
+    DB --> DAM: auditId
+    DAM --> DS: success
+    DS -> NS: notifyDocumentDeleted(employeeId, documentId)
+    NS --> DS: notifications sent
+    DS --> DC: {success: true}
+    DC --> EP: Deletion successful
+    EP --> EMP: Show deletion success
+else No permission
+    DS --> DC: {error: "Access denied"}
+    DC --> EP: {error: "Access denied"}
+end
+
+== Document Expiry Monitoring ==
+note over DS: Scheduled job runs daily at 2 AM
+DS -> DM: getExpiringDocuments(30)
+DM -> DB: SELECT * FROM documents WHERE expiryDate BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 DAY) AND isActive = true
+DB --> DM: expiringDocuments
+DM --> DS: expiringDocuments
+DS -> DS: groupByEmployee(expiringDocuments)
+DS -> DS: filterUniqueEmployees(employeeGroups)
+
+loop for each employee
+    DS -> NS: sendExpiryWarning(employeeId, documents)
+    NS -> ES: sendDocumentExpiryAlert(employee.email, documents, daysUntilExpiry)
+    ES --> NS: email sent
+    NS --> DS: notification sent
+    DS -> DAM: createAuditLog(documentId, 'expiry_warning_sent', systemUserId)
+    DAM -> DB: INSERT INTO document_audits (documentId, action, performedBy)
+    DB --> DAM: auditId
+end
+
+DS -> DS: checkExpiredDocuments()
+DS -> DM: getExpiredDocuments()
+DM -> DB: SELECT * FROM documents WHERE expiryDate < NOW() AND isActive = true
+DB --> DM: expiredDocuments
+DM --> DS: expiredDocuments
+
+loop for each expired document
+    DS -> NS: sendExpiredNotification(employeeId, document)
+    NS -> ES: sendDocumentExpiredAlert(employee.email, document)
+    ES --> NS: email sent
+    NS --> DS: notification sent
+    DS -> DAM: createAuditLog(documentId, 'expired', systemUserId)
+end
+
+== Bulk Document Operations ==
+EMP -> EP: Select multiple documents, choose bulk action
+EP -> DC: POST /api/documents/bulk-download
+DC -> DS: bulkDownloadDocuments(documentIds, userId)
+DS -> DS: validateBulkPermissions(documentIds, userId)
+
+alt Has permissions
+    DS -> DS: createZipArchive(documentIds)
+    DS -> FUS: generateBulkDownloadUrl(documents)
+    FUS -> FS: Create temporary ZIP file
+    FS --> FUS: zipUrl
+    FUS --> DS: zipUrl
+    DS -> DAM: createBulkAuditLogs(documentIds, 'bulk_downloaded', userId)
+    DAM -> DB: INSERT INTO document_audits (documentId, action, performedBy)
+    DB --> DAM: auditIds
+    DAM --> DS: success
+    DS --> DC: {zipUrl, fileName: 'documents.zip'}
+    DC --> EP: Bulk download initiated
+    EP -> EP: Trigger ZIP download
+else No permissions
+    DS --> DC: {error: "Access denied for some documents"}
+    DC --> EP: {error: "Access denied"}
+end
+
+== Document Search & Filtering ==
+EMP -> EP: Enter search terms, apply filters
+EP -> DC: GET /api/documents/search?query=CCCD&type=identification&dateFrom=2024-01-01
+DC -> DS: searchDocuments(searchCriteria, userId)
+DS -> DM: searchDocumentsWithFilters(searchCriteria)
+DM -> DB: SELECT * FROM documents WHERE (fileName LIKE ? OR documentType LIKE ?) AND documentType = ? AND uploadDate >= ? AND employeeId = ?
+DB --> DM: searchResults
+DM --> DS: searchResults
+DS -> DS: applySecurityFilters(searchResults, userId)
+DS -> DS: sortResults(searchResults, sortBy, sortOrder)
+DS -> DS: paginateResults(searchResults, page, limit)
+DS --> DC: {documents, pagination, totalCount}
+DC --> EP: Search results
+EP --> EMP: Display filtered documents
+
+== Document Version History ==
+EMP -> EP: View document version history
+EP -> DC: GET /api/documents/{documentId}/history
+DC -> DS: getDocumentHistory(documentId, userId)
+DS -> DAM: getAuditLogsByDocument(documentId)
+DAM -> DB: SELECT * FROM document_audits WHERE documentId = ? ORDER BY createdAt DESC
+DB --> DAM: auditLogs
+DAM --> DS: auditLogs
+DS -> DS: formatHistoryData(auditLogs)
+DS --> DC: documentHistory
+DC --> EP: Version history
+EP --> EMP: Display document timeline
+
+@enduml</content>
+<parameter name="filePath">d:\PROJECCT_KY_9\sequence_diagram\06_document_management_sequence.puml
