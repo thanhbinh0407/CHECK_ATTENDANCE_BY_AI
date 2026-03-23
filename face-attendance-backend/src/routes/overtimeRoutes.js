@@ -5,24 +5,20 @@ import {
   approveOvertimeRequest,
   deleteOvertimeRequest
 } from "../controllers/overtimeController.js";
-import { authMiddleware } from "../middleware/authMiddleware.js";
+import { authMiddleware, supervisorOrManager } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(authMiddleware);
 
-// Get all overtime requests
+// Nhân viên tạo và xem đơn tăng ca
 router.get("/", getOvertimeRequests);
-
-// Create overtime request
 router.post("/", createOvertimeRequest);
-
-// Approve/Reject overtime request
-router.put("/:id/approve", approveOvertimeRequest);
-
-// Delete overtime request
 router.delete("/:id", deleteOvertimeRequest);
+
+// Supervisor (Quản lý) hoặc Manager duyệt đơn tăng ca
+router.put("/:id/approve", supervisorOrManager, approveOvertimeRequest);
 
 export default router;
 

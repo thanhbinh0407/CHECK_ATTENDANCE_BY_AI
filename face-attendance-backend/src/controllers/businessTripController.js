@@ -3,6 +3,7 @@ import ApprovalWorkflow from "../models/pg/ApprovalWorkflow.js";
 import User from "../models/pg/User.js";
 import Notification from "../models/pg/Notification.js";
 import { Op } from "sequelize";
+import { resolveApprovalChain } from "../services/approvalPolicyService.js";
 
 // Get all business trip requests
 export const getBusinessTripRequests = async (req, res) => {
@@ -77,6 +78,11 @@ export const createBusinessTripRequest = async (req, res) => {
       include: [{ model: User, as: 'Manager' }]
     });
 
+    const approverChain = await resolveApprovalChain('business_trip', user, {
+      amount: estimatedCost,
+    });
+    const initialApproverId = approverChain[0] || null;
+
     const request = await BusinessTripRequest.create({
       userId,
       startDate,
@@ -87,22 +93,22 @@ export const createBusinessTripRequest = async (req, res) => {
       transportType: transportType || null,
       accommodation: accommodation || null,
       approvalLevel: 1,
-      currentApproverId: user?.managerId || null
+      currentApproverId: initialApproverId
     });
 
     // Create approval workflow
-    if (user?.managerId) {
+    if (initialApproverId) {
       await ApprovalWorkflow.create({
         requestType: 'business_trip',
         requestId: request.id,
         level: 1,
-        approverId: user.managerId,
+        approverId: initialApproverId,
         status: 'pending'
       });
 
       // Notify manager
       await Notification.create({
-        userId: user.managerId,
+        userId: initialApproverId,
         type: 'business_trip_request',
         title: 'New Business Trip Request',
         message: `${user.name} has submitted a business trip request to ${destination}`,
@@ -129,7 +135,7 @@ export const approveBusinessTripRequest = async (req, res) => {
   try {
     const { id } = req.params;
     const { action, comments } = req.body;
-    const approverId = req.user.id;
+    const approverId = req.user?.userId ?? req.user?.id;
 
     const request = await BusinessTripRequest.findByPk(id, {
       include: [
@@ -180,7 +186,13 @@ export const approveBusinessTripRequest = async (req, res) => {
         isRead: false
       });
     } else if (action === 'approve') {
-      if (request.approvalLevel >= 3) {
+      const approverChain = await resolveApprovalChain('business_trip', request.User, {
+        amount: request.estimatedCost,
+      });
+      const currentIndex = Math.max(request.approvalLevel - 1, 0);
+      const nextApproverId = approverChain[currentIndex + 1] || null;
+
+      if (!nextApproverId) {
         await request.update({
           approvalStatus: 'approved',
           approvedBy: approverId,
@@ -201,8 +213,6 @@ export const approveBusinessTripRequest = async (req, res) => {
         });
       } else {
         const nextLevel = request.approvalLevel + 1;
-        const hrUsers = await User.findAll({ where: { role: 'admin' }, limit: 1 });
-        const nextApproverId = nextLevel === 2 ? (hrUsers[0]?.id || null) : null;
 
         await request.update({
           approvalLevel: nextLevel,

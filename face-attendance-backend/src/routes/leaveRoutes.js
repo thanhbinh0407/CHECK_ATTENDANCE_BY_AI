@@ -8,23 +8,23 @@ import {
   getLeaveBalance,
   deleteLeaveRequest
 } from "../controllers/leaveController.js";
-import { authMiddleware, adminOnly } from "../middleware/authMiddleware.js";
+import { authMiddleware, supervisorOrManager } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(authMiddleware);
 
-// Employee routes
+// Nhân viên: tạo, xem, xóa đơn nghỉ của mình
 router.post("/request", createLeaveRequest);
 router.get("/requests", getLeaveRequests);
 router.get("/requests/:id", getLeaveRequestById);
 router.get("/balance", getLeaveBalance);
 router.delete("/requests/:id", deleteLeaveRequest);
 
-// Admin routes
-router.put("/requests/:id/approve", adminOnly, approveLeaveRequest);
-router.put("/requests/:id/reject", adminOnly, rejectLeaveRequest);
+// Supervisor (Quản lý) hoặc Manager (Giám đốc) duyệt đơn
+router.put("/requests/:id/approve", supervisorOrManager, approveLeaveRequest);
+router.put("/requests/:id/reject", supervisorOrManager, rejectLeaveRequest);
 
 export default router;
 

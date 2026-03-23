@@ -9,6 +9,9 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     deductionAdjustment: 0,
     notes: ""
   });
+  const [showBaseDetails, setShowBaseDetails] = useState(false);
+  const [showBonusDetails, setShowBonusDetails] = useState(false);
+  const [showDeductionDetails, setShowDeductionDetails] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const modalStyle = {
@@ -238,18 +241,19 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
 
   const calculateGrossAdjusted = () => {
     const baseAdjusted = (salary?.baseSalary || 0) + adjustments.baseAdjustment;
-    const bonusAdjusted = (salary?.totalBonus || 0) + adjustments.bonusAdjustment;
+    const bonusBase = (salary?.totalBonus != null ? salary.totalBonus : (salary?.bonus || 0));
+    const bonusAdjusted = bonusBase + adjustments.bonusAdjustment;
     return baseAdjusted + bonusAdjusted;
   };
 
   const calculateNetAdjusted = () => {
+    const deductionBase = (salary?.totalDeduction != null ? salary.totalDeduction : (salary?.deduction || 0));
     return (
       calculateGrossAdjusted() -
-      (salary?.totalDeduction || 0) -
+      deductionBase -
       adjustments.deductionAdjustment
     );
   };
-
 
   const formatCurrency = (value) => {
     return (value || 0).toLocaleString('vi-VN', { 
@@ -281,6 +285,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
             ×
           </button>
         </div>
+
         {/* Employee Info */}
         <div style={{
           ...sectionStyle,
@@ -308,40 +313,64 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
           <h3 style={sectionTitleStyle}>📊 Chi Tiết Thành Phần Lương</h3>
           <div style={{ display: "grid", gap: theme.spacing.md }}>
             {/* Base Salary */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "2fr 1fr",
-              gap: theme.spacing.lg,
-              padding: theme.spacing.lg,
-              backgroundColor: "#e3f2fd",
-              borderRadius: theme.radius.md,
-              borderLeft: `4px solid #1976d2`
-            }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "2fr 1fr",
+                gap: theme.spacing.lg,
+                padding: theme.spacing.lg,
+                backgroundColor: "#e3f2fd",
+                borderRadius: theme.radius.md,
+                borderLeft: `4px solid #1976d2`,
+                cursor: "pointer"
+              }}
+              onClick={() => setShowBaseDetails(!showBaseDetails)}
+            >
               <div>
                 <div style={{ fontSize: "14px", fontWeight: "600", color: "#1976d2", marginBottom: "4px" }}>Lương Cơ Bản</div>
                 <div style={{ fontSize: "12px", color: "#666" }}>Mức lương hàng tháng cơ bản</div>
+                {showBaseDetails && (
+                  <div style={{ marginTop: "8px", fontSize: "12px", color: "#555" }}>
+                    <div>Gốc: ₫{formatCurrency(salary?.baseSalary || 0)}</div>
+                    {adjustments.baseAdjustment !== 0 && (
+                      <div>Điều chỉnh: ₫{formatCurrency(adjustments.baseAdjustment)}</div>
+                    )}
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#1976d2" }}>
-                ₫{formatCurrency(salary?.baseSalary)}
+                ₫{formatCurrency((salary?.baseSalary || 0) + adjustments.baseAdjustment)}
               </div>
             </div>
 
             {/* Bonus */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "2fr 1fr",
-              gap: theme.spacing.lg,
-              padding: theme.spacing.lg,
-              backgroundColor: "#c8e6c9",
-              borderRadius: theme.radius.md,
-              borderLeft: `4px solid #388e3c`
-            }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "2fr 1fr",
+                gap: theme.spacing.lg,
+                padding: theme.spacing.lg,
+                backgroundColor: "#c8e6c9",
+                borderRadius: theme.radius.md,
+                borderLeft: `4px solid #388e3c`,
+                cursor: "pointer"
+              }}
+              onClick={() => setShowBonusDetails(!showBonusDetails)}
+            >
               <div>
                 <div style={{ fontSize: "14px", fontWeight: "600", color: "#388e3c", marginBottom: "4px" }}>Thưởng</div>
                 <div style={{ fontSize: "12px", color: "#666" }}>Thưởng hiệu suất, khác</div>
+                {showBonusDetails && (
+                  <div style={{ marginTop: "8px", fontSize: "12px", color: "#555" }}>
+                    <div>Thưởng gốc: ₫{formatCurrency(salary?.bonus || 0)}</div>
+                    {adjustments.bonusAdjustment !== 0 && (
+                      <div>Điều chỉnh: ₫{formatCurrency(adjustments.bonusAdjustment)}</div>
+                    )}
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#388e3c" }}>
-                +₫{formatCurrency(salary?.bonus)}
+                +₫{formatCurrency((salary?.bonus || 0) + adjustments.bonusAdjustment)}
               </div>
             </div>
 
@@ -365,21 +394,39 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
             </div>
 
             {/* Deduction */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "2fr 1fr",
-              gap: theme.spacing.lg,
-              padding: theme.spacing.lg,
-              backgroundColor: "#ffcdd2",
-              borderRadius: theme.radius.md,
-              borderLeft: `4px solid #d32f2f`
-            }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "2fr 1fr",
+                gap: theme.spacing.lg,
+                padding: theme.spacing.lg,
+                backgroundColor: "#ffcdd2",
+                borderRadius: theme.radius.md,
+                borderLeft: `4px solid #d32f2f`,
+                cursor: "pointer"
+              }}
+              onClick={() => setShowDeductionDetails(!showDeductionDetails)}
+            >
               <div>
                 <div style={{ fontSize: "14px", fontWeight: "600", color: "#d32f2f", marginBottom: "4px" }}>Các Khoản Giảm Trừ</div>
-                <div style={{ fontSize: "12px", color: "#666" }}>Thuế, BHXH, BHYT, v.v.</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>Thuế, BHXH, BHYT, ứng lương, v.v.</div>
+                {showDeductionDetails && (
+                  <div style={{ marginTop: "8px", fontSize: "12px", color: "#555" }}>
+                    {salary?.advanceDeduction > 0 && (
+                      <div>Ứng lương: ₫{formatCurrency(salary.advanceDeduction)}</div>
+                    )}
+                    <div>
+                      Các khoản khác (thuế, BHXH, BHYT...): ₫
+                      {formatCurrency((salary?.deduction || salary?.totalDeduction || 0) - (salary?.advanceDeduction || 0))}
+                    </div>
+                    {adjustments.deductionAdjustment !== 0 && (
+                      <div>Điều chỉnh khấu trừ: ₫{formatCurrency(adjustments.deductionAdjustment)}</div>
+                    )}
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#d32f2f" }}>
-                -₫{formatCurrency((salary?.deduction || 0) + adjustments.deductionAdjustment)}
+                -₫{formatCurrency((salary?.deduction || salary?.totalDeduction || 0) + adjustments.deductionAdjustment)}
               </div>
             </div>
 
@@ -440,7 +487,6 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
               <div style={{ padding: theme.spacing.lg, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md, gridColumn: "1 / -1" }}>
                 <div style={{ fontSize: "12px", color: "#999", textTransform: "uppercase", marginBottom: "8px", fontWeight: "600" }}>Ghi Chú</div>
                 <div style={{ fontSize: "14px", color: "#333", whiteSpace: "pre-wrap" }}>{salary.notes}</div>
-
               </div>
             )}
           </div>
