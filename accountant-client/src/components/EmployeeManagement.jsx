@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
+import "./EmployeeManagement.css";
 
 export default function EmployeeManagement() {
   const [employees, setEmployees] = useState([]);
@@ -9,6 +10,9 @@ export default function EmployeeManagement() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [tempPassword, setTempPassword] = useState("");
+  const [showTempPassword, setShowTempPassword] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
@@ -43,7 +47,15 @@ export default function EmployeeManagement() {
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
-      if (!token) return;
+      
+      // First, set the employee data we already have
+      setSelectedEmployee(employee);
+      
+      // Then try to fetch full details
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
       const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}/details`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -51,12 +63,49 @@ export default function EmployeeManagement() {
 
       if (res.ok) {
         const data = await res.json();
-        setSelectedEmployee(data.employee || {});
+        // Merge fetched details with existing employee data
+        setSelectedEmployee(data.employee || employee);
+        setTempPassword("");
+        setShowTempPassword(false);
+      } else {
+        // If API fails, keep the employee data we already have
+        setSelectedEmployee(employee);
       }
     } catch (error) {
       console.error("Error fetching details:", error);
+      // On error, still show the employee data
+      setSelectedEmployee(employee);
+      setMessage("⚠ Loaded basic employee information");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resetAndRevealPassword = async () => {
+    if (!selectedEmployee?.id) return;
+    try {
+      setPasswordLoading(true);
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/admin/employees/${selectedEmployee.id}/reset-password`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage("✗ Error resetting password: " + (data.message || "Unknown error"));
+        return;
+      }
+      setTempPassword(data.newPassword || "");
+      setShowTempPassword(true);
+      setMessage("✓ Password has been reset. Share the temporary password with the employee.");
+    } catch (err) {
+      setMessage("✗ Error: " + err.message);
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -82,19 +131,22 @@ export default function EmployeeManagement() {
           email: editingEmployee.email,
           phone: editingEmployee.phone,
           baseSalary: editingEmployee.baseSalary,
-          startDate: editingEmployee.startDate
+          startDate: editingEmployee.startDate,
+          effectiveDate: editingEmployee.effectiveDate,
+          historyNote: editingEmployee.historyNote,
+          salaryChangeReason: editingEmployee.salaryChangeReason
         })
       });
 
       if (res.ok) {
-        setMessage("Employee info updated successfully");
+        setMessage("✓ Employee information updated successfully");
         setShowEditModal(false);
         fetchEmployees();
       } else {
-        setMessage("Error updating");
+        setMessage("✗ Error updating employee information");
       }
     } catch (error) {
-      setMessage("Error: " + error.message);
+      setMessage("✗ Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -285,113 +337,108 @@ export default function EmployeeManagement() {
     fontSize: "14px"
   };
 
-  const detailLabelStyle = {
-    fontWeight: "600",
-    color: "#666"
-  };
-
   return (
-    <div style={containerStyle}>
-      <h1 style={headerStyle}>🏢 Employee Management</h1>
+    <div className="emp-container">
+      {/* Header Section */}
+      <div className="emp-header">
+        <div className="emp-header-content">
+          <h1 className="emp-title">Employee Management</h1>
+          <p className="emp-subtitle">Manage and view employee information</p>
+        </div>
+      </div>
 
+      {/* Message Alert */}
       {message && (
-        <div
-          style={{
-            padding: "12px",
-            marginBottom: "15px",
-            backgroundColor: message.includes("Error") ? "#f8d7da" : "#d4edda",
-            color: message.includes("Error") ? "#721c24" : "#155724",
-            borderRadius: "5px",
-            fontSize: "14px"
-          }}
-        >
+        <div className={`emp-alert ${message.includes("✗") ? "emp-alert-error" : "emp-alert-success"}`}>
           {message}
         </div>
       )}
 
-      <div style={searchBoxStyle}>
-        <input
-          type="text"
-          placeholder="Search by name or employee ID..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          style={searchInputStyle}
-        />
-        <button
-          onClick={fetchEmployees}
-          style={{
-            padding: "10px 20px",
-            backgroundColor: theme.colors.primary,
-            color: "white",
-            border: "none",
-            borderRadius: "5px",
-            cursor: "pointer",
-            fontWeight: "600"
-          }}
-        >
-          🔄 Refresh
-        </button>
+      {/* Search Bar */}
+      <div className="emp-search-container">
+        <div className="emp-search-box">
+          <input
+            type="text"
+            placeholder="Search by employee name or ID..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="emp-search-input"
+          />
+          <button
+            onClick={fetchEmployees}
+            className="emp-btn emp-btn-refresh"
+            disabled={loading}
+          >
+            <span className="emp-btn-icon">🔄</span>
+            Refresh
+          </button>
+        </div>
       </div>
 
-      {loading && <div style={{ textAlign: "center", padding: "20px" }}>Loading...</div>}
+      {/* Loading State */}
+      {loading && (
+        <div className="emp-loading">
+          <div className="emp-spinner"></div>
+          <p>Loading employee data...</p>
+        </div>
+      )}
 
+      {/* Table Section */}
       {!loading && filteredEmployees.length > 0 && (
-        <div style={tableContainerStyle}>
-          <table style={tableStyle}>
+        <div className="emp-table-wrapper">
+          <table className="emp-table">
             <thead>
               <tr>
-                <th style={headerCellStyle}>Emp. ID</th>
-                <th style={headerCellStyle}>Name</th>
-                <th style={headerCellStyle}>Department</th>
-                <th style={headerCellStyle}>Job Title</th>
-                <th style={headerCellStyle}>Start Date</th>
-                <th style={headerCellStyle}>Salary Grade</th>
-                <th style={headerCellStyle}>Base Salary</th>
-                <th style={headerCellStyle}>Actions</th>
+                <th>Employee ID</th>
+                <th>Full Name</th>
+                <th>Department</th>
+                <th>Job Title</th>
+                <th>Start Date</th>
+                <th>Salary Grade</th>
+                <th>Base Salary</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredEmployees.map((employee) => (
-                <tr key={employee.id} style={rowStyle}>
-                  <td style={{...cellStyle, fontWeight: "bold"}}>{employee.employeeCode}</td>
-                  <td style={{...cellStyle, fontWeight: "bold"}}>{employee.name}</td>
-                  <td style={cellStyle}>{employee.Department?.name || "N/A"}</td>
-                  <td style={cellStyle}>{employee.JobTitle?.name || "N/A"}</td>
-                  <td style={cellStyle}>
+                <tr key={employee.id} className="emp-table-row">
+                  <td className="emp-id">{employee.employeeCode}</td>
+                  <td className="emp-name">{employee.name}</td>
+                  <td>{employee.Department?.name || "—"}</td>
+                  <td>{employee.JobTitle?.name || "—"}</td>
+                  <td>
                     {employee.startDate
-                      ? new Date(employee.startDate).toLocaleDateString("vi-VN")
-                      : "N/A"}
+                      ? new Date(employee.startDate).toLocaleDateString("en-US", { 
+                          year: "numeric", 
+                          month: "short", 
+                          day: "numeric" 
+                        })
+                      : "—"}
                   </td>
-                  <td style={cellStyle}>{employee.SalaryGrade?.code || "N/A"}</td>
-                  <td style={cellStyle}>
+                  <td className="emp-grade">{employee.SalaryGrade?.code || "—"}</td>
+                  <td className="emp-salary">
                     {employee.baseSalary
-                      ? (employee.baseSalary / 1000000).toFixed(1) + "M₫"
-                      : "N/A"}
+                      ? new Intl.NumberFormat("en-US", { 
+                          style: "currency", 
+                          currency: "USD",
+                          minimumFractionDigits: 0
+                        }).format(employee.baseSalary)
+                      : "—"}
                   </td>
-                  <td style={cellStyle}>
+                  <td className="emp-actions">
                     <button
                       onClick={() => viewDetails(employee)}
-                      style={detailsButtonStyle}
-                      onMouseOver={(e) =>
-                        (e.target.style.backgroundColor = "#138496")
-                      }
-                      onMouseOut={(e) =>
-                        (e.target.style.backgroundColor = "#17a2b8")
-                      }
+                      className="emp-btn emp-btn-view"
+                      title="View Details"
                     >
-                      Chi Tiết
+                      View
                     </button>
                     <button
                       onClick={() => handleEdit(employee)}
-                      style={editButtonStyle}
-                      onMouseOver={(e) =>
-                        (e.target.style.backgroundColor = "rgba(63, 82, 227, 0.9)")
-                      }
-                      onMouseOut={(e) =>
-                        (e.target.style.backgroundColor = theme.colors.primary)
-                      }
+                      className="emp-btn emp-btn-edit"
+                      title="Edit Employee"
                     >
-                      Sửa
+                      Edit
                     </button>
                   </td>
                 </tr>
@@ -401,110 +448,168 @@ export default function EmployeeManagement() {
         </div>
       )}
 
+      {/* Empty State */}
       {!loading && filteredEmployees.length === 0 && (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "40px",
-            backgroundColor: "white",
-            borderRadius: "8px",
-            color: "#999"
-          }}
-        >
-          No employees found
+        <div className="emp-empty">
+          <div className="emp-empty-icon">🔍</div>
+          <h3>No employees found</h3>
+          <p>Try adjusting your search criteria</p>
         </div>
       )}
 
       {/* Edit Modal */}
-      <div style={modalOverlayStyle} onClick={() => setShowEditModal(false)}>
+      <div 
+        className={`emp-modal-overlay ${showEditModal ? "emp-modal-active" : ""}`}
+        onClick={() => setShowEditModal(false)}
+      >
         <div
-          style={modalStyle}
+          className="emp-modal"
           onClick={(e) => e.stopPropagation()}
         >
-          <h2 style={{ color: theme.colors.primary, marginBottom: "20px" }}>
-            Update Employee Info
-          </h2>
-
-          <div style={formGroupStyle}>
-            <label style={labelStyle}>Full Name</label>
-            <input
-              type="text"
-              style={inputStyle}
-              value={editingEmployee?.name || ""}
-              onChange={(e) =>
-                setEditingEmployee({ ...editingEmployee, name: e.target.value })
-              }
-            />
+          <div className="emp-modal-header">
+            <h2>Update Employee Information</h2>
+            <button 
+              className="emp-modal-close"
+              onClick={() => setShowEditModal(false)}
+            >
+              ×
+            </button>
           </div>
 
-          <div style={formGroupStyle}>
-            <label style={labelStyle}>Email</label>
-            <input
-              type="email"
-              style={inputStyle}
-              value={editingEmployee?.email || ""}
-              onChange={(e) =>
-                setEditingEmployee({ ...editingEmployee, email: e.target.value })
-              }
-            />
+          <div className="emp-modal-body">
+            <div className="emp-form-group">
+              <label className="emp-label">Full Name</label>
+              <input
+                type="text"
+                className="emp-input"
+                value={editingEmployee?.name || ""}
+                onChange={(e) =>
+                  setEditingEmployee({ ...editingEmployee, name: e.target.value })
+                }
+                placeholder="Enter full name"
+              />
+            </div>
+
+            <div className="emp-form-group">
+              <label className="emp-label">Email Address</label>
+              <input
+                type="email"
+                className="emp-input"
+                value={editingEmployee?.email || ""}
+                onChange={(e) =>
+                  setEditingEmployee({ ...editingEmployee, email: e.target.value })
+                }
+                placeholder="Enter email address"
+              />
+            </div>
+
+            <div className="emp-form-group">
+              <label className="emp-label">Phone Number</label>
+              <input
+                type="text"
+                className="emp-input"
+                value={editingEmployee?.phone || ""}
+                onChange={(e) =>
+                  setEditingEmployee({ ...editingEmployee, phone: e.target.value })
+                }
+                placeholder="Enter phone number"
+              />
+            </div>
+
+            <div className="emp-form-group">
+              <label className="emp-label">Base Salary</label>
+              <input
+                type="number"
+                className="emp-input"
+                value={editingEmployee?.baseSalary || 0}
+                onChange={(e) =>
+                  setEditingEmployee({
+                    ...editingEmployee,
+                    baseSalary: parseFloat(e.target.value)
+                  })
+                }
+                placeholder="Enter base salary"
+              />
+            </div>
+
+            <div className="emp-form-group">
+              <label className="emp-label">Start Date</label>
+              <input
+                type="date"
+                className="emp-input"
+                value={editingEmployee?.startDate
+                  ? editingEmployee.startDate.split("T")[0]
+                  : ""}
+                onChange={(e) =>
+                  setEditingEmployee({
+                    ...editingEmployee,
+                    startDate: e.target.value
+                  })
+                }
+              />
+            </div>
+
+            <div className="emp-form-group">
+              <label className="emp-label">Effective Date</label>
+              <input
+                type="date"
+                className="emp-input"
+                value={editingEmployee?.effectiveDate || ""}
+                onChange={(e) =>
+                  setEditingEmployee({
+                    ...editingEmployee,
+                    effectiveDate: e.target.value
+                  })
+                }
+              />
+            </div>
+
+            <div className="emp-form-group">
+              <label className="emp-label">Salary Change Reason</label>
+              <input
+                type="text"
+                className="emp-input"
+                value={editingEmployee?.salaryChangeReason || ""}
+                onChange={(e) =>
+                  setEditingEmployee({
+                    ...editingEmployee,
+                    salaryChangeReason: e.target.value
+                  })
+                }
+                placeholder="Reason for salary adjustment"
+              />
+            </div>
+
+            <div className="emp-form-group">
+              <label className="emp-label">History Note</label>
+              <textarea
+                className="emp-input"
+                rows={3}
+                value={editingEmployee?.historyNote || ""}
+                onChange={(e) =>
+                  setEditingEmployee({
+                    ...editingEmployee,
+                    historyNote: e.target.value
+                  })
+                }
+                placeholder="Describe department/title/salary changes"
+              />
+            </div>
           </div>
 
-          <div style={formGroupStyle}>
-            <label style={labelStyle}>Phone</label>
-            <input
-              type="text"
-              style={inputStyle}
-              value={editingEmployee?.phone || ""}
-              onChange={(e) =>
-                setEditingEmployee({ ...editingEmployee, phone: e.target.value })
-              }
-            />
-          </div>
-
-          <div style={formGroupStyle}>
-            <label style={labelStyle}>Base Salary</label>
-            <input
-              type="number"
-              style={inputStyle}
-              value={editingEmployee?.baseSalary || 0}
-              onChange={(e) =>
-                setEditingEmployee({
-                  ...editingEmployee,
-                  baseSalary: parseFloat(e.target.value)
-                })
-              }
-            />
-          </div>
-
-          <div style={formGroupStyle}>
-            <label style={labelStyle}>Start Date</label>
-            <input
-              type="date"
-              style={inputStyle}
-              value={editingEmployee?.startDate
-                ? editingEmployee.startDate.split("T")[0]
-                : ""}
-              onChange={(e) =>
-                setEditingEmployee({
-                  ...editingEmployee,
-                  startDate: e.target.value
-                })
-              }
-            />
-          </div>
-
-          <div style={buttonGroupStyle}>
+          <div className="emp-modal-footer">
             <button
               onClick={() => setShowEditModal(false)}
-              style={cancelButtonStyle}
+              className="emp-btn emp-btn-cancel"
             >
               Cancel
             </button>
             <button
               onClick={handleSaveEdit}
-              style={saveButtonStyle}
+              className="emp-btn emp-btn-save"
+              disabled={loading}
             >
-              Save
+              {loading ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </div>
@@ -512,163 +617,232 @@ export default function EmployeeManagement() {
 
       {/* Details Modal */}
       <div
-        style={{
-          ...modalOverlayStyle,
-          display: selectedEmployee ? "flex" : "none"
-        }}
+        className={`emp-modal-overlay ${selectedEmployee ? "emp-modal-active" : ""}`}
         onClick={() => setSelectedEmployee(null)}
       >
         <div
-          style={detailsModalStyle}
+          className="emp-modal emp-modal-details"
           onClick={(e) => e.stopPropagation()}
         >
-          <h2 style={{ color: theme.colors.primary, marginBottom: "20px" }}>
-            👤 Employee Details: {selectedEmployee?.name}
-          </h2>
-
-          {/* Personal Info */}
-          <div style={detailSectionStyle}>
-            <div style={detailTitleStyle}>📋 Personal Info</div>
-            <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Emp. ID:</div>
-              <div>{selectedEmployee?.employeeCode}</div>
-            </div>
-            <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Email:</div>
-              <div>{selectedEmployee?.email}</div>
-            </div>
-            <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Phone:</div>
-              <div>{selectedEmployee?.phone || "N/A"}</div>
-            </div>
-            <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Date of birth:</div>
-              <div>
-                {selectedEmployee?.dateOfBirth
-                  ? new Date(selectedEmployee.dateOfBirth).toLocaleDateString(
-                      "vi-VN"
-                    )
-                  : "N/A"}
-              </div>
-            </div>
-            <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Gender:</div>
-              <div>{selectedEmployee?.gender || "N/A"}</div>
-            </div>
+          <div className="emp-modal-header">
+            <h2>Employee Details: {selectedEmployee?.name}</h2>
+            <button 
+              className="emp-modal-close"
+              onClick={() => setSelectedEmployee(null)}
+            >
+              ×
+            </button>
           </div>
 
-          {/* Job Info */}
-          <div style={detailSectionStyle}>
-            <div style={detailTitleStyle}>💼 Job Info</div>
-            <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Department:</div>
-              <div>{selectedEmployee?.Department?.name || "N/A"}</div>
-            </div>
-            <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Job title:</div>
-              <div>{selectedEmployee?.JobTitle?.name || "N/A"}</div>
-            </div>
-            <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Start date:</div>
-              <div>
-                {selectedEmployee?.startDate
-                  ? new Date(selectedEmployee.startDate).toLocaleDateString(
-                      "vi-VN"
-                    )
-                  : "N/A"}
+          <div className="emp-modal-body">
+            {/* Personal Information Section */}
+            <div className="emp-detail-section">
+              <h3 className="emp-detail-title">Personal Information</h3>
+              <div className="emp-detail-grid">
+                <div className="emp-detail-item">
+                  <span className="emp-detail-label">Employee ID:</span>
+                  <span>{selectedEmployee?.employeeCode}</span>
+                </div>
+                <div className="emp-detail-item">
+                  <span className="emp-detail-label">Email:</span>
+                  <span>{selectedEmployee?.email}</span>
+                </div>
+                <div className="emp-detail-item">
+                  <span className="emp-detail-label">Phone:</span>
+                  <span>{selectedEmployee?.phone || "—"}</span>
+                </div>
+                <div className="emp-detail-item">
+                  <span className="emp-detail-label">Date of Birth:</span>
+                  <span>
+                    {selectedEmployee?.dateOfBirth
+                      ? new Date(selectedEmployee.dateOfBirth).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric"
+                        })
+                      : "—"}
+                  </span>
+                </div>
+                <div className="emp-detail-item">
+                  <span className="emp-detail-label">Gender:</span>
+                  <span>{selectedEmployee?.gender || "—"}</span>
+                </div>
+                <div className="emp-detail-item">
+                  <span className="emp-detail-label">Password:</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontFamily: "monospace", letterSpacing: "0.5px" }}>
+                      {showTempPassword && tempPassword ? tempPassword : "••••••••••"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={resetAndRevealPassword}
+                      className="emp-btn emp-btn-view"
+                      disabled={passwordLoading}
+                      title="Reset & reveal temporary password"
+                      style={{ padding: "4px 10px" }}
+                    >
+                      {passwordLoading ? "..." : "👁"}
+                    </button>
+                    {showTempPassword && tempPassword && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(tempPassword);
+                            setMessage("✓ Copied temporary password to clipboard");
+                          } catch {
+                            setMessage("✗ Cannot copy to clipboard");
+                          }
+                        }}
+                        className="emp-btn emp-btn-edit"
+                        title="Copy"
+                        style={{ padding: "4px 10px" }}
+                      >
+                        Copy
+                      </button>
+                    )}
+                  </span>
+                </div>
               </div>
             </div>
-            <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Salary grade:</div>
-              <div>{selectedEmployee?.SalaryGrade?.code || "N/A"}</div>
-            </div>
-            <div style={detailItemStyle}>
-              <div style={detailLabelStyle}>Base salary:</div>
-              <div>
-                {selectedEmployee?.baseSalary
-                  ? (selectedEmployee.baseSalary / 1000000).toFixed(1) + "M₫"
-                  : "N/A"}
-              </div>
-            </div>
-          </div>
 
-          {/* Dependents */}
-          {selectedEmployee?.dependents &&
-            selectedEmployee.dependents.length > 0 && (
-              <div style={detailSectionStyle}>
-                <div style={detailTitleStyle}>👨‍👩‍👧‍👦 Dependents ({selectedEmployee.dependents.length})</div>
-                {selectedEmployee.dependents.map((dep, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      padding: "10px",
-                      backgroundColor: "#f9f9f9",
-                      borderLeft: `3px solid ${theme.colors.secondary}`,
-                      borderRadius: "4px",
-                      marginBottom: "8px"
-                    }}
-                  >
-                    <div style={{ fontWeight: "600" }}>{dep.fullName}</div>
-                    <div style={{ fontSize: "13px", color: "#666" }}>
-                      Relationship: {dep.relationship}
+            {/* Job Information Section */}
+            <div className="emp-detail-section">
+              <h3 className="emp-detail-title">Job Information</h3>
+              <div className="emp-detail-grid">
+                <div className="emp-detail-item">
+                  <span className="emp-detail-label">Department:</span>
+                  <span>{selectedEmployee?.Department?.name || "—"}</span>
+                </div>
+                <div className="emp-detail-item">
+                  <span className="emp-detail-label">Job Title:</span>
+                  <span>{selectedEmployee?.JobTitle?.name || "—"}</span>
+                </div>
+                <div className="emp-detail-item">
+                  <span className="emp-detail-label">Start Date:</span>
+                  <span>
+                    {selectedEmployee?.startDate
+                      ? new Date(selectedEmployee.startDate).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric"
+                        })
+                      : "—"}
+                  </span>
+                </div>
+                <div className="emp-detail-item">
+                  <span className="emp-detail-label">Salary Grade:</span>
+                  <span>{selectedEmployee?.SalaryGrade?.code || "—"}</span>
+                </div>
+                <div className="emp-detail-item">
+                  <span className="emp-detail-label">Base Salary:</span>
+                  <span>
+                    {selectedEmployee?.baseSalary
+                      ? new Intl.NumberFormat("en-US", {
+                          style: "currency",
+                          currency: "USD",
+                          minimumFractionDigits: 0
+                        }).format(selectedEmployee.baseSalary)
+                      : "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Dependents Section */}
+            {selectedEmployee?.dependents && selectedEmployee.dependents.length > 0 && (
+              <div className="emp-detail-section">
+                <h3 className="emp-detail-title">
+                  Dependents ({selectedEmployee.dependents.length})
+                </h3>
+                <div className="emp-detail-list">
+                  {selectedEmployee.dependents.map((dep, idx) => (
+                    <div key={idx} className="emp-detail-card">
+                      <div className="emp-detail-card-name">{dep.fullName}</div>
+                      <div className="emp-detail-card-info">
+                        Relationship: {dep.relationship}
+                      </div>
+                      <div className="emp-detail-card-info">
+                        Date of Birth: {new Date(dep.dateOfBirth).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric"
+                        })}
+                      </div>
                     </div>
-                    <div style={{ fontSize: "13px", color: "#666" }}>
-                      Date of birth:{" "}
-                      {new Date(dep.dateOfBirth).toLocaleDateString("vi-VN")}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
 
-          {/* Qualifications */}
-          {selectedEmployee?.qualifications &&
-            selectedEmployee.qualifications.length > 0 && (
-              <div style={detailSectionStyle}>
-                <div style={detailTitleStyle}>📜 Qualifications & Certificates ({selectedEmployee.qualifications.length})</div>
-                {selectedEmployee.qualifications.map((qual, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      padding: "10px",
-                      backgroundColor: "#f9f9f9",
-                      borderLeft: `3px solid ${theme.colors.secondary}`,
-                      borderRadius: "4px",
-                      marginBottom: "8px"
-                    }}
-                  >
-                    <div style={{ fontWeight: "600" }}>{qual.name}</div>
-                    <div style={{ fontSize: "13px", color: "#666" }}>
-                      Type: {qual.type}
+            {/* Qualifications Section */}
+            {selectedEmployee?.qualifications && selectedEmployee.qualifications.length > 0 && (
+              <div className="emp-detail-section">
+                <h3 className="emp-detail-title">
+                  Qualifications and Certificates ({selectedEmployee.qualifications.length})
+                </h3>
+                <div className="emp-detail-list">
+                  {selectedEmployee.qualifications.map((qual, idx) => (
+                    <div key={idx} className="emp-detail-card">
+                      <div className="emp-detail-card-name">{qual.name}</div>
+                      <div className="emp-detail-card-info">Type: {qual.type}</div>
+                      <div className="emp-detail-card-info">Issued By: {qual.issuedBy}</div>
+                      <div className="emp-detail-card-info">
+                        Issue Date: {new Date(qual.issuedDate).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric"
+                        })}
+                      </div>
                     </div>
-                    <div style={{ fontSize: "13px", color: "#666" }}>
-                      Issued by: {qual.issuedBy}
-                    </div>
-                    <div style={{ fontSize: "13px", color: "#666" }}>
-                      Issue date:{" "}
-                      {new Date(qual.issuedDate).toLocaleDateString("vi-VN")}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
 
-          <button
-            onClick={() => setSelectedEmployee(null)}
-            style={{
-              width: "100%",
-              padding: "10px",
-              backgroundColor: "#6c757d",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontWeight: "600",
-              marginTop: "20px"
-            }}
-          >
-            Close
-          </button>
+            {/* Job History Section */}
+            {selectedEmployee?.jobHistory && selectedEmployee.jobHistory.length > 0 && (
+              <div className="emp-detail-section">
+                <h3 className="emp-detail-title">Job History ({selectedEmployee.jobHistory.length})</h3>
+                <div className="emp-detail-list">
+                  {selectedEmployee.jobHistory.map((history) => (
+                    <div key={history.id} className="emp-detail-card">
+                      <div className="emp-detail-card-name">{history.changeType} - {history.effectiveDate}</div>
+                      <div className="emp-detail-card-info">Department: {history.fromDepartmentName || "-"} → {history.toDepartmentName || "-"}</div>
+                      <div className="emp-detail-card-info">Job Title: {history.fromJobTitleName || "-"} → {history.toJobTitleName || "-"}</div>
+                      <div className="emp-detail-card-info">Note: {history.notes || "-"}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Salary Change History Section */}
+            {selectedEmployee?.salaryChangeHistory && selectedEmployee.salaryChangeHistory.length > 0 && (
+              <div className="emp-detail-section">
+                <h3 className="emp-detail-title">Salary Change History ({selectedEmployee.salaryChangeHistory.length})</h3>
+                <div className="emp-detail-list">
+                  {selectedEmployee.salaryChangeHistory.map((history) => (
+                    <div key={history.id} className="emp-detail-card">
+                      <div className="emp-detail-card-name">{history.changeType} - {history.effectiveDate}</div>
+                      <div className="emp-detail-card-info">Base Salary: {history.previousBaseSalary || 0} → {history.newBaseSalary || 0}</div>
+                      <div className="emp-detail-card-info">Allowance: {history.previousTotalAllowance || 0} → {history.newTotalAllowance || 0}</div>
+                      <div className="emp-detail-card-info">Reason: {history.reason || "-"}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="emp-modal-footer">
+            <button
+              onClick={() => setSelectedEmployee(null)}
+              className="emp-btn emp-btn-close"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>

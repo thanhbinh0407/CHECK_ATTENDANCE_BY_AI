@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import AttendanceHistory from "./components/AttendanceHistory.jsx";
 import SalaryHistory from "./components/SalaryHistory.jsx";
+import JobHistoryTimeline from "./components/JobHistoryTimeline.jsx";
 import LeaveRequest from "./components/LeaveRequest.jsx";
 import Qualifications from "./components/Qualifications.jsx";
 import Dependents from "./components/Dependents.jsx";
@@ -9,6 +10,7 @@ import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
 import SalaryAdvanceRequest from "./components/SalaryAdvanceRequest.jsx";
 import OvertimeRequest from "./components/OvertimeRequest.jsx";
 import BusinessTripRequest from "./components/BusinessTripRequest.jsx";
+import ChangePassword from "./components/ChangePassword.jsx";
 import "./App.css";
 
 function App() {
@@ -236,6 +238,14 @@ function App() {
           Salary
         </button>
         <button
+          onClick={() => setActiveTab("job-history")}
+          style={tabStyle(activeTab === "job-history")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "job-history")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "job-history")}
+        >
+          Job History
+        </button>
+        <button
           onClick={() => setActiveTab("leave")}
           style={tabStyle(activeTab === "leave")}
           onMouseEnter={(e) => handleTabHover(e, activeTab === "leave")}
@@ -283,6 +293,14 @@ function App() {
         >
           Business Trip
         </button>
+        <button
+          onClick={() => setActiveTab("account")}
+          style={tabStyle(activeTab === "account")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "account")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "account")}
+        >
+          Account
+        </button>
         {user?.role === "admin" && (
           <>
             <button
@@ -309,12 +327,14 @@ function App() {
       <div style={contentStyle}>
         {activeTab === "attendance" && <AttendanceHistory userId={user?.id} />}
         {activeTab === "salary" && <SalaryHistory userId={user?.id} isActive={true} />}
+        {activeTab === "job-history" && <JobHistoryTimeline />}
         {activeTab === "leave" && <LeaveRequest userId={user?.id} />}
         {activeTab === "qualifications" && <Qualifications userId={user?.id} />}
         {activeTab === "dependents" && <Dependents userId={user?.id} />}
         {activeTab === "salary-advance" && <SalaryAdvanceRequest userId={user?.id} />}
         {activeTab === "overtime" && <OvertimeRequest userId={user?.id || user?.userId} />}
         {activeTab === "business-trip" && <BusinessTripRequest userId={user?.id} />}
+        {activeTab === "account" && <ChangePassword />}
         {activeTab === "approval" && user?.role === "admin" && <ApprovalManagement />}
         {activeTab === "rules" && user?.role === "admin" && <SalaryRulesManagement />}
       </div>

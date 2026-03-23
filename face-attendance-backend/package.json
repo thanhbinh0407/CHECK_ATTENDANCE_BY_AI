@@ -10,10 +10,12 @@
     "db:migrate:image": "node src/db/migrations/add-image-column.js",
     "db:migrate:leave": "node src/db/migrations/add-leave-table.js",
     "db:migrate:job": "node migrate-add-job-fields.js",
+    "db:migrate:d02-lt": "node src/db/migrations/add-d02-lt-reports-table.js",
+    "db:migrate:security": "node src/db/migrations/add-role-audit-and-approval-columns.js",
     "db:reset": "node src/db/migrations/reset.js",
     "db:reset:drop": "DROP_DB=true node src/db/migrations/reset.js",
     "db:seed": "node seed-data.js",
-    "test": "echo \"No tests specified\" && exit 0",
+    "test": "node --test tests/**/*.test.js",
     "lint": "echo \"No linter configured\" && exit 0"
   },
   "dependencies": {

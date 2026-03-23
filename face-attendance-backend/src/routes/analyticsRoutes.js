@@ -2,15 +2,14 @@ import express from "express";
 import {
   getDashboardAnalyticsController
 } from "../controllers/analyticsController.js";
-import { authMiddleware, adminOrAccountant } from "../middleware/authMiddleware.js";
+import { authMiddleware, canViewReports } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// All routes require authentication and admin/accountant access
+// Accountant, Supervisor và Manager xem analytics
 router.use(authMiddleware);
-router.use(adminOrAccountant);
+router.use(canViewReports);
 
-// Advanced analytics dashboard
 router.get("/dashboard", getDashboardAnalyticsController);
 
 export default router;

@@ -17,6 +17,11 @@ if (!fs.existsSync(qualificationsDir)) {
   fs.mkdirSync(qualificationsDir, { recursive: true });
 }
 
+const dependentsDir = path.join(uploadsDir, 'dependents');
+if (!fs.existsSync(dependentsDir)) {
+  fs.mkdirSync(dependentsDir, { recursive: true });
+}
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -48,16 +53,54 @@ export const uploadQualification = multer({
   fileFilter: fileFilter
 });
 
+// Upload dependents documents (PDF only)
+const dependentsStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, dependentsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, `dependent-${uniqueSuffix}${ext}`);
+  }
+});
+
+const dependentsFileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const isPdf = ext === ".pdf" && file.mimetype === "application/pdf";
+  if (isPdf) cb(null, true);
+  else cb(new Error("Only PDF files are allowed"));
+};
+
+export const uploadDependentDocuments = multer({
+  storage: dependentsStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB per file
+  fileFilter: dependentsFileFilter
+});
+
 // Helper to get file URL
 export const getFileUrl = (filename) => {
   if (!filename) return null;
   return `/uploads/qualifications/${filename}`;
 };
 
+export const getDependentFileUrl = (filename) => {
+  if (!filename) return null;
+  return `/uploads/dependents/${filename}`;
+};
+
 // Helper to delete file
 export const deleteFile = (filename) => {
   if (!filename) return;
   const filePath = path.join(qualificationsDir, filename);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+};
+
+export const deleteDependentFile = (filename) => {
+  if (!filename) return;
+  const filePath = path.join(dependentsDir, filename);
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
   }

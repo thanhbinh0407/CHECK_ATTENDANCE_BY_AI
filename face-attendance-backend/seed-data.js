@@ -6,7 +6,7 @@ import { QueryTypes, Op } from 'sequelize';
 import {
   User, Department, JobTitle, SalaryGrade, SalaryRule, Salary,
   AttendanceLog, LeaveRequest, Document, OvertimeRequest, BusinessTripRequest,
-  SalaryAdvance, Dependent, Qualification, WorkExperience, ShiftSetting, InsuranceConfig, ApprovalWorkflow
+  SalaryAdvance, Dependent, Qualification, WorkExperience, ShiftSetting, InsuranceConfig, ApprovalWorkflow, RoleChangeAudit
 } from './src/models/pg/index.js';
 import bcrypt from 'bcryptjs';
 
@@ -508,49 +508,91 @@ async function seedDB() {
     ]);
     console.log('Done: salary rules created\n');
 
-    // Create Admin and Accountant
-    console.log('Step 11: Creating admin and accountant accounts...');
-    const admin = await User.create({
-      employeeCode: 'ADM001',
-      name: 'Tran Van Admin',
-      email: 'admin@company.com',
-      password: await bcrypt.hash('Admin@12345', 10),
+    // Create system actors for role-based architecture
+    console.log('Step 11: Creating manager/hr/accountant/supervisor accounts...');
+    const manager = await User.create({
+      employeeCode: 'MGR001',
+      name: 'Tran Van Manager',
+      email: 'manager@company.com',
+      password: await bcrypt.hash('Manager@12345', 10),
       phone: '0900000001',
       phoneNumber: '0900000001',
       gender: 'male',
-      role: 'admin',
+      role: 'manager',
       isActive: true,
-      baseSalary: 30000000,
-      departmentId: depts[3].id, // Accounting
+      baseSalary: 32000000,
+      departmentId: depts[4].id, // Administration
       jobTitleId: titles[0].id, // Department Head
       salaryGradeId: grades[0].id, // Grade A
       startDate: new Date('2020-01-01'),
       contractType: 'indefinite',
       employmentStatus: 'active',
-      insuranceBaseSalary: 30000000
+      insuranceBaseSalary: 32000000
     });
 
-    const accountant = await User.create({
-      employeeCode: 'ACC001',
-      name: 'Nguyen Thi Ke Toan',
-      email: 'accountant@company.com',
-      password: await bcrypt.hash('Accountant@12345', 10),
+    const hrStaff = await User.create({
+      employeeCode: 'HR001',
+      name: 'Nguyen Thi HR',
+      email: 'hr@company.com',
+      password: await bcrypt.hash('HR@12345', 10),
       phone: '0900000002',
       phoneNumber: '0900000002',
       gender: 'female',
-      role: 'accountant',
+      role: 'hr',
       isActive: true,
-      baseSalary: 20000000,
-      departmentId: depts[3].id, // Accounting
+      baseSalary: 19000000,
+      departmentId: depts[2].id, // Human Resources
       jobTitleId: titles[1].id, // Deputy Head
       salaryGradeId: grades[1].id, // Grade B
       startDate: new Date('2021-06-01'),
       contractType: '3_year',
       employmentStatus: 'active',
-      managerId: admin.id,
-      insuranceBaseSalary: 20000000
+      managerId: manager.id,
+      insuranceBaseSalary: 19000000
     });
-    console.log('Done: admin and accountant created\n');
+
+    const accountant = await User.create({
+      employeeCode: 'ACC001',
+      name: 'Le Thi Accountant',
+      email: 'accountant@company.com',
+      password: await bcrypt.hash('Accountant@12345', 10),
+      phone: '0900000003',
+      phoneNumber: '0900000003',
+      gender: 'female',
+      role: 'accountant',
+      isActive: true,
+      baseSalary: 21000000,
+      departmentId: depts[3].id, // Accounting
+      jobTitleId: titles[1].id, // Deputy Head
+      salaryGradeId: grades[1].id, // Grade B
+      startDate: new Date('2021-04-01'),
+      contractType: '3_year',
+      employmentStatus: 'active',
+      managerId: manager.id,
+      insuranceBaseSalary: 21000000
+    });
+
+    const supervisor = await User.create({
+      employeeCode: 'SUP001',
+      name: 'Pham Van Supervisor',
+      email: 'supervisor@company.com',
+      password: await bcrypt.hash('Supervisor@12345', 10),
+      phone: '0900000004',
+      phoneNumber: '0900000004',
+      gender: 'male',
+      role: 'supervisor',
+      isActive: true,
+      baseSalary: 23000000,
+      departmentId: depts[1].id, // Sales
+      jobTitleId: titles[0].id, // Department Head
+      salaryGradeId: grades[1].id, // Grade B
+      startDate: new Date('2020-08-01'),
+      contractType: 'indefinite',
+      employmentStatus: 'active',
+      managerId: manager.id,
+      insuranceBaseSalary: 23000000
+    });
+    console.log('Done: manager/hr/accountant/supervisor created\n');
 
     // Create deterministic employee and non-random profile data
     console.log('10. Creating deterministic employee profiles...');
@@ -629,11 +671,11 @@ async function seedDB() {
 
     for (let i = 0; i < employees.length; i += 1) {
       const employee = employees[i];
-      let managerId = admin.id;
+      let managerId = manager.id;
       if (i >= PRIMARY_MANAGER_CODES.length) {
         const managerCode = PRIMARY_MANAGER_CODES[(i - PRIMARY_MANAGER_CODES.length) % PRIMARY_MANAGER_CODES.length];
         const manager = employees.find((emp) => emp.employeeCode === managerCode);
-        managerId = manager ? manager.id : admin.id;
+        managerId = manager ? manager.id : supervisor.id;
       }
       await employee.update({ managerId });
     }
@@ -659,7 +701,7 @@ async function seedDB() {
           email: `${profile.employeeCode.toLowerCase()}-${j + 1}@family.local`,
           occupation: dep.occupation,
           approvalStatus: 'approved',
-          approvedBy: admin.id,
+          approvedBy: hrStaff.id,
           approvedAt: addDays(emp.startDate, 30),
           isDependent: true
         });
@@ -769,7 +811,7 @@ async function seedDB() {
           documentPath: `/uploads/qualifications/${emp.employeeCode}_${q + 1}.pdf`,
           description: `Qualification ${q + 1} for ${emp.employeeCode}`,
           approvalStatus: 'approved',
-          approvedBy: admin.id,
+          approvedBy: hrStaff.id,
           approvedAt: addDays(issuedDate, 10),
           userId: emp.id
         });
@@ -797,7 +839,7 @@ async function seedDB() {
         expiryDate: addDays(emp.idIssueDate || emp.startDate, 365 * 15),
         description: 'ID card document',
         isActive: true,
-        uploadedBy: admin.id
+        uploadedBy: hrStaff.id
       });
       docCount += 1;
 
@@ -818,7 +860,7 @@ async function seedDB() {
         expiryDate: contractExpiry,
         description: 'Labor contract',
         isActive: true,
-        uploadedBy: admin.id
+        uploadedBy: hrStaff.id
       });
       docCount += 1;
 
@@ -836,7 +878,7 @@ async function seedDB() {
           expiryDate: null,
           description: 'Qualification supporting document',
           isActive: true,
-          uploadedBy: admin.id
+          uploadedBy: hrStaff.id
         });
         docCount += 1;
       }
@@ -946,7 +988,7 @@ async function seedDB() {
           days: daysCount,
           reason: `Leave request ${j + 1} for ${emp.employeeCode}`,
           status,
-          approvedBy: status === 'approved' ? admin.id : null,
+          approvedBy: status === 'approved' ? supervisor.id : null,
           approvedAt: status === 'approved' ? addDays(start, 1) : null,
           rejectionReason: status === 'rejected' ? 'Business workload requirement' : null
         });
@@ -987,11 +1029,11 @@ async function seedDB() {
           reason: 'Support project deadline',
           projectName: `Project-${(i % 8) + 1}`,
           approvalStatus: status,
-          approvedBy: status === 'approved' ? admin.id : null,
+          approvedBy: status === 'approved' ? supervisor.id : null,
           approvedAt: status === 'approved' ? addDays(date, 1) : null,
           rejectionReason: status === 'rejected' ? 'Not aligned with workload plan' : null,
           approvalLevel: 1,
-          currentApproverId: status === 'pending' ? admin.id : null
+          currentApproverId: status === 'pending' ? supervisor.id : null
         });
         otCount += 1;
       }
@@ -1026,11 +1068,11 @@ async function seedDB() {
           transportType: TRANSPORT_TYPES[(i + j) % TRANSPORT_TYPES.length],
           accommodation: '3-star hotel',
           approvalStatus: status,
-          approvedBy: status === 'approved' ? admin.id : null,
+          approvedBy: status === 'approved' ? supervisor.id : null,
           approvedAt: status === 'approved' ? addDays(startDate, 1) : null,
           rejectionReason: status === 'rejected' ? 'Budget limit reached' : null,
           approvalLevel: 1,
-          currentApproverId: status === 'pending' ? admin.id : null
+          currentApproverId: status === 'pending' ? supervisor.id : null
         });
         tripCount += 1;
       }
@@ -1081,6 +1123,73 @@ async function seedDB() {
       }
     }
     console.log(`   Created ${advanceCount} salary advances`);
+
+    // Create edge cases for workflow robustness
+    console.log('19.1 Creating edge-case scenarios...');
+    let edgeCaseCount = 0;
+
+    // Edge case 1: employee without manager assignment (org gap)
+    const unassignedManagerEmployee = employees.find((emp) => emp.employeeCode === 'EMP050');
+    if (unassignedManagerEmployee) {
+      await unassignedManagerEmployee.update({ managerId: null });
+      edgeCaseCount += 1;
+    }
+
+    // Edge case 2: rejected then resubmitted salary advance
+    const resubmitEmployee = employees.find((emp) => emp.employeeCode === 'EMP049');
+    if (resubmitEmployee) {
+      await SalaryAdvance.create({
+        userId: resubmitEmployee.id,
+        month: 3,
+        year: 2026,
+        amount: 2200000,
+        reason: 'Emergency expense (initial request)',
+        requestDate: new Date('2026-03-01T00:00:00.000Z'),
+        approvalStatus: 'rejected',
+        approvedBy: accountant.id,
+        approvedAt: new Date('2026-03-02T00:00:00.000Z'),
+        rejectionReason: 'Insufficient justification',
+        isDeducted: false,
+      });
+
+      await SalaryAdvance.create({
+        userId: resubmitEmployee.id,
+        month: 4,
+        year: 2026,
+        amount: 2200000,
+        reason: 'Emergency expense (resubmitted with documents)',
+        requestDate: new Date('2026-04-01T00:00:00.000Z'),
+        approvalStatus: 'pending',
+        isDeducted: false,
+      });
+      edgeCaseCount += 2;
+    }
+
+    // Edge case 3: role change audits
+    if (employees[0]) {
+      await RoleChangeAudit.bulkCreate([
+        {
+          userId: employees[0].id,
+          changedBy: manager.id,
+          oldRole: 'employee',
+          newRole: 'supervisor',
+          reason: 'Temporary acting supervisor assignment',
+          ipAddress: '127.0.0.1',
+          userAgent: 'seed-script',
+        },
+        {
+          userId: employees[0].id,
+          changedBy: manager.id,
+          oldRole: 'supervisor',
+          newRole: 'employee',
+          reason: 'Assignment completed, rollback to employee role',
+          ipAddress: '127.0.0.1',
+          userAgent: 'seed-script',
+        },
+      ]);
+      edgeCaseCount += 2;
+    }
+    console.log(`   Created ${edgeCaseCount} edge-case records`);
 
     // Create Salary Records (deterministic)
     console.log('20. Creating deterministic salary records...');
@@ -1154,6 +1263,7 @@ async function seedDB() {
             baseSalary: base,
             bonus: totalBonus,
             deduction: totalDeduction,
+            advanceDeduction,
             finalSalary,
             status: year === refYear && month === refMonth ? 'pending' : 'paid',
             notes: `Salary ${month}/${year}. Attendance ${attendanceDays}/${workingDays}`
@@ -1246,6 +1356,7 @@ async function seedDB() {
     }
 
     const nonEmployeeTableCounts = {
+      roleChangeAudits: await RoleChangeAudit.count(),
       workExperiences: await WorkExperience.count(),
       qualifications: await Qualification.count(),
       documents: await Document.count(),
@@ -1284,7 +1395,7 @@ async function seedDB() {
     // Summary
     console.log('\nSEED DATA GENERATION COMPLETED\n');
     console.log('Summary:');
-    console.log(`   Users: ${employees.length + 2} (${employees.length} employees + 1 admin + 1 accountant)`);
+    console.log(`   Users: ${employees.length + 4} (${employees.length} employees + 1 manager + 1 hr + 1 accountant + 1 supervisor)`);
     console.log(`   Departments: ${depts.length}`);
     console.log(`   Job Titles: ${titles.length}`);
     console.log(`   Salary Grades: ${grades.length}`);
@@ -1297,9 +1408,12 @@ async function seedDB() {
     console.log(`   Overtime Requests: ${otCount}`);
     console.log(`   Business Trip Requests: ${tripCount}`);
     console.log(`   Salary Advances: ${advanceCount}`);
+    console.log(`   Edge Cases: ${edgeCaseCount}`);
     console.log(`   Salary Records: ${salCount} (from 2025-01 to ${currentYear}-${String(currentMonth).padStart(2, '0')})`);
     console.log('\nLogin Credentials:');
-    console.log('   Admin:      admin@company.com / Admin@12345');
+    console.log('   Manager:    manager@company.com / Manager@12345');
+    console.log('   HR Staff:   hr@company.com / HR@12345');
+    console.log('   Supervisor: supervisor@company.com / Supervisor@12345');
     console.log('   Accountant: accountant@company.com / Accountant@12345');
     console.log('   Employees:  emp001@company.com to emp050@company.com / Password123!');
     console.log('\nAll employees have diverse deterministic data covering key system features.');

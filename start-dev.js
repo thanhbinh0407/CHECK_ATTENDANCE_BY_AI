@@ -12,13 +12,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const services = [
-  { name: 'LOGIN', dir: 'login-portal', port: 3000, color: 'white' },
-  { name: 'BACKEND', dir: 'face-attendance-backend', port: 5000, color: 'blue' },
-  { name: 'FRONTEND', dir: 'face-attendance-frontend', port: 5174, color: 'green' },
-  { name: 'EMPLOYEE', dir: 'face-attendance-employee', port: 5176, color: 'yellow' },
-  { name: 'PORTAL', dir: 'employee-portal', port: 5176, color: 'cyan' },
-  { name: 'ACCOUNTANT', dir: 'accountant-client', port: 5175, color: 'magenta' },
-  { name: 'PAYROLL', dir: 'payroll-frontend', port: 5177, color: 'red' }
+  { name: 'LOGIN',       dir: 'login-portal',              port: 3000, color: 'white'   },
+  { name: 'BACKEND',     dir: 'face-attendance-backend',   port: 5000, color: 'blue'    },
+  { name: 'SUPERVISOR',  dir: 'supervisor-client',         port: 5173, color: 'magenta' },
+  { name: 'MANAGER',     dir: 'face-attendance-frontend',  port: 5174, color: 'green'   },
+  { name: 'ACCOUNTANT',  dir: 'accountant-client',         port: 5175, color: 'cyan'    },
+  { name: 'SCANNER',     dir: 'face-attendance-employee',  port: 5176, color: 'yellow'  },
+  { name: 'PAYROLL',     dir: 'payroll-frontend',          port: 5177, color: 'red'     },
+  { name: 'EMPLOYEE',    dir: 'employee-portal',           port: 5178, color: 'white'   },
+  { name: 'HR',          dir: 'hr-client',                 port: 5172, color: 'cyan'    },
 ];
 
 console.log('🚀 Starting all services...\n');

@@ -7,33 +7,22 @@ import {
   deleteInsuranceConfig,
   getActiveInsuranceConfig
 } from "../controllers/insuranceConfigController.js";
-import { authMiddleware, adminOnly } from "../middleware/authMiddleware.js";
+import { authMiddleware, accountantOrManager, canViewReports } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(authMiddleware);
 
-// All routes require admin role
-router.use(adminOnly);
+// Kế toán và Supervisor xem cấu hình bảo hiểm
+router.get("/", canViewReports, getInsuranceConfigs);
+router.get("/active", canViewReports, getActiveInsuranceConfig);
+router.get("/:id", canViewReports, getInsuranceConfigById);
 
-// Get all insurance configs
-router.get("/", getInsuranceConfigs);
-
-// Get active insurance config
-router.get("/active", getActiveInsuranceConfig);
-
-// Get insurance config by ID
-router.get("/:id", getInsuranceConfigById);
-
-// Create insurance config
-router.post("/", createInsuranceConfig);
-
-// Update insurance config
-router.put("/:id", updateInsuranceConfig);
-
-// Delete insurance config
-router.delete("/:id", deleteInsuranceConfig);
+// Kế toán hoặc Manager tạo/sửa/xóa cấu hình bảo hiểm
+router.post("/", accountantOrManager, createInsuranceConfig);
+router.put("/:id", accountantOrManager, updateInsuranceConfig);
+router.delete("/:id", accountantOrManager, deleteInsuranceConfig);
 
 export default router;
 

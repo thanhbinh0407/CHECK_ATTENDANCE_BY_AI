@@ -29,13 +29,17 @@ export const register = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Validate role
+    const validRoles = ["manager", "hr", "accountant", "supervisor", "employee"];
+    const assignedRole = validRoles.includes(role) ? role : "employee";
+
     // Create user
     const user = await User.create({
       name,
       email,
       password: hashedPassword,
       employeeCode: employeeCode || `EMP${Date.now()}`,
-      role: role || "employee",
+      role: assignedRole,
       isActive: true
     });
 
@@ -183,5 +187,56 @@ export const getCurrentUser = async (req, res) => {
       status: "error",
       message: "Invalid token"
     });
+  }
+};
+
+// Change password (authenticated user)
+export const changePassword = async (req, res) => {
+  try {
+    const tokenUserId = req.user?.userId ?? req.user?.id;
+    const { currentPassword, newPassword } = req.body || {};
+
+    if (!tokenUserId) {
+      return res.status(401).json({ status: "error", message: "Unauthorized" });
+    }
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        status: "error",
+        message: "currentPassword and newPassword are required"
+      });
+    }
+
+    if (typeof newPassword !== "string" || newPassword.length < 8) {
+      return res.status(400).json({
+        status: "error",
+        message: "New password must be at least 8 characters"
+      });
+    }
+
+    const user = await User.findByPk(tokenUserId);
+    if (!user) {
+      return res.status(404).json({ status: "error", message: "User not found" });
+    }
+
+    if (!user.password) {
+      return res.status(400).json({
+        status: "error",
+        message: "Password not set. Please contact administrator."
+      });
+    }
+
+    const ok = await bcrypt.compare(currentPassword, user.password);
+    if (!ok) {
+      return res.status(400).json({ status: "error", message: "Current password is incorrect" });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await user.update({ password: hashed });
+
+    return res.json({ status: "success", message: "Password changed successfully" });
+  } catch (err) {
+    console.error("Change password error:", err);
+    return res.status(500).json({ status: "error", message: err.message });
   }
 };

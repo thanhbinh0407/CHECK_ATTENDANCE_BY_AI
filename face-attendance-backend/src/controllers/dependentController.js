@@ -1,6 +1,20 @@
 import Dependent from "../models/pg/Dependent.js";
 import User from "../models/pg/User.js";
+import DependentDocument from "../models/pg/DependentDocument.js";
 import { Op } from "sequelize";
+import { getDependentFileUrl } from "../utils/fileUpload.js";
+
+const isValidIdNumber12 = (value) => typeof value === "string" && /^\d{12}$/.test(value);
+
+const isFutureDate = (date) => {
+  if (!date) return false;
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return d > today;
+};
 
 // Get all dependents (optionally filtered by userId and approvalStatus)
 export const getAllDependents = async (req, res) => {
@@ -64,6 +78,77 @@ export const getDependentById = async (req, res) => {
   }
 };
 
+// Get documents for a dependent (employee: only own dependent)
+export const getDependentDocuments = async (req, res) => {
+  try {
+    const { id } = req.params; // dependentId
+    const tokenUserId = req.user?.userId ?? req.user?.id;
+
+    const dependent = await Dependent.findByPk(id);
+    if (!dependent) {
+      return res.status(404).json({ status: "error", message: "Dependent not found" });
+    }
+
+    // Employee can only access own dependent
+    if (tokenUserId != null && dependent.userId !== tokenUserId && req.user?.role !== "admin") {
+      return res.status(403).json({ status: "error", message: "Forbidden" });
+    }
+
+    const documents = await DependentDocument.findAll({
+      where: { dependentId: dependent.id },
+      order: [["createdAt", "DESC"]]
+    });
+
+    return res.json({ status: "success", documents });
+  } catch (err) {
+    console.error("Error fetching dependent documents:", err);
+    return res.status(500).json({ status: "error", message: err.message });
+  }
+};
+
+// Upload dependent documents (PDF only, allow multiple)
+export const uploadDependentDocuments = async (req, res) => {
+  try {
+    const { id } = req.params; // dependentId
+    const tokenUserId = req.user?.userId ?? req.user?.id;
+
+    const dependent = await Dependent.findByPk(id);
+    if (!dependent) {
+      return res.status(404).json({ status: "error", message: "Dependent not found" });
+    }
+
+    // Employee can only upload to own dependent
+    if (tokenUserId == null || dependent.userId !== tokenUserId) {
+      return res.status(403).json({ status: "error", message: "Forbidden" });
+    }
+
+    const files = req.files || [];
+    if (!Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({ status: "error", message: "No files uploaded" });
+    }
+
+    const docsToCreate = files.map((f) => ({
+      dependentId: dependent.id,
+      userId: dependent.userId,
+      documentPath: getDependentFileUrl(f.filename),
+      fileName: f.originalname,
+      fileSize: f.size,
+      mimeType: f.mimetype
+    }));
+
+    const created = await DependentDocument.bulkCreate(docsToCreate);
+
+    return res.json({
+      status: "success",
+      message: "Documents uploaded successfully",
+      documents: created
+    });
+  } catch (err) {
+    console.error("Error uploading dependent documents:", err);
+    return res.status(500).json({ status: "error", message: err.message });
+  }
+};
+
 // Create dependent
 export const createDependent = async (req, res) => {
   try {
@@ -73,6 +158,20 @@ export const createDependent = async (req, res) => {
       return res.status(400).json({
         status: "error",
         message: "UserId, fullName, and relationship are required"
+      });
+    }
+
+    if (!isValidIdNumber12(idNumber)) {
+      return res.status(400).json({
+        status: "error",
+        message: "ID Number must be exactly 12 digits"
+      });
+    }
+
+    if (dateOfBirth && isFutureDate(dateOfBirth)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Date of Birth cannot be in the future"
       });
     }
 
@@ -125,6 +224,20 @@ export const updateDependent = async (req, res) => {
       return res.status(404).json({
         status: "error",
         message: "Dependent not found"
+      });
+    }
+
+    if (idNumber !== undefined && !isValidIdNumber12(idNumber)) {
+      return res.status(400).json({
+        status: "error",
+        message: "ID Number must be exactly 12 digits"
+      });
+    }
+
+    if (dateOfBirth !== undefined && dateOfBirth && isFutureDate(dateOfBirth)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Date of Birth cannot be in the future"
       });
     }
 

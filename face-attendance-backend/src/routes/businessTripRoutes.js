@@ -5,24 +5,20 @@ import {
   approveBusinessTripRequest,
   deleteBusinessTripRequest
 } from "../controllers/businessTripController.js";
-import { authMiddleware } from "../middleware/authMiddleware.js";
+import { authMiddleware, supervisorOrManager } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(authMiddleware);
 
-// Get all business trip requests
+// Nhân viên tạo và xem đơn công tác
 router.get("/", getBusinessTripRequests);
-
-// Create business trip request
 router.post("/", createBusinessTripRequest);
-
-// Approve/Reject business trip request
-router.put("/:id/approve", approveBusinessTripRequest);
-
-// Delete business trip request
 router.delete("/:id", deleteBusinessTripRequest);
+
+// Supervisor (Quản lý) hoặc Manager duyệt đơn công tác
+router.put("/:id/approve", supervisorOrManager, approveBusinessTripRequest);
 
 export default router;
 
