@@ -29,6 +29,26 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [approvalCount, setApprovalCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch notifications
+  const fetchNotifications = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE}/notifications`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
   
   // Use lazy initialization to read from localStorage only once on mount
   const [authToken, setAuthToken] = useState(() => {
@@ -108,7 +128,9 @@ function App() {
 
     socket.on('new-notification', (data) => {
       console.log('Real-time notification:', data);
-      // Show toast or update notification count
+      // Refresh notifications
+      fetchNotifications();
+      // Show toast or alert
       alert(`New notification: ${data.title}`);
     });
 
@@ -122,6 +144,8 @@ function App() {
   const handleLoginSuccess = (token, userData) => {
     setAuthToken(token);
     setUser(userData);
+    // Fetch notifications after login
+    setTimeout(fetchNotifications, 1000);
   };
 
   const handleLogout = () => {
@@ -556,6 +580,58 @@ function App() {
             </p>
           </div>
           <div style={userInfoStyle}>
+            <button
+              onClick={() => {
+                // Toggle notifications panel or show alert for now
+                const unread = notifications.filter(n => !n.read);
+                if (unread.length > 0) {
+                  alert(`You have ${unread.length} unread notifications:\n${unread.map(n => `- ${n.title}: ${n.message}`).join('\n')}`);
+                } else {
+                  alert('No unread notifications');
+                }
+              }}
+              style={{
+                padding: theme.spacing.md,
+                backgroundColor: theme.neutral.white,
+                color: theme.neutral.gray700,
+                border: `1px solid ${theme.neutral.gray200}`,
+                borderRadius: theme.radius.lg,
+                cursor: "pointer",
+                fontSize: "18px",
+                position: "relative",
+                transition: theme.transitions.normal,
+                boxShadow: theme.shadows.xs,
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = theme.neutral.gray50;
+                e.target.style.borderColor = theme.primary.main;
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = theme.neutral.white;
+                e.target.style.borderColor = theme.neutral.gray200;
+              }}
+              title="Notifications"
+            >
+              🔔
+              {unreadCount > 0 && (
+                <span style={{
+                  position: "absolute",
+                  top: "-6px",
+                  right: "-6px",
+                  fontSize: "10px",
+                  color: "#fff",
+                  backgroundColor: "#ef4444",
+                  padding: "2px 6px",
+                  borderRadius: "10px",
+                  fontWeight: "700",
+                  minWidth: "18px",
+                  textAlign: "center",
+                  boxShadow: "0 2px 4px rgba(239, 68, 68, 0.3)"
+                }}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
             <button
               onClick={handleLogout}
               style={{
