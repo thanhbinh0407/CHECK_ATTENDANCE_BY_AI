@@ -1186,12 +1186,12 @@ export default function InsuranceFormTK1TS() {
   return (
     <div style={containerStyle}>
       <h2 style={{ marginBottom: theme.spacing.lg, color: theme.neutral.gray900 }}>
-        📋 Social/Health Insurance Participation & Information Update (Form TK1-TS)
+        📋 Tờ khai tham gia Bảo hiểm Xã hội/Bảo hiểm Y tế (Mẫu TK1-TS)
       </h2>
 
       {/* Employee Selection */}
       <div style={formSectionStyle}>
-        <label style={labelStyle}>Select employee:</label>
+        <label style={labelStyle}>Chọn nhân viên:</label>
         <select
           style={inputStyle}
           value={selectedEmployee?.id || ""}
@@ -1211,7 +1211,7 @@ export default function InsuranceFormTK1TS() {
 
       {/* Form Type Selection */}
       <div style={formSectionStyle}>
-        <label style={labelStyle}>Declaration type:</label>
+        <label style={labelStyle}>Loại tờ khai:</label>
         <div style={{ display: "flex", gap: theme.spacing.md }}>
           <button
             style={{
