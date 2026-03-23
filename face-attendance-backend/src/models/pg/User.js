@@ -29,8 +29,9 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     defaultValue: 'employee',
     validate: {
-      isIn: [['admin', 'employee', 'accountant']]
-    }
+      isIn: [['manager', 'hr', 'accountant', 'supervisor', 'employee']]
+    },
+    comment: 'manager=Giám đốc/Quản trị, hr=Nhân sự, accountant=Kế toán, supervisor=Quản lý, employee=Nhân viên'
   },
   isActive: {
     type: DataTypes.BOOLEAN,

@@ -80,15 +80,15 @@ export const createLeaveRequest = async (req, res) => {
   }
 };
 
-// Get leave requests (for employee: own requests, for admin: all)
+// Get leave requests (employee: own requests, staff roles: all)
 export const getLeaveRequests = async (req, res) => {
   try {
     const { status, startDate, endDate } = req.query;
     const userId = req.user.userId;
-    const isAdmin = req.user.role === 'admin';
+    const isStaff = req.user.role !== 'employee';
 
     const where = {};
-    if (!isAdmin) {
+    if (!isStaff) {
       where.userId = userId;
     }
     if (status) {
@@ -141,7 +141,7 @@ export const getLeaveRequestById = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.userId;
-    const isAdmin = req.user.role === 'admin';
+    const isStaff = req.user.role !== 'employee';
 
     const leaveRequest = await LeaveRequest.findByPk(id, {
       include: [
@@ -167,7 +167,7 @@ export const getLeaveRequestById = async (req, res) => {
     }
 
     // Check permission
-    if (!isAdmin && leaveRequest.userId !== userId) {
+    if (!isStaff && leaveRequest.userId !== userId) {
       return res.status(403).json({
         status: "error",
         message: "Access denied"
@@ -187,7 +187,7 @@ export const getLeaveRequestById = async (req, res) => {
   }
 };
 
-// Approve leave request (Admin only)
+// Approve leave request (Supervisor/Manager via route guard)
 export const approveLeaveRequest = async (req, res) => {
   try {
     const { id } = req.params;
@@ -231,7 +231,7 @@ export const approveLeaveRequest = async (req, res) => {
   }
 };
 
-// Reject leave request (Admin only)
+// Reject leave request (Supervisor/Manager via route guard)
 export const rejectLeaveRequest = async (req, res) => {
   try {
     const { id } = req.params;
@@ -331,7 +331,7 @@ export const deleteLeaveRequest = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.userId;
-    const isAdmin = req.user.role === 'admin';
+    const isStaff = req.user.role !== 'employee';
 
     const leaveRequest = await LeaveRequest.findByPk(id);
     if (!leaveRequest) {
@@ -342,7 +342,7 @@ export const deleteLeaveRequest = async (req, res) => {
     }
 
     // Check permission
-    if (!isAdmin && leaveRequest.userId !== userId) {
+    if (!isStaff && leaveRequest.userId !== userId) {
       return res.status(403).json({
         status: "error",
         message: "Access denied"

@@ -5,24 +5,20 @@ import {
   approveSalaryAdvance,
   markDeducted
 } from "../controllers/salaryAdvanceController.js";
-import { authMiddleware, adminOrAccountant } from "../middleware/authMiddleware.js";
+import { authMiddleware, accountantOrSupervisor } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(authMiddleware);
 
-// Get all salary advances
+// Nhân viên tạo và xem đơn tạm ứng
 router.get("/", getSalaryAdvances);
-
-// Create salary advance request
 router.post("/", createSalaryAdvance);
 
-// Approve/Reject salary advance (admin/accountant only)
-router.put("/:id/approve", adminOrAccountant, approveSalaryAdvance);
-
-// Mark as deducted (admin/accountant only)
-router.put("/:id/deduct", adminOrAccountant, markDeducted);
+// Kế toán hoặc Supervisor duyệt tạm ứng lương
+router.put("/:id/approve", accountantOrSupervisor, approveSalaryAdvance);
+router.put("/:id/deduct", accountantOrSupervisor, markDeducted);
 
 export default router;
 

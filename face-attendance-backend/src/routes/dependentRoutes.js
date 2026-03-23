@@ -11,7 +11,7 @@ import {
   uploadDependentDocuments,
   getDependentDocuments
 } from "../controllers/dependentController.js";
-import { authMiddleware, adminOnly } from "../middleware/authMiddleware.js";
+import { authMiddleware, hrOrManager } from "../middleware/authMiddleware.js";
 import { uploadDependentDocuments as uploadDependentMulter } from "../utils/fileUpload.js";
 
 const router = express.Router();
@@ -19,7 +19,7 @@ const router = express.Router();
 // All routes require authentication
 router.use(authMiddleware);
 
-// Employee can view and manage own dependents
+// Nhân viên quản lý người phụ thuộc của mình
 router.get("/my", getMyDependents);
 router.post("/", createDependent);
 router.put("/:id", updateDependent);
@@ -27,11 +27,11 @@ router.delete("/:id", deleteDependent);
 router.get("/:id/documents", getDependentDocuments);
 router.post("/:id/documents", uploadDependentMulter.array("documents", 10), uploadDependentDocuments);
 
-// Admin only routes
-router.get("/", adminOnly, getAllDependents);
-router.get("/:id", adminOnly, getDependentById);
-router.put("/:id/approve", adminOnly, approveDependentRequest);
-router.put("/:id/reject", adminOnly, rejectDependentRequest);
+// HR hoặc Manager xem và duyệt người phụ thuộc
+router.get("/", hrOrManager, getAllDependents);
+router.get("/:id", hrOrManager, getDependentById);
+router.put("/:id/approve", hrOrManager, approveDependentRequest);
+router.put("/:id/reject", hrOrManager, rejectDependentRequest);
 
 export default router;
 

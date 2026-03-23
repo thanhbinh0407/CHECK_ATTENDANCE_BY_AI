@@ -52,6 +52,21 @@ const SalaryAdvance = sequelize.define('SalaryAdvance', {
     defaultValue: 'pending',
     comment: 'Trạng thái duyệt'
   },
+  approvalLevel: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 1,
+    comment: 'Cấp duyệt hiện tại'
+  },
+  currentApproverId: {
+    type: DataTypes.INTEGER,
+    references: {
+      model: User,
+      key: 'id'
+    },
+    allowNull: true,
+    comment: 'Người duyệt hiện tại'
+  },
   approvedBy: {
     type: DataTypes.INTEGER,
     references: {

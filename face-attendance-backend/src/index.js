@@ -221,10 +221,29 @@ app.use("/api", debugRoutes);
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
 app.get("/", (req, res) => res.send("Face Attendance Backend Running"));
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "face-attendance-backend",
+    timestamp: new Date().toISOString(),
+  });
+});
 
 const PORT = process.env.PORT || 5000;
 const httpServer = createServer(app);
 initSocket(httpServer);
+
+httpServer.on("error", (error) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(`❌ Port ${PORT} is already in use. Another backend instance may already be running.`);
+    console.error("   Stop the existing process or set PORT to a different value before starting this server.");
+    process.exit(0);
+  }
+
+  console.error("❌ HTTP server failed to start:", error);
+  process.exit(1);
+});
+
 httpServer.listen(PORT, () => {
   console.log(`🚀 Backend trên http://localhost:${PORT} (Socket.io enabled)`);
 });
