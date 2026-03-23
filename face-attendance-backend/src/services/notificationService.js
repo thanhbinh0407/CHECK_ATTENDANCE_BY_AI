@@ -54,9 +54,9 @@ export const notifyBirthdays = async () => {
     });
 
     for (const employee of birthdays) {
-      // Notify HR/Admin
-      const admins = await User.findAll({ where: { role: 'admin' } });
-      for (const admin of admins) {
+      // Notify HR + Manager
+      const hrAndManagers = await User.findAll({ where: { role: { [Op.in]: ['hr', 'manager'] } } });
+      for (const admin of hrAndManagers) {
         await Notification.create({
           userId: admin.id,
           type: 'birthday',
@@ -106,9 +106,9 @@ export const notifyWorkAnniversaries = async () => {
           isRead: false
         });
 
-        // Notify HR/Admin
-        const admins = await User.findAll({ where: { role: 'admin' } });
-        for (const admin of admins) {
+        // Notify HR + Manager
+        const hrAndManagers = await User.findAll({ where: { role: { [Op.in]: ['hr', 'manager'] } } });
+        for (const admin of hrAndManagers) {
           await Notification.create({
             userId: admin.id,
             type: 'anniversary',

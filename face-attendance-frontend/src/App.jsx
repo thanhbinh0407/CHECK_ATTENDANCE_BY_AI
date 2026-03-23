@@ -18,12 +18,14 @@ import InsuranceConfigManagement from "./components/InsuranceConfigManagement.js
 import InsuranceFormTK1TS from "./components/InsuranceFormTK1TS.jsx";
 import InsuranceFormD02LT from "./components/InsuranceFormD02LT.jsx";
 import ReportsDashboard from "./components/ReportsDashboard.jsx";
+import UserManagement from "./components/UserManagement.jsx";
+import ManagerOverview from "./components/ManagerOverview.jsx";
 import { theme, commonStyles } from "./styles/theme.js";
 import socket from "./socket.js";
 import "./App.css";
 
 function App() {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("manager-overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [approvalCount, setApprovalCount] = useState(0);
@@ -127,7 +129,7 @@ function App() {
     localStorage.removeItem("user");
     setAuthToken(null);
     setUser(null);
-    setActiveTab("dashboard");
+    setActiveTab("manager-overview");
     // Redirect to login portal
     window.location.href = "http://localhost:3000/";
   };
@@ -142,9 +144,9 @@ function App() {
         const num = parseInt(e.key);
         if (num >= 0 && num <= 9) {
           e.preventDefault();
-          const tabs = ["enrollment", "dashboard", "logs", "shifts", "salary", "leave", "approvals", "departments", "job-titles", "analytics"];
+          const tabs = ["manager-overview", "user-management", "dashboard", "logs", "salary", "leave", "approvals", "departments", "job-titles", "analytics"];
           const tabIndex = num === 0 ? 9 : num - 1;
-          if (tabs[tabIndex] && user?.role === "admin") {
+          if (tabs[tabIndex] && user?.role === "manager") {
             setActiveTab(tabs[tabIndex]);
           }
         }
@@ -225,25 +227,27 @@ function App() {
   }
 
   const navigationItems = [
-    { id: "enrollment", label: "Enroll Employee", shortcut: "1", icon: "👤" },
-    { id: "dashboard", label: "Employee Management", shortcut: "2", icon: "👥" },
-    { id: "logs", label: "Attendance History", shortcut: "3", icon: "📋" },
-    { id: "shifts", label: "Work Schedule", shortcut: "4", icon: "🕐" },
-    { id: "salary", label: "Payroll Management", shortcut: "5", icon: "💰" },
-    { id: "leave", label: "Leave Management", shortcut: "6", icon: "🏖️" },
-    { id: "approvals", label: "Approval Management", shortcut: "7", icon: "✅" },
-    { id: "departments", label: "Department Management", shortcut: "8", icon: "🏢" },
-    { id: "job-titles", label: "Job Title Management", shortcut: "9", icon: "💼" },
-    { id: "analytics", label: "Analytics Dashboard", shortcut: "0", icon: "📈" },
-    { id: "documents", label: "Document Management", shortcut: "", icon: "📄" },
-    { id: "overtime", label: "Overtime Requests", shortcut: "", icon: "⏱️" },
-    { id: "business-trips", label: "Business Trip Requests", shortcut: "", icon: "🧳" },
+    { id: "manager-overview", label: "Manager Overview", shortcut: "1", icon: "📊" },
+    { id: "user-management", label: "User Management", shortcut: "", icon: "🔑" },
+    { id: "enrollment", label: "Face Enrollment", shortcut: "2", icon: "👤" },
+    { id: "dashboard", label: "Employee Directory", shortcut: "3", icon: "👥" },
+    { id: "logs", label: "Attendance Logs", shortcut: "3", icon: "📋" },
+    { id: "shifts", label: "Shift Management", shortcut: "4", icon: "🕐" },
+    { id: "salary", label: "Salary Management", shortcut: "5", icon: "💰" },
+    { id: "leave", label: "Leave Requests", shortcut: "6", icon: "🏖️" },
+    { id: "approvals", label: "Approvals", shortcut: "7", icon: "✅" },
+    { id: "departments", label: "Departments", shortcut: "8", icon: "🏢" },
+    { id: "job-titles", label: "Job Titles", shortcut: "9", icon: "💼" },
+    { id: "analytics", label: "Analytics", shortcut: "0", icon: "📈" },
+    { id: "documents", label: "Documents", shortcut: "", icon: "📄" },
+    { id: "overtime", label: "Overtime", shortcut: "", icon: "⏱️" },
+    { id: "business-trips", label: "Business Trips", shortcut: "", icon: "🧳" },
     { id: "salary-advances", label: "Salary Advances", shortcut: "", icon: "💸" },
-    { id: "salary-grades", label: "Salary Grade Management", shortcut: "", icon: "💰" },
-    { id: "insurance-configs", label: "Insurance & Cost Config", shortcut: "", icon: "🛡️" },
-    { id: "insurance-form", label: "BHXH/BHYT Form (TK1-TS)", shortcut: "", icon: "📋" },
+    { id: "salary-grades", label: "Salary Grades", shortcut: "", icon: "💰" },
+    { id: "insurance-configs", label: "Insurance Settings", shortcut: "", icon: "🛡️" },
+    { id: "insurance-form", label: "TK1-TS Form", shortcut: "", icon: "📋" },
     { id: "insurance-report", label: "D02-LT Report", shortcut: "", icon: "📊" },
-    { id: "reports", label: "Reporting", shortcut: "", icon: "📈" },
+    { id: "reports", label: "Reports", shortcut: "", icon: "📈" },
   ];
 
   // Layout styles
@@ -383,7 +387,7 @@ function App() {
         </div>
 
         <nav style={{ padding: theme.spacing.md, flex: 1 }}>
-          {user?.role === "admin" && navigationItems.map((item) => {
+          {user?.role === "manager" && navigationItems.map((item) => {
             const isActive = activeTab === item.id;
             return (
             <div
@@ -522,7 +526,7 @@ function App() {
                 fontSize: theme.typography.small.fontSize, 
                 color: theme.neutral.gray500,
               }}>
-                {user?.role === "admin" ? "Admin" : "Employee"}
+                {user?.role === "manager" ? "Manager (Giám đốc)" : user?.role || "Employee"}
               </div>
             </div>
           )}
@@ -584,25 +588,27 @@ function App() {
 
       {/* Content */}
         <div style={contentAreaStyle}>
-        {activeTab === "enrollment" && user?.role === "admin" && <EnrollmentForm />}
-        {activeTab === "dashboard" && user?.role === "admin" && <AdminDashboard />}
-        {activeTab === "logs" && user?.role === "admin" && <AttendanceLog />}
-        {activeTab === "shifts" && user?.role === "admin" && <ShiftAdmin />}
-        {activeTab === "salary" && user?.role === "admin" && <SalaryManagement />}
-        {activeTab === "leave" && user?.role === "admin" && <LeaveManagement />}
-        {activeTab === "approvals" && user?.role === "admin" && <ApprovalManagement />}
-        {activeTab === "departments" && user?.role === "admin" && <DepartmentManagement />}
-        {activeTab === "job-titles" && user?.role === "admin" && <JobTitleManagement />}
-        {activeTab === "analytics" && user?.role === "admin" && <AnalyticsDashboard />}
-        {activeTab === "documents" && user?.role === "admin" && <DocumentManagement />}
-        {activeTab === "overtime" && user?.role === "admin" && <OvertimeManagement />}
-        {activeTab === "business-trips" && user?.role === "admin" && <BusinessTripManagement />}
-        {activeTab === "salary-advances" && user?.role === "admin" && <SalaryAdvanceManagement />}
-        {activeTab === "salary-grades" && user?.role === "admin" && <SalaryGradeManagement />}
-        {activeTab === "insurance-configs" && user?.role === "admin" && <InsuranceConfigManagement />}
-        {activeTab === "insurance-form" && user?.role === "admin" && <InsuranceFormTK1TS />}
-        {activeTab === "insurance-report" && user?.role === "admin" && <InsuranceFormD02LT />}
-        {activeTab === "reports" && user?.role === "admin" && <ReportsDashboard />}
+        {activeTab === "manager-overview" && user?.role === "manager" && <ManagerOverview />}
+        {activeTab === "user-management" && user?.role === "manager" && <UserManagement />}
+        {activeTab === "enrollment" && user?.role === "manager" && <EnrollmentForm />}
+        {activeTab === "dashboard" && user?.role === "manager" && <AdminDashboard />}
+        {activeTab === "logs" && user?.role === "manager" && <AttendanceLog />}
+        {activeTab === "shifts" && user?.role === "manager" && <ShiftAdmin />}
+        {activeTab === "salary" && user?.role === "manager" && <SalaryManagement />}
+        {activeTab === "leave" && user?.role === "manager" && <LeaveManagement />}
+        {activeTab === "approvals" && user?.role === "manager" && <ApprovalManagement />}
+        {activeTab === "departments" && user?.role === "manager" && <DepartmentManagement />}
+        {activeTab === "job-titles" && user?.role === "manager" && <JobTitleManagement />}
+        {activeTab === "analytics" && user?.role === "manager" && <AnalyticsDashboard />}
+        {activeTab === "documents" && user?.role === "manager" && <DocumentManagement />}
+        {activeTab === "overtime" && user?.role === "manager" && <OvertimeManagement />}
+        {activeTab === "business-trips" && user?.role === "manager" && <BusinessTripManagement />}
+        {activeTab === "salary-advances" && user?.role === "manager" && <SalaryAdvanceManagement />}
+        {activeTab === "salary-grades" && user?.role === "manager" && <SalaryGradeManagement />}
+        {activeTab === "insurance-configs" && user?.role === "manager" && <InsuranceConfigManagement />}
+        {activeTab === "insurance-form" && user?.role === "manager" && <InsuranceFormTK1TS />}
+        {activeTab === "insurance-report" && user?.role === "manager" && <InsuranceFormD02LT />}
+        {activeTab === "reports" && user?.role === "manager" && <ReportsDashboard />}
       </div>
       </main>
     </div>

@@ -131,7 +131,10 @@ export default function EmployeeManagement() {
           email: editingEmployee.email,
           phone: editingEmployee.phone,
           baseSalary: editingEmployee.baseSalary,
-          startDate: editingEmployee.startDate
+          startDate: editingEmployee.startDate,
+          effectiveDate: editingEmployee.effectiveDate,
+          historyNote: editingEmployee.historyNote,
+          salaryChangeReason: editingEmployee.salaryChangeReason
         })
       });
 
@@ -545,6 +548,53 @@ export default function EmployeeManagement() {
                 }
               />
             </div>
+
+            <div className="emp-form-group">
+              <label className="emp-label">Effective Date</label>
+              <input
+                type="date"
+                className="emp-input"
+                value={editingEmployee?.effectiveDate || ""}
+                onChange={(e) =>
+                  setEditingEmployee({
+                    ...editingEmployee,
+                    effectiveDate: e.target.value
+                  })
+                }
+              />
+            </div>
+
+            <div className="emp-form-group">
+              <label className="emp-label">Salary Change Reason</label>
+              <input
+                type="text"
+                className="emp-input"
+                value={editingEmployee?.salaryChangeReason || ""}
+                onChange={(e) =>
+                  setEditingEmployee({
+                    ...editingEmployee,
+                    salaryChangeReason: e.target.value
+                  })
+                }
+                placeholder="Reason for salary adjustment"
+              />
+            </div>
+
+            <div className="emp-form-group">
+              <label className="emp-label">History Note</label>
+              <textarea
+                className="emp-input"
+                rows={3}
+                value={editingEmployee?.historyNote || ""}
+                onChange={(e) =>
+                  setEditingEmployee({
+                    ...editingEmployee,
+                    historyNote: e.target.value
+                  })
+                }
+                placeholder="Describe department/title/salary changes"
+              />
+            </div>
           </div>
 
           <div className="emp-modal-footer">
@@ -744,6 +794,40 @@ export default function EmployeeManagement() {
                           day: "numeric"
                         })}
                       </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Job History Section */}
+            {selectedEmployee?.jobHistory && selectedEmployee.jobHistory.length > 0 && (
+              <div className="emp-detail-section">
+                <h3 className="emp-detail-title">Job History ({selectedEmployee.jobHistory.length})</h3>
+                <div className="emp-detail-list">
+                  {selectedEmployee.jobHistory.map((history) => (
+                    <div key={history.id} className="emp-detail-card">
+                      <div className="emp-detail-card-name">{history.changeType} - {history.effectiveDate}</div>
+                      <div className="emp-detail-card-info">Department: {history.fromDepartmentName || "-"} → {history.toDepartmentName || "-"}</div>
+                      <div className="emp-detail-card-info">Job Title: {history.fromJobTitleName || "-"} → {history.toJobTitleName || "-"}</div>
+                      <div className="emp-detail-card-info">Note: {history.notes || "-"}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Salary Change History Section */}
+            {selectedEmployee?.salaryChangeHistory && selectedEmployee.salaryChangeHistory.length > 0 && (
+              <div className="emp-detail-section">
+                <h3 className="emp-detail-title">Salary Change History ({selectedEmployee.salaryChangeHistory.length})</h3>
+                <div className="emp-detail-list">
+                  {selectedEmployee.salaryChangeHistory.map((history) => (
+                    <div key={history.id} className="emp-detail-card">
+                      <div className="emp-detail-card-name">{history.changeType} - {history.effectiveDate}</div>
+                      <div className="emp-detail-card-info">Base Salary: {history.previousBaseSalary || 0} → {history.newBaseSalary || 0}</div>
+                      <div className="emp-detail-card-info">Allowance: {history.previousTotalAllowance || 0} → {history.newTotalAllowance || 0}</div>
+                      <div className="emp-detail-card-info">Reason: {history.reason || "-"}</div>
                     </div>
                   ))}
                 </div>

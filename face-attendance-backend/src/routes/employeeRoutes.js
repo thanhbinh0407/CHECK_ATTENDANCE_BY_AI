@@ -4,6 +4,10 @@ import AttendanceLog from "../models/pg/AttendanceLog.js";
 import Salary from "../models/pg/Salary.js";
 import User from "../models/pg/User.js";
 import SalaryRule from "../models/pg/SalaryRule.js";
+import JobHistory from "../models/pg/JobHistory.js";
+import SalaryHistory from "../models/pg/SalaryHistory.js";
+import Department from "../models/pg/Department.js";
+import JobTitle from "../models/pg/JobTitle.js";
 import { ShiftSetting } from "../models/pg/index.js";
 import { Op } from "sequelize";
 import { calculateSeniority } from "../services/senioritySalaryService.js";
@@ -374,6 +378,114 @@ router.get("/profile", async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching employee profile:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+});
+
+// Get current user's job/salary change history
+router.get("/profile/history", async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const historyType = (req.query.historyType || "both").toLowerCase();
+    const fromDate = req.query.fromDate || null;
+    const toDate = req.query.toDate || null;
+    const changeType = req.query.changeType || null;
+    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || "10", 10), 1), 100);
+    const offset = (page - 1) * pageSize;
+
+    const baseWhere = { userId };
+    if (changeType) baseWhere.changeType = changeType;
+    if (fromDate || toDate) {
+      baseWhere.effectiveDate = {};
+      if (fromDate) baseWhere.effectiveDate[Op.gte] = fromDate;
+      if (toDate) baseWhere.effectiveDate[Op.lte] = toDate;
+    }
+
+    const response = {
+      status: "success",
+      historyType,
+      pagination: { page, pageSize }
+    };
+
+    if (historyType === "job" || historyType === "both") {
+      const { rows, count } = await JobHistory.findAndCountAll({
+        where: baseWhere,
+        include: [
+          { model: Department, as: "FromDepartment", attributes: ["id", "name"] },
+          { model: Department, as: "ToDepartment", attributes: ["id", "name"] },
+          { model: JobTitle, as: "FromJobTitle", attributes: ["id", "name"] },
+          { model: JobTitle, as: "ToJobTitle", attributes: ["id", "name"] },
+          { model: User, as: "ChangedByUser", attributes: ["id", "name", "employeeCode", "role"] },
+        ],
+        order: [["effectiveDate", "DESC"], ["createdAt", "DESC"]],
+        offset,
+        limit: pageSize,
+      });
+
+      response.jobHistory = rows.map((history) => ({
+        id: history.id,
+        fromDepartmentId: history.fromDepartmentId,
+        toDepartmentId: history.toDepartmentId,
+        fromDepartmentName: history.FromDepartment?.name || null,
+        toDepartmentName: history.ToDepartment?.name || null,
+        fromJobTitleId: history.fromJobTitleId,
+        toJobTitleId: history.toJobTitleId,
+        fromJobTitleName: history.FromJobTitle?.name || null,
+        toJobTitleName: history.ToJobTitle?.name || null,
+        changeType: history.changeType,
+        effectiveDate: history.effectiveDate,
+        notes: history.notes,
+        changedBy: history.ChangedByUser
+          ? {
+              id: history.ChangedByUser.id,
+              name: history.ChangedByUser.name,
+              employeeCode: history.ChangedByUser.employeeCode,
+              role: history.ChangedByUser.role,
+            }
+          : null,
+      }));
+      response.jobPagination = { page, pageSize, total: count, totalPages: Math.max(1, Math.ceil(count / pageSize)) };
+    }
+
+    if (historyType === "salary" || historyType === "both") {
+      const { rows, count } = await SalaryHistory.findAndCountAll({
+        where: baseWhere,
+        include: [
+          { model: User, as: "ChangedByUser", attributes: ["id", "name", "employeeCode", "role"] },
+        ],
+        order: [["effectiveDate", "DESC"], ["createdAt", "DESC"]],
+        offset,
+        limit: pageSize,
+      });
+
+      response.salaryChangeHistory = rows.map((history) => ({
+        id: history.id,
+        previousBaseSalary: history.previousBaseSalary,
+        newBaseSalary: history.newBaseSalary,
+        previousTotalAllowance: history.previousTotalAllowance,
+        newTotalAllowance: history.newTotalAllowance,
+        changeType: history.changeType,
+        effectiveDate: history.effectiveDate,
+        reason: history.reason,
+        changedBy: history.ChangedByUser
+          ? {
+              id: history.ChangedByUser.id,
+              name: history.ChangedByUser.name,
+              employeeCode: history.ChangedByUser.employeeCode,
+              role: history.ChangedByUser.role,
+            }
+          : null,
+      }));
+      response.salaryPagination = { page, pageSize, total: count, totalPages: Math.max(1, Math.ceil(count / pageSize)) };
+    }
+
+    return res.json(response);
+  } catch (err) {
+    console.error("Error fetching employee profile history:", err);
     return res.status(500).json({
       status: "error",
       message: err.message

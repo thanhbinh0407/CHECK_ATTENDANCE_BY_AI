@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import AttendanceHistory from "./components/AttendanceHistory.jsx";
 import SalaryHistory from "./components/SalaryHistory.jsx";
+import JobHistoryTimeline from "./components/JobHistoryTimeline.jsx";
 import LeaveRequest from "./components/LeaveRequest.jsx";
 import Qualifications from "./components/Qualifications.jsx";
 import Dependents from "./components/Dependents.jsx";
@@ -237,6 +238,14 @@ function App() {
           Salary
         </button>
         <button
+          onClick={() => setActiveTab("job-history")}
+          style={tabStyle(activeTab === "job-history")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "job-history")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "job-history")}
+        >
+          Job History
+        </button>
+        <button
           onClick={() => setActiveTab("leave")}
           style={tabStyle(activeTab === "leave")}
           onMouseEnter={(e) => handleTabHover(e, activeTab === "leave")}
@@ -318,6 +327,7 @@ function App() {
       <div style={contentStyle}>
         {activeTab === "attendance" && <AttendanceHistory userId={user?.id} />}
         {activeTab === "salary" && <SalaryHistory userId={user?.id} isActive={true} />}
+        {activeTab === "job-history" && <JobHistoryTimeline />}
         {activeTab === "leave" && <LeaveRequest userId={user?.id} />}
         {activeTab === "qualifications" && <Qualifications userId={user?.id} />}
         {activeTab === "dependents" && <Dependents userId={user?.id} />}
