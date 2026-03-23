@@ -4,21 +4,19 @@ import {
   applySalaryIncrease,
   applySalaryIncreasesForAll
 } from "../controllers/senioritySalaryController.js";
-import { authMiddleware, adminOnly } from "../middleware/authMiddleware.js";
+import { authMiddleware, accountantOrManager } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(authMiddleware);
 
-// Get user seniority (accessible by user or admin)
+// Tất cả có thể xem thâm niên của nhân viên
 router.get("/user/:userId", getUserSeniority);
 
-// Apply salary increase for specific user (admin only)
-router.post("/user/:userId/apply", adminOnly, applySalaryIncrease);
-
-// Apply salary increases for all eligible employees (admin only)
-router.post("/apply-all", adminOnly, applySalaryIncreasesForAll);
+// Kế toán hoặc Manager mới tăng lương theo thâm niên
+router.post("/user/:userId/apply", accountantOrManager, applySalaryIncrease);
+router.post("/apply-all", accountantOrManager, applySalaryIncreasesForAll);
 
 export default router;
 

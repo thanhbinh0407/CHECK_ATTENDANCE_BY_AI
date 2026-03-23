@@ -6,19 +6,21 @@ import {
   updateDepartment,
   deleteDepartment
 } from "../controllers/departmentController.js";
-import { authMiddleware, adminOnly } from "../middleware/authMiddleware.js";
+import { authMiddleware, hrOrManager } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// All routes require authentication and admin access
+// All routes require authentication
 router.use(authMiddleware);
-router.use(adminOnly);
 
+// Đọc: tất cả nhân viên (cần biết phòng ban)
 router.get("/", getAllDepartments);
 router.get("/:id", getDepartmentById);
-router.post("/", createDepartment);
-router.put("/:id", updateDepartment);
-router.delete("/:id", deleteDepartment);
+
+// Ghi: HR hoặc Manager
+router.post("/", hrOrManager, createDepartment);
+router.put("/:id", hrOrManager, updateDepartment);
+router.delete("/:id", hrOrManager, deleteDepartment);
 
 export default router;
 

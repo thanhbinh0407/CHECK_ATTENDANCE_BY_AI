@@ -14,15 +14,14 @@ import {
   exportAllowancesAndBonusesReportController,
   exportAnnualTaxSummaryController
 } from "../controllers/excelExportController.js";
-import { authMiddleware, adminOrAccountant } from "../middleware/authMiddleware.js";
+import { authMiddleware, canViewReports } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// All routes require authentication and admin/accountant role
+// Kế toán, Supervisor, Manager được xuất báo cáo
 router.use(authMiddleware);
-router.use(adminOrAccountant);
+router.use(canViewReports);
 
-// Export reports to Excel
 router.get("/turnover", exportTurnoverReportController);
 router.get("/attendance", exportAttendanceReportController);
 router.get("/payroll-cost", exportPayrollCostReportController);

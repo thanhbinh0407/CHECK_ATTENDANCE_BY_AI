@@ -3,6 +3,7 @@ import User from "../models/pg/User.js";
 import Notification from "../models/pg/Notification.js";
 import { recalculateSalaryRecord } from "../services/salaryCalculationService.js";
 import { Op } from "sequelize";
+import { resolveApprovalChain } from "../services/approvalPolicyService.js";
 
 // Get all salary advances
 export const getSalaryAdvances = async (req, res) => {
@@ -11,7 +12,7 @@ export const getSalaryAdvances = async (req, res) => {
 
     const where = {};
     const queryUserId = userId != null && userId !== "" && userId !== "undefined" ? userId : null;
-    const isAdminOrAccountant = req.user?.role === "admin" || req.user?.role === "accountant";
+    const canViewAll = ["manager", "supervisor", "accountant"].includes(req.user?.role);
 
     if (queryUserId != null) {
       const parsed = parseInt(queryUserId, 10);
@@ -22,8 +23,8 @@ export const getSalaryAdvances = async (req, res) => {
         });
       }
       where.userId = parsed;
-    } else if (!isAdminOrAccountant) {
-      // Employee: only list own advances (from token). Admin/accountant see all when no userId filter.
+    } else if (!canViewAll) {
+      // Employee: only list own advances (from token). Staff roles above can see all when no userId filter.
       const tokenUserId = req.user?.id ?? req.user?.userId;
       if (tokenUserId != null) where.userId = tokenUserId;
     }
@@ -35,7 +36,8 @@ export const getSalaryAdvances = async (req, res) => {
       where,
       include: [
         { model: User, attributes: ['id', 'name', 'employeeCode', 'email'] },
-        { model: User, as: 'Approver', attributes: ['id', 'name', 'email'] }
+        { model: User, as: 'Approver', attributes: ['id', 'name', 'email'] },
+        { model: User, as: 'CurrentApprover', attributes: ['id', 'name', 'email'] }
       ],
       order: [['year', 'DESC'], ['month', 'DESC'], ['createdAt', 'DESC']]
     });
@@ -89,16 +91,21 @@ export const createSalaryAdvance = async (req, res) => {
       include: [{ model: User, as: 'Manager' }]
     });
 
+    // Resolve first approver from policy chain
+    const approvalChain = await resolveApprovalChain('salary_advance', user, { amount: parseFloat(amount) });
+    const approverId = approvalChain[0] || null;
+
     const advance = await SalaryAdvance.create({
       userId,
       month: parseInt(month),
       year: parseInt(year),
       amount: parseFloat(amount),
-      reason: reason || null
+      reason: reason || null,
+      approvalLevel: 1,
+      currentApproverId: approverId || null,
     });
 
-    // Notify manager (if exists) or admin
-    const approverId = user?.managerId || (await User.findOne({ where: { role: 'admin' } }))?.id;
+    // Notify first approver from policy chain
     if (approverId) {
       await Notification.create({
         userId: approverId,
@@ -148,14 +155,24 @@ export const approveSalaryAdvance = async (req, res) => {
       });
     }
 
-    // Only admin/accountant can approve
+    // Only manager/supervisor/accountant can approve
     const approver = await User.findByPk(approverId);
-    if (approver.role !== 'admin' && approver.role !== 'accountant') {
+    if (!['manager', 'supervisor', 'accountant'].includes(approver.role)) {
+          if (advance.currentApproverId && Number(advance.currentApproverId) !== Number(approverId)) {
+            return res.status(403).json({
+              status: "error",
+              message: "You are not the current approver for this request",
+            });
+          }
+
       return res.status(403).json({
         status: "error",
-        message: "Only admin or accountant can approve salary advances"
+        message: "Only manager, supervisor or accountant can approve salary advances"
       });
     }
+
+    const requester = await User.findByPk(advance.userId);
+    const approvalChain = await resolveApprovalChain('salary_advance', requester, { amount: advance.amount });
 
     if (action === 'reject') {
       await advance.update({
@@ -173,22 +190,44 @@ export const approveSalaryAdvance = async (req, res) => {
         isRead: false
       });
     } else if (action === 'approve') {
-      await advance.update({
-        approvalStatus: 'approved',
-        approvedBy: approverId,
-        approvedAt: new Date()
-      });
+      const approvalLevel = Number(advance.approvalLevel || 1);
+      const currentIndex = Math.max(approvalLevel - 1, 0);
+      const nextApproverId = approvalChain[currentIndex + 1] || null;
 
-      await Notification.create({
-        userId: advance.userId,
-        type: 'salary_advance',
-        title: 'Salary Advance Approved',
-        message: `Your salary advance request for ${advance.month}/${advance.year} has been approved`,
-        isRead: false
-      });
+      if (!nextApproverId) {
+        await advance.update({
+          approvalStatus: 'approved',
+          approvedBy: approverId,
+          approvedAt: new Date(),
+          approvalLevel,
+          currentApproverId: null,
+        });
 
-      // Recalculate salary to include the advance deduction
-      await recalculateSalaryRecord(advance.userId, advance.month, advance.year);
+        await Notification.create({
+          userId: advance.userId,
+          type: 'salary_advance',
+          title: 'Salary Advance Approved',
+          message: `Your salary advance request for ${advance.month}/${advance.year} has been approved`,
+          isRead: false
+        });
+
+        // Recalculate salary to include the advance deduction
+        await recalculateSalaryRecord(advance.userId, advance.month, advance.year);
+      } else {
+        await advance.update({
+          approvalStatus: 'pending',
+          approvalLevel: approvalLevel + 1,
+          currentApproverId: nextApproverId,
+        });
+
+        await Notification.create({
+          userId: nextApproverId,
+          type: 'salary_advance',
+          title: 'Salary Advance Pending Approval',
+          message: `${advance.User?.name || 'An employee'} salary advance request needs your approval`,
+          isRead: false,
+        });
+      }
     }
 
     return res.json({
@@ -197,7 +236,8 @@ export const approveSalaryAdvance = async (req, res) => {
       advance: await SalaryAdvance.findByPk(id, {
         include: [
           { model: User, attributes: ['id', 'name', 'employeeCode'] },
-          { model: User, as: 'Approver', attributes: ['id', 'name'] }
+          { model: User, as: 'Approver', attributes: ['id', 'name'] },
+          { model: User, as: 'CurrentApprover', attributes: ['id', 'name'] }
         ]
       })
     });

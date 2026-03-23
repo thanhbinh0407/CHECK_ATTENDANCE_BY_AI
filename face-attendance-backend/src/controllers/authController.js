@@ -29,13 +29,17 @@ export const register = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Validate role
+    const validRoles = ["manager", "hr", "accountant", "supervisor", "employee"];
+    const assignedRole = validRoles.includes(role) ? role : "employee";
+
     // Create user
     const user = await User.create({
       name,
       email,
       password: hashedPassword,
       employeeCode: employeeCode || `EMP${Date.now()}`,
-      role: role || "employee",
+      role: assignedRole,
       isActive: true
     });
 

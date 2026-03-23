@@ -3,6 +3,7 @@ import ApprovalWorkflow from "../models/pg/ApprovalWorkflow.js";
 import User from "../models/pg/User.js";
 import Notification from "../models/pg/Notification.js";
 import { Op } from "sequelize";
+import { resolveApprovalChain } from "../services/approvalPolicyService.js";
 
 // Get all overtime requests
 export const getOvertimeRequests = async (req, res) => {
@@ -106,6 +107,9 @@ export const createOvertimeRequest = async (req, res) => {
       include: [{ model: User, as: 'Manager' }]
     });
 
+    const approverChain = await resolveApprovalChain('overtime', user);
+    const initialApproverId = approverChain[0] || null;
+
     const request = await OvertimeRequest.create({
       userId,
       date,
@@ -115,22 +119,22 @@ export const createOvertimeRequest = async (req, res) => {
       reason,
       projectName: projectName || null,
       approvalLevel: 1,
-      currentApproverId: user?.managerId || null
+      currentApproverId: initialApproverId
     });
 
     // Create approval workflow
-    if (user?.managerId) {
+    if (initialApproverId) {
       await ApprovalWorkflow.create({
         requestType: 'overtime',
         requestId: request.id,
         level: 1,
-        approverId: user.managerId,
+        approverId: initialApproverId,
         status: 'pending'
       });
 
       // Notify manager
       await Notification.create({
-        userId: user.managerId,
+        userId: initialApproverId,
         type: 'overtime_request',
         title: 'New Overtime Request',
         message: `${user.name} has submitted an overtime request for ${date}`,
@@ -211,8 +215,12 @@ export const approveOvertimeRequest = async (req, res) => {
         isRead: false
       });
     } else if (action === 'approve') {
-      // Check if this is the final approval level
-      if (request.approvalLevel >= 3) {
+      const approverChain = await resolveApprovalChain('overtime', request.User);
+      const currentIndex = Math.max(request.approvalLevel - 1, 0);
+      const nextApproverId = approverChain[currentIndex + 1] || null;
+
+      // Check if this is the final approval level for current policy chain
+      if (!nextApproverId) {
         // Final approval
         await request.update({
           approvalStatus: 'approved',
@@ -234,12 +242,8 @@ export const approveOvertimeRequest = async (req, res) => {
           isRead: false
         });
       } else {
-        // Move to next approval level
+        // Move to next approval level from policy chain
         const nextLevel = request.approvalLevel + 1;
-        // TODO: Determine next approver based on workflow (HR, Director, etc.)
-        // For now, assume HR is level 2, Director is level 3
-        const hrUsers = await User.findAll({ where: { role: 'admin' }, limit: 1 });
-        const nextApproverId = nextLevel === 2 ? (hrUsers[0]?.id || null) : null;
 
         await request.update({
           approvalLevel: nextLevel,

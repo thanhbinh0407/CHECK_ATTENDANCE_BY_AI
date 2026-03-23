@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { theme } from "../styles/theme.js";
 import jsPDF from "jspdf";
-import autoTable from 'jspdf-autotable';
+import 'jspdf-autotable';
 import html2canvas from "html2canvas";
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, PageOrientation, UnderlineType, BorderStyle } from "docx";
 import { saveAs } from "file-saver";
@@ -989,18 +989,18 @@ export default function InsuranceFormD02LT() {
   return (
     <div style={containerStyle}>
       <h2 style={{ marginBottom: theme.spacing.lg, color: theme.neutral.gray900 }}>
-        📊 Employment Status & SI/HI/UI Participation Report (Form D02-LT)
+        📊 Báo cáo tình trạng việc làm & tham gia BHXH/BHYT/BHTN (Form D02-LT)
       </h2>
 
       {/* Company Information */}
       <div style={formSectionStyle}>
         <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
-          Employer information
+          Thông tin đơn vị báo cáo
         </h3>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
           <div>
-            <label style={labelStyle}>Employer name: *</label>
+            <label style={labelStyle}>Tên đơn vị: *</label>
             <input
               type="text"
               style={inputStyle}
@@ -1010,30 +1010,30 @@ export default function InsuranceFormD02LT() {
             />
           </div>
           <div>
-            <label style={labelStyle}>Unit code:</label>
+            <label style={labelStyle}>Mã đơn vị:</label>
             <input
               type="text"
               style={inputStyle}
               value={companyInfo.code}
               onChange={(e) => handleCompanyInfoChange("code", e.target.value)}
-              placeholder="Unit code issued by VSS"
+              placeholder="Mã đơn vị theo VSS"
             />
           </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
           <div>
-            <label style={labelStyle}>Tax code:</label>
+            <label style={labelStyle}>Mã số thuế:</label>
             <input
               type="text"
               style={inputStyle}
               value={companyInfo.taxCode}
               onChange={(e) => handleCompanyInfoChange("taxCode", e.target.value)}
-              placeholder="Tax code"
+              placeholder="Mã số thuế"
             />
           </div>
           <div>
-            <label style={labelStyle}>Report number:</label>
+            <label style={labelStyle}>Số báo cáo:</label>
             <input
               type="text"
               style={inputStyle}

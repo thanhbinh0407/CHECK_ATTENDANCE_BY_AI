@@ -9,9 +9,27 @@ import SalaryGrade from "../models/pg/SalaryGrade.js";
 import Dependent from "../models/pg/Dependent.js";
 import Qualification from "../models/pg/Qualification.js";
 import WorkExperience from "../models/pg/WorkExperience.js";
+import JobHistory from "../models/pg/JobHistory.js";
+import SalaryHistory from "../models/pg/SalaryHistory.js";
+import RoleChangeAudit from "../models/pg/RoleChangeAudit.js";
+import sequelize from "../db/sequelize.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
 import { recalculatePendingSalariesForUsers } from "../services/salaryCalculationService.js";
+
+const toNumber = (value, fallback = 0) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const sumAllowances = (obj) => {
+  return (
+    toNumber(obj?.lunchAllowance) +
+    toNumber(obj?.transportAllowance) +
+    toNumber(obj?.phoneAllowance) +
+    toNumber(obj?.responsibilityAllowance)
+  );
+};
 
 // Get all employees
 export const getAllEmployees = async (req, res) => {
@@ -176,7 +194,10 @@ export const updateEmployee = async (req, res) => {
       major,
       emergencyContactName,
       emergencyContactRelationship,
-      emergencyContactPhone
+      emergencyContactPhone,
+      effectiveDate,
+      historyNote,
+      salaryChangeReason
     } = req.body;
 
     const employee = await User.findOne({
@@ -253,7 +274,73 @@ export const updateEmployee = async (req, res) => {
     const salaryAffectingFields = ['baseSalary', 'lunchAllowance', 'transportAllowance', 'phoneAllowance', 'responsibilityAllowance', 'startDate'];
     const salaryFieldsChanged = salaryAffectingFields.some(field => updateData[field] !== undefined);
 
-    await employee.update(updateData);
+    const oldDepartmentId = employee.departmentId;
+    const oldJobTitleId = employee.jobTitleId;
+    const oldBaseSalary = toNumber(employee.baseSalary);
+    const oldTotalAllowance = sumAllowances(employee);
+
+    const newDepartmentId = updateData.departmentId !== undefined ? updateData.departmentId : employee.departmentId;
+    const newJobTitleId = updateData.jobTitleId !== undefined ? updateData.jobTitleId : employee.jobTitleId;
+    const newBaseSalary = updateData.baseSalary !== undefined ? toNumber(updateData.baseSalary) : oldBaseSalary;
+    const newTotalAllowance =
+      (updateData.lunchAllowance !== undefined ||
+        updateData.transportAllowance !== undefined ||
+        updateData.phoneAllowance !== undefined ||
+        updateData.responsibilityAllowance !== undefined)
+        ? sumAllowances({ ...employee.toJSON(), ...updateData })
+        : oldTotalAllowance;
+
+    const jobChanged = oldDepartmentId !== newDepartmentId || oldJobTitleId !== newJobTitleId;
+    const salaryChanged = oldBaseSalary !== newBaseSalary || oldTotalAllowance !== newTotalAllowance;
+
+    const normalizedEffectiveDate = effectiveDate || new Date().toISOString().slice(0, 10);
+    const changedBy = req.user?.userId ?? req.user?.id ?? null;
+
+    const getJobChangeType = () => {
+      if (oldJobTitleId !== newJobTitleId && oldDepartmentId === newDepartmentId) return 'promotion';
+      if (oldDepartmentId !== newDepartmentId && oldJobTitleId === newJobTitleId) return 'transfer';
+      if (oldDepartmentId !== newDepartmentId && oldJobTitleId !== newJobTitleId) return 'other';
+      return 'correction';
+    };
+
+    const getSalaryChangeType = () => {
+      if (oldBaseSalary === 0 && newBaseSalary > 0) return 'initial_salary';
+      if (newBaseSalary > oldBaseSalary || newTotalAllowance > oldTotalAllowance) return 'increase';
+      if (newBaseSalary < oldBaseSalary || newTotalAllowance < oldTotalAllowance) return 'decrease';
+      return 'correction';
+    };
+
+    await sequelize.transaction(async (transaction) => {
+      await employee.update(updateData, { transaction });
+
+      if (jobChanged) {
+        await JobHistory.create({
+          userId: employee.id,
+          fromDepartmentId: oldDepartmentId,
+          toDepartmentId: newDepartmentId,
+          fromJobTitleId: oldJobTitleId,
+          toJobTitleId: newJobTitleId,
+          changeType: getJobChangeType(),
+          effectiveDate: normalizedEffectiveDate,
+          notes: historyNote || null,
+          changedBy,
+        }, { transaction });
+      }
+
+      if (salaryChanged) {
+        await SalaryHistory.create({
+          userId: employee.id,
+          previousBaseSalary: oldBaseSalary,
+          newBaseSalary,
+          previousTotalAllowance: oldTotalAllowance,
+          newTotalAllowance,
+          changeType: getSalaryChangeType(),
+          effectiveDate: normalizedEffectiveDate,
+          reason: salaryChangeReason || historyNote || null,
+          changedBy,
+        }, { transaction });
+      }
+    });
 
     // Recalculate pending/approved salary records if salary-affecting fields changed
     let recalculatedSalaryCount = 0;
@@ -503,7 +590,10 @@ export const createEmployee = async (req, res) => {
       major,
       emergencyContactName,
       emergencyContactRelationship,
-      emergencyContactPhone
+      emergencyContactPhone,
+      effectiveDate,
+      historyNote,
+      salaryChangeReason
     } = req.body;
 
     // Validate required fields
@@ -540,51 +630,86 @@ export const createEmployee = async (req, res) => {
     const defaultPassword = "Password123!";
     const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
-    // Create employee
-    const employee = await User.create({
-      name,
-      email,
-      employeeCode,
-      password: hashedPassword,
-      role: "employee",
-      isActive: true,
-      baseSalary: parseFloat(baseSalary) || 0,
-      phoneNumber: phoneNumber || null,
-      address: address || null,
-      permanentAddress: permanentAddress || null,
-      temporaryAddress: temporaryAddress || null,
-      dateOfBirth: dateOfBirth || null,
-      gender: gender || null,
-      idNumber: idNumber || null,
-      idIssueDate: idIssueDate || null,
-      idIssuePlace: idIssuePlace || null,
-      personalEmail: personalEmail || null,
-      companyEmail: companyEmail || null,
-      departmentId: departmentId || null,
-      jobTitleId: jobTitleId || null,
-      startDate: startDate || new Date(),
-      contractType: contractType || null,
-      employmentStatus: employmentStatus || 'active',
-      managerId: managerId ? parseInt(managerId) : null,
-      branchName: branchName || null,
-      bankAccount: bankAccount || null,
-      bankName: bankName || null,
-      bankBranch: bankBranch || null,
-      taxCode: taxCode || null,
-      lunchAllowance: parseFloat(lunchAllowance) || 0,
-      transportAllowance: parseFloat(transportAllowance) || 0,
-      phoneAllowance: parseFloat(phoneAllowance) || 0,
-      responsibilityAllowance: parseFloat(responsibilityAllowance) || 0,
-      socialInsuranceNumber: socialInsuranceNumber || null,
-      healthInsuranceProvider: healthInsuranceProvider || null,
-      dependentCount: parseInt(dependentCount) || 0,
-      educationLevel: educationLevel || null,
-      major: major || null,
-      emergencyContactName: emergencyContactName || null,
-      emergencyContactRelationship: emergencyContactRelationship || null,
-      emergencyContactPhone: emergencyContactPhone || null,
-      educationLevel: educationLevel || null,
-      major: major || null
+    const normalizedEffectiveDate = effectiveDate || startDate || new Date().toISOString().slice(0, 10);
+    const changedBy = req.user?.userId ?? req.user?.id ?? null;
+    const initialBaseSalary = parseFloat(baseSalary) || 0;
+    const initialTotalAllowance =
+      (parseFloat(lunchAllowance) || 0) +
+      (parseFloat(transportAllowance) || 0) +
+      (parseFloat(phoneAllowance) || 0) +
+      (parseFloat(responsibilityAllowance) || 0);
+
+    let employee;
+    await sequelize.transaction(async (transaction) => {
+      employee = await User.create({
+        name,
+        email,
+        employeeCode,
+        password: hashedPassword,
+        role: "employee",
+        isActive: true,
+        baseSalary: initialBaseSalary,
+        phoneNumber: phoneNumber || null,
+        address: address || null,
+        permanentAddress: permanentAddress || null,
+        temporaryAddress: temporaryAddress || null,
+        dateOfBirth: dateOfBirth || null,
+        gender: gender || null,
+        idNumber: idNumber || null,
+        idIssueDate: idIssueDate || null,
+        idIssuePlace: idIssuePlace || null,
+        personalEmail: personalEmail || null,
+        companyEmail: companyEmail || null,
+        departmentId: departmentId || null,
+        jobTitleId: jobTitleId || null,
+        startDate: startDate || new Date(),
+        contractType: contractType || null,
+        employmentStatus: employmentStatus || 'active',
+        managerId: managerId ? parseInt(managerId) : null,
+        branchName: branchName || null,
+        bankAccount: bankAccount || null,
+        bankName: bankName || null,
+        bankBranch: bankBranch || null,
+        taxCode: taxCode || null,
+        lunchAllowance: parseFloat(lunchAllowance) || 0,
+        transportAllowance: parseFloat(transportAllowance) || 0,
+        phoneAllowance: parseFloat(phoneAllowance) || 0,
+        responsibilityAllowance: parseFloat(responsibilityAllowance) || 0,
+        socialInsuranceNumber: socialInsuranceNumber || null,
+        healthInsuranceProvider: healthInsuranceProvider || null,
+        dependentCount: parseInt(dependentCount) || 0,
+        educationLevel: educationLevel || null,
+        major: major || null,
+        emergencyContactName: emergencyContactName || null,
+        emergencyContactRelationship: emergencyContactRelationship || null,
+        emergencyContactPhone: emergencyContactPhone || null,
+        educationLevel: educationLevel || null,
+        major: major || null
+      }, { transaction });
+
+      await JobHistory.create({
+        userId: employee.id,
+        fromDepartmentId: null,
+        toDepartmentId: employee.departmentId,
+        fromJobTitleId: null,
+        toJobTitleId: employee.jobTitleId,
+        changeType: 'hire',
+        effectiveDate: normalizedEffectiveDate,
+        notes: historyNote || 'Initial assignment when employee created',
+        changedBy,
+      }, { transaction });
+
+      await SalaryHistory.create({
+        userId: employee.id,
+        previousBaseSalary: 0,
+        newBaseSalary: initialBaseSalary,
+        previousTotalAllowance: 0,
+        newTotalAllowance: initialTotalAllowance,
+        changeType: 'initial_salary',
+        effectiveDate: normalizedEffectiveDate,
+        reason: salaryChangeReason || historyNote || 'Initial salary setup when employee created',
+        changedBy,
+      }, { transaction });
     });
 
     console.log(`Employee created: ${name} (${employeeCode})`);
@@ -821,6 +946,7 @@ export const getEmployeeAttendanceStats = async (req, res) => {
 export const getEmployeeDetailedInfo = async (req, res) => {
   try {
     const { id } = req.params;
+    const includeHistory = req.query.includeHistory === 'true';
 
     // Get employee basic info (including password for admin viewing)
     const employee = await User.findOne({
@@ -1000,6 +1126,34 @@ export const getEmployeeDetailedInfo = async (req, res) => {
       limit: 12
     });
 
+    let jobHistories = [];
+    let salaryChangeHistories = [];
+
+    if (includeHistory) {
+      [jobHistories, salaryChangeHistories] = await Promise.all([
+        JobHistory.findAll({
+          where: { userId: id },
+          include: [
+            { model: Department, as: 'FromDepartment', attributes: ['id', 'name'] },
+            { model: Department, as: 'ToDepartment', attributes: ['id', 'name'] },
+            { model: JobTitle, as: 'FromJobTitle', attributes: ['id', 'name'] },
+            { model: JobTitle, as: 'ToJobTitle', attributes: ['id', 'name'] },
+            { model: User, as: 'ChangedByUser', attributes: ['id', 'name', 'employeeCode', 'role'] },
+          ],
+          order: [['effectiveDate', 'DESC'], ['createdAt', 'DESC']],
+          limit: 20,
+        }),
+        SalaryHistory.findAll({
+          where: { userId: id },
+          include: [
+            { model: User, as: 'ChangedByUser', attributes: ['id', 'name', 'employeeCode', 'role'] },
+          ],
+          order: [['effectiveDate', 'DESC'], ['createdAt', 'DESC']],
+          limit: 20,
+        })
+      ]);
+    }
+
     // Derive hamlet / commune / province from employee address (used by TK1-TS Appendix on frontend)
     const addressSource =
       employee.address || employee.permanentAddress || employee.temporaryAddress || "";
@@ -1144,6 +1298,46 @@ export const getEmployeeDetailedInfo = async (req, res) => {
           finalSalary: salary.finalSalary,
           status: salary.status
         })),
+        jobHistory: jobHistories.map(history => ({
+          id: history.id,
+          fromDepartmentId: history.fromDepartmentId,
+          toDepartmentId: history.toDepartmentId,
+          fromDepartmentName: history.FromDepartment?.name || null,
+          toDepartmentName: history.ToDepartment?.name || null,
+          fromJobTitleId: history.fromJobTitleId,
+          toJobTitleId: history.toJobTitleId,
+          fromJobTitleName: history.FromJobTitle?.name || null,
+          toJobTitleName: history.ToJobTitle?.name || null,
+          changeType: history.changeType,
+          effectiveDate: history.effectiveDate,
+          notes: history.notes,
+          changedBy: history.ChangedByUser
+            ? {
+                id: history.ChangedByUser.id,
+                name: history.ChangedByUser.name,
+                employeeCode: history.ChangedByUser.employeeCode,
+                role: history.ChangedByUser.role,
+              }
+            : null,
+        })),
+        salaryChangeHistory: salaryChangeHistories.map(history => ({
+          id: history.id,
+          previousBaseSalary: history.previousBaseSalary,
+          newBaseSalary: history.newBaseSalary,
+          previousTotalAllowance: history.previousTotalAllowance,
+          newTotalAllowance: history.newTotalAllowance,
+          changeType: history.changeType,
+          effectiveDate: history.effectiveDate,
+          reason: history.reason,
+          changedBy: history.ChangedByUser
+            ? {
+                id: history.ChangedByUser.id,
+                name: history.ChangedByUser.name,
+                employeeCode: history.ChangedByUser.employeeCode,
+                role: history.ChangedByUser.role,
+              }
+            : null,
+        })),
         // Family / Dependents info for frontend (EmployeeProfileModal - Family tab)
         dependents: employee.Dependents
           ? employee.Dependents.map(dep => ({
@@ -1180,6 +1374,214 @@ export const getEmployeeDetailedInfo = async (req, res) => {
       status: "error",
       message: err.message
     });
+  }
+};
+
+export const getEmployeeHistory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const historyType = (req.query.historyType || 'both').toLowerCase();
+    const fromDate = req.query.fromDate || null;
+    const toDate = req.query.toDate || null;
+    const changeType = req.query.changeType || null;
+    const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '10', 10), 1), 100);
+    const offset = (page - 1) * pageSize;
+
+    const employee = await User.findOne({ where: { id, role: 'employee' }, attributes: ['id'] });
+    if (!employee) {
+      return res.status(404).json({ status: 'error', message: 'Employee not found' });
+    }
+
+    const baseWhere = { userId: id };
+    if (changeType) baseWhere.changeType = changeType;
+    if (fromDate || toDate) {
+      baseWhere.effectiveDate = {};
+      if (fromDate) baseWhere.effectiveDate[Op.gte] = fromDate;
+      if (toDate) baseWhere.effectiveDate[Op.lte] = toDate;
+    }
+
+    const response = { status: 'success', historyType, pagination: { page, pageSize } };
+
+    if (historyType === 'job' || historyType === 'both') {
+      const { rows, count } = await JobHistory.findAndCountAll({
+        where: baseWhere,
+        include: [
+          { model: Department, as: 'FromDepartment', attributes: ['id', 'name'] },
+          { model: Department, as: 'ToDepartment', attributes: ['id', 'name'] },
+          { model: JobTitle, as: 'FromJobTitle', attributes: ['id', 'name'] },
+          { model: JobTitle, as: 'ToJobTitle', attributes: ['id', 'name'] },
+          { model: User, as: 'ChangedByUser', attributes: ['id', 'name', 'employeeCode', 'role'] },
+        ],
+        order: [['effectiveDate', 'DESC'], ['createdAt', 'DESC']],
+        offset,
+        limit: pageSize,
+      });
+
+      response.jobHistory = rows.map((history) => ({
+        id: history.id,
+        fromDepartmentId: history.fromDepartmentId,
+        toDepartmentId: history.toDepartmentId,
+        fromDepartmentName: history.FromDepartment?.name || null,
+        toDepartmentName: history.ToDepartment?.name || null,
+        fromJobTitleId: history.fromJobTitleId,
+        toJobTitleId: history.toJobTitleId,
+        fromJobTitleName: history.FromJobTitle?.name || null,
+        toJobTitleName: history.ToJobTitle?.name || null,
+        changeType: history.changeType,
+        effectiveDate: history.effectiveDate,
+        notes: history.notes,
+        changedBy: history.ChangedByUser
+          ? {
+              id: history.ChangedByUser.id,
+              name: history.ChangedByUser.name,
+              employeeCode: history.ChangedByUser.employeeCode,
+              role: history.ChangedByUser.role,
+            }
+          : null,
+      }));
+      response.jobPagination = { page, pageSize, total: count, totalPages: Math.max(1, Math.ceil(count / pageSize)) };
+    }
+
+    if (historyType === 'salary' || historyType === 'both') {
+      const { rows, count } = await SalaryHistory.findAndCountAll({
+        where: baseWhere,
+        include: [
+          { model: User, as: 'ChangedByUser', attributes: ['id', 'name', 'employeeCode', 'role'] },
+        ],
+        order: [['effectiveDate', 'DESC'], ['createdAt', 'DESC']],
+        offset,
+        limit: pageSize,
+      });
+
+      response.salaryChangeHistory = rows.map((history) => ({
+        id: history.id,
+        previousBaseSalary: history.previousBaseSalary,
+        newBaseSalary: history.newBaseSalary,
+        previousTotalAllowance: history.previousTotalAllowance,
+        newTotalAllowance: history.newTotalAllowance,
+        changeType: history.changeType,
+        effectiveDate: history.effectiveDate,
+        reason: history.reason,
+        changedBy: history.ChangedByUser
+          ? {
+              id: history.ChangedByUser.id,
+              name: history.ChangedByUser.name,
+              employeeCode: history.ChangedByUser.employeeCode,
+              role: history.ChangedByUser.role,
+            }
+          : null,
+      }));
+      response.salaryPagination = { page, pageSize, total: count, totalPages: Math.max(1, Math.ceil(count / pageSize)) };
+    }
+
+    return res.json(response);
+  } catch (err) {
+    console.error('Error fetching employee history:', err);
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+export const updateUserRole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, reason } = req.body || {};
+    const actorId = req.user?.userId ?? req.user?.id;
+    const validRoles = ["manager", "hr", "accountant", "supervisor", "employee"];
+
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ status: "error", message: "Invalid role" });
+    }
+
+    const targetUser = await User.findByPk(id, {
+      attributes: ["id", "name", "email", "employeeCode", "role", "isActive"],
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ status: "error", message: "User not found" });
+    }
+
+    if (Number(targetUser.id) === Number(actorId)) {
+      return res.status(400).json({ status: "error", message: "Cannot change your own role" });
+    }
+
+    if (targetUser.role === role) {
+      return res.json({
+        status: "success",
+        message: "Role unchanged",
+        user: targetUser,
+      });
+    }
+
+    const oldRole = targetUser.role;
+    await sequelize.transaction(async (transaction) => {
+      await targetUser.update({ role }, { transaction });
+      await RoleChangeAudit.create(
+        {
+          userId: targetUser.id,
+          changedBy: actorId,
+          oldRole,
+          newRole: role,
+          reason: reason || null,
+          ipAddress: req.ip || null,
+          userAgent: req.get("user-agent") || null,
+        },
+        { transaction }
+      );
+    });
+
+    return res.json({
+      status: "success",
+      message: "User role updated successfully",
+      user: {
+        id: targetUser.id,
+        name: targetUser.name,
+        email: targetUser.email,
+        employeeCode: targetUser.employeeCode,
+        role,
+        isActive: targetUser.isActive,
+      },
+    });
+  } catch (err) {
+    console.error("Error updating user role:", err);
+    return res.status(500).json({ status: "error", message: err.message });
+  }
+};
+
+export const getRoleAuditLogs = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || "20", 10), 1), 100);
+    const offset = (page - 1) * pageSize;
+    const userId = req.query.userId ? parseInt(req.query.userId, 10) : null;
+
+    const where = {};
+    if (Number.isInteger(userId)) where.userId = userId;
+
+    const { rows, count } = await RoleChangeAudit.findAndCountAll({
+      where,
+      include: [
+        { model: User, as: "TargetUser", attributes: ["id", "name", "email", "employeeCode", "role"] },
+        { model: User, as: "ChangedByUser", attributes: ["id", "name", "email", "employeeCode", "role"] },
+      ],
+      order: [["createdAt", "DESC"]],
+      offset,
+      limit: pageSize,
+    });
+
+    return res.json({
+      status: "success",
+      logs: rows,
+      pagination: {
+        page,
+        pageSize,
+        total: count,
+        totalPages: Math.max(1, Math.ceil(count / pageSize)),
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching role audit logs:", err);
+    return res.status(500).json({ status: "error", message: err.message });
   }
 };
 
