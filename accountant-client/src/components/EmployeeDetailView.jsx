@@ -36,7 +36,7 @@ export default function EmployeeDetailView() {
 
       if (res.ok) {
         const data = await res.json();
-        setEmployees(data.employees || []);
+        setEmployees(data.employees || data.data || []);
       }
     } catch (error) {
       console.error("Error fetching employees:", error);
@@ -56,8 +56,8 @@ export default function EmployeeDetailView() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const data = await res.json();
         setEmployeeDetails(data.employee || {});
         setSelectedEmployee(employeeId);
         setActiveTab("info");
@@ -67,8 +67,9 @@ export default function EmployeeDetailView() {
         setSalaryPagination({ page: 1, pageSize: 8, totalPages: 1 });
         setJobHistoryData([]);
         setSalaryChangeData([]);
+        setMessage("");
       } else {
-        setMessage("Cannot load employee details");
+        setMessage(data?.message || `Không tải được hồ sơ (${res.status})`);
       }
     } catch (error) {
       console.error("Error fetching employee details:", error);

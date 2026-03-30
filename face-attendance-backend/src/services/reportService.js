@@ -109,7 +109,7 @@ export const getAttendanceReport = async (month, year) => {
           where: {
             startDate: { [Op.lte]: endDate },
             endDate: { [Op.gte]: startDate },
-            approvalStatus: 'approved'
+            status: 'approved'
           },
           required: false
         },

@@ -52,7 +52,8 @@ export const sendNotification = async (req, res) => {
         createdAt: notification.createdAt
       });
     } else {
-      emitToRoom('admin', 'new-notification', {
+      // Broadcast to all connected users for system-wide notifications
+      broadcast('new-notification', {
         id: notification.id,
         type,
         title,

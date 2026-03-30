@@ -201,8 +201,12 @@ export const updateEmployee = async (req, res) => {
       emergencyContactPhone,
       effectiveDate,
       historyNote,
-      salaryChangeReason
+      salaryChangeReason,
+      role: bodyRole,
     } = req.body;
+
+    const actorId = req.user?.userId ?? req.user?.id ?? null;
+    const actorIsManager = req.user?.role === "manager";
 
     const employee = await User.findOne({
       where: { id }
@@ -268,6 +272,28 @@ export const updateEmployee = async (req, res) => {
     if (emergencyContactName !== undefined) updateData.emergencyContactName = emergencyContactName;
     if (emergencyContactRelationship !== undefined) updateData.emergencyContactRelationship = emergencyContactRelationship;
     if (emergencyContactPhone !== undefined) updateData.emergencyContactPhone = emergencyContactPhone;
+
+    let roleAuditPayload = null;
+    if (bodyRole !== undefined && bodyRole !== null && String(bodyRole).trim() !== "") {
+      if (!actorIsManager) {
+        return res.status(403).json({
+          status: "error",
+          message: "Chỉ Manager mới được đổi role trong form chỉnh sửa.",
+        });
+      }
+      const validRoles = ["manager", "hr", "accountant", "supervisor", "employee"];
+      const newRole = String(bodyRole).trim();
+      if (!validRoles.includes(newRole)) {
+        return res.status(400).json({ status: "error", message: "Invalid role" });
+      }
+      if (Number(employee.id) === Number(actorId)) {
+        return res.status(400).json({ status: "error", message: "Cannot change your own role" });
+      }
+      if (newRole !== employee.role) {
+        roleAuditPayload = { oldRole: employee.role, newRole };
+        updateData.role = newRole;
+      }
+    }
     
     // Convert empty strings to null for enum fields to avoid PostgreSQL enum errors
     if (gender !== undefined) updateData.gender = gender === "" ? null : gender;
@@ -316,6 +342,21 @@ export const updateEmployee = async (req, res) => {
 
     await sequelize.transaction(async (transaction) => {
       await employee.update(updateData, { transaction });
+
+      if (roleAuditPayload) {
+        await RoleChangeAudit.create(
+          {
+            userId: employee.id,
+            changedBy: actorId,
+            oldRole: roleAuditPayload.oldRole,
+            newRole: roleAuditPayload.newRole,
+            reason: salaryChangeReason || historyNote || "Role updated via employee edit form",
+            ipAddress: req.ip || null,
+            userAgent: req.get("user-agent") || null,
+          },
+          { transaction }
+        );
+      }
 
       if (jobChanged) {
         await JobHistory.create({

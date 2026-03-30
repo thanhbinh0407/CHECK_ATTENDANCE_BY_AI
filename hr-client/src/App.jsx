@@ -1,4 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import './hrDashboardExtras.css';
+import HrDashboard from './HrDashboard.jsx';
+import HrLeaveApprovals from './HrLeaveApprovals.jsx';
+import HrAnalytics from './HrAnalytics.jsx';
+import HrReports from './HrReports.jsx';
 import './index.css';
 
 const API = 'http://localhost:5000/api';
@@ -445,42 +450,78 @@ function AttendanceOverview({ token }) {
 
 // ─── APP ROOT ──────────────────────────────────────────────────────────────────
 const TABS = [
+  { key: 'dashboard',   label: 'Tổng quan',     icon: '📊' },
   { key: 'employees',   label: 'Nhân viên',     icon: '👥' },
-  { key: 'departments', label: 'Phòng ban',      icon: '🏢' },
-  { key: 'job-titles',  label: 'Chức danh',      icon: '📋' },
-  { key: 'attendance',  label: 'Chấm công',      icon: '📅' },
+  { key: 'departments', label: 'Phòng ban',     icon: '🏢' },
+  { key: 'job-titles',  label: 'Chức danh',     icon: '📋' },
+  { key: 'attendance',  label: 'Chấm công',     icon: '📅' },
+  { key: 'leave',       label: 'Duyệt nghỉ phép', icon: '✅' },
+  { key: 'analytics',   label: 'Phân tích',      icon: '📉' },
+  { key: 'reports',     label: 'Báo cáo HR',     icon: '📑' },
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('employees');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [collapsed, setCollapsed] = useState(false);
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Nhận token từ URL (login portal redirect) hoặc localStorage
-    const params = new URLSearchParams(window.location.search);
-    const urlToken = params.get('token');
-    const urlUser  = params.get('user');
-    if (urlToken && urlUser) {
-      try {
-        const parsedUser = JSON.parse(decodeURIComponent(urlUser));
-        localStorage.setItem('authToken', decodeURIComponent(urlToken));
-        localStorage.setItem('user', JSON.stringify(parsedUser));
-        setToken(decodeURIComponent(urlToken));
-        setUser(parsedUser);
-        window.history.replaceState({}, '', window.location.pathname);
-        return;
-      } catch (_) {}
-    }
-    const savedToken = localStorage.getItem('authToken');
-    const savedUser  = localStorage.getItem('user');
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-    } else {
-      window.location.href = 'http://localhost:3000/';
-    }
+    let cancelled = false;
+
+    (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      const urlUser = params.get('user');
+
+      if (urlToken && urlUser) {
+        try {
+          const parsedUser = JSON.parse(decodeURIComponent(urlUser));
+          const t = decodeURIComponent(urlToken);
+          localStorage.setItem('authToken', t);
+          localStorage.setItem('user', JSON.stringify(parsedUser));
+          if (!cancelled) {
+            setToken(t);
+            setUser(parsedUser);
+          }
+          window.history.replaceState({}, '', window.location.pathname);
+          return;
+        } catch (_) { /* fall through */ }
+      }
+
+      if (urlToken) {
+        const t = decodeURIComponent(urlToken);
+        localStorage.setItem('authToken', t);
+        try {
+          const res = await fetch(`${API}/auth/me`, {
+            headers: { Authorization: `Bearer ${t}` },
+          });
+          const data = await res.json();
+          if (!cancelled && data.status === 'success' && data.user) {
+            localStorage.setItem('user', JSON.stringify(data.user));
+            setToken(t);
+            setUser(data.user);
+            window.history.replaceState({}, '', window.location.pathname);
+            return;
+          }
+        } catch (_) { /* fall through */ }
+      }
+
+      const savedToken = localStorage.getItem('authToken');
+      const savedUser = localStorage.getItem('user');
+      if (savedToken && savedUser) {
+        if (!cancelled) {
+          setToken(savedToken);
+          setUser(JSON.parse(savedUser));
+        }
+      } else if (!cancelled) {
+        window.location.href = 'http://localhost:3000/';
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const logout = () => {
@@ -505,10 +546,14 @@ export default function App() {
   }
 
   const tabTitles = {
+    dashboard: 'Tổng quan — HR',
     employees: 'Quản lý Nhân viên',
     departments: 'Quản lý Phòng ban',
     'job-titles': 'Quản lý Chức danh',
     attendance: 'Theo dõi Chấm công',
+    leave: 'Duyệt đơn nghỉ phép',
+    analytics: 'Phân tích HR',
+    reports: 'Báo cáo HR',
   };
 
   return (
@@ -552,10 +597,14 @@ export default function App() {
           </button>
         </div>
         <div className="page-content">
+          {activeTab === 'dashboard'   && <HrDashboard token={token} onNavigate={setActiveTab} />}
           {activeTab === 'employees'   && <EmployeeManagement token={token} />}
           {activeTab === 'departments' && <DepartmentManagement token={token} />}
           {activeTab === 'job-titles'  && <JobTitleManagement token={token} />}
           {activeTab === 'attendance'  && <AttendanceOverview token={token} />}
+          {activeTab === 'leave'       && <HrLeaveApprovals token={token} />}
+          {activeTab === 'analytics'   && <HrAnalytics token={token} />}
+          {activeTab === 'reports'     && <HrReports token={token} />}
         </div>
       </div>
     </div>

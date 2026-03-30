@@ -1,21 +1,31 @@
 import { useState } from 'react'
 import './App.css'
 
-// Cấu hình port cho từng role
-const ROLE_PORTS = {
-  manager:    5174,   // manager-client  (Giám đốc / Quản trị hệ thống)
-  hr:         5172,   // hr-client       (Nhân sự)
-  accountant: 5175,   // accountant-client
-  supervisor: 5173,   // supervisor-client (Quản lý)
-  employee:   5178,   // employee-portal
-}
-
-const ROLE_LABELS = {
-  manager:    'Giám đốc (Manager)',
-  hr:         'Nhân sự (HR Staff)',
-  accountant: 'Kế toán (Accountant)',
-  supervisor: 'Quản lý (Supervisor)',
-  employee:   'Nhân viên (Employee)',
+/**
+ * Mỗi vai trò → client riêng (đúng cổng Vite trong repo).
+ * Ghi đè bằng biến môi trường nếu deploy khác (vd. VITE_HR_CLIENT_URL).
+ */
+const ROLE_CLIENT_CONFIG = {
+  manager: {
+    origin: (import.meta.env.VITE_MANAGER_CLIENT_URL || 'http://localhost:5174').replace(/\/$/, ''),
+    path: '/dashboard',
+  },
+  hr: {
+    origin: (import.meta.env.VITE_HR_CLIENT_URL || 'http://localhost:5172').replace(/\/$/, ''),
+    path: '/',
+  },
+  accountant: {
+    origin: (import.meta.env.VITE_ACCOUNTANT_CLIENT_URL || 'http://localhost:5175').replace(/\/$/, ''),
+    path: '/',
+  },
+  supervisor: {
+    origin: (import.meta.env.VITE_SUPERVISOR_CLIENT_URL || 'http://localhost:5173').replace(/\/$/, ''),
+    path: '/',
+  },
+  employee: {
+    origin: (import.meta.env.VITE_EMPLOYEE_CLIENT_URL || 'http://localhost:5178').replace(/\/$/, ''),
+    path: '/',
+  },
 }
 
 const ROLE_DESCRIPTIONS = {
@@ -53,43 +63,21 @@ function App() {
       const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, expectedRole: selectedRole }),
       })
 
       const data = await response.json()
 
       if (data.status === 'success') {
-        const userRole = data.user.role
-
-        // Kiểm tra role tài khoản có khớp với role được chọn không
-        // Manager (giám đốc) có thể truy cập tất cả các portal
-        const canAccess =
-          userRole === 'manager' ||
-          userRole === selectedRole
-
-        if (!canAccess) {
-          setError(`Tài khoản này không có quyền truy cập "${ROLE_LABELS[selectedRole]}"`)
+        const cfg = ROLE_CLIENT_CONFIG[selectedRole]
+        if (!cfg) {
+          setError('Cấu hình client cho vai trò này chưa có.')
           setLoading(false)
           return
         }
-
-        // Nếu user chọn role khác với role thực tế → redirect đến portal của role thực
-        const targetRole = userRole === 'manager' ? selectedRole : userRole
-        const port = ROLE_PORTS[targetRole] || ROLE_PORTS[userRole]
-
-        if (!port) {
-          setError('Không tìm thấy ứng dụng cho vai trò này')
-          setLoading(false)
-          return
-        }
-
-        // Lưu vào localStorage và truyền qua URL
-        localStorage.setItem('authToken', data.token)
-        localStorage.setItem('user', JSON.stringify(data.user))
-
         const tokenParam = encodeURIComponent(data.token)
-        const userParam  = encodeURIComponent(JSON.stringify(data.user))
-        window.location.href = `http://localhost:${port}?token=${tokenParam}&user=${userParam}`
+        const dest = `${cfg.origin}${cfg.path}?token=${tokenParam}`
+        window.location.href = dest
       } else {
         setError(data.message || 'Đăng nhập thất bại')
       }
