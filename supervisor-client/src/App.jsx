@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import SupervisorReports from './SupervisorReports.jsx';
 import './index.css';
+import './supervisorDashboard.css';
 
 const API = 'http://localhost:5000/api';
 function authHeaders(token) {
@@ -7,57 +9,199 @@ function authHeaders(token) {
 }
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────────
-function Dashboard({ token }) {
-  const [stats, setStats] = useState({ pendingLeave: 0, pendingOvertime: 0, pendingTrip: 0, pendingAdvance: 0 });
+function Dashboard({ token, onNavigate }) {
+  const [stats, setStats] = useState({ pendingLeave: 0, pendingOvertime: 0, pendingTrip: 0, pendingAdvance: 0, pendingSalary: 0 });
+  const [recentQueue, setRecentQueue] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       fetch(`${API}/leave/requests?status=pending`, { headers: authHeaders(token) }).then(r => r.json()),
-      fetch(`${API}/overtime?status=pending`, { headers: authHeaders(token) }).then(r => r.json()),
-      fetch(`${API}/business-trip?status=pending`, { headers: authHeaders(token) }).then(r => r.json()),
-      fetch(`${API}/salary-advance?status=pending`, { headers: authHeaders(token) }).then(r => r.json()),
-    ]).then(([leave, ot, trip, adv]) => {
+      fetch(`${API}/overtime-requests?status=pending`, { headers: authHeaders(token) }).then(r => r.json()),
+      fetch(`${API}/business-trip-requests?status=pending`, { headers: authHeaders(token) }).then(r => r.json()),
+      fetch(`${API}/salary-advances?status=pending`, { headers: authHeaders(token) }).then(r => r.json()),
+      fetch(`${API}/salary/pending`, { headers: authHeaders(token) }).then(r => r.json()).catch(() => ({})),
+    ]).then(([leave, ot, trip, adv, sal]) => {
+      const leaveList = leave.leaveRequests || leave.data || [];
+      const otList = ot.requests || ot.overtimeRequests || ot.data || [];
+      const tripList = trip.requests || trip.businessTripRequests || trip.data || [];
+      const advList = adv.advances || adv.salaryAdvances || adv.data || [];
+      const salList = sal.salaries || sal.data || sal.pending || [];
+
+      const queue = [
+        ...(leaveList || []).slice(0, 2).map((l) => ({
+          id: l.id,
+          type: "Nghỉ phép",
+          label: `${l.type || "Leave"}: ${l.startDate}→${l.endDate}`,
+          meta: l.userId || l.userID || l.employeeCode || "",
+          status: l.status || "pending",
+        })),
+        ...(otList || []).slice(0, 2).map((r) => ({
+          id: r.id,
+          type: "Tăng ca",
+          label: `${r.date || ""} ${r.startTime || ""}→${r.endTime || ""}`.trim(),
+          meta: r.totalHours ? `${r.totalHours}h` : "",
+          status: r.approvalStatus || "pending",
+        })),
+        ...(tripList || []).slice(0, 2).map((r) => ({
+          id: r.id,
+          type: "Công tác",
+          label: `${r.destination || r.location || "—"}`.trim(),
+          meta: r.date || r.startDate || "",
+          status: r.approvalStatus || "pending",
+        })),
+        ...(advList || []).slice(0, 2).map((a) => ({
+          id: a.id,
+          type: "Tạm ứng",
+          label: `${a.month || ""}/${a.year || ""}`.trim(),
+          meta: a.amount ? `${Number(a.amount).toLocaleString("vi-VN")} VND` : "",
+          status: a.approvalStatus || "pending",
+        })),
+        ...(salList || []).slice(0, 2).map((s) => ({
+          id: s.id,
+          type: "Lương",
+          label: `${s.User?.name || "Employee"} • ${s.month}/${s.year}`,
+          meta: s.status,
+          status: s.status || "pending",
+        })),
+      ];
+
+      const recent = queue.filter(Boolean).slice(0, 7);
       setStats({
-        pendingLeave:    (leave.leaveRequests || leave.data || []).length,
-        pendingOvertime: (ot.overtimeRequests || ot.data || []).length,
-        pendingTrip:     (trip.businessTripRequests || trip.data || []).length,
-        pendingAdvance:  (adv.salaryAdvances || adv.data || []).length,
+        pendingLeave: Array.isArray(leaveList) ? leaveList.length : 0,
+        pendingOvertime: Array.isArray(otList) ? otList.length : 0,
+        pendingTrip: Array.isArray(tripList) ? tripList.length : 0,
+        pendingAdvance: Array.isArray(advList) ? advList.length : 0,
+        pendingSalary: Array.isArray(salList) ? salList.length : 0,
       });
+      setRecentQueue(recent);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [token]);
 
+  const total = stats.pendingLeave + stats.pendingOvertime + stats.pendingTrip + stats.pendingAdvance + stats.pendingSalary;
+  const pct = (n) => (total > 0 ? Math.round((n / total) * 100) : 0);
+
+  const go = (tab) => {
+    if (typeof onNavigate === 'function') onNavigate(tab);
+  };
+
   if (loading) return <div className="loading">Đang tải...</div>;
 
   return (
-    <>
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-number">{stats.pendingLeave}</div>
-          <div className="stat-label">Đơn nghỉ chờ duyệt</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-number">{stats.pendingOvertime}</div>
-          <div className="stat-label">Đơn tăng ca chờ duyệt</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-number">{stats.pendingTrip}</div>
-          <div className="stat-label">Đơn công tác chờ duyệt</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-number">{stats.pendingAdvance}</div>
-          <div className="stat-label">Tạm ứng chờ duyệt</div>
+    <div className="sup-dash">
+      <div className="sup-dash-hero">
+        <div className="sup-dash-hero-inner">
+          <h2>Trung tâm phê duyệt</h2>
+          <p>
+            Theo dõi một chỗ tất cả đơn chờ xử lý trong phạm vi được phân quyền. Ưu tiên đơn cũ hoặc có SLA gắn với kỳ chấm công / lương.
+          </p>
+          <div className="sup-dash-pills">
+            <span className="sup-dash-pill">{total} việc chờ xử lý</span>
+            <span className="sup-dash-pill">Nghỉ · Tăng ca · Công tác · Tạm ứng · Lương</span>
+          </div>
         </div>
       </div>
-      <div className="card">
-        <p className="card-title">Tổng quan</p>
-        <p style={{ color: '#718096', fontSize: 14 }}>
-          Xem và phê duyệt các đơn từ của nhân viên tại các mục bên trái.
-          Supervisor có thể duyệt đơn nghỉ phép, tăng ca, công tác và tạm ứng lương.
+
+      <div className="sup-dash-kpis">
+        <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('leave')}>
+          <span className="sup-dash-kpi-deco" aria-hidden>📋</span>
+          <div className="lbl">Nghỉ phép</div>
+          <div className="val">{stats.pendingLeave}</div>
+          <div className="hint">Nhấn để duyệt →</div>
+        </button>
+        <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('overtime')}>
+          <span className="sup-dash-kpi-deco" aria-hidden>⏰</span>
+          <div className="lbl">Tăng ca</div>
+          <div className="val">{stats.pendingOvertime}</div>
+          <div className="hint">Duyệt giờ TC →</div>
+        </button>
+        <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('business-trip')}>
+          <span className="sup-dash-kpi-deco" aria-hidden>✈️</span>
+          <div className="lbl">Công tác</div>
+          <div className="val">{stats.pendingTrip}</div>
+          <div className="hint">Chi phí &amp; lịch →</div>
+        </button>
+        <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('salary-advance')}>
+          <span className="sup-dash-kpi-deco" aria-hidden>💵</span>
+          <div className="lbl">Tạm ứng</div>
+          <div className="val">{stats.pendingAdvance}</div>
+          <div className="hint">Ứng lương →</div>
+        </button>
+      </div>
+
+      <div className="sup-dash-kpis" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginBottom: 16 }}>
+        <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('salary')}>
+          <span className="sup-dash-kpi-deco" aria-hidden>💰</span>
+          <div className="lbl">Bảng lương chờ duyệt</div>
+          <div className="val">{stats.pendingSalary}</div>
+          <div className="hint">Nếu API trả về rỗng, có thể kỳ này chưa có bảng chờ</div>
+        </button>
+        <div className="sup-dash-kpi">
+          <span className="sup-dash-kpi-deco" aria-hidden>📊</span>
+          <div className="lbl">Tổng backlog</div>
+          <div className="val" style={{ color: '#1e1b4b' }}>{total}</div>
+          <div className="hint">Gồm cả lương (nếu có dữ liệu)</div>
+        </div>
+      </div>
+
+      {total > 0 && (
+        <div className="card" style={{ marginBottom: 16, borderRadius: 16 }}>
+          <p className="card-title">Phân bổ đơn chờ (%)</p>
+          <div className="sup-dash-bar">
+            {[
+              ['Nghỉ', stats.pendingLeave],
+              ['Tăng ca', stats.pendingOvertime],
+              ['Công tác', stats.pendingTrip],
+              ['Tạm ứng', stats.pendingAdvance],
+              ['Lương', stats.pendingSalary],
+            ].map(([label, n]) => (
+              <div key={label} className="sup-dash-bar-row">
+                <span>{label}</span>
+                <div className="sup-dash-bar-track">
+                  <div className="sup-dash-bar-fill" style={{ width: `${pct(n)}%` }} />
+                </div>
+                <span style={{ width: 36, textAlign: 'right', fontWeight: 700, color: '#5b21b6' }}>{pct(n)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {recentQueue.length > 0 && (
+        <div className="card" style={{ marginBottom: 16, borderRadius: 16 }}>
+          <p className="card-title">Hàng đợi gần đây</p>
+          <div style={{ display: "grid", gap: 10, marginTop: 6 }}>
+            {recentQueue.map((item) => (
+              <div key={item.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", padding: 10, border: "1px solid rgba(148,163,184,0.35)", borderRadius: 12, background: "#fff" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 900, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {item.type}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {item.label}
+                    {item.meta ? ` • ${item.meta}` : ""}
+                  </div>
+                </div>
+                <span style={{ fontWeight: 900, color: "#5b21b6" }}>{item.status}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="sup-dash-foot">
+        <h3>Gợi ý thao tác</h3>
+        <p>
+          Duyệt theo thứ tự: <strong>nghỉ phép</strong> (ảnh hưởng chấm công) → <strong>tăng ca / công tác</strong> → <strong>tạm ứng</strong> → <strong>bảng lương</strong>.
+          Dùng tab <strong>Báo cáo</strong> để đối soát sau khi đóng kỳ.
         </p>
+        <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <button type="button" className="btn btn-primary" style={{ fontSize: 13 }} onClick={() => go('reports')}>Mở báo cáo</button>
+          <button type="button" className="btn btn-secondary" style={{ fontSize: 13 }} onClick={() => go('leave')}>Đơn nghỉ</button>
+        </div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -84,9 +228,20 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
 
   const approve = async () => {
     const { item } = actionModal;
-    const url = `${API}/${apiPath}/${item.id}/approve`;
-    const body = JSON.stringify({ status: 'approved', comments: comment });
-    await fetch(url, { method: 'PUT', headers: authHeaders(token), body });
+    if (type === 'leave') {
+      await fetch(`${API}/leave/requests/${item.id}/approve`, {
+        method: 'PUT',
+        headers: authHeaders(token),
+        body: JSON.stringify({}),
+      });
+    } else {
+      const url = `${API}/${apiPath}/${item.id}/approve`;
+      await fetch(url, {
+        method: 'PUT',
+        headers: authHeaders(token),
+        body: JSON.stringify({ action: 'approve', comments: comment || undefined }),
+      });
+    }
     setActionModal(null);
     setComment('');
     load();
@@ -94,9 +249,20 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
 
   const reject = async () => {
     const { item } = actionModal;
-    const url = `${API}/${apiPath}/${item.id}/approve`;
-    const body = JSON.stringify({ status: 'rejected', comments: comment });
-    await fetch(url, { method: 'PUT', headers: authHeaders(token), body });
+    if (type === 'leave') {
+      await fetch(`${API}/leave/requests/${item.id}/reject`, {
+        method: 'PUT',
+        headers: authHeaders(token),
+        body: JSON.stringify({ rejectionReason: comment || null }),
+      });
+    } else {
+      const url = `${API}/${apiPath}/${item.id}/approve`;
+      await fetch(url, {
+        method: 'PUT',
+        headers: authHeaders(token),
+        body: JSON.stringify({ action: 'reject', comments: comment || undefined }),
+      });
+    }
     setActionModal(null);
     setComment('');
     load();
@@ -124,18 +290,20 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
                 </tr>
               </thead>
               <tbody>
-                {items.map(item => (
+                {items.map(item => {
+                  const rowStatus = item.status ?? item.approvalStatus ?? 'pending';
+                  return (
                   <tr key={item.id}>
                     {columns.map(c => (
                       <td key={c.key}>{c.render ? c.render(item) : item[c.key] || '—'}</td>
                     ))}
                     <td>
-                      <span className={`badge badge-${item.status || 'pending'}`}>
-                        {{ pending: 'Chờ duyệt', approved: 'Đã duyệt', rejected: 'Đã từ chối' }[item.status] || item.status}
+                      <span className={`badge badge-${rowStatus || 'pending'}`}>
+                        {{ pending: 'Chờ duyệt', approved: 'Đã duyệt', rejected: 'Đã từ chối' }[rowStatus] || rowStatus}
                       </span>
                     </td>
                     <td>
-                      {item.status === 'pending' && (
+                      {rowStatus === 'pending' && (
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button
                             className="btn btn-approve"
@@ -151,7 +319,7 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
                       )}
                     </td>
                   </tr>
-                ))}
+                )})}
                 {items.length === 0 && (
                   <tr><td colSpan={columns.length + 2} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>Không có dữ liệu</td></tr>
                 )}
@@ -213,13 +381,13 @@ function OvertimeApprovals({ token }) {
     <ApprovalList
       token={token}
       type="overtime"
-      apiPath="overtime"
-      extractList={d => d.overtimeRequests || d.data || []}
+      apiPath="overtime-requests"
+      extractList={d => d.requests || d.overtimeRequests || d.data || []}
       columns={[
         { key: 'id', label: 'ID' },
         { key: 'User', label: 'Nhân viên', render: r => r.User?.name || r.userId },
         { key: 'date', label: 'Ngày', render: r => r.date?.slice(0, 10) },
-        { key: 'hours', label: 'Số giờ' },
+        { key: 'totalHours', label: 'Số giờ', render: r => r.totalHours ?? r.hours ?? '—' },
         { key: 'reason', label: 'Lý do' },
       ]}
     />
@@ -232,8 +400,8 @@ function BusinessTripApprovals({ token }) {
     <ApprovalList
       token={token}
       type="businessTrip"
-      apiPath="business-trip"
-      extractList={d => d.businessTripRequests || d.data || []}
+      apiPath="business-trip-requests"
+      extractList={d => d.requests || d.businessTripRequests || d.data || []}
       columns={[
         { key: 'id', label: 'ID' },
         { key: 'User', label: 'Nhân viên', render: r => r.User?.name || r.userId },
@@ -252,8 +420,8 @@ function SalaryAdvanceApprovals({ token }) {
     <ApprovalList
       token={token}
       type="salaryAdvance"
-      apiPath="salary-advance"
-      extractList={d => d.salaryAdvances || d.data || []}
+      apiPath="salary-advances"
+      extractList={d => d.advances || d.salaryAdvances || d.data || []}
       columns={[
         { key: 'id', label: 'ID' },
         { key: 'User', label: 'Nhân viên', render: r => r.User?.name || r.userId },
@@ -324,56 +492,6 @@ function SalaryApprovals({ token }) {
   );
 }
 
-// ─── REPORTS OVERVIEW ──────────────────────────────────────────────────────────
-function ReportsOverview({ token }) {
-  const [report, setReport] = useState(null);
-  const [reportType, setReportType] = useState('attendance');
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [loading, setLoading] = useState(false);
-
-  const loadReport = async () => {
-    setLoading(true);
-    const res = await fetch(`${API}/reports/${reportType}?month=${month}&year=${year}`, { headers: authHeaders(token) });
-    const data = await res.json();
-    setReport(data);
-    setLoading(false);
-  };
-
-  return (
-    <div>
-      <div className="filters">
-        <select value={reportType} onChange={e => setReportType(e.target.value)}>
-          <option value="attendance">Chấm công</option>
-          <option value="leave-status">Nghỉ phép</option>
-          <option value="overtime">Tăng ca</option>
-          <option value="payroll-cost">Chi phí lương</option>
-          <option value="average-income">Thu nhập bình quân</option>
-          <option value="turnover">Biến động nhân sự</option>
-        </select>
-        <select value={month} onChange={e => setMonth(e.target.value)}>
-          {Array.from({ length: 12 }, (_, i) => (
-            <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
-          ))}
-        </select>
-        <select value={year} onChange={e => setYear(e.target.value)}>
-          {[2023, 2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
-        <button className="btn btn-primary" onClick={loadReport}>Xem báo cáo</button>
-      </div>
-      {loading && <div className="loading">Đang tải...</div>}
-      {report && !loading && (
-        <div className="card">
-          <p className="card-title">Kết quả báo cáo</p>
-          <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap', color: '#4a5568' }}>
-            {JSON.stringify(report, null, 2)}
-          </pre>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── APP ROOT ──────────────────────────────────────────────────────────────────
 const TABS = [
   { key: 'dashboard',     label: 'Tổng quan',      icon: '📊' },
@@ -392,28 +510,61 @@ export default function App() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const urlToken = params.get('token');
-    const urlUser  = params.get('user');
-    if (urlToken && urlUser) {
-      try {
-        const parsedUser = JSON.parse(decodeURIComponent(urlUser));
-        localStorage.setItem('authToken', decodeURIComponent(urlToken));
-        localStorage.setItem('user', JSON.stringify(parsedUser));
-        setToken(decodeURIComponent(urlToken));
-        setUser(parsedUser);
-        window.history.replaceState({}, '', window.location.pathname);
-        return;
-      } catch (_) {}
-    }
-    const savedToken = localStorage.getItem('authToken');
-    const savedUser  = localStorage.getItem('user');
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-    } else {
-      window.location.href = 'http://localhost:3000/';
-    }
+    let cancelled = false;
+
+    (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      const urlUser = params.get('user');
+
+      if (urlToken && urlUser) {
+        try {
+          const parsedUser = JSON.parse(decodeURIComponent(urlUser));
+          const t = decodeURIComponent(urlToken);
+          localStorage.setItem('authToken', t);
+          localStorage.setItem('user', JSON.stringify(parsedUser));
+          if (!cancelled) {
+            setToken(t);
+            setUser(parsedUser);
+          }
+          window.history.replaceState({}, '', window.location.pathname);
+          return;
+        } catch (_) { /* fall through */ }
+      }
+
+      if (urlToken) {
+        const t = decodeURIComponent(urlToken);
+        localStorage.setItem('authToken', t);
+        try {
+          const res = await fetch(`${API}/auth/me`, {
+            headers: { Authorization: `Bearer ${t}` },
+          });
+          const data = await res.json();
+          if (!cancelled && data.status === 'success' && data.user) {
+            localStorage.setItem('user', JSON.stringify(data.user));
+            setToken(t);
+            setUser(data.user);
+            window.history.replaceState({}, '', window.location.pathname);
+            return;
+          }
+        } catch (_) { /* fall through */ }
+      }
+
+      const savedToken = localStorage.getItem('authToken');
+      const savedUser = localStorage.getItem('user');
+      if (savedToken && savedUser) {
+        if (!cancelled) {
+          setToken(savedToken);
+          setUser(JSON.parse(savedUser));
+        }
+      } else if (!cancelled) {
+        window.location.href = 'http://localhost:3000/';
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const logout = () => {
@@ -485,13 +636,13 @@ export default function App() {
           </button>
         </div>
         <div className="page-content">
-          {activeTab === 'dashboard'      && <Dashboard token={token} />}
+          {activeTab === 'dashboard'      && <Dashboard token={token} onNavigate={setActiveTab} />}
           {activeTab === 'leave'          && <LeaveApprovals token={token} />}
           {activeTab === 'overtime'       && <OvertimeApprovals token={token} />}
           {activeTab === 'business-trip'  && <BusinessTripApprovals token={token} />}
           {activeTab === 'salary-advance' && <SalaryAdvanceApprovals token={token} />}
           {activeTab === 'salary'         && <SalaryApprovals token={token} />}
-          {activeTab === 'reports'        && <ReportsOverview token={token} />}
+          {activeTab === 'reports'        && <SupervisorReports token={token} />}
         </div>
       </div>
     </div>

@@ -54,6 +54,16 @@ export default function SalaryManagement() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  const currentRole = (() => {
+    try {
+      const raw = localStorage.getItem("user");
+      if (!raw) return null;
+      const u = JSON.parse(raw);
+      return u?.role || null;
+    } catch {
+      return null;
+    }
+  })();
 
   // Auto-hide message after 5 seconds
   useEffect(() => {
@@ -145,25 +155,25 @@ export default function SalaryManagement() {
     }
   };
 
-  const handleUpdateStatus = async (salaryId, status) => {
+  const handleMarkPaid = async (salaryId) => {
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
       if (!token) return;
 
-      const res = await fetch(`${apiBase}/api/salary/${salaryId}/status`, {
+      const res = await fetch(`${apiBase}/api/salary/${salaryId}/mark-paid`, {
         method: "PUT",
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ notes: "Marked as paid by Accountant" })
       });
 
       const data = await res.json();
       if (res.ok) {
         setMessage("");
-        setToastPopup("Status updated successfully!");
+        setToastPopup("Paid successfully!");
         fetchSalaries();
         setTimeout(() => { setMessage(""); setToastPopup(""); }, 5000);
       } else {
@@ -545,28 +555,28 @@ export default function SalaryManagement() {
                   </td>
                     <td style={{ ...tdStyle, textAlign: "center" }}>
                       <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
-                      {salary.status === "pending" && (
+                      {salary.status === "approved" && currentRole === "accountant" && (
                         <button
-                          onClick={() => handleUpdateStatus(salary.id, "approved")}
-                            style={{
-                              padding: "8px 14px",
-                              background: theme.accent.main,
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: "8px",
-                              cursor: "pointer",
-                              fontSize: "13px",
-                              fontWeight: "600",
-                              transition: "background 0.2s",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = theme.accent.hover;
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = theme.accent.main;
-                            }}
-                          >
-                            Approve
+                          onClick={() => handleMarkPaid(salary.id)}
+                          style={{
+                            padding: "8px 14px",
+                            background: theme.accent.main,
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "8px",
+                            cursor: "pointer",
+                            fontSize: "13px",
+                            fontWeight: "600",
+                            transition: "background 0.2s",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = theme.accent.hover;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = theme.accent.main;
+                          }}
+                        >
+                          Thanh toán
                         </button>
                       )}
                       <button

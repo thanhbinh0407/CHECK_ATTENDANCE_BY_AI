@@ -132,8 +132,13 @@ export default function UserManagement() {
     const res = await fetch(url, { method, headers: getHeaders(), body: JSON.stringify(body) });
     const data = await res.json();
     if (data.status === "success" || data.employee || data.data) {
+      const saved = data.employee || data.data;
+      if (saved?.id && detailUser?.id === saved.id) {
+        setDetailUser((prev) => (prev ? { ...prev, ...saved } : prev));
+      }
       setShowModal(false);
       load();
+      window.dispatchEvent(new CustomEvent("hrms-admin-refresh"));
     } else {
       alert(data.message || "Lỗi khi lưu tài khoản");
     }
@@ -232,6 +237,10 @@ export default function UserManagement() {
       setShowRoleModal(false);
       await load();
       await loadRoleAudits(1, String(roleTarget.id));
+      if (detailUser?.id === roleTarget.id) {
+        setDetailUser((prev) => (prev ? { ...prev, role: roleForm.role } : prev));
+      }
+      window.dispatchEvent(new CustomEvent("hrms-admin-refresh"));
       alert("Đổi role thành công");
     } catch (err) {
       alert(`Đổi role thất bại: ${err.message}`);

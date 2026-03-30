@@ -121,6 +121,17 @@ export default function SalaryCalculation() {
   const [calculatingProgress, setCalculatingProgress] = useState(0);
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  const currentRole = (() => {
+    try {
+      const raw = localStorage.getItem("user");
+      if (!raw) return null;
+      const u = JSON.parse(raw);
+      return u?.role || null;
+    } catch {
+      return null;
+    }
+  })();
+  const canApprove = currentRole === "manager" || currentRole === "supervisor";
 
   // Auto-hide message after 5 seconds
   useEffect(() => {
@@ -988,7 +999,9 @@ export default function SalaryCalculation() {
                           >
                             Details
                           </button>
-                          {salary.status !== "paid" && salary.status !== "approved" && (
+                          {salary.status !== "paid" &&
+                            salary.status !== "approved" &&
+                            canApprove && (
                             <button
                               onClick={() => approveSalary(salary.id)}
                               style={{

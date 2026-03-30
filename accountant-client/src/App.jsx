@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import AccountantDashboard from "./components/AccountantDashboard.jsx";
 import SalaryManagement from "./components/SalaryManagement.jsx";
 import SalaryCalculation from "./components/SalaryCalculation.jsx";
 import SalaryApprovalDashboard from "./components/SalaryApprovalDashboard.jsx";
@@ -11,6 +12,7 @@ import TK1TSForm from "./components/TK1TSForm.jsx";
 import { theme } from "./theme.js";
 import socket from "./socket.js";
 import "./App.css";
+import "./accountantShell.css";
 
 function App() {
   const [authToken, setAuthToken] = useState(() => {
@@ -25,47 +27,67 @@ function App() {
       return null;
     }
   });
-  const [currentView, setCurrentView] = useState("salary-calculation");
+  const [currentView, setCurrentView] = useState("dashboard");
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // Check URL parameters first (from login portal redirect)
-    const urlParams = new URLSearchParams(window.location.search);
-    const tokenFromUrl = urlParams.get('token');
-    const userFromUrl = urlParams.get('user');
-    
-    if (tokenFromUrl && userFromUrl) {
+    const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+    (async () => {
       try {
-        const decodedToken = decodeURIComponent(tokenFromUrl);
-        const decodedUser = JSON.parse(decodeURIComponent(userFromUrl));
-        // Save to localStorage
-        localStorage.setItem('authToken', decodedToken);
-        localStorage.setItem('user', JSON.stringify(decodedUser));
-        setAuthToken(decodedToken);
-        setUser(decodedUser);
-        // Clean URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-        setIsChecking(false);
-        return;
+        const urlParams = new URLSearchParams(window.location.search);
+        const tokenFromUrl = urlParams.get("token");
+        const userFromUrl = urlParams.get("user");
+
+        if (tokenFromUrl && userFromUrl) {
+          try {
+            const decodedToken = decodeURIComponent(tokenFromUrl);
+            const decodedUser = JSON.parse(decodeURIComponent(userFromUrl));
+            localStorage.setItem("authToken", decodedToken);
+            localStorage.setItem("user", JSON.stringify(decodedUser));
+            setAuthToken(decodedToken);
+            setUser(decodedUser);
+            window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+          } catch (error) {
+            console.error("Error parsing token/user from URL:", error);
+          }
+        }
+
+        if (tokenFromUrl) {
+          try {
+            const decodedToken = decodeURIComponent(tokenFromUrl);
+            localStorage.setItem("authToken", decodedToken);
+            const res = await fetch(`${apiBase}/api/auth/me`, {
+              headers: { Authorization: `Bearer ${decodedToken}` },
+            });
+            const data = await res.json();
+            if (data.status === "success" && data.user) {
+              localStorage.setItem("user", JSON.stringify(data.user));
+              setAuthToken(decodedToken);
+              setUser(data.user);
+              window.history.replaceState({}, document.title, window.location.pathname);
+              return;
+            }
+          } catch (e) {
+            console.error("auth/me from URL token:", e);
+          }
+        }
+
+        const token = localStorage.getItem("authToken");
+        const userData = localStorage.getItem("user");
+        if (token && userData) {
+          const user = JSON.parse(userData);
+          setAuthToken(token);
+          setUser(user);
+        }
       } catch (error) {
-        console.error("Error parsing token/user from URL:", error);
+        console.error("Error reading localStorage:", error);
+        localStorage.clear();
+      } finally {
+        setIsChecking(false);
       }
-    }
-    
-    // Fallback to localStorage
-    try {
-      const token = localStorage.getItem("authToken");
-      const userData = localStorage.getItem("user");
-      if (token && userData) {
-        const user = JSON.parse(userData);
-        setAuthToken(token);
-        setUser(user);
-      }
-    } catch (error) {
-      console.error("Error reading localStorage:", error);
-      localStorage.clear();
-    }
-    setIsChecking(false);
+    })();
   }, []);
 
   useEffect(() => {
@@ -214,190 +236,115 @@ function App() {
     return null; // Return null while redirecting
   }
 
-  const headerStyle = {
-    background: theme.primary.main,
-    color: "#fff",
-    padding: "16px 32px",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
-    position: "sticky",
-    top: 0,
-    zIndex: 1000,
-  };
+  const financeExtraRoles = ["admin", "accountant", "manager"];
 
-  const headerContentStyle = {
-    maxWidth: "1600px",
-    margin: "0 auto",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  };
-
-  const titleStyle = {
-    fontSize: "22px",
-    fontWeight: "700",
-    margin: 0,
-    letterSpacing: "-0.02em",
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-  };
-
-  const userInfoStyle = {
-    display: "flex",
-    alignItems: "center",
-    gap: "16px",
-  };
-
-  const avatarStyle = {
-    width: "40px",
-    height: "40px",
-    borderRadius: "50%",
-    background: "rgba(255,255,255,0.15)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: "600",
-    fontSize: "16px",
-    border: "1px solid rgba(255,255,255,0.25)",
-  };
-
-  const logoutButtonStyle = {
-    padding: "10px 20px",
-    background: "rgba(255,255,255,0.12)",
-    border: "1px solid rgba(255,255,255,0.25)",
-    borderRadius: "8px",
-    color: "#fff",
-    cursor: "pointer",
-    fontWeight: "600",
-    fontSize: "14px",
-    transition: "background 0.2s, border-color 0.2s",
-  };
-
-  const navStyle = {
-    display: "flex",
-    gap: "4px",
-    marginBottom: "24px",
-    backgroundColor: "#fff",
-    padding: "6px",
-    borderRadius: "10px",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-    border: "1px solid #e2e8f0",
-    overflowX: "auto",
-    animation: "fadeInUp 0.45s ease-out 0.05s backwards",
-  };
-
-  const navButtonStyle = (isActive) => ({
-    padding: "12px 20px",
-    background: isActive ? theme.accent.main : "transparent",
-    color: isActive ? "#fff" : "#64748b",
-    border: "none",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontWeight: isActive ? "600" : "500",
-    fontSize: "14px",
-    transition: "background 0.25s ease, color 0.25s ease, transform 0.2s ease",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    whiteSpace: "nowrap",
-  });
-
-  const navigationItems = [
-    { id: "salary-calculation", label: "💰 Calculate Salary", icon: "💰" },
-    { id: "salary-management", label: "📊 Salary Management", icon: "📊" },
-    { id: "salary-approval", label: "✅ Approve Payroll", icon: "✅" },
-    ...(user?.role === "admin" ? [
-      { id: "approvals", label: "🆗 Approve Records", icon: "🆗" },
-      { id: "rules", label: "⚙️ Salary Rules", icon: "⚙️" },
-      { id: "d02-lt-report", label: "📋 Báo Cáo D02-LT", icon: "📋" },
-      { id: "tk1-ts-form", label: "🏥 Mẫu TK1-TS", icon: "🏥" }
-    ] : []),
-    { id: "employee-details", label: "👤 Employee Info", icon: "👤" },
-    { id: "employee-management", label: "🏢 Employee Management", icon: "🏢" }
+  const navCore = [
+    { id: "dashboard", label: "Tổng quan", icon: "📊" },
+    { id: "salary-calculation", label: "Tính lương", icon: "💰" },
+    { id: "salary-management", label: "Quản lý lương", icon: "📋" },
+    { id: "salary-approval", label: "Duyệt payroll", icon: "✅" },
   ];
 
+  const navFinance = financeExtraRoles.includes(user?.role)
+    ? [
+        { id: "approvals", label: "Duyệt hồ sơ liên quan", icon: "🆗" },
+        { id: "rules", label: "Quy tắc lương", icon: "⚙️" },
+        { id: "d02-lt-report", label: "Báo cáo D02-LT", icon: "📄" },
+        { id: "tk1-ts-form", label: "Mẫu TK1-TS", icon: "🏥" },
+      ]
+    : [];
+
+  const navPeople = [
+    { id: "employee-details", label: "Thông tin nhân viên", icon: "👤" },
+    { id: "employee-management", label: "Danh sách nhân viên", icon: "🏢" },
+  ];
+
+  const viewTitles = {
+    dashboard: "Tổng quan",
+    "salary-calculation": "Tính lương",
+    "salary-management": "Quản lý lương",
+    "salary-approval": "Duyệt payroll",
+    approvals: "Duyệt hồ sơ",
+    rules: "Quy tắc lương",
+    "d02-lt-report": "Báo cáo D02-LT",
+    "tk1-ts-form": "Mẫu TK1-TS",
+    "employee-details": "Thông tin nhân viên",
+    "employee-management": "Quản lý nhân viên",
+  };
+
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: theme.colors.light,
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
-    }}>
-      {/* Modern Header */}
-      <header style={headerStyle}>
-        <div style={headerContentStyle}>
-          <h1 style={titleStyle}>
-            <span aria-hidden>💼</span>
-            <span>Payroll Management System</span>
-          </h1>
-          <div style={userInfoStyle}>
-            <div style={avatarStyle}>
-              {user?.name?.charAt(0)?.toUpperCase() || "K"}
-            </div>
-            <div>
-              <div style={{ fontSize: "15px", fontWeight: "700" }}>
-                {user?.name || "Accountant"}
-              </div>
-              <div style={{ fontSize: "13px", opacity: 0.9 }}>
-                {user?.email || ""}
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              style={logoutButtonStyle}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.2)";
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.4)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.12)";
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)";
-              }}
-            >
-              Logout
-            </button>
+    <div className="acc-app">
+      <aside className="acc-sidebar" aria-label="Điều hướng chính">
+        <div className="acc-brand">
+          <div className="acc-brand-mark" aria-hidden>
+            💼
           </div>
+          <div className="acc-brand-title">Payroll &amp; BHXH</div>
+          <div className="acc-brand-sub">Kế toán · Dashboard</div>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main style={{
-        maxWidth: "1600px",
-        margin: "0 auto",
-        padding: "32px",
-        minHeight: "calc(100vh - 120px)"
-      }}>
-        {/* Modern Navigation */}
-        <div style={navStyle}>
-          {navigationItems.map((item) => {
-            const isActive = currentView === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setCurrentView(item.id)}
-                style={navButtonStyle(isActive)}
-                onMouseEnter={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.backgroundColor = "#f1f5f9";
-                    e.currentTarget.style.color = "#334155";
-                    e.currentTarget.style.transform = "translateY(-1px)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "#64748b";
-                    e.currentTarget.style.transform = "translateY(0)";
-                  }
-                }}
-              >
-                {item.label}
-              </button>
-            );
-          })}
+        <nav className="acc-nav">
+          <div className="acc-nav-label">Lương &amp; payroll</div>
+          {navCore.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`acc-nav-item${currentView === item.id ? " acc-nav-item--active" : ""}`}
+              onClick={() => setCurrentView(item.id)}
+            >
+              <span aria-hidden>{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+          {navFinance.length > 0 && (
+            <>
+              <div className="acc-nav-label">Tuân thủ &amp; cấu hình</div>
+              {navFinance.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`acc-nav-item${currentView === item.id ? " acc-nav-item--active" : ""}`}
+                  onClick={() => setCurrentView(item.id)}
+                >
+                  <span aria-hidden>{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </>
+          )}
+          <div className="acc-nav-label">Nhân sự</div>
+          {navPeople.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`acc-nav-item${currentView === item.id ? " acc-nav-item--active" : ""}`}
+              onClick={() => setCurrentView(item.id)}
+            >
+              <span aria-hidden>{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="acc-sidebar-footer">
+          <strong>{user?.name || "Kế toán viên"}</strong>
+          <span style={{ opacity: 0.75 }}>{user?.email}</span>
+          <span style={{ display: "block", marginTop: 6, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", opacity: 0.6 }}>
+            {user?.role || "accountant"}
+          </span>
+          <button type="button" className="acc-logout" onClick={handleLogout}>
+            Đăng xuất
+          </button>
         </div>
+      </aside>
 
-        {/* Content Area */}
-        <div style={{ animation: "fadeInUp 0.45s ease-out 0.1s backwards" }}>
+      <div className="acc-main">
+        <header className="acc-topbar">
+          <h1>{viewTitles[currentView] || "Payroll"}</h1>
+          <span className="acc-topbar-meta">
+            {new Intl.DateTimeFormat("vi-VN", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(new Date())}
+          </span>
+        </header>
+        <div className="acc-content" style={{ animation: "fadeInUp 0.45s ease-out 0.05s backwards" }}>
+          {currentView === "dashboard" && <AccountantDashboard onNavigate={setCurrentView} />}
           {currentView === "salary-calculation" && <SalaryCalculation />}
           {currentView === "salary-management" && <SalaryManagement />}
           {currentView === "salary-approval" && <SalaryApprovalDashboard />}
@@ -408,7 +355,7 @@ function App() {
           {currentView === "employee-details" && <EmployeeDetailView />}
           {currentView === "employee-management" && <EmployeeManagement />}
         </div>
-      </main>
+      </div>
     </div>
   );
 }

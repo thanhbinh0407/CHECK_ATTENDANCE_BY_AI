@@ -10,6 +10,16 @@ export default function SalaryManagementAdmin() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  const currentRole = (() => {
+    try {
+      const raw = localStorage.getItem("user");
+      if (!raw) return null;
+      const u = JSON.parse(raw);
+      return u?.role || null;
+    } catch {
+      return null;
+    }
+  })();
 
   useEffect(() => {
     fetchSalaries();
@@ -92,28 +102,87 @@ export default function SalaryManagementAdmin() {
     }
   };
 
-  const handleUpdateStatus = async (salaryId, status) => {
+  const handleApproveSalary = async (salaryId) => {
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
       if (!token) return;
 
-      const res = await fetch(`${apiBase}/api/salary/${salaryId}/status`, {
+      const res = await fetch(`${apiBase}/api/salary/${salaryId}/approve`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMessage("Lương đã được duyệt!");
+        fetchSalaries();
+        setTimeout(() => setMessage(""), 3000);
+      } else {
+        setMessage("Lỗi: " + (data.message || "Không thể duyệt lương"));
+      }
+    } catch (error) {
+      setMessage("Lỗi: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRevertPaidSalary = async (salaryId) => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+
+      const res = await fetch(`${apiBase}/api/salary/${salaryId}/revert`, {
         method: "PUT",
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ reason: "Revert by manager audit" })
       });
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Cập nhật trạng thái thành công!");
+        setMessage("Đã hoàn lại về trạng thái chờ duyệt!");
         fetchSalaries();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể cập nhật"));
+        setMessage("Lỗi: " + (data.message || "Không thể hoàn lại trạng thái"));
+      }
+    } catch (error) {
+      setMessage("Lỗi: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkPaidSalary = async (salaryId) => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+
+      const res = await fetch(`${apiBase}/api/salary/${salaryId}/mark-paid`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ notes: "Marked paid by Accountant" })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMessage("Đã thanh toán lương!");
+        fetchSalaries();
+        setTimeout(() => setMessage(""), 3000);
+      } else {
+        setMessage("Lỗi: " + (data.message || "Không thể thanh toán lương"));
       }
     } catch (error) {
       setMessage("Lỗi: " + error.message);
@@ -250,9 +319,9 @@ export default function SalaryManagementAdmin() {
                     </td>
                     <td style={{ padding: theme.spacing.md, textAlign: "center" }}>
                       <div style={{ display: "flex", gap: theme.spacing.sm, justifyContent: "center" }}>
-                        {salary.status === "pending" && (
+                        {salary.status === "pending" && (currentRole === "manager" || currentRole === "supervisor") && (
                           <button
-                            onClick={() => handleUpdateStatus(salary.id, "approved")}
+                            onClick={() => handleApproveSalary(salary.id)}
                             style={{
                               padding: `${theme.spacing.xs} ${theme.spacing.md}`,
                               background: theme.info.main,
@@ -267,9 +336,9 @@ export default function SalaryManagementAdmin() {
                             Duyệt
                           </button>
                         )}
-                        {salary.status === "approved" && (
+                        {salary.status === "approved" && currentRole === "accountant" && (
                           <button
-                            onClick={() => handleUpdateStatus(salary.id, "paid")}
+                            onClick={() => handleMarkPaidSalary(salary.id)}
                             style={{
                               padding: `${theme.spacing.xs} ${theme.spacing.md}`,
                               background: theme.success.main,
@@ -282,6 +351,23 @@ export default function SalaryManagementAdmin() {
                             }}
                           >
                             Thanh toán
+                          </button>
+                        )}
+                        {salary.status === "paid" && currentRole === "manager" && (
+                          <button
+                            onClick={() => handleRevertPaidSalary(salary.id)}
+                            style={{
+                              padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+                              background: theme.success.main,
+                              color: theme.neutral.white,
+                              border: "none",
+                              borderRadius: theme.radius.md,
+                              cursor: "pointer",
+                              fontSize: theme.typography.tiny.fontSize,
+                              fontWeight: "600"
+                            }}
+                          >
+                            Hoàn lại
                           </button>
                         )}
                         <button

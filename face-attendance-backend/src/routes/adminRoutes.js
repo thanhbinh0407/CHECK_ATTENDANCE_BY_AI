@@ -15,7 +15,15 @@ import {
   updateUserRole,
   getRoleAuditLogs
 } from "../controllers/adminController.js";
-import { authMiddleware, hrOrManager, managerOnly, requirePermission } from "../middleware/authMiddleware.js";
+import {
+  authMiddleware,
+  hrOrManager,
+  managerOnly,
+  requirePermission,
+  canAccessEmployeeData,
+  isTeamMember,
+  requireRoles
+} from "../middleware/authMiddleware.js";
 import { PERMISSIONS } from "../config/permissionMatrix.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import User from "../models/pg/User.js";
@@ -43,26 +51,130 @@ router.get("/logs", async (req, res) => {
 // All protected routes require authentication
 router.use(authMiddleware);
 
-// HR có thể đọc thông tin nhân viên, Manager có toàn quyền
-router.get("/employees", hrOrManager, requirePermission(PERMISSIONS.user_read), getAllEmployees);
-router.get("/employees/:id", hrOrManager, requirePermission(PERMISSIONS.user_read), getEmployeeById);
-router.get("/employees/:id/details", hrOrManager, requirePermission(PERMISSIONS.user_read), getEmployeeDetailedInfo);
-router.get("/employees/:id/history", hrOrManager, requirePermission(PERMISSIONS.user_read), getEmployeeHistory);
-router.get("/employees/:id/attendance-stats", hrOrManager, requirePermission(PERMISSIONS.user_read), getEmployeeAttendanceStats);
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * EMPLOYEE MANAGEMENT ROUTES - Quản lý nhân viên
+ * ═══════════════════════════════════════════════════════════════════════════════
+ */
 
-// HR có thể tạo và cập nhật hồ sơ nhân viên
-router.post("/employees", hrOrManager, requirePermission(PERMISSIONS.user_create), createEmployee);
-router.post("/employees/bulk", hrOrManager, requirePermission(PERMISSIONS.user_create), bulkCreateEmployees);
-router.put("/employees/:id", hrOrManager, requirePermission(PERMISSIONS.user_update), updateEmployee);
+// GET all employees - Manager, HR, Accountant, Supervisor
+router.get(
+  "/employees",
+  requirePermission(PERMISSIONS["user:read"]),
+  getAllEmployees
+);
 
-// Chỉ Manager (giám đốc) mới được xem mật khẩu, xóa tài khoản, reset mật khẩu
-router.get("/employees/:id/with-password", managerOnly, requirePermission(PERMISSIONS.user_read), getEmployeeWithPassword);
-router.delete("/employees/:id", managerOnly, requirePermission(PERMISSIONS.user_delete), deleteEmployee);
-router.delete("/employees/:id/permanent", managerOnly, requirePermission(PERMISSIONS.user_delete), permanentlyDeleteEmployee);
-router.post("/employees/:id/reset-password", managerOnly, requirePermission(PERMISSIONS.user_password_reset), resetEmployeePassword);
+// GET employee by ID - Với kiểm tra quyền truy cập dữ liệu
+router.get(
+  "/employees/:id",
+  requirePermission(PERMISSIONS["user:read"]),
+  canAccessEmployeeData,
+  getEmployeeById
+);
 
-// Account role governance + security audit
-router.patch("/users/:id/role", managerOnly, requirePermission(PERMISSIONS.user_role_update), updateUserRole);
-router.get("/audits/role-changes", managerOnly, requirePermission(PERMISSIONS.audit_view), getRoleAuditLogs);
+// GET employee detailed info - Xem hồ sơ chi tiết
+router.get(
+  "/employees/:id/details",
+  requirePermission(PERMISSIONS["user:read"]),
+  canAccessEmployeeData,
+  getEmployeeDetailedInfo
+);
+
+// GET employee history - Xem lịch sử thay đổi
+router.get(
+  "/employees/:id/history",
+  requirePermission(PERMISSIONS["user:read"]),
+  canAccessEmployeeData,
+  getEmployeeHistory
+);
+
+// GET employee attendance statistics
+router.get(
+  "/employees/:id/attendance-stats",
+  requirePermission(PERMISSIONS["attendance:stats:view"]),
+  canAccessEmployeeData,
+  getEmployeeAttendanceStats
+);
+
+// POST create new employee - Manager, HR only
+router.post(
+  "/employees",
+  requirePermission(PERMISSIONS["user:create"]),
+  createEmployee
+);
+
+// POST bulk create employees - Manager, HR only
+router.post(
+  "/employees/bulk",
+  requirePermission(PERMISSIONS["user:create"]),
+  bulkCreateEmployees
+);
+
+// PUT update employee - Manager, HR only
+router.put(
+  "/employees/:id",
+  requirePermission(PERMISSIONS["user:update"]),
+  updateEmployee
+);
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * SENSITIVE OPERATIONS - Chỉ Manager
+ * ═══════════════════════════════════════════════════════════════════════════════
+ */
+
+// GET employee with password - Manager only 
+router.get(
+  "/employees/:id/with-password",
+  managerOnly,
+  requirePermission(PERMISSIONS["user:role:update"]),
+  getEmployeeWithPassword
+);
+
+// DELETE employee (hard delete) - Manager only
+router.delete(
+  "/employees/:id",
+  managerOnly,
+  requirePermission(PERMISSIONS["user:delete"]),
+  deleteEmployee
+);
+
+// DELETE employee permanently - Manager only
+router.delete(
+  "/employees/:id/permanent",
+  managerOnly,
+  requirePermission(PERMISSIONS["user:delete"]),
+  permanentlyDeleteEmployee
+);
+
+// POST reset password - Manager only
+router.post(
+  "/employees/:id/reset-password",
+  managerOnly,
+  requirePermission(PERMISSIONS["user:role:update"]),
+  resetEmployeePassword
+);
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * ACCOUNT & ROLE MANAGEMENT - Chỉ Manager
+ * ═══════════════════════════════════════════════════════════════════════════════
+ */
+
+// PATCH update user role - Manager only
+router.patch(
+  "/users/:id/role",
+  managerOnly,
+  requirePermission(PERMISSIONS["user:role:update"]),
+  updateUserRole
+);
+
+// GET role audit logs - Manager only
+router.get(
+  "/audits/role-changes",
+  managerOnly,
+  requirePermission(PERMISSIONS["audit:view"]),
+  getRoleAuditLogs
+);
 
 export default router;
