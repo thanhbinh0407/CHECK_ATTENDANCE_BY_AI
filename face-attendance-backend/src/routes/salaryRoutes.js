@@ -9,11 +9,13 @@ import {
   getSalaries,
   getPendingSalaries,
   updateSalaryStatus,
+  markPaidSalary,
+  revertSalaryToPending,
   approveSalary,
   rejectSalary,
   adjustSalary
 } from "../controllers/salaryController.js";
-import { authMiddleware, accountantOrManager, supervisorOrManager, canViewReports } from "../middleware/authMiddleware.js";
+import { authMiddleware, accountantOrManager, supervisorOrManager, canViewReports, staffRoles, accountantOnly, managerOnly } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -33,9 +35,14 @@ router.get("/", canViewReports, getSalaries);
 router.get("/pending", canViewReports, getPendingSalaries);
 
 // Duyệt / từ chối lương - Supervisor hoặc Manager
-router.put("/:id/status", supervisorOrManager, updateSalaryStatus);
+// Legacy endpoint (status-aware in controller)
+router.put("/:id/status", staffRoles, updateSalaryStatus);
 router.put("/:id/approve", supervisorOrManager, approveSalary);
 router.put("/:id/reject", supervisorOrManager, rejectSalary);
+// Accountant: approved -> paid
+router.put("/:id/mark-paid", accountantOnly, markPaidSalary);
+// Manager: paid -> pending (audit revert)
+router.put("/:id/revert", managerOnly, revertSalaryToPending);
 router.put("/:id/adjust", accountantOrManager, adjustSalary);
 
 export default router;

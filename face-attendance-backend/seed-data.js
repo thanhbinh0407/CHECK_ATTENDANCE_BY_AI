@@ -997,6 +997,39 @@ async function seedDB() {
     }
     console.log(`   Created ${leaveCount} leave requests`);
 
+    // Edge case: approved leave should NOT be counted as absentDays (attendance gap)
+    // - Create an "approved" leave covering working days in Feb/2026
+    // - Remove IN/OUT attendance logs for the same dates for one employee
+    const absentLeaveEmployee = employees[3]; // EMP004 (index 3) - chosen to also have salary-advance activity
+    if (absentLeaveEmployee) {
+      const absentLeaveStart = new Date('2026-02-02T00:00:00.000Z'); // Mon
+      const absentLeaveEnd = new Date('2026-02-04T00:00:00.000Z');   // Wed
+      const absentLeaveDays = 3;
+
+      await LeaveRequest.create({
+        userId: absentLeaveEmployee.id,
+        type: 'paid',
+        startDate: absentLeaveStart,
+        endDate: absentLeaveEnd,
+        days: absentLeaveDays,
+        reason: 'Seed edge case: approved leave covers attendance gap',
+        status: 'approved',
+        approvedBy: supervisor.id,
+        approvedAt: addDays(absentLeaveStart, 1),
+        rejectionReason: null,
+      });
+
+      // Delete both IN and OUT so the date becomes "missing attendance" (no pairing exists => passes validation)
+      const absentLeaveEndInclusive = new Date('2026-02-04T23:59:59.999Z');
+      await AttendanceLog.destroy({
+        where: {
+          userId: absentLeaveEmployee.id,
+          type: { [Op.in]: ['IN', 'OUT'] },
+          timestamp: { [Op.between]: [absentLeaveStart, absentLeaveEndInclusive] }
+        }
+      });
+    }
+
     // Create Overtime Requests (deterministic)
     console.log('17. Creating deterministic overtime requests...');
     let otCount = 0;
@@ -1082,6 +1115,10 @@ async function seedDB() {
     // Create Salary Advances (deterministic)
     console.log('19. Creating deterministic salary advances...');
     let advanceCount = 0;
+
+    const seedRefYear = REFERENCE_DATE.getUTCFullYear(); // 2026
+    const seedRefMonth = REFERENCE_DATE.getUTCMonth() + 1; // 2
+
     for (let i = 0; i < employees.length; i += 1) {
       const emp = employees[i];
       const profile = employeeProfiles[i];
@@ -1101,7 +1138,32 @@ async function seedDB() {
         if (used.has(key)) continue;
         used.add(key);
 
-        const status = STATUS_CYCLE[(i + j + 1) % STATUS_CYCLE.length];
+        const isRefPeriod = period.year === seedRefYear && period.month === seedRefMonth;
+        let status;
+        if (isRefPeriod) {
+          // Salary recalc is blocked when salary.status === "paid".
+          // So: never generate "pending" salary advances for employees whose seeded salary is "paid".
+          const salaryPaidGroup = i % 3 === 1; // matches the seeded Salary status bucket below
+          const rejectCase = (i % 13 === 0 && j === 0);
+
+          if (salaryPaidGroup) {
+            status = rejectCase ? 'rejected' : 'approved';
+          } else {
+            if (rejectCase) {
+              status = 'rejected';
+            } else if (i % 3 === 0) {
+              // Approved salary bucket: create pending for some indexes
+              status = (i % 4 === 0 || i % 4 === 3) ? 'pending' : 'approved';
+            } else {
+              // Pending salary bucket: create pending for some indexes
+              status = (i % 4 === 1) ? 'pending' : 'approved';
+            }
+          }
+        } else {
+          // Outside Feb/2026: keep it approved/rejected only, so UI won't try to approve -> recalc blocked by "paid" salary.
+          status = (i + j) % 7 === 0 ? 'rejected' : 'approved';
+        }
+
         const ratio = [0.25, 0.30, 0.35][(i + j) % 3];
         const amount = Math.round(Number(emp.baseSalary) * ratio);
         const requestDate = new Date(Date.UTC(period.year, period.month - 1, 15));
@@ -1113,6 +1175,8 @@ async function seedDB() {
           amount,
           reason: `Salary advance ${period.month}/${period.year}`,
           requestDate,
+          approvalLevel: 1,
+          currentApproverId: status === 'pending' ? supervisor.id : null,
           approvalStatus: status,
           approvedBy: status === 'approved' ? accountant.id : null,
           approvedAt: status === 'approved' ? addDays(requestDate, 1) : null,
@@ -1256,6 +1320,37 @@ async function seedDB() {
           const totalDeduction = absentDeduction + advanceDeduction + employeeInsurance + tax;
           const finalSalary = Math.max(0, Math.round(base + totalBonus - totalDeduction));
 
+          // Seed salary statuses to cover the full workflow (pending -> approved -> paid)
+          // - Feb/2026: mix pending/approved/paid
+          // - EMP049 in Apr/2026: keep it pending because we seed a pending salary-advance there (edge case)
+          const isRefMonth = year === refYear && month === refMonth;
+          const isEmp049Apr = emp.employeeCode === 'EMP049' && year === 2026 && month === 4;
+
+          let salaryStatus = 'paid';
+          let calculatedAt = new Date(REFERENCE_DATE);
+          let paidAt = new Date(REFERENCE_DATE);
+
+          if (isRefMonth) {
+            const bucket = i % 3; // 0 => approved, 1 => paid, 2 => pending
+            if (bucket === 0) {
+              salaryStatus = 'approved';
+              calculatedAt = new Date(REFERENCE_DATE);
+              paidAt = null;
+            } else if (bucket === 1) {
+              salaryStatus = 'paid';
+              calculatedAt = new Date(REFERENCE_DATE);
+              paidAt = new Date(REFERENCE_DATE);
+            } else {
+              salaryStatus = 'pending';
+              calculatedAt = null;
+              paidAt = null;
+            }
+          } else if (isEmp049Apr) {
+            salaryStatus = 'pending';
+            calculatedAt = null;
+            paidAt = null;
+          }
+
           await Salary.create({
             userId: emp.id,
             month,
@@ -1265,7 +1360,9 @@ async function seedDB() {
             deduction: totalDeduction,
             advanceDeduction,
             finalSalary,
-            status: year === refYear && month === refMonth ? 'pending' : 'paid',
+            status: salaryStatus,
+            calculatedAt,
+            paidAt,
             notes: `Salary ${month}/${year}. Attendance ${attendanceDays}/${workingDays}`
           });
           salCount += 1;

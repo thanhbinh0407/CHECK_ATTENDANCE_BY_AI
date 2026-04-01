@@ -4,6 +4,7 @@ import Notification from "../models/pg/Notification.js";
 import { recalculateSalaryRecord } from "../services/salaryCalculationService.js";
 import { Op } from "sequelize";
 import { resolveApprovalChain } from "../services/approvalPolicyService.js";
+import { sendNotification } from "./notificationController.js";
 
 // Get all salary advances
 export const getSalaryAdvances = async (req, res) => {
@@ -211,8 +212,19 @@ export const approveSalaryAdvance = async (req, res) => {
           isRead: false
         });
 
+        // Send broadcast notification
+        await sendNotification(null, 'system', 'Salary Advance Approved', 
+          `Salary advance request for ${advance.User?.name || 'employee'} has been approved.`, 
+          { advanceId: advance.id, action: 'approved' });
+
         // Recalculate salary to include the advance deduction
-        await recalculateSalaryRecord(advance.userId, advance.month, advance.year);
+        const recalc = await recalculateSalaryRecord(advance.userId, advance.month, advance.year);
+        if (!recalc.success) {
+          return res.status(403).json({
+            status: "error",
+            message: recalc.error || "Cannot recalculate salary after approving advance"
+          });
+        }
       } else {
         await advance.update({
           approvalStatus: 'pending',

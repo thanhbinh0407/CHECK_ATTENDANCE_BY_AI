@@ -1,6 +1,7 @@
 import User from "../models/pg/User.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { getPermissionsByRole } from "../config/permissionMatrix.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 const JWT_EXPIRE = "7d";
@@ -76,7 +77,7 @@ export const register = async (req, res) => {
 // Login
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, expectedRole } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -120,6 +121,15 @@ export const login = async (req, res) => {
       });
     }
 
+    const validPortalRoles = ["manager", "hr", "accountant", "supervisor", "employee"];
+    if (expectedRole && validPortalRoles.includes(expectedRole) && user.role !== expectedRole) {
+      return res.status(403).json({
+        status: "error",
+        message:
+          "Vai trò đăng nhập không khớp với tài khoản. Hãy chọn đúng vai trò hoặc dùng tài khoản tương ứng.",
+      });
+    }
+
     // Generate JWT
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
@@ -128,6 +138,8 @@ export const login = async (req, res) => {
     );
 
     console.log(`User logged in: ${email} (${user.role})`);
+
+    const permissions = getPermissionsByRole(user.role);
 
     return res.json({
       status: "success",
@@ -138,8 +150,10 @@ export const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        employeeCode: user.employeeCode
-      }
+        employeeCode: user.employeeCode,
+        permissions,
+      },
+      permissions,
     });
   } catch (err) {
     console.error("Login error:", err);
@@ -172,6 +186,8 @@ export const getCurrentUser = async (req, res) => {
       });
     }
 
+    const permissions = getPermissionsByRole(user.role);
+
     return res.json({
       status: "success",
       user: {
@@ -179,8 +195,10 @@ export const getCurrentUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        employeeCode: user.employeeCode
-      }
+        employeeCode: user.employeeCode,
+        permissions,
+      },
+      permissions,
     });
   } catch (err) {
     return res.status(401).json({

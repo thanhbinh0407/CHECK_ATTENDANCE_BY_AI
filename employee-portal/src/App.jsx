@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import EmployeeDashboard from "./components/EmployeeDashboard.jsx";
 import AttendanceHistory from "./components/AttendanceHistory.jsx";
 import SalaryHistory from "./components/SalaryHistory.jsx";
 import JobHistoryTimeline from "./components/JobHistoryTimeline.jsx";
@@ -21,41 +22,63 @@ function App() {
     const userData = localStorage.getItem("user");
     return userData ? JSON.parse(userData) : null;
   });
-  const [activeTab, setActiveTab] = useState("attendance");
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // Check URL parameters first (from login portal redirect)
-    const urlParams = new URLSearchParams(window.location.search);
-    const tokenFromUrl = urlParams.get('token');
-    const userFromUrl = urlParams.get('user');
-    
-    if (tokenFromUrl && userFromUrl) {
+    const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+    (async () => {
       try {
-        const decodedToken = decodeURIComponent(tokenFromUrl);
-        const decodedUser = JSON.parse(decodeURIComponent(userFromUrl));
-        // Save to localStorage
-        localStorage.setItem('authToken', decodedToken);
-        localStorage.setItem('user', JSON.stringify(decodedUser));
-        setAuthToken(decodedToken);
-        setUser(decodedUser);
-        // Clean URL
-        window.history.replaceState({}, document.title, window.location.pathname);
+        const urlParams = new URLSearchParams(window.location.search);
+        const tokenFromUrl = urlParams.get("token");
+        const userFromUrl = urlParams.get("user");
+
+        if (tokenFromUrl && userFromUrl) {
+          try {
+            const decodedToken = decodeURIComponent(tokenFromUrl);
+            const decodedUser = JSON.parse(decodeURIComponent(userFromUrl));
+            localStorage.setItem("authToken", decodedToken);
+            localStorage.setItem("user", JSON.stringify(decodedUser));
+            setAuthToken(decodedToken);
+            setUser(decodedUser);
+            window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+          } catch (error) {
+            console.error("Error parsing token/user from URL:", error);
+          }
+        }
+
+        if (tokenFromUrl) {
+          try {
+            const decodedToken = decodeURIComponent(tokenFromUrl);
+            localStorage.setItem("authToken", decodedToken);
+            const res = await fetch(`${apiBase}/api/auth/me`, {
+              headers: { Authorization: `Bearer ${decodedToken}` },
+            });
+            const data = await res.json();
+            if (data.status === "success" && data.user) {
+              localStorage.setItem("user", JSON.stringify(data.user));
+              setAuthToken(decodedToken);
+              setUser(data.user);
+              window.history.replaceState({}, document.title, window.location.pathname);
+              return;
+            }
+          } catch (e) {
+            console.error("auth/me from URL token:", e);
+          }
+        }
+
+        const token = localStorage.getItem("authToken");
+        const userData = localStorage.getItem("user");
+        if (token && userData) {
+          setAuthToken(token);
+          setUser(JSON.parse(userData));
+        }
+      } finally {
         setIsChecking(false);
-        return;
-      } catch (error) {
-        console.error("Error parsing token/user from URL:", error);
       }
-    }
-    
-    // Fallback to localStorage
-    const token = localStorage.getItem("authToken");
-    const userData = localStorage.getItem("user");
-    if (token && userData) {
-      setAuthToken(token);
-      setUser(JSON.parse(userData));
-    }
-    setIsChecking(false);
+    })();
   }, []);
 
   const handleLoginSuccess = (token, userData) => {
@@ -112,32 +135,42 @@ function App() {
     maxWidth: "1400px",
     margin: "0 auto",
     display: "flex",
-    gap: "2px",
+    flexWrap: "nowrap",
+    overflowX: "auto",
+    overflowY: "hidden",
+    gap: "6px",
+    rowGap: "8px",
     backgroundColor: "#fff",
     borderBottom: "2px solid #e8eaf6",
-    padding: "0 24px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+    padding: "10px 16px 12px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+    alignItems: "center",
+    // smooth horizontal scroll across browsers
+    WebkitOverflowScrolling: "touch",
+    scrollbarWidth: "thin",
+    scrollbarColor: "rgba(162,185,237,0.7) transparent",
   };
 
   const tabStyle = (active) => ({
-    padding: "16px 28px",
+    padding: "10px 14px",
     cursor: "pointer",
     fontWeight: "600",
-    fontSize: "13px",
+    fontSize: "11px",
     textTransform: "uppercase",
-    letterSpacing: "0.8px",
+    letterSpacing: "0.45px",
     border: "none",
     borderBottom: active ? "3px solid #A2B9ED" : "3px solid transparent",
     color: active ? "#A2B9ED" : "#666",
-    background: active 
-      ? "linear-gradient(135deg, rgba(162, 185, 237, 0.12) 0%, rgba(139, 163, 224, 0.12) 100%)" 
+    background: active
+      ? "linear-gradient(135deg, rgba(162, 185, 237, 0.12) 0%, rgba(139, 163, 224, 0.12) 100%)"
       : "transparent",
-    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    transition: "all 0.2s ease",
     outline: "none",
-    position: "relative",
-    borderRadius: active ? "8px 8px 0 0" : "0",
-    transform: active ? "translateY(-2px)" : "translateY(0)",
-    boxShadow: active ? "0 4px 12px rgba(162, 185, 237, 0.15)" : "none"
+    borderRadius: "8px",
+    flex: "0 0 auto",
+    whiteSpace: "nowrap",
+    minHeight: "40px",
+    boxSizing: "border-box",
   });
 
   const handleTabHover = (e, isActive) => {
@@ -219,8 +252,17 @@ function App() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={tabsStyle}>
+      {/* Tabs — wrap + cuộn ngang khi hẹp, tránh tràn một hàng */}
+      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", backgroundColor: "#fff" }}>
+        <div style={tabsStyle}>
+        <button
+          onClick={() => setActiveTab("dashboard")}
+          style={tabStyle(activeTab === "dashboard")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "dashboard")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "dashboard")}
+        >
+          Dashboard
+        </button>
         <button
           onClick={() => setActiveTab("attendance")}
           style={tabStyle(activeTab === "attendance")}
@@ -321,10 +363,14 @@ function App() {
             </button>
           </>
         )}
+        </div>
       </div>
 
       {/* Content */}
       <div style={contentStyle}>
+        {activeTab === "dashboard" && (
+          <EmployeeDashboard userId={user?.id} userName={user?.name} onNavigate={setActiveTab} />
+        )}
         {activeTab === "attendance" && <AttendanceHistory userId={user?.id} />}
         {activeTab === "salary" && <SalaryHistory userId={user?.id} isActive={true} />}
         {activeTab === "job-history" && <JobHistoryTimeline />}

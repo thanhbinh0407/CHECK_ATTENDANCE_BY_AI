@@ -1,7 +1,7 @@
 import LeaveRequest from "../models/pg/LeaveRequest.js";
 import User from "../models/pg/User.js";
 import { Op } from "sequelize";
-import { notifyLeaveStatusChange } from "./notificationController.js";
+import { notifyLeaveStatusChange, sendNotification } from "./notificationController.js";
 
 // Create leave request
 export const createLeaveRequest = async (req, res) => {
@@ -217,6 +217,11 @@ export const approveLeaveRequest = async (req, res) => {
     // Send notification
     await notifyLeaveStatusChange(leaveRequest.id, 'approved', approvedBy);
 
+    // Send broadcast notification for approval
+    await sendNotification(null, 'system', 'Leave Request Approved', 
+      `Leave request for ${leaveRequest.User?.name || 'employee'} has been approved.`, 
+      { leaveRequestId: leaveRequest.id, action: 'approved' });
+
     return res.json({
       status: "success",
       message: "Leave request approved",
@@ -365,6 +370,104 @@ export const deleteLeaveRequest = async (req, res) => {
     });
   } catch (err) {
     console.error("Error deleting leave request:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+};
+
+// Update leave request (only pending)
+export const updateLeaveRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    const isStaff = req.user.role !== "employee";
+
+    const leaveRequest = await LeaveRequest.findByPk(id);
+    if (!leaveRequest) {
+      return res.status(404).json({
+        status: "error",
+        message: "Leave request not found"
+      });
+    }
+
+    // Permission: employee can only update own request
+    if (!isStaff && leaveRequest.userId !== userId) {
+      return res.status(403).json({
+        status: "error",
+        message: "Access denied"
+      });
+    }
+
+    if (leaveRequest.status !== "pending") {
+      return res.status(400).json({
+        status: "error",
+        message: "Can only update pending leave requests"
+      });
+    }
+
+    const { type, startDate, endDate, reason } = req.body;
+    if (!type || !startDate || !endDate || !reason) {
+      return res.status(400).json({
+        status: "error",
+        message: "Missing required fields: type, startDate, endDate, reason"
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+
+    if (days <= 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "End date must be after start date"
+      });
+    }
+
+    // Overlap check against other pending/approved requests for the same user (exclude self)
+    const overlapping = await LeaveRequest.findOne({
+      where: {
+        userId: leaveRequest.userId,
+        id: { [Op.ne]: leaveRequest.id },
+        status: { [Op.in]: ["pending", "approved"] },
+        [Op.or]: [
+          { startDate: { [Op.between]: [startDate, endDate] } },
+          { endDate: { [Op.between]: [startDate, endDate] } },
+          {
+            [Op.and]: [
+              { startDate: { [Op.lte]: startDate } },
+              { endDate: { [Op.gte]: endDate } }
+            ]
+          }
+        ]
+      }
+    });
+
+    if (overlapping) {
+      return res.status(400).json({
+        status: "error",
+        message: "You already have a leave request for this period"
+      });
+    }
+
+    await leaveRequest.update({
+      type,
+      startDate,
+      endDate,
+      days,
+      reason,
+      status: "pending"
+    });
+
+    return res.json({
+      status: "success",
+      message: "Leave request updated successfully",
+      leaveRequest
+    });
+  } catch (err) {
+    console.error("Error updating leave request:", err);
     return res.status(500).json({
       status: "error",
       message: err.message

@@ -29,6 +29,17 @@ export default function SalaryApprovalDashboard() {
   const [showRejectReason, setShowRejectReason] = useState({});
   const [rejectReasons, setRejectReasons] = useState({});
   const [message, setMessage] = useState("");
+  const currentRole = (() => {
+    try {
+      const raw = localStorage.getItem("user");
+      if (!raw) return null;
+      const u = JSON.parse(raw);
+      return u?.role || null;
+    } catch {
+      return null;
+    }
+  })();
+  const canApprove = currentRole === "manager" || currentRole === "supervisor";
 
   // Auto-hide message after 5 seconds
   useEffect(() => {
@@ -285,7 +296,7 @@ export default function SalaryApprovalDashboard() {
                       {formatCurrency(salary.finalSalary)}
                     </td>
                     <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                      {!approvalInProgress[salary.id] && (
+                      {!approvalInProgress[salary.id] && canApprove && (
                         <div style={{ display: "flex", gap: "5px", justifyContent: "center" }}>
                           <button
                             onClick={() => approveSalary(salary.id)}
@@ -325,7 +336,7 @@ export default function SalaryApprovalDashboard() {
                     </td>
                   </tr>
 
-                  {showRejectReason[salary.id] && (
+                  {showRejectReason[salary.id] && canApprove && (
                     <tr style={{ backgroundColor: "#fff3cd", borderBottom: "1px solid #ddd" }}>
                       <td colSpan="7" style={{ padding: "12px" }}>
                         <div style={{ marginBottom: "10px" }}>

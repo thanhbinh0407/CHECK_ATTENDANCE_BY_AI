@@ -16,6 +16,7 @@ import sequelize from "../db/sequelize.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
 import { recalculatePendingSalariesForUsers } from "../services/salaryCalculationService.js";
+import { sendNotification } from "./notificationController.js";
 
 const toNumber = (value, fallback = 0) => {
   const n = Number(value);
@@ -35,7 +36,6 @@ const sumAllowances = (obj) => {
 export const getAllEmployees = async (req, res) => {
   try {
     const employees = await User.findAll({
-      where: { role: "employee" },
       attributes: { exclude: ["password"] },
       include: [
         { 
@@ -60,6 +60,10 @@ export const getAllEmployees = async (req, res) => {
           attributes: ['id', 'name', 'employeeCode', 'email'],
           required: false
         }
+      ],
+      order: [
+        [{ model: User, as: 'Manager' }, 'name', 'ASC'],
+        ['createdAt', 'ASC']
       ]
     });
 
@@ -81,7 +85,7 @@ export const getEmployeeById = async (req, res) => {
   try {
     const { id } = req.params;
     const employee = await User.findOne({
-      where: { id, role: "employee" },
+      where: { id },
       attributes: { exclude: ["password"] },
       include: [{ 
         model: FaceProfile 
@@ -113,7 +117,7 @@ export const getEmployeeWithPassword = async (req, res) => {
   try {
     const { id } = req.params;
     const employee = await User.findOne({
-      where: { id, role: "employee" },
+      where: { id },
       include: [{ 
         model: FaceProfile 
       }]
@@ -197,11 +201,15 @@ export const updateEmployee = async (req, res) => {
       emergencyContactPhone,
       effectiveDate,
       historyNote,
-      salaryChangeReason
+      salaryChangeReason,
+      role: bodyRole,
     } = req.body;
 
+    const actorId = req.user?.userId ?? req.user?.id ?? null;
+    const actorIsManager = req.user?.role === "manager";
+
     const employee = await User.findOne({
-      where: { id, role: "employee" }
+      where: { id }
     });
 
     if (!employee) {
@@ -264,6 +272,28 @@ export const updateEmployee = async (req, res) => {
     if (emergencyContactName !== undefined) updateData.emergencyContactName = emergencyContactName;
     if (emergencyContactRelationship !== undefined) updateData.emergencyContactRelationship = emergencyContactRelationship;
     if (emergencyContactPhone !== undefined) updateData.emergencyContactPhone = emergencyContactPhone;
+
+    let roleAuditPayload = null;
+    if (bodyRole !== undefined && bodyRole !== null && String(bodyRole).trim() !== "") {
+      if (!actorIsManager) {
+        return res.status(403).json({
+          status: "error",
+          message: "Chỉ Manager mới được đổi role trong form chỉnh sửa.",
+        });
+      }
+      const validRoles = ["manager", "hr", "accountant", "supervisor", "employee"];
+      const newRole = String(bodyRole).trim();
+      if (!validRoles.includes(newRole)) {
+        return res.status(400).json({ status: "error", message: "Invalid role" });
+      }
+      if (Number(employee.id) === Number(actorId)) {
+        return res.status(400).json({ status: "error", message: "Cannot change your own role" });
+      }
+      if (newRole !== employee.role) {
+        roleAuditPayload = { oldRole: employee.role, newRole };
+        updateData.role = newRole;
+      }
+    }
     
     // Convert empty strings to null for enum fields to avoid PostgreSQL enum errors
     if (gender !== undefined) updateData.gender = gender === "" ? null : gender;
@@ -312,6 +342,21 @@ export const updateEmployee = async (req, res) => {
 
     await sequelize.transaction(async (transaction) => {
       await employee.update(updateData, { transaction });
+
+      if (roleAuditPayload) {
+        await RoleChangeAudit.create(
+          {
+            userId: employee.id,
+            changedBy: actorId,
+            oldRole: roleAuditPayload.oldRole,
+            newRole: roleAuditPayload.newRole,
+            reason: salaryChangeReason || historyNote || "Role updated via employee edit form",
+            ipAddress: req.ip || null,
+            userAgent: req.get("user-agent") || null,
+          },
+          { transaction }
+        );
+      }
 
       if (jobChanged) {
         await JobHistory.create({
@@ -362,6 +407,23 @@ export const updateEmployee = async (req, res) => {
     });
 
     console.log(`Employee updated: ${employee.name} (ID: ${id})${salaryFieldsChanged ? ` - ${recalculatedSalaryCount} salary record(s) recalculated` : ''}`);
+
+    // Send broadcast notifications for important changes
+    if (jobChanged) {
+      const changeTypeText = getJobChangeType() === 'promotion' ? 'promoted' : 
+                            getJobChangeType() === 'transfer' ? 'transferred' : 'updated';
+      await sendNotification(null, 'system', 'Employee Position Updated', 
+        `Employee ${employee.name} (${employee.employeeCode}) has been ${changeTypeText}.`, 
+        { employeeId: employee.id, changeType: 'job', type: getJobChangeType() });
+    }
+
+    if (salaryChanged) {
+      const changeTypeText = getSalaryChangeType() === 'increase' ? 'increased' : 
+                            getSalaryChangeType() === 'decrease' ? 'decreased' : 'updated';
+      await sendNotification(null, 'system', 'Employee Salary Updated', 
+        `Employee ${employee.name} (${employee.employeeCode}) salary has been ${changeTypeText}.`, 
+        { employeeId: employee.id, changeType: 'salary', type: getSalaryChangeType() });
+    }
 
     return res.json({
       status: "success",
@@ -844,7 +906,7 @@ export const getEmployeeAttendanceStats = async (req, res) => {
     const { month, year } = req.query;
 
     const employee = await User.findOne({
-      where: { id, role: "employee" }
+      where: { id }
     });
 
     if (!employee) {
@@ -950,7 +1012,7 @@ export const getEmployeeDetailedInfo = async (req, res) => {
 
     // Get employee basic info (including password for admin viewing)
     const employee = await User.findOne({
-      where: { id, role: "employee" },
+      where: { id },
       include: [
         { model: Department, attributes: ['id', 'name'] },
         { model: JobTitle, attributes: ['id', 'name'] },
@@ -1388,7 +1450,7 @@ export const getEmployeeHistory = async (req, res) => {
     const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '10', 10), 1), 100);
     const offset = (page - 1) * pageSize;
 
-    const employee = await User.findOne({ where: { id, role: 'employee' }, attributes: ['id'] });
+    const employee = await User.findOne({ where: { id }, attributes: ['id'] });
     if (!employee) {
       return res.status(404).json({ status: 'error', message: 'Employee not found' });
     }
