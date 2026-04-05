@@ -181,7 +181,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
         delete n[salaryId];
         return n;
       });
-      setMessage("✅ Rejection saved. Record moves to \u201cAwaiting recalculation\u201d \u2014 please rerun salary calculation.");
+      setMessage("✅ Rejection saved. Record moves to “Awaiting recalculation” — please rerun salary calculation.");
       clearProgress(salaryId);
     } catch (e) {
       console.error(e);

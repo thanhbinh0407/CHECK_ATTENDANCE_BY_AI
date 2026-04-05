@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { theme } from "../theme.js";
 import { exportSalariesToExcel, exportSalariesToPDF } from "../utils/exportUtils.js";
+import SalaryBreakdownModal from "./SalaryBreakdownModal.jsx";
 
 // Add keyframe animations
 const styleSheet = document.createElement("style");
@@ -52,6 +53,13 @@ export default function SalaryManagement() {
   const [toastPopup, setToastPopup] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [rules, setRules] = useState([]);
+  const [showBreakdownModal, setShowBreakdownModal] = useState(false);
+  const [salaryBreakdown, setSalaryBreakdown] = useState(null);
+  const [selectedEmployeeForModal, setSelectedEmployeeForModal] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
   const currentRole = (() => {
@@ -79,6 +87,109 @@ export default function SalaryManagement() {
     fetchSalaries();
     fetchEmployees();
   }, [selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    const fetchRules = async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) return;
+        const res = await fetch(`${apiBase}/api/salary/rules`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setRules(data.rules || []);
+        }
+      } catch (e) {
+        console.error("Error fetching salary rules:", e);
+      }
+    };
+    fetchRules();
+  }, []);
+
+  /** First/last calendar day of the payroll month (for date-range filter overlap). */
+  const getPayPeriodBounds = useCallback((salary) => {
+    const y = Number(salary.year);
+    const m = Number(salary.month);
+    if (Number.isFinite(y) && Number.isFinite(m) && m >= 1 && m <= 12) {
+      const start = new Date(y, m - 1, 1);
+      const end = new Date(y, m, 0);
+      return {
+        start: new Date(start.getFullYear(), start.getMonth(), start.getDate()),
+        end: new Date(end.getFullYear(), end.getMonth(), end.getDate()),
+      };
+    }
+    return null;
+  }, []);
+
+  /** Month + year only — avoids showing a specific "day" that can still be in the future mid-month. */
+  const formatPayPeriodLabel = (salary) => {
+    const y = Number(salary.year);
+    const m = Number(salary.month);
+    if (Number.isFinite(y) && Number.isFinite(m) && m >= 1 && m <= 12) {
+      return new Date(y, m - 1, 1).toLocaleDateString("en-US", {
+        month: "short",
+        year: "numeric",
+      });
+    }
+    const raw = salary.calculatedAt || salary.updatedAt || salary.createdAt;
+    if (raw) {
+      const d = new Date(raw);
+      return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    }
+    return "—";
+  };
+
+  const parseFilterInputDate = (s) => {
+    if (!s || typeof s !== "string") return null;
+    const parts = s.split("-").map(Number);
+    if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+    const [y, m, d] = parts;
+    return new Date(y, m - 1, d);
+  };
+
+  const filteredSalaries = useMemo(() => {
+    let list = salaries;
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter((s) => {
+        const name = (s.User?.name || "").toLowerCase();
+        const code = (s.User?.employeeCode || "").toLowerCase();
+        return name.includes(q) || code.includes(q);
+      });
+    }
+    const from = parseFilterInputDate(filterDateFrom);
+    const to = parseFilterInputDate(filterDateTo);
+    if (from || to) {
+      list = list.filter((s) => {
+        const b = getPayPeriodBounds(s);
+        if (!b) return false;
+        if (from && b.end < from) return false;
+        if (to && b.start > to) return false;
+        return true;
+      });
+    }
+    return list;
+  }, [salaries, searchQuery, filterDateFrom, filterDateTo, getPayPeriodBounds]);
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setFilterDateFrom("");
+    setFilterDateTo("");
+  };
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" || filterDateFrom !== "" || filterDateTo !== "";
+
+  const viewSalaryBreakdown = (salary) => {
+    setSalaryBreakdown(salary);
+    const selected =
+      employees.find((e) => Number(e.id) === Number(salary.userId)) ||
+      salary.User ||
+      {};
+    setSelectedEmployeeForModal(selected);
+    setShowBreakdownModal(true);
+  };
 
   const fetchSalaries = async () => {
     try {
@@ -186,8 +297,65 @@ export default function SalaryManagement() {
     }
   };
 
+  /** Recalculate salary for all employees for the selected month/year (toolbar). */
+  const handleRecalculateAllForMonth = async () => {
+    if (employees.length === 0) {
+      setMessage("No employees to recalculate");
+      return;
+    }
+    try {
+      setLoading(true);
+      setMessage("");
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+
+      let ok = 0;
+      let fail = 0;
+      for (const employee of employees) {
+        try {
+          const res = await fetch(`${apiBase}/api/salary/calculate`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId: employee.id,
+              month: selectedMonth,
+              year: selectedYear,
+            }),
+          });
+          if (res.ok) ok += 1;
+          else fail += 1;
+        } catch {
+          fail += 1;
+        }
+      }
+
+      await fetchSalaries();
+      setToastPopup(
+        `Recalculate: ${ok} OK${fail ? `, ${fail} failed` : ""} (${selectedMonth}/${selectedYear})`
+      );
+      setTimeout(() => setToastPopup(""), 6000);
+    } catch (error) {
+      setMessage("Error: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("vi-VN").format(amount || 0) + " ₫";
+    return new Intl.NumberFormat("en-US").format(amount ?? 0) + " ₫";
+  };
+
+  /** Display net: prefer DB; if DB is 0 (legacy clamp) but gross − deduction < 0, show correct negative. */
+  const displayNetSalary = (s) => {
+    const stored = Number(s.finalSalary);
+    const g = parseFloat(s.grossSalary ?? 0);
+    const d = parseFloat(s.deduction ?? 0);
+    const recomputed = parseFloat((g - d).toFixed(2));
+    if (Math.abs(stored) < 0.005 && recomputed < 0) return recomputed;
+    return Number.isFinite(stored) ? stored : recomputed;
   };
 
   const getStatusBadge = (status) => {
@@ -368,20 +536,20 @@ export default function SalaryManagement() {
             top: "72px",
             right: "20px",
             padding: "14px 20px",
-            backgroundColor: message.includes("thành công") ? "#ecfdf5" : "#fef2f2",
-            color: message.includes("thành công") ? "#065f46" : "#991b1b",
+            backgroundColor: /success/i.test(message) ? "#ecfdf5" : "#fef2f2",
+            color: /success/i.test(message) ? "#065f46" : "#991b1b",
             borderRadius: "8px",
             boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             zIndex: 9999,
             minWidth: "280px",
             maxWidth: "360px",
             animation: "slideInRight 0.3s ease-out",
-            border: `1px solid ${message.includes("thành công") ? "#a7f3d0" : "#fecaca"}`
+            border: `1px solid ${/success/i.test(message) ? "#a7f3d0" : "#fecaca"}`
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span aria-hidden style={{ fontSize: "18px" }}>
-              {message.includes("thành công") ? "✅" : "❌"}
+              {/success/i.test(message) ? "✅" : "❌"}
             </span>
             <span style={{ flex: 1, fontWeight: "600", fontSize: "14px" }}>{message}</span>
           </div>
@@ -430,20 +598,20 @@ export default function SalaryManagement() {
         </div>
 
         <button
-          onClick={() => exportSalariesToExcel(salaries, `bang-luong-${selectedMonth}-${selectedYear}`)}
-          disabled={salaries.length === 0}
+          onClick={() => exportSalariesToExcel(filteredSalaries, `bang-luong-${selectedMonth}-${selectedYear}`)}
+          disabled={filteredSalaries.length === 0}
             style={{
               ...buttonStyle,
-              opacity: salaries.length === 0 ? 0.5 : 1,
-              cursor: salaries.length === 0 ? "not-allowed" : "pointer"
+              opacity: filteredSalaries.length === 0 ? 0.5 : 1,
+              cursor: filteredSalaries.length === 0 ? "not-allowed" : "pointer"
             }}
             onMouseEnter={(e) => {
-              if (salaries.length > 0) {
+              if (filteredSalaries.length > 0) {
                 e.currentTarget.style.background = theme.accent.hover;
               }
             }}
             onMouseLeave={(e) => {
-              if (salaries.length > 0) {
+              if (filteredSalaries.length > 0) {
                 e.currentTarget.style.background = theme.accent.main;
               }
             }}
@@ -453,21 +621,21 @@ export default function SalaryManagement() {
         </button>
 
         <button
-          onClick={() => exportSalariesToPDF(salaries, `bang-luong-${selectedMonth}-${selectedYear}`)}
-          disabled={salaries.length === 0}
+          onClick={() => exportSalariesToPDF(filteredSalaries, `bang-luong-${selectedMonth}-${selectedYear}`)}
+          disabled={filteredSalaries.length === 0}
             style={{
               ...buttonStyle,
               background: "#b91c1c",
-              opacity: salaries.length === 0 ? 0.5 : 1,
-              cursor: salaries.length === 0 ? "not-allowed" : "pointer"
+              opacity: filteredSalaries.length === 0 ? 0.5 : 1,
+              cursor: filteredSalaries.length === 0 ? "not-allowed" : "pointer"
             }}
             onMouseEnter={(e) => {
-              if (salaries.length > 0) {
+              if (filteredSalaries.length > 0) {
                 e.currentTarget.style.background = "#991b1b";
               }
             }}
             onMouseLeave={(e) => {
-              if (salaries.length > 0) {
+              if (filteredSalaries.length > 0) {
                 e.currentTarget.style.background = "#b91c1c";
               }
             }}
@@ -475,6 +643,124 @@ export default function SalaryManagement() {
             <span>📄</span>
             <span>Export PDF</span>
         </button>
+
+        <button
+          type="button"
+          onClick={handleRecalculateAllForMonth}
+          disabled={loading || employees.length === 0}
+          style={{
+            ...buttonStyle,
+            background: "#2563eb",
+            opacity: loading || employees.length === 0 ? 0.5 : 1,
+            cursor: loading || employees.length === 0 ? "not-allowed" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+          onMouseEnter={(e) => {
+            if (!loading && employees.length > 0) {
+              e.currentTarget.style.background = "#1d4ed8";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!loading && employees.length > 0) {
+              e.currentTarget.style.background = "#2563eb";
+            }
+          }}
+        >
+          <span aria-hidden>🔄</span>
+          <span>Recalculate</span>
+        </button>
+        </div>
+
+        <div
+          style={{
+            marginTop: "20px",
+            paddingTop: "20px",
+            borderTop: "1px solid #e2e8f0",
+            display: "flex",
+            gap: "16px",
+            alignItems: "flex-end",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ ...inputWrapperStyle, flex: "1 1 220px", minWidth: "200px", maxWidth: "360px" }}>
+            <label style={labelStyle} htmlFor="salary-mgmt-search">
+              Search
+            </label>
+            <input
+              id="salary-mgmt-search"
+              type="search"
+              placeholder="Name or employee ID…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                ...inputStyle,
+                cursor: "text",
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = theme.accent.main;
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "#e2e8f0";
+              }}
+            />
+          </div>
+          <div style={inputWrapperStyle}>
+            <label style={labelStyle} htmlFor="salary-filter-from">
+              Date from
+            </label>
+            <input
+              id="salary-filter-from"
+              type="date"
+              value={filterDateFrom}
+              onChange={(e) => setFilterDateFrom(e.target.value)}
+              style={inputStyle}
+              onFocus={(e) => {
+                e.target.style.borderColor = theme.accent.main;
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "#e2e8f0";
+              }}
+            />
+          </div>
+          <div style={inputWrapperStyle}>
+            <label style={labelStyle} htmlFor="salary-filter-to">
+              Date to
+            </label>
+            <input
+              id="salary-filter-to"
+              type="date"
+              value={filterDateTo}
+              onChange={(e) => setFilterDateTo(e.target.value)}
+              style={inputStyle}
+              onFocus={(e) => {
+                e.target.style.borderColor = theme.accent.main;
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "#e2e8f0";
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={clearFilters}
+            disabled={!hasActiveFilters}
+            style={{
+              padding: "10px 18px",
+              background: hasActiveFilters ? "#f1f5f9" : "#f8fafc",
+              color: hasActiveFilters ? "#475569" : "#94a3b8",
+              border: "1px solid #e2e8f0",
+              borderRadius: "8px",
+              fontSize: "14px",
+              fontWeight: "600",
+              cursor: hasActiveFilters ? "pointer" : "not-allowed",
+              height: "42px",
+              alignSelf: "flex-end",
+            }}
+          >
+            Clear filters
+          </button>
         </div>
       </div>
 
@@ -498,13 +784,54 @@ export default function SalaryManagement() {
             </p>
           </div>
         </div>
+      ) : filteredSalaries.length === 0 ? (
+        <div style={tableContainerStyle}>
+          <div style={emptyStateStyle}>
+            <div style={{ fontSize: "48px", marginBottom: "16px", opacity: 0.6 }}>🔍</div>
+            <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#334155", margin: "0 0 6px 0" }}>
+              No matching rows
+            </h3>
+            <p style={{ fontSize: "14px", color: "#64748b", margin: "0 0 16px 0" }}>
+              Try changing search or date range, or clear filters.
+            </p>
+            <button
+              type="button"
+              onClick={clearFilters}
+              style={{
+                ...buttonStyle,
+                padding: "10px 20px",
+                fontSize: "14px",
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
+        </div>
       ) : (
         <div style={tableContainerStyle}>
+          <div
+            style={{
+              padding: "12px 20px",
+              fontSize: "13px",
+              color: "#64748b",
+              borderBottom: "1px solid #f1f5f9",
+              background: "#fafafa",
+            }}
+          >
+            Showing{" "}
+            <strong style={{ color: "#334155" }}>{filteredSalaries.length}</strong> of{" "}
+            <strong style={{ color: "#334155" }}>{salaries.length}</strong> row
+            {salaries.length !== 1 ? "s" : ""}
+            {hasActiveFilters ? " (filters applied)" : ""}
+          </div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead style={tableHeaderStyle}>
               <tr>
                 <th style={{ ...thStyle }}>Employee</th>
                 <th style={{ ...thStyle }}>Emp. ID</th>
+                <th style={{ ...thStyle }} title="Payroll month and year (same period as Month/Year filter above)">
+                  Pay period
+                </th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Base Salary</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Bonus</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Deduction</th>
@@ -514,7 +841,7 @@ export default function SalaryManagement() {
               </tr>
             </thead>
           <tbody>
-              {salaries.map((salary, index) => {
+              {filteredSalaries.map((salary, index) => {
               const statusBadge = getStatusBadge(salary.status);
               return (
                   <tr
@@ -534,11 +861,20 @@ export default function SalaryManagement() {
                   >
                     <td style={{ ...tdStyle, fontWeight: "600" }}>{salary.User?.name || "N/A"}</td>
                     <td style={{ ...tdStyle, fontWeight: "600", color: theme.accent.dark }}>{salary.User?.employeeCode || "N/A"}</td>
+                    <td style={{ ...tdStyle, color: "#64748b", fontSize: "13px" }}>{formatPayPeriodLabel(salary)}</td>
                     <td style={{ ...tdStyle, textAlign: "right", fontWeight: "600" }}>{formatCurrency(salary.baseSalary)}</td>
                     <td style={{ ...tdStyle, textAlign: "right", color: theme.accent.dark, fontWeight: "600" }}>+{formatCurrency(salary.bonus)}</td>
                     <td style={{ ...tdStyle, textAlign: "right", color: "#ef4444", fontWeight: "600" }}>-{formatCurrency(salary.deduction)}</td>
-                    <td style={{ ...tdStyle, textAlign: "right", fontWeight: "700", fontSize: "15px", color: theme.accent.dark }}>
-                      {formatCurrency(salary.finalSalary)}
+                    <td
+                      style={{
+                        ...tdStyle,
+                        textAlign: "right",
+                        fontWeight: "700",
+                        fontSize: "15px",
+                        color: displayNetSalary(salary) < 0 ? "#b91c1c" : theme.accent.dark,
+                      }}
+                    >
+                      {formatCurrency(displayNetSalary(salary))}
                     </td>
                   <td style={{ ...tdStyle, textAlign: "center" }}>
                     <span style={{
@@ -554,13 +890,13 @@ export default function SalaryManagement() {
                     </span>
                   </td>
                     <td style={{ ...tdStyle, textAlign: "center" }}>
-                      <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
-                      {salary.status === "approved" && currentRole === "accountant" && (
+                      <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap" }}>
                         <button
-                          onClick={() => handleMarkPaid(salary.id)}
+                          type="button"
+                          onClick={() => viewSalaryBreakdown(salary)}
                           style={{
                             padding: "8px 14px",
-                            background: theme.accent.main,
+                            background: "#b91c1c",
                             color: "#fff",
                             border: "none",
                             borderRadius: "8px",
@@ -568,19 +904,23 @@ export default function SalaryManagement() {
                             fontSize: "13px",
                             fontWeight: "600",
                             transition: "background 0.2s",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = theme.accent.hover;
+                            e.currentTarget.style.background = "#991b1b";
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.background = theme.accent.main;
+                            e.currentTarget.style.background = "#b91c1c";
                           }}
                         >
-                          Thanh toán
+                          <span aria-hidden>📄</span>
+                          Detail
                         </button>
-                      )}
-                      <button
-                        onClick={() => handleCalculateSalary(salary.User?.id)}
+                        <button
+                          type="button"
+                          onClick={() => handleCalculateSalary(salary.User?.id)}
                           style={{
                             padding: "8px 14px",
                             backgroundColor: "#64748b",
@@ -600,15 +940,59 @@ export default function SalaryManagement() {
                           }}
                         >
                           Recalculate
-                      </button>
-                    </div>
-                  </td>
+                        </button>
+                        {salary.status === "approved" && currentRole === "accountant" && (
+                          <button
+                            type="button"
+                            onClick={() => handleMarkPaid(salary.id)}
+                            style={{
+                              padding: "8px 14px",
+                              background: theme.accent.main,
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: "8px",
+                              cursor: "pointer",
+                              fontSize: "13px",
+                              fontWeight: "600",
+                              transition: "background 0.2s",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = theme.accent.hover;
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = theme.accent.main;
+                            }}
+                          >
+                            Mark paid
+                          </button>
+                        )}
+                      </div>
+                    </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
         </div>
+      )}
+
+      {showBreakdownModal && salaryBreakdown && selectedEmployeeForModal && (
+        <SalaryBreakdownModal
+          salary={salaryBreakdown}
+          employee={selectedEmployeeForModal}
+          rules={rules}
+          onClose={() => {
+            setShowBreakdownModal(false);
+            setSalaryBreakdown(null);
+            setSelectedEmployeeForModal(null);
+          }}
+          onUpdate={(updatedSalary) => {
+            setSalaryBreakdown(updatedSalary);
+            setSalaries((prev) =>
+              prev.map((s) => (s.id === updatedSalary.id ? updatedSalary : s))
+            );
+          }}
+        />
       )}
     </div>
   );

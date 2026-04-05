@@ -344,7 +344,7 @@ export default function SalaryRulesManagement() {
                   if (amountType === 'percentage') {
                     amountDisplay = `${amountValue.toFixed(2)}%`;
                   } else {
-                    amountDisplay = `${amountValue.toLocaleString("vi-VN")} VND`;
+                    amountDisplay = `${amountValue.toLocaleString("en-US")} VND`;
                   }
                 }
                 

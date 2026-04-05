@@ -66,38 +66,41 @@ export const generatePayslipPDF = async (salaryId) => {
     yPos += 7;
     doc.text(`Bank Name: ${user.bankName || "-"}`, 20, yPos);
 
-    // Calculate insurance and tax
+    // BH + thuế (đồng bộ với bước tính lương; salary.deduction = phạt + ứng + BH + thuế)
     const insurance = await calculateInsurance(user.id, salary.month, salary.year);
-    const tax = await calculatePersonalIncomeTax(user.id, salary.finalSalary || 0, salary.month, salary.year);
+    const tax = await calculatePersonalIncomeTax(user.id, salary.grossSalary || 0, salary.month, salary.year);
+    const advanceDeduction = parseFloat(salary.advanceDeduction) || 0;
+    const totalDeductionStored = parseFloat(salary.deduction) || 0;
+    const ruleAndMiscDeductions = Math.max(
+      0,
+      totalDeductionStored - insurance.employee.total - tax.taxAmount - advanceDeduction
+    );
 
-    // Calculate salary advance deduction
-    const advanceDeduction = salary.advanceDeduction || 0;
+    const fmt = (n) => new Intl.NumberFormat("en-US").format(Math.round(n)) + " VND";
 
     // Salary Breakdown Table
     yPos += 15;
     const tableData = [
-      ["Base Salary", new Intl.NumberFormat('en-US').format(user.baseSalary || 0) + " VND"],
-      ["Allowances", new Intl.NumberFormat('en-US').format(
+      ["Base Salary", fmt(user.baseSalary || 0)],
+      ["Allowances", fmt(
         (user.lunchAllowance || 0) +
         (user.transportAllowance || 0) +
         (user.phoneAllowance || 0) +
         (user.responsibilityAllowance || 0)
-      ) + " VND"],
-      ["Bonus", new Intl.NumberFormat('en-US').format(salary.bonus || 0) + " VND"],
-      ["Gross Salary", new Intl.NumberFormat('en-US').format(salary.grossSalary || 0) + " VND"],
+      )],
+      ["Bonus", fmt(salary.bonus || 0)],
+      ["Gross Salary", fmt(salary.grossSalary || 0)],
       ["", ""],
       ["Deductions:", ""],
-      ["Social Insurance (Employee)", new Intl.NumberFormat('en-US').format(insurance.employee.socialInsurance) + " VND"],
-      ["Health Insurance (Employee)", new Intl.NumberFormat('en-US').format(insurance.employee.healthInsurance) + " VND"],
-      ["Unemployment Insurance (Employee)", new Intl.NumberFormat('en-US').format(insurance.employee.unemploymentInsurance) + " VND"],
-      ["Personal Income Tax", new Intl.NumberFormat('en-US').format(tax.taxAmount) + " VND"],
-      ["Salary Advance Deduction", new Intl.NumberFormat('en-US').format(advanceDeduction) + " VND"],
-      ["Other Deductions", new Intl.NumberFormat('en-US').format(salary.deduction || 0) + " VND"],
-      ["Total Deductions", new Intl.NumberFormat('en-US').format(
-        insurance.employee.total + tax.taxAmount + advanceDeduction + (salary.deduction || 0)
-      ) + " VND"],
+      ["Social Insurance (Employee)", fmt(insurance.employee.socialInsurance)],
+      ["Health Insurance (Employee)", fmt(insurance.employee.healthInsurance)],
+      ["Unemployment Insurance (Employee)", fmt(insurance.employee.unemploymentInsurance)],
+      ["Personal Income Tax", fmt(tax.taxAmount)],
+      ["Salary Advance Deduction", fmt(advanceDeduction)],
+      ["Other deductions (attendance rules, etc.)", fmt(ruleAndMiscDeductions)],
+      ["Total Deductions", fmt(totalDeductionStored)],
       ["", ""],
-      ["NET SALARY", new Intl.NumberFormat('en-US').format(salary.finalSalary || 0) + " VND"]
+      ["NET SALARY", fmt(salary.finalSalary || 0)]
     ];
 
     doc.autoTable({

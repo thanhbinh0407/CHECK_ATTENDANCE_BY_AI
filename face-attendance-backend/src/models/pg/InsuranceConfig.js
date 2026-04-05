@@ -26,8 +26,8 @@ const InsuranceConfig = sequelize.define('InsuranceConfig', {
   // Tỷ lệ đóng bảo hiểm (theo quy định hiện hành)
   employeeSocialInsuranceRate: {
     type: DataTypes.DECIMAL(5, 2),
-    defaultValue: 10.5,
-    comment: 'Tỷ lệ đóng BHXH nhân viên (%)'
+    defaultValue: 8,
+    comment: 'Tỷ lệ đóng BHXH phần NLĐ (%) — chỉ BHXH; BHYT/BHTN khai báo riêng (vd. 8 + 1,5 + 1 = 10,5 tổng)'
   },
   employerSocialInsuranceRate: {
     type: DataTypes.DECIMAL(5, 2),

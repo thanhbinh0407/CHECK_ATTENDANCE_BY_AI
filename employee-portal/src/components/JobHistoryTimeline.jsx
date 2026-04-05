@@ -24,6 +24,19 @@ function formatCurrency(value) {
   return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(Number(value || 0));
 }
 
+function formatTransition(fromValue, toValue, noChange = false) {
+  const from = (fromValue || "").trim();
+  const to = (toValue || "").trim();
+
+  if (noChange) {
+    const stable = from || to;
+    if (stable) return `${stable} → ${stable}`;
+    return "Không đổi";
+  }
+
+  return `${from || "-"} → ${to || "-"}`;
+}
+
 export default function JobHistoryTimeline() {
   const [jobHistory, setJobHistory] = useState([]);
   const [salaryChangeHistory, setSalaryChangeHistory] = useState([]);
@@ -216,6 +229,7 @@ export default function JobHistoryTimeline() {
               <tbody>
                 {jobHistory.map((item) => {
                   const color = badgeColor(item.changeType);
+                  const isOtherType = item.changeType === "other";
                   return (
                     <tr key={item.id} style={{ borderTop: "1px solid #f1f5f9" }}>
                       <td style={{ padding: 8 }}>{formatDate(item.effectiveDate)}</td>
@@ -224,8 +238,16 @@ export default function JobHistoryTimeline() {
                           {item.changeType}
                         </span>
                       </td>
-                      <td style={{ padding: 8 }}>{item.fromDepartmentName || "-"} → {item.toDepartmentName || "-"}</td>
-                      <td style={{ padding: 8 }}>{item.fromJobTitleName || "-"} → {item.toJobTitleName || "-"}</td>
+                      <td style={{ padding: 8 }}>
+                        {isOtherType
+                          ? formatTransition(item.fromDepartmentName, item.toDepartmentName)
+                          : (item.toDepartmentName || item.fromDepartmentName || "-")}
+                      </td>
+                      <td style={{ padding: 8 }}>
+                        {isOtherType
+                          ? formatTransition(item.fromJobTitleName, item.toJobTitleName)
+                          : (item.toJobTitleName || item.fromJobTitleName || "-")}
+                      </td>
                       <td style={{ padding: 8 }}>{item.notes || "-"}</td>
                     </tr>
                   );

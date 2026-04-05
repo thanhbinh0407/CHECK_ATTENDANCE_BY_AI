@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useManagerDashboardData } from "../hooks/useManagerDashboardData.js";
 import ManagerOverview from "./ManagerOverview.jsx";
 import "./managerDashboard.css";
@@ -58,7 +58,8 @@ const shortcutGroups = [
 ];
 
 export default function ManagerDashboard() {
-  const { employees, departments, jobTitles, recentChanges, pending, loading, error, summary } = useManagerDashboardData();
+  const { employees, departments, jobTitles, recentChanges, pending, loading, error, summary, workDurations, workSummary } = useManagerDashboardData();
+  const [showAllWorkers, setShowAllWorkers] = useState(false);
 
   const headDate = useMemo(() => {
     return new Intl.DateTimeFormat("vi-VN", {
@@ -70,6 +71,8 @@ export default function ManagerDashboard() {
   }, []);
 
   const totalEmp = employees.length;
+  const visibleWorkers = showAllWorkers ? workDurations : workDurations.slice(0, 10);
+  const hasMoreWorkers = workDurations.length > 10;
 
   return (
     <div className="mgr-dash">
@@ -161,6 +164,52 @@ export default function ManagerDashboard() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="mgr-work" aria-label="Trạng thái làm việc hôm nay">
+        <div className="mgr-work__head">
+          <h2 className="mgr-work__title">Trạng thái làm việc hôm nay</h2>
+          <div className="mgr-work__chips">
+            <span className="mgr-work__chip mgr-work__chip--active">Đang làm: {loading ? "…" : workSummary.active}</span>
+            <span className="mgr-work__chip mgr-work__chip--done">Đã checkout: {loading ? "…" : workSummary.finished}</span>
+          </div>
+        </div>
+
+        {loading && <div className="mgr-work__empty">Đang tải dữ liệu chấm công…</div>}
+        {!loading && visibleWorkers.length === 0 && (
+          <div className="mgr-work__empty">Chưa có dữ liệu chấm công hôm nay để tính thời gian làm việc.</div>
+        )}
+
+        {!loading && visibleWorkers.length > 0 && (
+          <>
+            <div className="mgr-work__list">
+              {visibleWorkers.map((row) => (
+                <div key={row.userId} className="mgr-work__row">
+                  <div className="mgr-work__main">
+                    <div className="mgr-work__name">{row.name}</div>
+                    <div className="mgr-work__meta">Vào ca: {row.firstInText} • Cập nhật cuối: {row.lastActionText}</div>
+                  </div>
+                  <div className="mgr-work__side">
+                    <span className={`mgr-work__status ${row.status === "Đang làm việc" ? "is-active" : "is-done"}`}>{row.status}</span>
+                    <strong className="mgr-work__duration">{row.durationText}</strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {hasMoreWorkers && (
+              <div className="mgr-work__actions">
+                <button
+                  type="button"
+                  className="mgr-work__toggle"
+                  onClick={() => setShowAllWorkers((prev) => !prev)}
+                >
+                  {showAllWorkers ? "Thu Gọn về 10 nhân viên" : "Xem Tất Cả"}
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </section>
 
       <ManagerOverview

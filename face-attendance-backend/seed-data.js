@@ -434,7 +434,7 @@ async function seedDB() {
     await InsuranceConfig.create({
       name: 'Social Insurance 2025',
       effectiveDate: '2025-01-01',
-      employeeSocialInsuranceRate: 10.5,
+      employeeSocialInsuranceRate: 8,
       employerSocialInsuranceRate: 21.5,
       employeeHealthInsuranceRate: 1.5,
       employerHealthInsuranceRate: 3.0,
@@ -1318,7 +1318,7 @@ async function seedDB() {
           const taxableIncome = base + totalBonus - employeeInsurance - personalDeduction;
           const tax = taxableIncome > 0 ? Math.round(taxableIncome * 0.05) : 0;
           const totalDeduction = absentDeduction + advanceDeduction + employeeInsurance + tax;
-          const finalSalary = Math.max(0, Math.round(base + totalBonus - totalDeduction));
+          const finalSalary = Math.round(base + totalBonus - totalDeduction);
 
           // Seed salary statuses to cover the full workflow (pending -> approved -> paid)
           // - Feb/2026: mix pending/approved/paid

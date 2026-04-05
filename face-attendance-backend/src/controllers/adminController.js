@@ -1257,6 +1257,7 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         name: employee.name,
         email: employee.email,
         employeeCode: employee.employeeCode,
+        role: employee.role,
         phoneNumber: employee.phoneNumber,
         address: employee.address,
         permanentAddress: employee.permanentAddress,
@@ -1479,7 +1480,14 @@ export const getEmployeeHistory = async (req, res) => {
     const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '10', 10), 1), 100);
     const offset = (page - 1) * pageSize;
 
-    const employee = await User.findOne({ where: { id }, attributes: ['id'] });
+    const employee = await User.findOne({
+      where: { id },
+      attributes: ['id'],
+      include: [
+        { model: Department, attributes: ['id', 'name'] },
+        { model: JobTitle, attributes: ['id', 'name'] },
+      ],
+    });
     if (!employee) {
       return res.status(404).json({ status: 'error', message: 'Employee not found' });
     }
@@ -1509,28 +1517,79 @@ export const getEmployeeHistory = async (req, res) => {
         limit: pageSize,
       });
 
-      response.jobHistory = rows.map((history) => ({
-        id: history.id,
-        fromDepartmentId: history.fromDepartmentId,
-        toDepartmentId: history.toDepartmentId,
-        fromDepartmentName: history.FromDepartment?.name || null,
-        toDepartmentName: history.ToDepartment?.name || null,
-        fromJobTitleId: history.fromJobTitleId,
-        toJobTitleId: history.toJobTitleId,
-        fromJobTitleName: history.FromJobTitle?.name || null,
-        toJobTitleName: history.ToJobTitle?.name || null,
-        changeType: history.changeType,
-        effectiveDate: history.effectiveDate,
-        notes: history.notes,
-        changedBy: history.ChangedByUser
-          ? {
-              id: history.ChangedByUser.id,
-              name: history.ChangedByUser.name,
-              employeeCode: history.ChangedByUser.employeeCode,
-              role: history.ChangedByUser.role,
-            }
-          : null,
-      }));
+      const currentDepartmentName = employee.Department?.name || null;
+      const currentJobTitleName = employee.JobTitle?.name || null;
+
+      response.jobHistory = rows.map((history) => {
+        let fromDepartmentName = history.FromDepartment?.name || null;
+        let toDepartmentName = history.ToDepartment?.name || null;
+        let fromJobTitleName = history.FromJobTitle?.name || null;
+        let toJobTitleName = history.ToJobTitle?.name || null;
+
+        // promotion/demotion: department is unchanged.
+        if (history.changeType === 'promotion' || history.changeType === 'demotion') {
+          const stableDept = fromDepartmentName || toDepartmentName;
+          if (stableDept) {
+            fromDepartmentName = stableDept;
+            toDepartmentName = stableDept;
+          }
+        }
+
+        // transfer: job title is unchanged.
+        if (history.changeType === 'transfer') {
+          const stableTitle = fromJobTitleName || toJobTitleName;
+          if (stableTitle) {
+            fromJobTitleName = stableTitle;
+            toJobTitleName = stableTitle;
+          }
+        }
+
+        // If IDs are equal, normalize both sides from whichever side is available.
+        if (history.fromDepartmentId != null && history.fromDepartmentId === history.toDepartmentId) {
+          const stableDept = fromDepartmentName || toDepartmentName;
+          if (stableDept) {
+            fromDepartmentName = stableDept;
+            toDepartmentName = stableDept;
+          }
+        }
+
+        if (history.fromJobTitleId != null && history.fromJobTitleId === history.toJobTitleId) {
+          const stableTitle = fromJobTitleName || toJobTitleName;
+          if (stableTitle) {
+            fromJobTitleName = stableTitle;
+            toJobTitleName = stableTitle;
+          }
+        }
+
+        // Final fallback: keep User Detail consistent with current Work Information when history side is missing.
+        if (!fromDepartmentName) fromDepartmentName = toDepartmentName || currentDepartmentName;
+        if (!toDepartmentName) toDepartmentName = fromDepartmentName || currentDepartmentName;
+        if (!fromJobTitleName) fromJobTitleName = toJobTitleName || currentJobTitleName;
+        if (!toJobTitleName) toJobTitleName = fromJobTitleName || currentJobTitleName;
+
+        return {
+          id: history.id,
+          fromDepartmentId: history.fromDepartmentId,
+          toDepartmentId: history.toDepartmentId,
+          fromDepartmentName,
+          toDepartmentName,
+          fromJobTitleId: history.fromJobTitleId,
+          toJobTitleId: history.toJobTitleId,
+          fromJobTitleName,
+          toJobTitleName,
+          changeType: history.changeType,
+          effectiveDate: history.effectiveDate,
+          notes: history.notes,
+          changedBy: history.ChangedByUser
+            ? {
+                id: history.ChangedByUser.id,
+                name: history.ChangedByUser.name,
+                employeeCode: history.ChangedByUser.employeeCode,
+                role: history.ChangedByUser.role,
+              }
+            : null,
+        };
+      });
       response.jobPagination = { page, pageSize, total: count, totalPages: Math.max(1, Math.ceil(count / pageSize)) };
     }
 

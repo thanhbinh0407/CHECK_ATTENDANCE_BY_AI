@@ -235,6 +235,13 @@ export const requireRoles = (allowedRoles = []) => {
   };
 };
 
+// Legacy aliases for older route modules.
+// `authorize` normalizes old uppercase role inputs (e.g., "HR")
+// to current lowercase role values used in JWT payloads.
+export const authenticate = authMiddleware;
+export const authorize = (allowedRoles = []) =>
+  requireRoles((allowedRoles || []).map((role) => String(role).toLowerCase()));
+
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
  * HELPER FUNCTIONS - Kiểm tra quyền mà không cần middleware

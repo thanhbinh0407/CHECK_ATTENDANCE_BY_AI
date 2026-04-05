@@ -8,10 +8,44 @@ function authHeaders(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 }
 
+function formatDuration(ms) {
+  const safeMs = Math.max(0, Number(ms) || 0);
+  const totalMinutes = Math.floor(safeMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+}
+
+function normalizeText(value) {
+  return String(value || '').toLowerCase();
+}
+
+function getFilterDate(item) {
+  const candidates = [
+    item?.date,
+    item?.startDate,
+    item?.requestDate,
+    item?.createdAt,
+    item?.updatedAt,
+    item?.approvedAt,
+    item?.endDate,
+  ];
+
+  for (const v of candidates) {
+    if (!v) continue;
+    const d = new Date(v);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+
+  return null;
+}
+
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────────
 function Dashboard({ token, onNavigate }) {
   const [stats, setStats] = useState({ pendingLeave: 0, pendingOvertime: 0, pendingTrip: 0, pendingAdvance: 0, pendingSalary: 0 });
   const [recentQueue, setRecentQueue] = useState([]);
+  const [workDurations, setWorkDurations] = useState([]);
+  const [workSummary, setWorkSummary] = useState({ active: 0, finished: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,45 +55,112 @@ function Dashboard({ token, onNavigate }) {
       fetch(`${API}/business-trip-requests?status=pending`, { headers: authHeaders(token) }).then(r => r.json()),
       fetch(`${API}/salary-advances?status=pending`, { headers: authHeaders(token) }).then(r => r.json()),
       fetch(`${API}/salary/pending`, { headers: authHeaders(token) }).then(r => r.json()).catch(() => ({})),
-    ]).then(([leave, ot, trip, adv, sal]) => {
+      fetch(`${API}/attendance/today`, { headers: authHeaders(token) }).then(r => r.json()).catch(() => ({})),
+      fetch(`${API}/admin/employees`, { headers: authHeaders(token) }).then(r => r.json()).catch(() => ({})),
+    ]).then(([leave, ot, trip, adv, sal, attendanceToday, employeesData]) => {
       const leaveList = leave.leaveRequests || leave.data || [];
       const otList = ot.requests || ot.overtimeRequests || ot.data || [];
       const tripList = trip.requests || trip.businessTripRequests || trip.data || [];
       const advList = adv.advances || adv.salaryAdvances || adv.data || [];
       const salList = sal.salaries || sal.data || sal.pending || [];
+      const todayLogs = attendanceToday.logs || attendanceToday.data || [];
+      const employees = employeesData.employees || employeesData.data || [];
+
+      const userNameMap = new Map();
+      employees.forEach((u) => {
+        userNameMap.set(String(u.id), u.name || u.employeeCode || `#${u.id}`);
+      });
+
+      const byUser = new Map();
+      todayLogs.forEach((log) => {
+        if (!log?.userId) return;
+        const uid = String(log.userId);
+        const ts = new Date(log.timestamp);
+        if (!byUser.has(uid)) {
+          byUser.set(uid, {
+            userId: log.userId,
+            name: userNameMap.get(uid) || log.detectedName || `Employee #${log.userId}`,
+            firstIn: null,
+            lastOut: null,
+            lastType: null,
+            lastAt: null,
+          });
+        }
+        const row = byUser.get(uid);
+        if (log.type === 'IN' && (!row.firstIn || ts < row.firstIn)) {
+          row.firstIn = ts;
+        }
+        if (log.type === 'OUT' && (!row.lastOut || ts > row.lastOut)) {
+          row.lastOut = ts;
+        }
+        if (!row.lastAt || ts > row.lastAt) {
+          row.lastAt = ts;
+          row.lastType = log.type;
+        }
+      });
+
+      const now = Date.now();
+      const rows = Array.from(byUser.values())
+        .filter((u) => !!u.firstIn)
+        .map((u) => {
+          const endTime = u.lastType === 'IN' ? now : (u.lastOut ? u.lastOut.getTime() : now);
+          const durationMs = Math.max(0, endTime - u.firstIn.getTime());
+          const status = u.lastType === 'IN' ? 'Working' : 'Checked out';
+          return {
+            userId: u.userId,
+            name: u.name,
+            status,
+            durationText: formatDuration(durationMs),
+            durationMs,
+            firstInText: u.firstIn.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+            lastActionText: u.lastAt
+              ? u.lastAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+              : '—',
+          };
+        })
+        .sort((a, b) => {
+          if (a.status !== b.status) return a.status === 'Working' ? -1 : 1;
+          return b.durationMs - a.durationMs;
+        });
+
+      setWorkDurations(rows.slice(0, 8));
+      setWorkSummary({
+        active: rows.filter((r) => r.status === 'Working').length,
+        finished: rows.filter((r) => r.status === 'Checked out').length,
+      });
 
       const queue = [
         ...(leaveList || []).slice(0, 2).map((l) => ({
           id: l.id,
-          type: "Nghỉ phép",
+          type: "Leave",
           label: `${l.type || "Leave"}: ${l.startDate}→${l.endDate}`,
           meta: l.userId || l.userID || l.employeeCode || "",
           status: l.status || "pending",
         })),
         ...(otList || []).slice(0, 2).map((r) => ({
           id: r.id,
-          type: "Tăng ca",
+          type: "Overtime",
           label: `${r.date || ""} ${r.startTime || ""}→${r.endTime || ""}`.trim(),
           meta: r.totalHours ? `${r.totalHours}h` : "",
           status: r.approvalStatus || "pending",
         })),
         ...(tripList || []).slice(0, 2).map((r) => ({
           id: r.id,
-          type: "Công tác",
+          type: "Business trip",
           label: `${r.destination || r.location || "—"}`.trim(),
           meta: r.date || r.startDate || "",
           status: r.approvalStatus || "pending",
         })),
         ...(advList || []).slice(0, 2).map((a) => ({
           id: a.id,
-          type: "Tạm ứng",
+          type: "Salary advance",
           label: `${a.month || ""}/${a.year || ""}`.trim(),
           meta: a.amount ? `${Number(a.amount).toLocaleString("vi-VN")} VND` : "",
           status: a.approvalStatus || "pending",
         })),
         ...(salList || []).slice(0, 2).map((s) => ({
           id: s.id,
-          type: "Lương",
+          type: "Payroll",
           label: `${s.User?.name || "Employee"} • ${s.month}/${s.year}`,
           meta: s.status,
           status: s.status || "pending",
@@ -86,19 +187,19 @@ function Dashboard({ token, onNavigate }) {
     if (typeof onNavigate === 'function') onNavigate(tab);
   };
 
-  if (loading) return <div className="loading">Đang tải...</div>;
+  if (loading) return <div className="loading">Loading...</div>;
 
   return (
     <div className="sup-dash">
       <div className="sup-dash-hero">
         <div className="sup-dash-hero-inner">
-          <h2>Trung tâm phê duyệt</h2>
+          <h2>Approval Center</h2>
           <p>
-            Theo dõi một chỗ tất cả đơn chờ xử lý trong phạm vi được phân quyền. Ưu tiên đơn cũ hoặc có SLA gắn với kỳ chấm công / lương.
+            Track every pending request in one place within your permission scope. Prioritize older requests or those tied to attendance/payroll deadlines.
           </p>
           <div className="sup-dash-pills">
-            <span className="sup-dash-pill">{total} việc chờ xử lý</span>
-            <span className="sup-dash-pill">Nghỉ · Tăng ca · Công tác · Tạm ứng · Lương</span>
+            <span className="sup-dash-pill">{total} items pending</span>
+            <span className="sup-dash-pill">Leave · Overtime · Trip · Advance · Payroll</span>
           </div>
         </div>
       </div>
@@ -106,55 +207,84 @@ function Dashboard({ token, onNavigate }) {
       <div className="sup-dash-kpis">
         <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('leave')}>
           <span className="sup-dash-kpi-deco" aria-hidden>📋</span>
-          <div className="lbl">Nghỉ phép</div>
+          <div className="lbl">Leave Requests</div>
           <div className="val">{stats.pendingLeave}</div>
-          <div className="hint">Nhấn để duyệt →</div>
+          <div className="hint">Open approval list →</div>
         </button>
         <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('overtime')}>
           <span className="sup-dash-kpi-deco" aria-hidden>⏰</span>
-          <div className="lbl">Tăng ca</div>
+          <div className="lbl">Overtime</div>
           <div className="val">{stats.pendingOvertime}</div>
-          <div className="hint">Duyệt giờ TC →</div>
+          <div className="hint">Review overtime hours →</div>
         </button>
         <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('business-trip')}>
           <span className="sup-dash-kpi-deco" aria-hidden>✈️</span>
-          <div className="lbl">Công tác</div>
+          <div className="lbl">Business Trips</div>
           <div className="val">{stats.pendingTrip}</div>
-          <div className="hint">Chi phí &amp; lịch →</div>
+          <div className="hint">Review schedule &amp; cost →</div>
         </button>
         <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('salary-advance')}>
           <span className="sup-dash-kpi-deco" aria-hidden>💵</span>
-          <div className="lbl">Tạm ứng</div>
+          <div className="lbl">Salary Advances</div>
           <div className="val">{stats.pendingAdvance}</div>
-          <div className="hint">Ứng lương →</div>
+          <div className="hint">Advance requests →</div>
         </button>
       </div>
 
       <div className="sup-dash-kpis" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginBottom: 16 }}>
         <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('salary')}>
           <span className="sup-dash-kpi-deco" aria-hidden>💰</span>
-          <div className="lbl">Bảng lương chờ duyệt</div>
+          <div className="lbl">Pending Payroll</div>
           <div className="val">{stats.pendingSalary}</div>
-          <div className="hint">Nếu API trả về rỗng, có thể kỳ này chưa có bảng chờ</div>
+          <div className="hint">If empty, this cycle may have no pending payroll</div>
         </button>
         <div className="sup-dash-kpi">
           <span className="sup-dash-kpi-deco" aria-hidden>📊</span>
-          <div className="lbl">Tổng backlog</div>
+          <div className="lbl">Total Backlog</div>
           <div className="val" style={{ color: '#1e1b4b' }}>{total}</div>
-          <div className="hint">Gồm cả lương (nếu có dữ liệu)</div>
+          <div className="hint">Including payroll when available</div>
         </div>
+      </div>
+
+      <div className="card sup-work-card" style={{ marginBottom: 16, borderRadius: 16 }}>
+        <div className="sup-work-head">
+          <p className="card-title" style={{ marginBottom: 0 }}>Today Work Status</p>
+          <div className="sup-work-pills">
+            <span className="sup-work-pill active">Working: {workSummary.active}</span>
+            <span className="sup-work-pill done">Checked out: {workSummary.finished}</span>
+          </div>
+        </div>
+
+        {workDurations.length > 0 ? (
+          <div className="sup-work-list">
+            {workDurations.map((row) => (
+              <div key={row.userId} className="sup-work-row">
+                <div className="sup-work-main">
+                  <div className="sup-work-name">{row.name}</div>
+                  <div className="sup-work-meta">Checked in: {row.firstInText} • Last update: {row.lastActionText}</div>
+                </div>
+                <div className="sup-work-side">
+                  <span className={`sup-work-status ${row.status === 'Working' ? 'is-active' : 'is-done'}`}>{row.status}</span>
+                  <strong className="sup-work-duration">{row.durationText}</strong>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ color: '#718096', fontSize: 13, marginTop: 6 }}>No attendance data today to calculate working duration.</div>
+        )}
       </div>
 
       {total > 0 && (
         <div className="card" style={{ marginBottom: 16, borderRadius: 16 }}>
-          <p className="card-title">Phân bổ đơn chờ (%)</p>
+          <p className="card-title">Pending Distribution (%)</p>
           <div className="sup-dash-bar">
             {[
-              ['Nghỉ', stats.pendingLeave],
-              ['Tăng ca', stats.pendingOvertime],
-              ['Công tác', stats.pendingTrip],
-              ['Tạm ứng', stats.pendingAdvance],
-              ['Lương', stats.pendingSalary],
+              ['Leave', stats.pendingLeave],
+              ['Overtime', stats.pendingOvertime],
+              ['Trip', stats.pendingTrip],
+              ['Advance', stats.pendingAdvance],
+              ['Payroll', stats.pendingSalary],
             ].map(([label, n]) => (
               <div key={label} className="sup-dash-bar-row">
                 <span>{label}</span>
@@ -170,7 +300,7 @@ function Dashboard({ token, onNavigate }) {
 
       {recentQueue.length > 0 && (
         <div className="card" style={{ marginBottom: 16, borderRadius: 16 }}>
-          <p className="card-title">Hàng đợi gần đây</p>
+          <p className="card-title">Recent Queue</p>
           <div style={{ display: "grid", gap: 10, marginTop: 6 }}>
             {recentQueue.map((item) => (
               <div key={item.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", padding: 10, border: "1px solid rgba(148,163,184,0.35)", borderRadius: 12, background: "#fff" }}>
@@ -191,14 +321,14 @@ function Dashboard({ token, onNavigate }) {
       )}
 
       <div className="sup-dash-foot">
-        <h3>Gợi ý thao tác</h3>
+        <h3>Suggested Workflow</h3>
         <p>
-          Duyệt theo thứ tự: <strong>nghỉ phép</strong> (ảnh hưởng chấm công) → <strong>tăng ca / công tác</strong> → <strong>tạm ứng</strong> → <strong>bảng lương</strong>.
-          Dùng tab <strong>Báo cáo</strong> để đối soát sau khi đóng kỳ.
+          Approve in this order: <strong>leave</strong> (affects attendance) → <strong>overtime / trips</strong> → <strong>salary advances</strong> → <strong>payroll</strong>.
+          Use the <strong>Reports</strong> tab for reconciliation after closing the cycle.
         </p>
         <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          <button type="button" className="btn btn-primary" style={{ fontSize: 13 }} onClick={() => go('reports')}>Mở báo cáo</button>
-          <button type="button" className="btn btn-secondary" style={{ fontSize: 13 }} onClick={() => go('leave')}>Đơn nghỉ</button>
+          <button type="button" className="btn btn-primary" style={{ fontSize: 13 }} onClick={() => go('reports')}>Open Reports</button>
+          <button type="button" className="btn btn-secondary" style={{ fontSize: 13 }} onClick={() => go('leave')}>Open Leave Requests</button>
         </div>
       </div>
     </div>
@@ -209,6 +339,9 @@ function Dashboard({ token, onNavigate }) {
 function ApprovalList({ token, type, apiPath, columns, extractList }) {
   const [items, setItems] = useState([]);
   const [statusFilter, setStatusFilter] = useState('pending');
+  const [searchText, setSearchText] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [actionModal, setActionModal] = useState(null); // { item, action }
   const [comment, setComment] = useState('');
@@ -268,29 +401,103 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
     load();
   };
 
+  const filteredItems = items.filter((item) => {
+    const q = normalizeText(searchText).trim();
+    if (q) {
+      const textPayload = [
+        item?.id,
+        item?.reason,
+        item?.purpose,
+        item?.destination,
+        item?.type,
+        item?.approvalStatus,
+        item?.status,
+        item?.User?.name,
+        item?.employeeCode,
+        item?.userId,
+        ...columns.map((c) => (c.render ? c.render(item) : item?.[c.key])),
+      ]
+        .map((v) => normalizeText(v))
+        .join(' | ');
+
+      if (!textPayload.includes(q)) return false;
+    }
+
+    if (fromDate || toDate) {
+      const rowDate = getFilterDate(item);
+      if (!rowDate) return false;
+
+      if (fromDate) {
+        const min = new Date(`${fromDate}T00:00:00`);
+        if (rowDate < min) return false;
+      }
+      if (toDate) {
+        const max = new Date(`${toDate}T23:59:59`);
+        if (rowDate > max) return false;
+      }
+    }
+
+    return true;
+  });
+
   return (
     <div>
       <div className="filters">
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          <option value="">Tất cả trạng thái</option>
-          <option value="pending">Chờ duyệt</option>
-          <option value="approved">Đã duyệt</option>
-          <option value="rejected">Đã từ chối</option>
+          <option value="">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
         </select>
+        <input
+          type="text"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          placeholder="Search by employee, reason, code..."
+        />
+        <input
+          type="date"
+          value={fromDate}
+          onChange={(e) => setFromDate(e.target.value)}
+          title="From date"
+        />
+        <input
+          type="date"
+          value={toDate}
+          onChange={(e) => setToDate(e.target.value)}
+          title="To date"
+        />
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => {
+            setStatusFilter('pending');
+            setSearchText('');
+            setFromDate('');
+            setToDate('');
+          }}
+        >
+          Clear filters
+        </button>
       </div>
       <div className="card">
-        {loading ? <div className="loading">Đang tải...</div> : (
+        {!loading && (
+          <p style={{ marginBottom: 10, fontSize: 12, color: '#64748b' }}>
+            Showing {filteredItems.length}/{items.length} records
+          </p>
+        )}
+        {loading ? <div className="loading">Loading...</div> : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
                   {columns.map(c => <th key={c.key}>{c.label}</th>)}
-                  <th>Trạng thái</th>
-                  <th>Hành động</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map(item => {
+                {filteredItems.map(item => {
                   const rowStatus = item.status ?? item.approvalStatus ?? 'pending';
                   return (
                   <tr key={item.id}>
@@ -299,7 +506,7 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
                     ))}
                     <td>
                       <span className={`badge badge-${rowStatus || 'pending'}`}>
-                        {{ pending: 'Chờ duyệt', approved: 'Đã duyệt', rejected: 'Đã từ chối' }[rowStatus] || rowStatus}
+                        {{ pending: 'Pending', approved: 'Approved', rejected: 'Rejected' }[rowStatus] || rowStatus}
                       </span>
                     </td>
                     <td>
@@ -309,19 +516,19 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
                             className="btn btn-approve"
                             style={{ fontSize: 12, padding: '4px 10px' }}
                             onClick={() => { setActionModal({ item, action: 'approve' }); setComment(''); }}
-                          >✓ Duyệt</button>
+                          >Approve</button>
                           <button
                             className="btn btn-reject"
                             style={{ fontSize: 12, padding: '4px 10px' }}
                             onClick={() => { setActionModal({ item, action: 'reject' }); setComment(''); }}
-                          >✗ Từ chối</button>
+                          >Reject</button>
                         </div>
                       )}
                     </td>
                   </tr>
                 )})}
-                {items.length === 0 && (
-                  <tr><td colSpan={columns.length + 2} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>Không có dữ liệu</td></tr>
+                {filteredItems.length === 0 && (
+                  <tr><td colSpan={columns.length + 2} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No data found</td></tr>
                 )}
               </tbody>
             </table>
@@ -333,18 +540,18 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
         <div className="modal-overlay" onClick={() => setActionModal(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{actionModal.action === 'approve' ? '✓ Xác nhận duyệt' : '✗ Xác nhận từ chối'}</h3>
+              <h3>{actionModal.action === 'approve' ? 'Confirm approval' : 'Confirm rejection'}</h3>
               <button className="close-btn" onClick={() => setActionModal(null)}>×</button>
             </div>
             <div className="form-group">
-              <label>Nhận xét (tuỳ chọn)</label>
-              <textarea rows={3} value={comment} onChange={e => setComment(e.target.value)} placeholder="Nhập nhận xét..." />
+              <label>Comment (optional)</label>
+              <textarea rows={3} value={comment} onChange={e => setComment(e.target.value)} placeholder="Add a comment..." />
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setActionModal(null)}>Hủy</button>
+              <button className="btn btn-secondary" onClick={() => setActionModal(null)}>Cancel</button>
               {actionModal.action === 'approve'
-                ? <button className="btn btn-approve" onClick={approve}>Xác nhận duyệt</button>
-                : <button className="btn btn-reject" onClick={reject}>Xác nhận từ chối</button>
+                ? <button className="btn btn-approve" onClick={approve}>Confirm</button>
+                : <button className="btn btn-reject" onClick={reject}>Confirm</button>
               }
             </div>
           </div>
@@ -364,12 +571,12 @@ function LeaveApprovals({ token }) {
       extractList={d => d.leaveRequests || d.data || []}
       columns={[
         { key: 'id', label: 'ID' },
-        { key: 'User', label: 'Nhân viên', render: r => r.User?.name || r.userId },
-        { key: 'type', label: 'Loại nghỉ' },
-        { key: 'startDate', label: 'Từ ngày', render: r => r.startDate?.slice(0, 10) },
-        { key: 'endDate', label: 'Đến ngày', render: r => r.endDate?.slice(0, 10) },
-        { key: 'days', label: 'Số ngày' },
-        { key: 'reason', label: 'Lý do' },
+        { key: 'User', label: 'Employee', render: r => r.User?.name || r.userId },
+        { key: 'type', label: 'Leave type' },
+        { key: 'startDate', label: 'From', render: r => r.startDate?.slice(0, 10) },
+        { key: 'endDate', label: 'To', render: r => r.endDate?.slice(0, 10) },
+        { key: 'days', label: 'Days' },
+        { key: 'reason', label: 'Reason' },
       ]}
     />
   );
@@ -385,10 +592,10 @@ function OvertimeApprovals({ token }) {
       extractList={d => d.requests || d.overtimeRequests || d.data || []}
       columns={[
         { key: 'id', label: 'ID' },
-        { key: 'User', label: 'Nhân viên', render: r => r.User?.name || r.userId },
-        { key: 'date', label: 'Ngày', render: r => r.date?.slice(0, 10) },
-        { key: 'totalHours', label: 'Số giờ', render: r => r.totalHours ?? r.hours ?? '—' },
-        { key: 'reason', label: 'Lý do' },
+        { key: 'User', label: 'Employee', render: r => r.User?.name || r.userId },
+        { key: 'date', label: 'Date', render: r => r.date?.slice(0, 10) },
+        { key: 'totalHours', label: 'Hours', render: r => r.totalHours ?? r.hours ?? '—' },
+        { key: 'reason', label: 'Reason' },
       ]}
     />
   );
@@ -404,11 +611,11 @@ function BusinessTripApprovals({ token }) {
       extractList={d => d.requests || d.businessTripRequests || d.data || []}
       columns={[
         { key: 'id', label: 'ID' },
-        { key: 'User', label: 'Nhân viên', render: r => r.User?.name || r.userId },
-        { key: 'destination', label: 'Điểm đến' },
-        { key: 'startDate', label: 'Từ ngày', render: r => r.startDate?.slice(0, 10) },
-        { key: 'endDate', label: 'Đến ngày', render: r => r.endDate?.slice(0, 10) },
-        { key: 'purpose', label: 'Mục đích' },
+        { key: 'User', label: 'Employee', render: r => r.User?.name || r.userId },
+        { key: 'destination', label: 'Destination' },
+        { key: 'startDate', label: 'From', render: r => r.startDate?.slice(0, 10) },
+        { key: 'endDate', label: 'To', render: r => r.endDate?.slice(0, 10) },
+        { key: 'purpose', label: 'Purpose' },
       ]}
     />
   );
@@ -424,10 +631,10 @@ function SalaryAdvanceApprovals({ token }) {
       extractList={d => d.advances || d.salaryAdvances || d.data || []}
       columns={[
         { key: 'id', label: 'ID' },
-        { key: 'User', label: 'Nhân viên', render: r => r.User?.name || r.userId },
-        { key: 'amount', label: 'Số tiền', render: r => Number(r.amount || 0).toLocaleString('vi-VN') + ' đ' },
-        { key: 'reason', label: 'Lý do' },
-        { key: 'requestDate', label: 'Ngày yêu cầu', render: r => r.requestDate?.slice(0, 10) || r.createdAt?.slice(0, 10) },
+        { key: 'User', label: 'Employee', render: r => r.User?.name || r.userId },
+        { key: 'amount', label: 'Amount', render: r => Number(r.amount || 0).toLocaleString('vi-VN') + ' đ' },
+        { key: 'reason', label: 'Reason' },
+        { key: 'requestDate', label: 'Request date', render: r => r.requestDate?.slice(0, 10) || r.createdAt?.slice(0, 10) },
       ]}
     />
   );
@@ -437,6 +644,9 @@ function SalaryAdvanceApprovals({ token }) {
 function SalaryApprovals({ token }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
+  const [yearFilter, setYearFilter] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -453,54 +663,116 @@ function SalaryApprovals({ token }) {
     load();
   };
 
+  const yearOptions = Array.from(new Set(items.map((i) => Number(i.year)).filter((v) => Number.isFinite(v)))).sort((a, b) => b - a);
+
+  const filteredItems = items.filter((item) => {
+    const q = normalizeText(searchText).trim();
+    if (q) {
+      const textPayload = [
+        item?.id,
+        item?.User?.name,
+        item?.userId,
+        item?.month,
+        item?.year,
+      ]
+        .map((v) => normalizeText(v))
+        .join(' | ');
+      if (!textPayload.includes(q)) return false;
+    }
+
+    if (monthFilter && Number(item.month) !== Number(monthFilter)) return false;
+    if (yearFilter && Number(item.year) !== Number(yearFilter)) return false;
+
+    return true;
+  });
+
   return (
-    <div className="card">
-      <p className="card-title">Bảng lương chờ duyệt</p>
-      {loading ? <div className="loading">Đang tải...</div> : (
+    <div>
+      <div className="filters">
+        <input
+          type="text"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          placeholder="Search by employee or ID..."
+        />
+        <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
+          <option value="">All months</option>
+          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+            <option key={m} value={m}>Month {m}</option>
+          ))}
+        </select>
+        <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}>
+          <option value="">All years</option>
+          {yearOptions.map((y) => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => {
+            setSearchText('');
+            setMonthFilter('');
+            setYearFilter('');
+          }}
+        >
+          Clear filters
+        </button>
+      </div>
+
+      <div className="card">
+        <p className="card-title">Pending Payroll</p>
+        {!loading && (
+          <p style={{ marginBottom: 10, fontSize: 12, color: '#64748b' }}>
+            Showing {filteredItems.length}/{items.length} payroll items
+          </p>
+        )}
+      {loading ? <div className="loading">Loading...</div> : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>ID</th><th>Nhân viên</th><th>Tháng/Năm</th>
-                <th>Lương thực lĩnh</th><th>Trạng thái</th><th>Hành động</th>
+                <th>ID</th><th>Employee</th><th>Month/Year</th>
+                <th>Net Salary</th><th>Status</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {items.map(item => (
+              {filteredItems.map(item => (
                 <tr key={item.id}>
                   <td>{item.id}</td>
                   <td>{item.User?.name || item.userId}</td>
                   <td>{item.month}/{item.year}</td>
                   <td>{Number(item.netSalary || item.totalSalary || 0).toLocaleString('vi-VN')} đ</td>
-                  <td><span className="badge badge-pending">Chờ duyệt</span></td>
+                  <td><span className="badge badge-pending">Pending</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-approve" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'approve')}>✓ Duyệt</button>
-                      <button className="btn btn-reject" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'reject')}>✗ Từ chối</button>
+                      <button className="btn btn-approve" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'approve')}>Approve</button>
+                      <button className="btn btn-reject" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'reject')}>Reject</button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {items.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>Không có bảng lương chờ duyệt</td></tr>
+              {filteredItems.length === 0 && (
+                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No pending payroll records</td></tr>
               )}
             </tbody>
           </table>
         </div>
       )}
+      </div>
     </div>
   );
 }
 
 // ─── APP ROOT ──────────────────────────────────────────────────────────────────
 const TABS = [
-  { key: 'dashboard',     label: 'Tổng quan',      icon: '📊' },
-  { key: 'leave',         label: 'Duyệt nghỉ phép', icon: '📋' },
-  { key: 'overtime',      label: 'Duyệt tăng ca',   icon: '⏰' },
-  { key: 'business-trip', label: 'Duyệt công tác',  icon: '✈️' },
-  { key: 'salary-advance',label: 'Duyệt tạm ứng',   icon: '💵' },
-  { key: 'salary',        label: 'Duyệt lương',     icon: '💰' },
-  { key: 'reports',       label: 'Báo cáo',         icon: '📈' },
+  { key: 'dashboard',     label: 'Overview',         icon: '📊' },
+  { key: 'leave',         label: 'Leave Approvals',  icon: '📋' },
+  { key: 'overtime',      label: 'Overtime Approvals', icon: '⏰' },
+  { key: 'business-trip', label: 'Trip Approvals',   icon: '✈️' },
+  { key: 'salary-advance',label: 'Advance Approvals', icon: '💵' },
+  { key: 'salary',        label: 'Payroll Approvals', icon: '💰' },
+  { key: 'reports',       label: 'Reports',          icon: '📈' },
 ];
 
 export default function App() {
@@ -573,28 +845,28 @@ export default function App() {
     window.location.href = 'http://localhost:3000/';
   };
 
-  if (!token) return <div className="loading">Đang xác thực...</div>;
+  if (!token) return <div className="loading">Authenticating...</div>;
 
   if (user?.role !== 'supervisor' && user?.role !== 'manager') {
     return (
       <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100vh' }}>
         <div className="card" style={{ textAlign:'center' }}>
-          <p style={{ fontSize:18, marginBottom:12 }}>⛔ Không có quyền truy cập</p>
-          <p style={{ color:'#718096', marginBottom:20 }}>Trang này chỉ dành cho Quản lý (Supervisor) hoặc Manager</p>
-          <button className="btn btn-primary" onClick={logout}>Đăng nhập lại</button>
+          <p style={{ fontSize:18, marginBottom:12 }}>⛔ Access denied</p>
+          <p style={{ color:'#718096', marginBottom:20 }}>This page is available only for Supervisor or Manager roles.</p>
+          <button className="btn btn-primary" onClick={logout}>Sign in again</button>
         </div>
       </div>
     );
   }
 
   const tabTitles = {
-    dashboard: 'Tổng quan - Quản lý',
-    leave: 'Phê duyệt Nghỉ phép',
-    overtime: 'Phê duyệt Tăng ca',
-    'business-trip': 'Phê duyệt Công tác',
-    'salary-advance': 'Phê duyệt Tạm ứng Lương',
-    salary: 'Phê duyệt Bảng lương',
-    reports: 'Xem Báo cáo',
+    dashboard: 'Overview - Supervisor',
+    leave: 'Leave Approvals',
+    overtime: 'Overtime Approvals',
+    'business-trip': 'Business Trip Approvals',
+    'salary-advance': 'Salary Advance Approvals',
+    salary: 'Payroll Approvals',
+    reports: 'Reports',
   };
 
   return (
@@ -621,7 +893,7 @@ export default function App() {
             <strong>{user?.name}</strong><br />
             <span style={{ opacity: 0.65 }}>{user?.role === 'manager' ? 'Manager' : 'Supervisor'}</span>
           </div>
-          <button className="logout-btn" onClick={logout}>Đăng xuất</button>
+          <button className="logout-btn" onClick={logout}>Sign out</button>
         </div>
       </nav>
 
