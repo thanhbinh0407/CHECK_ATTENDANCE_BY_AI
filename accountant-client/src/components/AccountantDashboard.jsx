@@ -81,7 +81,7 @@ export default function AccountantDashboard({ onNavigate } = {}) {
 
   const today = useMemo(
     () =>
-      new Intl.DateTimeFormat("vi-VN", {
+      new Intl.DateTimeFormat("en-US", {
         weekday: "long",
         day: "numeric",
         month: "long",
@@ -97,7 +97,7 @@ export default function AccountantDashboard({ onNavigate } = {}) {
   if (dash.loading) {
     return (
       <div className="acc-dash">
-        <div style={{ padding: 48, textAlign: "center", color: "#64748b" }}>Đang tải tổng quan…</div>
+        <div style={{ padding: 48, textAlign: "center", color: "#64748b" }}>Loading overview…</div>
       </div>
     );
   }
@@ -106,14 +106,14 @@ export default function AccountantDashboard({ onNavigate } = {}) {
     <div className="acc-dash">
       <div className="acc-dash-hero">
         <div className="acc-dash-hero-inner">
-          <h1>Bảng điều khiển Kế toán</h1>
+          <h1>Accountant overview</h1>
           <p>
-            Tập trung vào payroll, tạm ứng và hồ sơ phục vụ lương — số liệu dưới đây cập nhật theo quyền API của tài khoản của bạn.
+            Focus on payroll, salary advances, and employee records — figures below reflect your account&apos;s API permissions.
           </p>
           <div className="acc-dash-pills">
             <span className="acc-dash-pill">{today}</span>
-            <span className="acc-dash-pill">{dash.employees} hồ sơ nhân viên (hệ thống)</span>
-            <span className="acc-dash-pill">{dash.pendingSalaries + dash.pendingAdvances} hạng mục chờ xử lý</span>
+            <span className="acc-dash-pill">{dash.employees} employee records (system)</span>
+            <span className="acc-dash-pill">{dash.pendingSalaries + dash.pendingAdvances} items pending action</span>
           </div>
         </div>
       </div>
@@ -121,58 +121,58 @@ export default function AccountantDashboard({ onNavigate } = {}) {
       <div className="acc-dash-kpis">
         <div className="acc-dash-kpi acc-dash-kpi--accent">
           <span className="acc-dash-kpi-deco" aria-hidden>📋</span>
-          <div className="lbl">Bảng lương chờ</div>
+          <div className="lbl">Payroll pending</div>
           <div className="val">{dash.pendingSalaries}</div>
-          <div className="hint">Duyệt / xử lý tại mục Duyệt payroll</div>
+          <div className="hint">Approve or process under Payroll approval</div>
         </div>
         <div className="acc-dash-kpi">
           <span className="acc-dash-kpi-deco" aria-hidden>💵</span>
-          <div className="lbl">Tạm ứng chờ</div>
+          <div className="lbl">Advances pending</div>
           <div className="val">{dash.pendingAdvances}</div>
-          <div className="hint">Theo dõi tại Approve Records (nếu có quyền)</div>
+          <div className="hint">Track under Approve Records (if permitted)</div>
         </div>
         <div className="acc-dash-kpi">
           <span className="acc-dash-kpi-deco" aria-hidden>👥</span>
-          <div className="lbl">Nhân viên</div>
+          <div className="lbl">Employees</div>
           <div className="val">{dash.employees}</div>
-          <div className="hint">Đang làm: {dash.empActive}</div>
+          <div className="hint">Active: {dash.empActive}</div>
         </div>
         <div className="acc-dash-kpi">
           <span className="acc-dash-kpi-deco" aria-hidden>✨</span>
-          <div className="lbl">Tỷ lệ hoạt động</div>
+          <div className="lbl">Active rate</div>
           <div className="val">
             {dash.employees ? Math.round((dash.empActive / dash.employees) * 100) : 0}%
           </div>
-          <div className="hint">Ước tính trên danh sách admin</div>
+          <div className="hint">Based on admin employee list</div>
         </div>
       </div>
 
       <div className="acc-dash-split">
         <div className="acc-dash-card">
-          <h3>Luồng việc gợi ý</h3>
+          <h3>Suggested workflow</h3>
           <p>
-            Ưu tiên xử lý <strong>bảng lương chờ duyệt</strong>, sau đó đối soát <strong>tạm ứng</strong> và tra cứu{" "}
-            <strong>chi tiết nhân viên</strong> khi cần kiểm tra phụ cấp, BHXH hoặc tài khoản ngân hàng.
+            Prioritize <strong>payroll pending approval</strong>, then reconcile <strong>advances</strong> and open{" "}
+            <strong>employee details</strong> when you need to verify allowances, social insurance, or bank details.
           </p>
         </div>
         <div className="acc-dash-card">
-          <h3>Tuân thủ &amp; báo cáo</h3>
+          <h3>Compliance &amp; reports</h3>
           <p>
-            Hoàn tất kỳ lương rồi xuất / kiểm tra <strong>D02-LT</strong> và biểu mẫu <strong>TK1-TS</strong> từ menu bên trái để đồng bộ với BHXH.
+            After closing payroll, export or review <strong>D02-LT</strong> and <strong>TK1-TS</strong> from the left menu to align with social insurance filings.
           </p>
         </div>
       </div>
 
       <div className="acc-dash-card" style={{ marginTop: 16 }}>
-        <h3>Hàng đợi chờ xử lý</h3>
+        <h3>Queues</h3>
         <p style={{ marginTop: 6, color: "#64748b" }}>
-          Danh sách rút gọn theo quyền API của tài khoản bạn (tự động cập nhật khi mở dashboard).
+          Short lists based on your API permissions (refreshed when you open the overview).
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 12 }}>
           <div style={{ border: "1px solid rgba(148,163,184,0.35)", borderRadius: 14, padding: 14, background: "#fff" }}>
-            <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: 8 }}>Bảng lương chờ duyệt</div>
+            <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: 8 }}>Payroll pending approval</div>
             {dash.pendingSalariesList.length === 0 ? (
-              <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Không có dữ liệu</div>
+              <div style={{ color: "#94a3b8", fontStyle: "italic" }}>No data</div>
             ) : (
               <div style={{ display: "grid", gap: 10 }}>
                 {dash.pendingSalariesList.map((s) => (
@@ -193,9 +193,9 @@ export default function AccountantDashboard({ onNavigate } = {}) {
           </div>
 
           <div style={{ border: "1px solid rgba(148,163,184,0.35)", borderRadius: 14, padding: 14, background: "#fff" }}>
-            <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: 8 }}>Tạm ứng chờ</div>
+            <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: 8 }}>Advances pending</div>
             {dash.pendingAdvancesList.length === 0 ? (
-              <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Không có dữ liệu</div>
+              <div style={{ color: "#94a3b8", fontStyle: "italic" }}>No data</div>
             ) : (
               <div style={{ display: "grid", gap: 10 }}>
                 {dash.pendingAdvancesList.map((a) => (
@@ -218,7 +218,7 @@ export default function AccountantDashboard({ onNavigate } = {}) {
       </div>
 
       <div className="acc-dash-card">
-        <h3>Đi tới nhanh</h3>
+        <h3>Quick links</h3>
         <div className="acc-dash-links" style={{ marginTop: 14 }}>
           <button type="button" className="acc-dash-link" onClick={() => go("salary-calculation")}>
             <span>💰</span>
@@ -226,23 +226,23 @@ export default function AccountantDashboard({ onNavigate } = {}) {
           </button>
           <button type="button" className="acc-dash-link" onClick={() => go("salary-management")}>
             <span>📊</span>
-            <span>Quản lý lương</span>
+            <span>Salary management</span>
           </button>
           <button type="button" className="acc-dash-link" onClick={() => go("salary-approval")}>
             <span>✅</span>
-            <span>Duyệt payroll</span>
+            <span>Payroll approval</span>
           </button>
           <button type="button" className="acc-dash-link" onClick={() => go("employee-details")}>
             <span>👤</span>
-            <span>Chi tiết nhân viên</span>
+            <span>Employee details</span>
           </button>
           <button type="button" className="acc-dash-link" onClick={() => go("d02-lt-report")}>
             <span>📄</span>
-            <span>Báo cáo D02-LT</span>
+            <span>D02-LT report</span>
           </button>
           <button type="button" className="acc-dash-link" onClick={() => go("tk1-ts-form")}>
             <span>🏥</span>
-            <span>Mẫu TK1-TS</span>
+            <span>TK1-TS form</span>
           </button>
         </div>
       </div>

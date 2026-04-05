@@ -19,7 +19,7 @@ function displayNetSalary(s) {
 // Helper function to format currency
 const formatCurrency = (amount) => {
   if (!amount && amount !== 0) return '0';
-  return new Intl.NumberFormat('vi-VN').format(parseFloat(amount) || 0);
+  return new Intl.NumberFormat('en-US').format(parseFloat(amount) || 0);
 };
 
 // Helper function to format currency with VND symbol
@@ -35,7 +35,7 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
     }
 
     if (salaries.length === 0) {
-      alert('Không có dữ liệu để xuất!');
+      alert('No data to export.');
       return;
     }
 
@@ -51,7 +51,6 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
       return {
         'Employee Name': user.name || salary.employeeName || 'N/A',
         'Emp. ID': user.employeeCode || salary.employeeCode || 'N/A',
-        'Department': user.Department?.name || user.department || salary.department || 'N/A',
         'Month': salary.month || '',
         'Year': salary.year || '',
         'Base Salary (VND)': baseSalary,
@@ -61,8 +60,8 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
         'Status': salary.status === 'paid' ? 'Paid' : 
                    salary.status === 'approved' ? 'Approved' : 
                    salary.status === 'pending' ? 'Pending' : 'Unknown',
-        'Calculated At': salary.calculatedAt ? new Date(salary.calculatedAt).toLocaleString('vi-VN') : 
-                        salary.createdAt ? new Date(salary.createdAt).toLocaleString('vi-VN') : ''
+        'Calculated At': salary.calculatedAt ? new Date(salary.calculatedAt).toLocaleString('en-US') : 
+                        salary.createdAt ? new Date(salary.createdAt).toLocaleString('en-US') : ''
       };
     });
 
@@ -75,7 +74,6 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
     const colWidths = [
       { wch: 25 }, // Employee Name
       { wch: 12 }, // Emp. ID
-      { wch: 20 }, // Department
       { wch: 8 },  // Month
       { wch: 8 },  // Year
       { wch: 18 }, // Base Salary
@@ -90,23 +88,23 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
     // Add number formatting for currency columns
     const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
     for (let row = 1; row <= range.e.r; row++) {
-      // Base Salary (column F)
-      const baseSalaryCell = XLSX.utils.encode_cell({ r: row, c: 5 });
+      // Base Salary (column E)
+      const baseSalaryCell = XLSX.utils.encode_cell({ r: row, c: 4 });
       if (ws[baseSalaryCell]) {
         ws[baseSalaryCell].z = '#,##0';
       }
-      // Bonus (column G)
-      const bonusCell = XLSX.utils.encode_cell({ r: row, c: 6 });
+      // Bonus (column F)
+      const bonusCell = XLSX.utils.encode_cell({ r: row, c: 5 });
       if (ws[bonusCell]) {
         ws[bonusCell].z = '#,##0';
       }
-      // Deduction (column H)
-      const deductionCell = XLSX.utils.encode_cell({ r: row, c: 7 });
+      // Deduction (column G)
+      const deductionCell = XLSX.utils.encode_cell({ r: row, c: 6 });
       if (ws[deductionCell]) {
         ws[deductionCell].z = '#,##0';
       }
-      // Net Pay (column I)
-      const netPayCell = XLSX.utils.encode_cell({ r: row, c: 8 });
+      // Net Pay (column H)
+      const netPayCell = XLSX.utils.encode_cell({ r: row, c: 7 });
       if (ws[netPayCell]) {
         ws[netPayCell].z = '#,##0';
       }
@@ -118,7 +116,7 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
     console.log(`✅ Exported ${salaries.length} salaries to ${filename}.xlsx`);
   } catch (error) {
     console.error('Error exporting to Excel:', error);
-    alert(`Lỗi khi xuất file Excel: ${error.message}`);
+    alert(`Error exporting Excel: ${error.message}`);
   }
 };
 
@@ -130,7 +128,7 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
     }
 
     if (salaries.length === 0) {
-      alert('Không có dữ liệu để xuất!');
+      alert('No data to export.');
       return;
     }
 
@@ -139,7 +137,7 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
     
     // Verify autoTable is available (should be extended by applyPlugin above)
     if (typeof doc.autoTable !== 'function') {
-      throw new Error('jspdf-autotable plugin không được load. Vui lòng restart dev server.');
+      throw new Error('jspdf-autotable plugin failed to load. Please restart the dev server.');
     }
     
     // Title
@@ -150,7 +148,7 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
     // Subtitle
     doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
-    doc.text(`Export date: ${new Date().toLocaleDateString('vi-VN')}`, 14, 28);
+    doc.text(`Export date: ${new Date().toLocaleDateString('en-US')}`, 14, 28);
     doc.text(`Total employees: ${salaries.length}`, 14, 34);
 
     // Prepare table data with proper formatting
@@ -204,6 +202,6 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
     console.log(`✅ Exported ${salaries.length} salaries to ${filename}.pdf`);
   } catch (error) {
     console.error('Error exporting to PDF:', error);
-    alert(`Lỗi khi xuất file PDF: ${error.message}\n\nVui lòng đảm bảo đã cài đặt: npm install jspdf-autotable`);
+    alert(`Error exporting PDF: ${error.message}\n\nEnsure jspdf-autotable is installed: npm install jspdf-autotable`);
   }
 };

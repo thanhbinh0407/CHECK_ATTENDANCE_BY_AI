@@ -239,10 +239,10 @@ function App() {
   const financeExtraRoles = ["admin", "accountant", "manager"];
 
   const navCore = [
-    { id: "dashboard", label: "Tổng quan", icon: "📊" },
+    { id: "dashboard", label: "Overview", icon: "📊" },
     { id: "salary-calculation", label: "Salary calculation", icon: "💰" },
-    { id: "salary-management", label: "Quản lý lương", icon: "📋" },
-    { id: "salary-approval", label: "Duyệt payroll", icon: "✅" },
+    { id: "salary-management", label: "Salary management", icon: "📋" },
+    { id: "salary-approval", label: "Payroll approval", icon: "✅" },
   ];
 
   const navFinance = financeExtraRoles.includes(user?.role)
@@ -260,10 +260,10 @@ function App() {
   ];
 
   const viewTitles = {
-    dashboard: "Tổng quan",
+    dashboard: "Overview",
     "salary-calculation": "Salary calculation",
-    "salary-management": "Quản lý lương",
-    "salary-approval": "Duyệt payroll",
+    "salary-management": "Salary management",
+    "salary-approval": "Payroll approval",
     approvals: "Duyệt hồ sơ",
     rules: "Quy tắc lương",
     "d02-lt-report": "Báo cáo D02-LT",
@@ -274,16 +274,16 @@ function App() {
 
   return (
     <div className="acc-app">
-      <aside className="acc-sidebar" aria-label="Điều hướng chính">
+      <aside className="acc-sidebar" aria-label="Main navigation">
         <div className="acc-brand">
           <div className="acc-brand-mark" aria-hidden>
             💼
           </div>
           <div className="acc-brand-title">Payroll &amp; BHXH</div>
-          <div className="acc-brand-sub">Kế toán · Dashboard</div>
+          <div className="acc-brand-sub">Accountant · Dashboard</div>
         </div>
         <nav className="acc-nav">
-          <div className="acc-nav-label">Lương &amp; payroll</div>
+          <div className="acc-nav-label">Salary &amp; payroll</div>
           {navCore.map((item) => (
             <button
               key={item.id}
@@ -325,13 +325,13 @@ function App() {
           ))}
         </nav>
         <div className="acc-sidebar-footer">
-          <strong>{user?.name || "Kế toán viên"}</strong>
+          <strong>{user?.name || "Accountant"}</strong>
           <span style={{ opacity: 0.75 }}>{user?.email}</span>
           <span style={{ display: "block", marginTop: 6, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", opacity: 0.6 }}>
             {user?.role || "accountant"}
           </span>
           <button type="button" className="acc-logout" onClick={handleLogout}>
-            Đăng xuất
+            Log out
           </button>
         </div>
       </aside>
@@ -340,7 +340,7 @@ function App() {
         <header className="acc-topbar">
           <h1>{viewTitles[currentView] || "Payroll"}</h1>
           <span className="acc-topbar-meta">
-            {new Intl.DateTimeFormat(currentView === "salary-calculation" ? "en-US" : "vi-VN", {
+            {new Intl.DateTimeFormat("en-US", {
               weekday: "short",
               day: "numeric",
               month: "short",

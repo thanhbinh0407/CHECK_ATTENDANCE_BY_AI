@@ -481,20 +481,20 @@ export default function SalaryManagement() {
             top: "72px",
             right: "20px",
             padding: "14px 20px",
-            backgroundColor: message.includes("thành công") ? "#ecfdf5" : "#fef2f2",
-            color: message.includes("thành công") ? "#065f46" : "#991b1b",
+            backgroundColor: /success/i.test(message) ? "#ecfdf5" : "#fef2f2",
+            color: /success/i.test(message) ? "#065f46" : "#991b1b",
             borderRadius: "8px",
             boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             zIndex: 9999,
             minWidth: "280px",
             maxWidth: "360px",
             animation: "slideInRight 0.3s ease-out",
-            border: `1px solid ${message.includes("thành công") ? "#a7f3d0" : "#fecaca"}`
+            border: `1px solid ${/success/i.test(message) ? "#a7f3d0" : "#fecaca"}`
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span aria-hidden style={{ fontSize: "18px" }}>
-              {message.includes("thành công") ? "✅" : "❌"}
+              {/success/i.test(message) ? "✅" : "❌"}
             </span>
             <span style={{ flex: 1, fontWeight: "600", fontSize: "14px" }}>{message}</span>
           </div>
@@ -778,7 +778,7 @@ export default function SalaryManagement() {
                               e.currentTarget.style.background = theme.accent.main;
                             }}
                           >
-                            Thanh toán
+                            Mark paid
                           </button>
                         )}
                       </div>
