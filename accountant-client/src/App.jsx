@@ -347,7 +347,7 @@ function App() {
           {currentView === "dashboard" && <AccountantDashboard onNavigate={setCurrentView} />}
           {currentView === "salary-calculation" && <SalaryCalculation />}
           {currentView === "salary-management" && <SalaryManagement />}
-          {currentView === "salary-approval" && <SalaryApprovalDashboard />}
+          {currentView === "salary-approval" && <SalaryApprovalDashboard onNavigate={setCurrentView} />}
           {currentView === "approvals" && <ApprovalManagement />}
           {currentView === "rules" && <SalaryRulesManagement />}
           {currentView === "d02-lt-report" && <D02LTReport />}

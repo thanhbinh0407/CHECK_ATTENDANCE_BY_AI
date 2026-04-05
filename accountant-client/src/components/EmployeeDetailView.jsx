@@ -940,8 +940,16 @@ export default function EmployeeDetailView() {
                           <tr key={item.id} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
                             <td style={{ padding: "8px" }}>{item.effectiveDate || "-"}</td>
                             <td style={{ padding: "8px" }}><span style={{ background: badge.bg, color: badge.color, borderRadius: 999, padding: "3px 9px", fontSize: 12, fontWeight: 600 }}>{item.changeType || "-"}</span></td>
-                            <td style={{ padding: "8px" }}>{item.fromDepartmentName || "-"} → {item.toDepartmentName || "-"}</td>
-                            <td style={{ padding: "8px" }}>{item.fromJobTitleName || "-"} → {item.toJobTitleName || "-"}</td>
+                            <td style={{ padding: "8px" }}>
+                              {item.changeType === "other"
+                                ? `${item.fromDepartmentName || "-"} -> ${item.toDepartmentName || "-"}`
+                                : (item.toDepartmentName || item.fromDepartmentName || "-")}
+                            </td>
+                            <td style={{ padding: "8px" }}>
+                              {item.changeType === "other"
+                                ? `${item.fromJobTitleName || "-"} -> ${item.toJobTitleName || "-"}`
+                                : (item.toJobTitleName || item.fromJobTitleName || "-")}
+                            </td>
                             <td style={{ padding: "8px" }}>{item.notes || "-"}</td>
                           </tr>
                         );})}
