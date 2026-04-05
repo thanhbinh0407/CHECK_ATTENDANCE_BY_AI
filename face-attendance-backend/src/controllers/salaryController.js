@@ -2,12 +2,16 @@ import Salary from "../models/pg/Salary.js";
 import SalaryRule from "../models/pg/SalaryRule.js";
 import { calculateSeniority } from "../services/senioritySalaryService.js";
 import User from "../models/pg/User.js";
+import Department from "../models/pg/Department.js";
+import JobTitle from "../models/pg/JobTitle.js";
+import SalaryGrade from "../models/pg/SalaryGrade.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import ShiftSetting from "../models/pg/ShiftSetting.js";
 import SalaryAdvance from "../models/pg/SalaryAdvance.js";
 import { Op } from "sequelize";
 import { sendNotification } from "./notificationController.js";
 import { getSalaryTransitionError, SALARY_STATUS } from "../services/salaryStatusRBAC.js";
+import { getSalaryBreakdownDetail } from "../services/salaryBreakdownDetailService.js";
 
 // Calculate working days in a month (exclude weekends)
 function getWorkingDaysInMonth(year, month) {
@@ -249,6 +253,44 @@ export const getSalaries = async (req, res) => {
   }
 };
 
+/** Một bản ghi lương + nhân viên (cho modal chi tiết / điều chỉnh theo đúng nhân viên) */
+export const getSalaryById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const salary = await Salary.findByPk(id, {
+      include: [
+        {
+          model: User,
+          attributes: { exclude: ["password"] },
+          include: [
+            { model: Department, attributes: ["id", "name"] },
+            { model: JobTitle, attributes: ["id", "name"] },
+            { model: SalaryGrade, attributes: ["id", "name", "code"] }
+          ]
+        }
+      ]
+    });
+
+    if (!salary) {
+      return res.status(404).json({
+        status: "error",
+        message: "Salary record not found"
+      });
+    }
+
+    return res.json({
+      status: "success",
+      salary
+    });
+  } catch (err) {
+    console.error("Error fetching salary by id:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+};
+
 // Update salary status
 export const updateSalaryStatus = async (req, res) => {
   try {
@@ -470,6 +512,34 @@ export const rejectSalary = async (req, res) => {
   }
 };
 
+// Breakdown line items for a salary record (accountant / reports)
+export const getSalaryBreakdownBySalaryId = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const salary = await Salary.findByPk(id);
+    if (!salary) {
+      return res.status(404).json({
+        status: "error",
+        message: "Salary record not found"
+      });
+    }
+    const breakdown = await getSalaryBreakdownDetail(salary.userId, salary.month, salary.year);
+    return res.json({
+      status: "success",
+      breakdown
+    });
+  } catch (err) {
+    if (err.code === "SALARY_NOT_FOUND" || err.code === "USER_NOT_FOUND") {
+      return res.status(404).json({ status: "error", message: err.message });
+    }
+    console.error("Error fetching salary breakdown:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
+  }
+};
+
 // Adjust salary (admin override/adjustment)
 export const adjustSalary = async (req, res) => {
   try {
@@ -492,21 +562,31 @@ export const adjustSalary = async (req, res) => {
       });
     }
 
-    // Calculate adjusted values
-    const adjustedBaseSalary = salary.baseSalary + (baseAdjustment || 0);
-    const adjustedBonus = salary.bonus + (bonusAdjustment || 0);
-    const adjustedDeduction = salary.deduction + (deductionAdjustment || 0);
-    const adjustedFinalSalary = adjustedBaseSalary + adjustedBonus - adjustedDeduction;
+    const b = parseFloat(salary.baseSalary) || 0;
+    const bon = parseFloat(salary.bonus) || 0;
+    const ded = parseFloat(salary.deduction) || 0;
+    const ba = parseFloat(baseAdjustment) || 0;
+    const boa = parseFloat(bonusAdjustment) || 0;
+    const da = parseFloat(deductionAdjustment) || 0;
+
+    const adjustedBaseSalary = b + ba;
+    const adjustedBonus = bon + boa;
+    const adjustedDeduction = ded + da;
+    const adjustedGrossSalary = adjustedBaseSalary + adjustedBonus;
+    const adjustedFinalSalary = adjustedGrossSalary - adjustedDeduction;
 
     await salary.update({
       baseSalary: adjustedBaseSalary,
       bonus: adjustedBonus,
+      grossSalary: adjustedGrossSalary,
       deduction: adjustedDeduction,
       finalSalary: adjustedFinalSalary,
       notes: notes || salary.notes,
-      status: 'pending',
+      status: "pending",
       calculatedAt: new Date()
     });
+
+    await salary.reload();
 
     return res.json({
       status: "success",

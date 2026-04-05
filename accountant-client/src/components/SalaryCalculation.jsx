@@ -292,7 +292,8 @@ export default function SalaryCalculation() {
 
   const viewSalaryBreakdown = (salary) => {
     setSalaryBreakdown(salary);
-    setSelectedEmployee(employees.find(e => e.id === salary.userId));
+    const selected = employees.find(e => Number(e.id) === Number(salary.userId)) || salary.User || {};
+    setSelectedEmployee(selected);
     setShowBreakdownModal(true);
   };
 

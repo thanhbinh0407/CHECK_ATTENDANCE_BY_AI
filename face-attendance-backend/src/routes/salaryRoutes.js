@@ -13,7 +13,9 @@ import {
   revertSalaryToPending,
   approveSalary,
   rejectSalary,
-  adjustSalary
+  adjustSalary,
+  getSalaryBreakdownBySalaryId,
+  getSalaryById
 } from "../controllers/salaryController.js";
 import { authMiddleware, accountantOrManager, supervisorOrManager, canViewReports, staffRoles, accountantOnly, managerOnly } from "../middleware/authMiddleware.js";
 
@@ -33,6 +35,8 @@ router.delete("/rules/:id", accountantOrManager, deleteSalaryRule);
 router.post("/calculate", accountantOrManager, calculateSalary);
 router.get("/", canViewReports, getSalaries);
 router.get("/pending", canViewReports, getPendingSalaries);
+router.get("/:id/breakdown", canViewReports, getSalaryBreakdownBySalaryId);
+router.get("/:id", canViewReports, getSalaryById);
 
 // Duyệt / từ chối lương - Supervisor hoặc Manager
 // Legacy endpoint (status-aware in controller)
