@@ -10,12 +10,68 @@ export default function EmployeeDetailView() {
   const [activeTab, setActiveTab] = useState("info");
   const [showModal, setShowModal] = useState(false);
   const [selectedEmployeeForModal, setSelectedEmployeeForModal] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [departments, setDepartments] = useState([]);
+  const [jobTitles, setJobTitles] = useState([]);
+  const [managers, setManagers] = useState([]);
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
   useEffect(() => {
     fetchEmployees();
+    fetchDepartments();
+    fetchJobTitles();
+    fetchManagers();
   }, []);
+
+  const fetchDepartments = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/departments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDepartments(data.departments || []);
+      }
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+    }
+  };
+
+  const fetchJobTitles = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/job-titles`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setJobTitles(data.jobTitles || []);
+      }
+    } catch (error) {
+      console.error("Error fetching job titles:", error);
+    }
+  };
+
+  const fetchManagers = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/admin/employees`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const managerList = (data.employees || []).filter(emp =>
+          (emp.role === "admin" || emp.role === "accountant" || emp.isActive)
+        );
+        setManagers(managerList);
+      }
+    } catch (error) {
+      console.error("Error fetching managers:", error);
+    }
+  };
 
   const fetchEmployees = async () => {
     try {
@@ -59,6 +115,67 @@ export default function EmployeeDetailView() {
       }
     } catch (error) {
       console.error("Error fetching employee details:", error);
+      setMessage("Lỗi: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = () => {
+    setIsEditing(true);
+    setEditForm({
+      name: selectedEmployeeForModal.name || "",
+      email: selectedEmployeeForModal.email || "",
+      phoneNumber: selectedEmployeeForModal.phoneNumber || "",
+      address: selectedEmployeeForModal.address || "",
+      dateOfBirth: selectedEmployeeForModal.dateOfBirth ? new Date(selectedEmployeeForModal.dateOfBirth).toISOString().split('T')[0] : "",
+      gender: selectedEmployeeForModal.gender || "",
+      departmentId: selectedEmployeeForModal.departmentId || null,
+      jobTitleId: selectedEmployeeForModal.jobTitleId || null,
+      baseSalary: selectedEmployeeForModal.baseSalary || 0,
+      isActive: selectedEmployeeForModal.isActive !== undefined ? selectedEmployeeForModal.isActive : true,
+      startDate: selectedEmployeeForModal.startDate ? new Date(selectedEmployeeForModal.startDate).toISOString().split('T')[0] : "",
+      contractType: selectedEmployeeForModal.contractType || "",
+      employmentStatus: selectedEmployeeForModal.employmentStatus || "active",
+      managerId: selectedEmployeeForModal.managerId || null,
+      branchName: selectedEmployeeForModal.branchName || ""
+    });
+  };
+
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("authToken");
+      const payload = {
+        ...editForm,
+        contractType: editForm.contractType || null,
+        startDate: editForm.startDate || null,
+        managerId: editForm.managerId ? parseInt(editForm.managerId) : null
+      };
+      const res = await fetch(`${apiBase}/api/admin/employees/${selectedEmployeeForModal.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        let msg = "✅ Cập nhật thông tin nhân viên thành công!";
+        if (data.recalculatedSalaryCount > 0) {
+          msg += ` (${data.recalculatedSalaryCount} bản ghi lương đã được tính lại)`;
+        }
+        setMessage(msg);
+        setIsEditing(false);
+        openEmployeeModal(selectedEmployeeForModal.id); // Refresh data
+        fetchEmployees(); // Refresh list
+        setTimeout(() => setMessage(""), 5000);
+      } else {
+        setMessage("Lỗi: " + (data.message || "Không thể cập nhật"));
+      }
+    } catch (error) {
       setMessage("Lỗi: " + error.message);
     } finally {
       setLoading(false);
@@ -217,22 +334,41 @@ export default function EmployeeDetailView() {
                     <span><strong>Phòng ban:</strong> {selectedEmployeeForModal.Department?.name || "N/A"}</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setShowModal(false);
-                    setSelectedEmployeeForModal(null);
-                  }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: theme.neutral.white,
-                    fontSize: "24px",
-                    cursor: "pointer",
-                    padding: `${theme.spacing.xs} ${theme.spacing.md}`
-                  }}
-                >
-                  ✕
-                </button>
+                <div style={{ display: "flex", gap: theme.spacing.sm }}>
+                  {!isEditing && (
+                    <button
+                      onClick={handleEdit}
+                      style={{
+                        padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                        backgroundColor: "rgba(255,255,255,0.2)",
+                        color: theme.neutral.white,
+                        border: "none",
+                        borderRadius: theme.radius.md,
+                        cursor: "pointer",
+                        fontWeight: 600
+                      }}
+                    >
+                      ✏️ Chỉnh sửa
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowModal(false);
+                      setSelectedEmployeeForModal(null);
+                      setIsEditing(false);
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: theme.neutral.white,
+                      fontSize: "24px",
+                      cursor: "pointer",
+                      padding: `${theme.spacing.xs} ${theme.spacing.md}`
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
               {/* Tabs */}
@@ -267,173 +403,513 @@ export default function EmployeeDetailView() {
                   <div>
                     <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>Thông Tin Cá Nhân</h3>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl, marginBottom: theme.spacing.xl }}>
+                    {isEditing ? (
                       <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Email:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.email}</p>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl, marginBottom: theme.spacing.xl }}>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Tên *</label>
+                            <input
+                              type="text"
+                              value={editForm.name}
+                              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Email *</label>
+                            <input
+                              type="email"
+                              value={editForm.email}
+                              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Số điện thoại</label>
+                            <input
+                              type="text"
+                              value={editForm.phoneNumber}
+                              onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày sinh</label>
+                            <input
+                              type="date"
+                              value={editForm.dateOfBirth}
+                              onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Giới tính</label>
+                            <select
+                              value={editForm.gender}
+                              onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            >
+                              <option value="">Chọn giới tính</option>
+                              <option value="male">Nam</option>
+                              <option value="female">Nữ</option>
+                              <option value="other">Khác</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Phòng ban</label>
+                            <select
+                              value={editForm.departmentId || ""}
+                              onChange={(e) => setEditForm({ ...editForm, departmentId: e.target.value ? parseInt(e.target.value) : null })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            >
+                              <option value="">Chọn phòng ban</option>
+                              {departments.map(dept => (
+                                <option key={dept.id} value={dept.id}>{dept.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chức vụ</label>
+                            <select
+                              value={editForm.jobTitleId || ""}
+                              onChange={(e) => setEditForm({ ...editForm, jobTitleId: e.target.value ? parseInt(e.target.value) : null })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            >
+                              <option value="">Chọn chức vụ</option>
+                              {jobTitles.map(job => (
+                                <option key={job.id} value={job.id}>{job.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Lương cơ bản (VNĐ)</label>
+                            <input
+                              type="number"
+                              value={editForm.baseSalary}
+                              onChange={(e) => setEditForm({ ...editForm, baseSalary: parseFloat(e.target.value) || 0 })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Start Date</label>
+                            <input
+                              type="date"
+                              value={editForm.startDate}
+                              onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                            <p style={{ margin: theme.spacing.xs, fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500 }}>
+                              Dùng để tính thâm niên và ngày phép năm
+                            </p>
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Loại hợp đồng</label>
+                            <select
+                              value={editForm.contractType || ""}
+                              onChange={(e) => setEditForm({ ...editForm, contractType: e.target.value || null })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            >
+                              <option value="">Chọn loại hợp đồng</option>
+                              <option value="probation">Probation</option>
+                              <option value="1_year">1-year contract</option>
+                              <option value="3_year">3-year contract</option>
+                              <option value="indefinite">Indefinite-term contract</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Trạng thái lao động</label>
+                            <select
+                              value={editForm.employmentStatus || "active"}
+                              onChange={(e) => setEditForm({ ...editForm, employmentStatus: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            >
+                              <option value="active">Active</option>
+                              <option value="maternity_leave">Maternity Leave</option>
+                              <option value="unpaid_leave">Unpaid Leave</option>
+                              <option value="suspended">Suspended</option>
+                              <option value="terminated">Terminated</option>
+                              <option value="resigned">Resigned</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chi nhánh</label>
+                            <input
+                              type="text"
+                              value={editForm.branchName}
+                              onChange={(e) => setEditForm({ ...editForm, branchName: e.target.value })}
+                              placeholder="Tên chi nhánh/văn phòng"
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Quản lý trực tiếp</label>
+                            <select
+                              value={editForm.managerId || ""}
+                              onChange={(e) => setEditForm({ ...editForm, managerId: e.target.value ? parseInt(e.target.value) : null })}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            >
+                              <option value="">Chọn quản lý (duyệt đơn chấm công, nghỉ phép)</option>
+                              {managers.filter(m => m.id !== selectedEmployeeForModal?.id).map(mgr => (
+                                <option key={mgr.id} value={mgr.id}>
+                                  {mgr.name} ({mgr.employeeCode || mgr.email})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Địa chỉ</label>
+                            <textarea
+                              value={editForm.address}
+                              onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                padding: theme.spacing.md,
+                                border: `1px solid ${theme.neutral.gray300}`,
+                                borderRadius: theme.radius.md
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "flex", alignItems: "center", gap: theme.spacing.sm, marginTop: theme.spacing.lg }}>
+                              <input
+                                type="checkbox"
+                                checked={editForm.isActive}
+                                onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })}
+                              />
+                              <span style={{ fontWeight: "600" }}>Active</span>
+                            </label>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: theme.spacing.md, marginTop: theme.spacing.xl }}>
+                          <button
+                            onClick={handleSave}
+                            disabled={loading}
+                            style={{
+                              padding: `${theme.spacing.md} ${theme.spacing.xl}`,
+                              backgroundColor: theme.primary.main,
+                              color: theme.neutral.white,
+                              border: "none",
+                              borderRadius: theme.radius.md,
+                              cursor: loading ? "not-allowed" : "pointer",
+                              fontWeight: 600
+                            }}
+                          >
+                            {loading ? "Đang lưu..." : "💾 Lưu thay đổi"}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setIsEditing(false);
+                              setEditForm({});
+                            }}
+                            style={{
+                              padding: `${theme.spacing.md} ${theme.spacing.xl}`,
+                              backgroundColor: theme.neutral.gray300,
+                              color: theme.neutral.gray700,
+                              border: "none",
+                              borderRadius: theme.radius.md,
+                              cursor: "pointer",
+                              fontWeight: 600
+                            }}
+                          >
+                            Hủy
+                          </button>
+                        </div>
                       </div>
+                    ) : (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl, marginBottom: theme.spacing.xl }}>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Email:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.email}</p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Số điện thoại:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.phone || "Chưa cập nhật"}</p>
-                      </div>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Số điện thoại:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.phoneNumber || "Chưa cập nhật"}</p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày sinh:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>
-                          {selectedEmployeeForModal.dateOfBirth ? new Date(selectedEmployeeForModal.dateOfBirth).toLocaleDateString('vi-VN') : "Chưa cập nhật"}
-                        </p>
-                      </div>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày sinh:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>
+                            {selectedEmployeeForModal.dateOfBirth ? new Date(selectedEmployeeForModal.dateOfBirth).toLocaleDateString('vi-VN') : "Chưa cập nhật"}
+                          </p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Giới tính:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.gender || "Chưa cập nhật"}</p>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Giới tính:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.gender || "Chưa cập nhật"}</p>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     <div style={{ borderTop: `1px solid ${theme.neutral.gray200}`, paddingTop: theme.spacing.xl, marginTop: theme.spacing.xl }}>
                       <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>👨‍👩‍👧‍👦 Người Phụ Thuộc</h3>
 
-                      {selectedEmployeeForModal.Dependents && selectedEmployeeForModal.Dependents.length > 0 ? (
-                        <div>
-                          <div style={{ marginBottom: theme.spacing.lg, padding: theme.spacing.md, backgroundColor: theme.info.bg, borderRadius: theme.radius.md }}>
-                            <strong>Tổng cộng: {selectedEmployeeForModal.Dependents.length} người</strong>
-                          </div>
+                      {(() => {
+                        const dependents = selectedEmployeeForModal.Dependents || selectedEmployeeForModal.dependents || [];
+                        if (!dependents || dependents.length === 0) {
+                          return (
+                            <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>Chưa có người phụ thuộc</p>
+                          );
+                        }
+                        return (
+                          <div>
+                            <div style={{ marginBottom: theme.spacing.lg, padding: theme.spacing.md, backgroundColor: theme.info.bg, borderRadius: theme.radius.md }}>
+                              <strong>Tổng cộng: {dependents.length} người</strong>
+                            </div>
 
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.lg }}>
-                            {selectedEmployeeForModal.Dependents.map((dep, idx) => (
-                              <div
-                                key={idx}
-                                style={{
-                                  padding: theme.spacing.md,
-                                  backgroundColor: theme.neutral.gray50,
-                                  borderLeft: `3px solid ${theme.info.main}`,
-                                  borderRadius: theme.radius.md
-                                }}
-                              >
-                                <div style={{ fontWeight: "600", marginBottom: theme.spacing.xs }}>{dep.fullName}</div>
-                                <div style={{ fontSize: theme.typography.small.fontSize, color: theme.neutral.gray600 }}>
-                                  <div>Quan hệ: {dep.relationship}</div>
-                                  <div>Ngày sinh: {dep.dateOfBirth ? new Date(dep.dateOfBirth).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}</div>
-                                  {dep.gender && <div>Giới tính: {dep.gender}</div>}
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.lg }}>
+                              {dependents.map((dep, idx) => (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    padding: theme.spacing.md,
+                                    backgroundColor: theme.neutral.gray50,
+                                    borderLeft: `3px solid ${theme.info.main}`,
+                                    borderRadius: theme.radius.md
+                                  }}
+                                >
+                                  <div style={{ fontWeight: "600", marginBottom: theme.spacing.xs }}>{dep.fullName}</div>
+                                  <div style={{ fontSize: theme.typography.small.fontSize, color: theme.neutral.gray600 }}>
+                                    <div>Quan hệ: {dep.relationship}</div>
+                                    <div>Ngày sinh: {dep.dateOfBirth ? new Date(dep.dateOfBirth).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}</div>
+                                    {dep.gender && <div>Giới tính: {dep.gender}</div>}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>Chưa có người phụ thuộc</p>
-                      )}
+                        );
+                      })()}
                     </div>
 
                     <div style={{ borderTop: `1px solid ${theme.neutral.gray200}`, paddingTop: theme.spacing.xl, marginTop: theme.spacing.xl }}>
                       <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>📜 Bằng Cấp & Chứng Chỉ</h3>
 
-                      {selectedEmployeeForModal.Qualifications && selectedEmployeeForModal.Qualifications.length > 0 ? (
-                        <div>
-                          <div style={{ marginBottom: theme.spacing.lg, padding: theme.spacing.md, backgroundColor: theme.info.bg, borderRadius: theme.radius.md }}>
-                            <strong>Tổng cộng: {selectedEmployeeForModal.Qualifications.length} bằng cấp</strong>
-                          </div>
+                      {(() => {
+                        const qualifications = selectedEmployeeForModal.Qualifications || selectedEmployeeForModal.qualifications || [];
+                        if (!qualifications || qualifications.length === 0) {
+                          return (
+                            <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>Chưa có bằng cấp hoặc chứng chỉ</p>
+                          );
+                        }
 
-                          {(() => {
-                            const grouped = {};
-                            selectedEmployeeForModal.Qualifications.forEach(q => {
-                              if (!grouped[q.type]) grouped[q.type] = [];
-                              grouped[q.type].push(q);
-                            });
-                            return Object.entries(grouped).map(([type, quals]) => (
-                              <div key={type} style={{ marginBottom: theme.spacing.lg }}>
-                                <div style={{
-                                  fontWeight: "600",
-                                  color: theme.primary.main,
-                                  padding: theme.spacing.md,
-                                  backgroundColor: theme.info.bg,
-                                  borderRadius: theme.radius.md,
-                                  marginBottom: theme.spacing.md
-                                }}>
-                                  {type === 'degree' && '🎓 Bằng Cấp'}
-                                  {type === 'certificate' && '🏅 Chứng Chỉ'}
-                                  {type === 'license' && '📋 Giấy Phép'}
-                                  {type === 'training' && '📚 Huấn Luyện'}
-                                  <span style={{ marginLeft: theme.spacing.sm, color: theme.neutral.gray600, fontWeight: "400" }}>({quals.length})</span>
+                        return (
+                          <div>
+                            <div style={{ marginBottom: theme.spacing.lg, padding: theme.spacing.md, backgroundColor: theme.info.bg, borderRadius: theme.radius.md }}>
+                              <strong>Tổng cộng: {qualifications.length} bằng cấp</strong>
+                            </div>
+
+                            {(() => {
+                              const grouped = {};
+                              qualifications.forEach(q => {
+                                if (!grouped[q.type]) grouped[q.type] = [];
+                                grouped[q.type].push(q);
+                              });
+                              return Object.entries(grouped).map(([type, quals]) => (
+                                <div key={type} style={{ marginBottom: theme.spacing.lg }}>
+                                  <div style={{
+                                    fontWeight: "600",
+                                    color: theme.primary.main,
+                                    padding: theme.spacing.md,
+                                    backgroundColor: theme.info.bg,
+                                    borderRadius: theme.radius.md,
+                                    marginBottom: theme.spacing.md
+                                  }}>
+                                    {type === 'degree' && '🎓 Bằng Cấp'}
+                                    {type === 'certificate' && '🏅 Chứng Chỉ'}
+                                    {type === 'license' && '📋 Giấy Phép'}
+                                    {type === 'training' && '📚 Huấn Luyện'}
+                                    <span style={{ marginLeft: theme.spacing.sm, color: theme.neutral.gray600, fontWeight: "400" }}>({quals.length})</span>
+                                  </div>
+                                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
+                                    {quals.map((qual, idx) => (
+                                      <div
+                                        key={idx}
+                                        style={{
+                                          padding: theme.spacing.md,
+                                          backgroundColor: theme.neutral.gray50,
+                                          borderLeft: `3px solid ${theme.info.main}`,
+                                          borderRadius: theme.radius.md,
+                                          fontSize: theme.typography.small.fontSize
+                                        }}
+                                      >
+                                        <div style={{ fontWeight: "600", marginBottom: theme.spacing.xs }}>{qual.name}</div>
+                                        {qual.issuedBy && (
+                                          <div style={{ color: theme.neutral.gray600, fontSize: theme.typography.tiny.fontSize }}>Cơ quan: {qual.issuedBy}</div>
+                                        )}
+                                        {qual.issuedDate && (
+                                          <div style={{ color: theme.neutral.gray600, fontSize: theme.typography.tiny.fontSize }}>
+                                            Cấp ngày: {new Date(qual.issuedDate).toLocaleDateString('vi-VN')}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
-                                  {quals.map((qual, idx) => (
-                                    <div
-                                      key={idx}
-                                      style={{
-                                        padding: theme.spacing.md,
-                                        backgroundColor: theme.neutral.gray50,
-                                        borderLeft: `3px solid ${theme.info.main}`,
-                                        borderRadius: theme.radius.md,
-                                        fontSize: theme.typography.small.fontSize
-                                      }}
-                                    >
-                                      <div style={{ fontWeight: "600", marginBottom: theme.spacing.xs }}>{qual.name}</div>
-                                      {qual.issuedBy && (
-                                        <div style={{ color: theme.neutral.gray600, fontSize: theme.typography.tiny.fontSize }}>Cơ quan: {qual.issuedBy}</div>
-                                      )}
-                                      {qual.issuedDate && (
-                                        <div style={{ color: theme.neutral.gray600, fontSize: theme.typography.tiny.fontSize }}>
-                                          Cấp ngày: {new Date(qual.issuedDate).toLocaleDateString('vi-VN')}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ));
-                          })()}
-                        </div>
-                      ) : (
-                        <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>Chưa có bằng cấp hoặc chứng chỉ</p>
-                      )}
+                              ));
+                            })()}
+                          </div>
+                        );
+                      })()}
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl, marginTop: theme.spacing.xl }}>
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Phòng ban:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.Department?.name || "N/A"}</p>
-                      </div>
+                    <div style={{ borderTop: `1px solid ${theme.neutral.gray200}`, paddingTop: theme.spacing.xl, marginTop: theme.spacing.xl }}>
+                      <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>💼 Thông tin Công việc</h3>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl }}>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Phòng ban/Bộ phận:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.Department?.name || selectedEmployeeForModal.department || "Chưa cập nhật"}</p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chức vụ:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.JobTitle?.name || "N/A"}</p>
-                      </div>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chi nhánh:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.branchName || "Chưa cập nhật"}</p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Bậc lương:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.SalaryGrade?.name || "Chưa cập nhật"}</p>
-                      </div>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chức danh/Vị trí:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.JobTitle?.name || selectedEmployeeForModal.jobTitle || "Chưa cập nhật"}</p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Lương cơ bản:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600, fontWeight: "600" }}>
-                          ₫{selectedEmployeeForModal.baseSalary?.toLocaleString("vi-VN") || "0"}
-                        </p>
-                      </div>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Contract Type:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>
+                            {selectedEmployeeForModal.contractType === "probation" ? "Probation" :
+                             selectedEmployeeForModal.contractType === "1_year" ? "1-year contract" :
+                             selectedEmployeeForModal.contractType === "3_year" ? "3-year contract" :
+                             selectedEmployeeForModal.contractType === "indefinite" ? "Indefinite-term contract" :
+                             selectedEmployeeForModal.contractType === "other" ? "Other" : "Not updated"}
+                          </p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày vào công ty:</label>
-                        <p style={{ margin: 0, color: theme.neutral.gray600 }}>
-                          {selectedEmployeeForModal.startDate ? new Date(selectedEmployeeForModal.startDate).toLocaleDateString('vi-VN') : "Chưa cập nhật"}
-                        </p>
-                      </div>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Trạng thái lao động:</label>
+                          <p
+                            style={{
+                              margin: 0,
+                              display: "inline-block",
+                              padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+                              borderRadius: theme.radius.full,
+                              backgroundColor: (selectedEmployeeForModal.employmentStatus || selectedEmployeeForModal.isActive) === "active" ? theme.success.bg :
+                                selectedEmployeeForModal.employmentStatus === "maternity_leave" ? theme.info.bg :
+                                selectedEmployeeForModal.employmentStatus === "unpaid_leave" ? "#fff3cd" :
+                                theme.error.bg,
+                              color: (selectedEmployeeForModal.employmentStatus || selectedEmployeeForModal.isActive) === "active" ? theme.success.text :
+                                selectedEmployeeForModal.employmentStatus === "maternity_leave" ? theme.info.text :
+                                selectedEmployeeForModal.employmentStatus === "unpaid_leave" ? "#856404" :
+                                theme.error.text
+                            }}
+                          >
+                            {selectedEmployeeForModal.employmentStatus === "active" ? "Active" :
+                             selectedEmployeeForModal.employmentStatus === "maternity_leave" ? "Maternity Leave" :
+                             selectedEmployeeForModal.employmentStatus === "unpaid_leave" ? "Unpaid Leave" :
+                             selectedEmployeeForModal.employmentStatus === "suspended" ? "Suspended" :
+                             selectedEmployeeForModal.employmentStatus === "terminated" ? "Terminated" :
+                             selectedEmployeeForModal.employmentStatus === "resigned" ? "Resigned" :
+                             selectedEmployeeForModal.isActive ? "Active" : "Inactive"}
+                          </p>
+                        </div>
 
-                      <div>
-                        <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Trạng thái:</label>
-                        <p
-                          style={{
-                            margin: 0,
-                            display: "inline-block",
-                            padding: `${theme.spacing.xs} ${theme.spacing.md}`,
-                            borderRadius: theme.radius.full,
-                            backgroundColor: selectedEmployeeForModal.isActive ? theme.success.bg : theme.error.bg,
-                            color: selectedEmployeeForModal.isActive ? theme.success.text : theme.error.text
-                          }}
-                        >
-                          {selectedEmployeeForModal.isActive ? "Đang làm việc" : "Đã nghỉ"}
-                        </p>
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Start Date:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>
+                            {selectedEmployeeForModal.startDate ? new Date(selectedEmployeeForModal.startDate).toLocaleDateString('en-US') : "Not updated"}
+                          </p>
+                          <p style={{ margin: theme.spacing.xs, fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500 }}>
+                            (Used for seniority and annual leave calculation)
+                          </p>
+                        </div>
+
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Quản lý trực tiếp:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>
+                            {selectedEmployeeForModal.Manager?.name
+                              ? `${selectedEmployeeForModal.Manager.name}${selectedEmployeeForModal.Manager.employeeCode ? ` (${selectedEmployeeForModal.Manager.employeeCode})` : ""}`
+                              : "Chưa cập nhật"}
+                          </p>
+                          <p style={{ margin: theme.spacing.xs, fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500 }}>
+                            Người duyệt đơn chấm công, nghỉ phép
+                          </p>
+                        </div>
+
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Bậc lương:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.SalaryGrade?.name || selectedEmployeeForModal.salaryGrade || "Chưa cập nhật"}</p>
+                        </div>
+
+                        <div>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Lương cơ bản:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600, fontWeight: "600" }}>
+                            ₫{selectedEmployeeForModal.baseSalary?.toLocaleString("vi-VN") || "0"}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -9,34 +9,41 @@ import {
   getSalaries,
   getPendingSalaries,
   updateSalaryStatus,
+  markPaidSalary,
+  revertSalaryToPending,
   approveSalary,
   rejectSalary,
   adjustSalary
 } from "../controllers/salaryController.js";
-import { authMiddleware, adminOnly, adminOrAccountant } from "../middleware/authMiddleware.js";
+import { authMiddleware, accountantOrManager, supervisorOrManager, canViewReports, staffRoles, accountantOnly, managerOnly } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(authMiddleware);
 
-// Salary Rules routes (Admin or Accountant) - MUST be before /:id routes
-router.get("/rules", adminOrAccountant, getAllSalaryRules);
-router.get("/rules/:id", adminOnly, getSalaryRuleById);
-router.post("/rules", adminOnly, createSalaryRule);
-router.put("/rules/:id", adminOnly, updateSalaryRule);
-router.delete("/rules/:id", adminOnly, deleteSalaryRule);
+// Salary Rules - Kế toán hoặc Manager quản lý quy tắc lương
+router.get("/rules", canViewReports, getAllSalaryRules);
+router.get("/rules/:id", accountantOrManager, getSalaryRuleById);
+router.post("/rules", accountantOrManager, createSalaryRule);
+router.put("/rules/:id", accountantOrManager, updateSalaryRule);
+router.delete("/rules/:id", accountantOrManager, deleteSalaryRule);
 
-// Salary calculation and management (Admin or Accountant)
-router.post("/calculate", adminOrAccountant, calculateSalary);
-router.get("/", adminOrAccountant, getSalaries);
-router.get("/pending", adminOrAccountant, getPendingSalaries);
+// Tính lương và xem bảng lương - Kế toán, Supervisor hoặc Manager
+router.post("/calculate", accountantOrManager, calculateSalary);
+router.get("/", canViewReports, getSalaries);
+router.get("/pending", canViewReports, getPendingSalaries);
 
-// Specific salary item routes - MUST be after other routes
-router.put("/:id/status", adminOnly, updateSalaryStatus);
-router.put("/:id/approve", adminOnly, approveSalary);
-router.put("/:id/reject", adminOnly, rejectSalary);
-router.put("/:id/adjust", adminOnly, adjustSalary);
+// Duyệt / từ chối lương - Supervisor hoặc Manager
+// Legacy endpoint (status-aware in controller)
+router.put("/:id/status", staffRoles, updateSalaryStatus);
+router.put("/:id/approve", supervisorOrManager, approveSalary);
+router.put("/:id/reject", supervisorOrManager, rejectSalary);
+// Accountant: approved -> paid
+router.put("/:id/mark-paid", accountantOnly, markPaidSalary);
+// Manager: paid -> pending (audit revert)
+router.put("/:id/revert", managerOnly, revertSalaryToPending);
+router.put("/:id/adjust", accountantOrManager, adjustSalary);
 
 export default router;
 

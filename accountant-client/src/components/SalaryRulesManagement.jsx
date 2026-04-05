@@ -10,8 +10,9 @@ export default function SalaryRulesManagement() {
     type: "bonus",
     name: "",
     description: "",
-    percentage: 0,
-    amount: 0
+    amountType: "fixed", // "fixed" or "percentage"
+    amount: 0,
+    triggerType: "custom" // default trigger type
   });
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
@@ -36,7 +37,7 @@ export default function SalaryRulesManagement() {
       }
     } catch (error) {
       console.error("Error fetching rules:", error);
-      setMessage("Lỗi khi tải quy tắc");
+      setMessage("Error loading rules");
     } finally {
       setLoading(false);
     }
@@ -55,34 +56,47 @@ export default function SalaryRulesManagement() {
 
       const method = editingRule ? "PUT" : "POST";
 
+      // Prepare data for backend: convert percentage/amount to amount based on amountType
+      const requestData = {
+        type: formData.type,
+        name: formData.name,
+        description: formData.description,
+        triggerType: formData.triggerType || "custom",
+        amountType: formData.amountType,
+        amount: formData.amountType === "percentage" 
+          ? parseFloat(formData.amount) || 0  // If percentage, use amount field for percentage value
+          : parseFloat(formData.amount) || 0, // If fixed, use amount field for VND value
+        isActive: true
+      };
+
       const res = await fetch(url, {
         method,
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(requestData)
       });
 
       const data = await res.json();
       if (res.ok) {
-        setMessage(editingRule ? "Cập nhật quy tắc thành công!" : "Tạo quy tắc thành công!");
+        setMessage(editingRule ? "Rule updated successfully!" : "Rule created successfully!");
         setEditingRule(null);
-        setFormData({ type: "bonus", name: "", description: "", percentage: 0, amount: 0 });
+        setFormData({ type: "bonus", name: "", description: "", amountType: "fixed", amount: 0, triggerType: "custom" });
         fetchRules();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể lưu quy tắc"));
+        setMessage("Error: " + (data.message || "Could not save rule"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (ruleId) => {
-    if (!confirm("Bạn chắc chắn muốn xóa quy tắc này?")) return;
+    if (!confirm("Are you sure you want to delete this rule?")) return;
 
     try {
       setLoading(true);
@@ -96,14 +110,14 @@ export default function SalaryRulesManagement() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Xóa quy tắc thành công!");
+        setMessage("Rule deleted successfully!");
         fetchRules();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể xóa quy tắc"));
+        setMessage("Error: " + (data.message || "Could not delete rule"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -115,14 +129,15 @@ export default function SalaryRulesManagement() {
       type: rule.type,
       name: rule.name,
       description: rule.description || "",
-      percentage: rule.percentage || 0,
-      amount: rule.amount || 0
+      amountType: rule.amountType || "fixed",
+      amount: rule.amount || 0,
+      triggerType: rule.triggerType || "custom"
     });
   };
 
   const handleCancel = () => {
     setEditingRule(null);
-    setFormData({ type: "bonus", name: "", description: "", percentage: 0, amount: 0 });
+    setFormData({ type: "bonus", name: "", description: "", amountType: "fixed", amount: 0, triggerType: "custom" });
   };
 
   const containerStyle = {
@@ -184,15 +199,15 @@ export default function SalaryRulesManagement() {
     padding: "12px",
     marginBottom: "20px",
     borderRadius: "5px",
-    backgroundColor: message.includes("Lỗi") ? "#fee" : "#efe",
-    color: message.includes("Lỗi") ? "#c33" : "#3c3",
+    backgroundColor: message.includes("Error") ? "#fee" : "#efe",
+    color: message.includes("Error") ? "#c33" : "#3c3",
     fontWeight: "600"
   };
 
   return (
     <div style={containerStyle}>
       <h2 style={{ color: theme.colors.primary, marginBottom: "20px" }}>
-        ⚙️ Quản Lý Quy Tắc Tính Lương
+        ⚙️ Salary Rules Management
       </h2>
 
       {message && <div style={messageStyle}>{message}</div>}
@@ -200,33 +215,33 @@ export default function SalaryRulesManagement() {
       <div style={formStyle}>
         <div style={{ gridColumn: "1 / -1" }}>
           <h3 style={{ marginTop: 0, color: theme.colors.primary }}>
-            {editingRule ? "Sửa Quy Tắc" : "Tạo Quy Tắc Mới"}
+            {editingRule ? "Edit Rule" : "Create New Rule"}
           </h3>
         </div>
 
         <div>
           <label style={{ display: "block", marginBottom: "5px", fontWeight: "600" }}>
-            Loại Quy Tắc
+            Rule Type
           </label>
           <select
             value={formData.type}
             onChange={(e) => setFormData({ ...formData, type: e.target.value })}
             style={inputStyle}
           >
-            <option value="bonus">Phụ cấp/Thưởng</option>
-            <option value="deduction">Khoản khấu trừ</option>
+            <option value="bonus">Bonus / Allowance</option>
+            <option value="deduction">Deduction</option>
           </select>
         </div>
 
         <div>
           <label style={{ display: "block", marginBottom: "5px", fontWeight: "600" }}>
-            Tên Quy Tắc
+            Rule Name
           </label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="VD: Phụ cấp ăn trưa"
+            placeholder="e.g. Lunch allowance"
             style={inputStyle}
             required
           />
@@ -234,42 +249,50 @@ export default function SalaryRulesManagement() {
 
         <div>
           <label style={{ display: "block", marginBottom: "5px", fontWeight: "600" }}>
-            Mô Tả
+            Description
           </label>
           <input
             type="text"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            placeholder="Mô tả quy tắc"
+            placeholder="Rule description"
             style={inputStyle}
           />
         </div>
 
         <div>
           <label style={{ display: "block", marginBottom: "5px", fontWeight: "600" }}>
-            Phần Trăm (%)
+            Amount Type
           </label>
-          <input
-            type="number"
-            value={formData.percentage}
-            onChange={(e) => setFormData({ ...formData, percentage: parseFloat(e.target.value) || 0 })}
-            placeholder="0"
+          <select
+            value={formData.amountType}
+            onChange={(e) => {
+              setFormData({ 
+                ...formData, 
+                amountType: e.target.value,
+                amount: 0 // Reset amount when switching type
+              });
+            }}
             style={inputStyle}
-            step="0.01"
-          />
+          >
+            <option value="fixed">Fixed Amount (VND)</option>
+            <option value="percentage">Percentage (%)</option>
+          </select>
         </div>
 
         <div>
           <label style={{ display: "block", marginBottom: "5px", fontWeight: "600" }}>
-            Số Tiền Cố Định (VND)
+            {formData.amountType === "percentage" ? "Percentage (%)" : "Fixed Amount (VND)"}
           </label>
           <input
             type="number"
             value={formData.amount}
             onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
-            placeholder="0"
+            placeholder={formData.amountType === "percentage" ? "0.00" : "0"}
             style={inputStyle}
-            step="1000"
+            step={formData.amountType === "percentage" ? "0.01" : "1000"}
+            min="0"
+            required
           />
         </div>
 
@@ -279,14 +302,14 @@ export default function SalaryRulesManagement() {
             disabled={loading || !formData.name}
             style={{ ...buttonStyle, opacity: loading || !formData.name ? 0.6 : 1 }}
           >
-            {editingRule ? "Cập Nhật" : "Tạo Mới"}
+            {editingRule ? "Update" : "Create"}
           </button>
           {editingRule && (
             <button
               onClick={handleCancel}
               style={{ ...buttonStyle, backgroundColor: "#999" }}
             >
-              Hủy
+              Cancel
             </button>
           )}
         </div>
@@ -296,64 +319,79 @@ export default function SalaryRulesManagement() {
         <table style={tableStyle}>
           <thead>
             <tr>
-              <th style={thStyle}>Loại</th>
-              <th style={thStyle}>Tên Quy Tắc</th>
-              <th style={thStyle}>Mô Tả</th>
-              <th style={thStyle}>%</th>
-              <th style={thStyle}>Số Tiền (VND)</th>
-              <th style={thStyle}>Hành Động</th>
+              <th style={thStyle}>Type</th>
+              <th style={thStyle}>Rule Name</th>
+              <th style={thStyle}>Description</th>
+              <th style={thStyle}>Amount</th>
+              <th style={thStyle}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {rules.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{ ...tdStyle, textAlign: "center", color: "#999" }}>
-                  Chưa có quy tắc nào
+                <td colSpan="5" style={{ ...tdStyle, textAlign: "center", color: "#999" }}>
+                  No rules yet
                 </td>
               </tr>
             ) : (
-              rules.map((rule) => (
-                <tr key={rule.id}>
-                  <td style={tdStyle}>
-                    {rule.type === "bonus" ? "🎁 Phụ cấp" : "📉 Khấu trừ"}
-                  </td>
-                  <td style={tdStyle}>{rule.name}</td>
-                  <td style={tdStyle}>{rule.description || "-"}</td>
-                  <td style={tdStyle}>{rule.percentage}%</td>
-                  <td style={tdStyle}>{rule.amount?.toLocaleString("vi-VN") || "-"}</td>
-                  <td style={tdStyle}>
-                    <button
-                      onClick={() => handleEdit(rule)}
-                      style={{
-                        padding: "5px 10px",
-                        marginRight: "5px",
-                        backgroundColor: theme.colors.primary,
-                        color: "white",
-                        border: "none",
-                        borderRadius: "3px",
-                        cursor: "pointer",
-                        fontSize: "12px"
-                      }}
-                    >
-                      Sửa
-                    </button>
-                    <button
-                      onClick={() => handleDelete(rule.id)}
-                      style={{
-                        padding: "5px 10px",
-                        backgroundColor: "#c33",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "3px",
-                        cursor: "pointer",
-                        fontSize: "12px"
-                      }}
-                    >
-                      Xóa
-                    </button>
-                  </td>
-                </tr>
-              ))
+              rules.map((rule) => {
+                // Use amountType from backend to determine display
+                const amountType = rule.amountType || 'fixed';
+                const amountValue = parseFloat(rule.amount) || 0;
+                
+                let amountDisplay = "-";
+                if (amountValue > 0) {
+                  if (amountType === 'percentage') {
+                    amountDisplay = `${amountValue.toFixed(2)}%`;
+                  } else {
+                    amountDisplay = `${amountValue.toLocaleString("vi-VN")} VND`;
+                  }
+                }
+                
+                return (
+                  <tr key={rule.id}>
+                    <td style={tdStyle}>
+                      {rule.type === "bonus" ? "↑ Bonus" : "↘ Deduction"}
+                    </td>
+                    <td style={tdStyle}>{rule.name}</td>
+                    <td style={tdStyle}>{rule.description || "-"}</td>
+                    <td style={{ ...tdStyle, fontWeight: "600", color: amountDisplay.includes("%") ? theme.colors.primary : "#333" }}>
+                      {amountDisplay}
+                    </td>
+                    <td style={tdStyle}>
+                      <button
+                        onClick={() => handleEdit(rule)}
+                        style={{
+                          padding: "5px 10px",
+                          marginRight: "5px",
+                          backgroundColor: theme.colors.primary,
+                          color: "white",
+                          border: "none",
+                          borderRadius: "3px",
+                          cursor: "pointer",
+                          fontSize: "12px"
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(rule.id)}
+                        style={{
+                          padding: "5px 10px",
+                          backgroundColor: "#c33",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "3px",
+                          cursor: "pointer",
+                          fontSize: "12px"
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

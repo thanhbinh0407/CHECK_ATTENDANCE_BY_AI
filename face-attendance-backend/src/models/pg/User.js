@@ -29,8 +29,9 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     defaultValue: 'employee',
     validate: {
-      isIn: [['admin', 'employee', 'accountant']]
-    }
+      isIn: [['manager', 'hr', 'accountant', 'supervisor', 'employee']]
+    },
+    comment: 'manager=Giám đốc/Quản trị, hr=Nhân sự, accountant=Kế toán, supervisor=Quản lý, employee=Nhân viên'
   },
   isActive: {
     type: DataTypes.BOOLEAN,
@@ -87,8 +88,56 @@ const User = sequelize.define('User', {
     allowNull: true
   },
 
+  contractType: {
+    type: DataTypes.ENUM('probation', '1_year', '3_year', 'indefinite', 'other'),
+    allowNull: true
+  },
+
+  employmentStatus: {
+    type: DataTypes.ENUM('active', 'maternity_leave', 'unpaid_leave', 'suspended', 'terminated', 'resigned'),
+    allowNull: true,
+    defaultValue: 'active'
+  },
+
+  managerId: {
+    type: DataTypes.INTEGER,
+    references: {
+      model: 'users',
+      key: 'id',
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE'
+    },
+    allowNull: true
+  },
+
+  branchName: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
   // SALARY INFORMATION
   baseSalary: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0
+  },
+
+  // Allowances (Các khoản phụ cấp)
+  lunchAllowance: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0
+  },
+
+  transportAllowance: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0
+  },
+
+  phoneAllowance: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0
+  },
+
+  responsibilityAllowance: {
     type: DataTypes.DECIMAL(12, 2),
     defaultValue: 0
   },
@@ -104,6 +153,17 @@ const User = sequelize.define('User', {
     allowNull: true
   },
 
+  // More detailed address information
+  permanentAddress: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+
+  temporaryAddress: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+
   bankAccount: {
     type: DataTypes.STRING,
     allowNull: true
@@ -114,12 +174,43 @@ const User = sequelize.define('User', {
     allowNull: true
   },
 
+  bankBranch: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
   taxCode: {
     type: DataTypes.STRING,
     allowNull: true
   },
 
+  // Social Insurance & Health Insurance (Bảo hiểm)
+  socialInsuranceNumber: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
+  healthInsuranceProvider: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
+  dependentCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+
   idNumber: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
+  idIssueDate: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+
+  idIssuePlace: {
     type: DataTypes.STRING,
     allowNull: true
   },
@@ -131,6 +222,44 @@ const User = sequelize.define('User', {
 
   gender: {
     type: DataTypes.ENUM('male', 'female', 'other'),
+    allowNull: true
+  },
+
+  // Emails
+  personalEmail: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
+  companyEmail: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
+  // EDUCATION & SKILLS INFORMATION
+  educationLevel: {
+    type: DataTypes.ENUM('high_school', 'vocational', 'college', 'university', 'master', 'phd', 'other'),
+    allowNull: true
+  },
+
+  major: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
+  // EMERGENCY CONTACT INFORMATION
+  emergencyContactName: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
+  emergencyContactRelationship: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
+  emergencyContactPhone: {
+    type: DataTypes.STRING,
     allowNull: true
   }
 }, {

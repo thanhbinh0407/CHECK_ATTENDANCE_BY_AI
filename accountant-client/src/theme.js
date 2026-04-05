@@ -1,21 +1,24 @@
-// Modern Design System 2024-2025
-// Professional Gray, Black & White Theme for Accountant Client
-
+// Design System – Professional accountant UI (gray + teal accent)
 export const theme = {
-  // Primary Colors - Professional Gray Scale
+  // Primary – header, nav active, text
   primary: {
-    main: "#1f2937",
-    light: "#374151",
-    dark: "#111827",
-    gradient: "linear-gradient(135deg, #1f2937 0%, #111827 100%)",
+    main: "#1e293b",
+    light: "#334155",
+    dark: "#0f172a",
   },
-  
-  // Colors (for backward compatibility)
+  // Accent – primary buttons, links, highlights (single accent, no gradient)
+  accent: {
+    main: "#0d9488",
+    hover: "#0f766e",
+    light: "#ccfbf1",
+    dark: "#134e4a",
+  },
+  // Colors (backward compatibility)
   colors: {
-    primary: "#1f2937",
-    secondary: "#3b82f6",
-    light: "#f9fafb",
-    border: "#e5e7eb",
+    primary: "#1e293b",
+    secondary: "#0d9488",
+    light: "#f8fafc",
+    border: "#e2e8f0",
   },
   
   // Neutral Colors

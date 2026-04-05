@@ -1,9 +1,27 @@
 import Salary from "../models/pg/Salary.js";
 import SalaryRule from "../models/pg/SalaryRule.js";
+import { calculateSeniority } from "../services/senioritySalaryService.js";
 import User from "../models/pg/User.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import ShiftSetting from "../models/pg/ShiftSetting.js";
+import SalaryAdvance from "../models/pg/SalaryAdvance.js";
 import { Op } from "sequelize";
+import { sendNotification } from "./notificationController.js";
+import { getSalaryTransitionError, SALARY_STATUS } from "../services/salaryStatusRBAC.js";
+
+// Calculate working days in a month (exclude weekends)
+function getWorkingDaysInMonth(year, month) {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let workingDays = 0;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month - 1, day);
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      workingDays++;
+    }
+  }
+  return workingDays;
+}
 
 // Get all salary rules
 export const getAllSalaryRules = async (req, res) => {
@@ -169,202 +187,23 @@ export const calculateSalary = async (req, res) => {
       });
     }
 
-    const user = await User.findByPk(userId);
-    if (!user) {
-      return res.status(404).json({
-        status: "error",
-        message: "User not found"
-      });
-    }
-
-    // Get shift settings
-
-    const shift = await ShiftSetting.findOne({ where: { active: true } });
-    if (!shift) {
-      return res.status(400).json({
-        status: "error",
-        message: "No active shift setting found"
-      });
-    }
-
-    // Get attendance logs for the month
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
-
-    const logs = await AttendanceLog.findAll({
-      where: {
-        userId,
-        timestamp: {
-          [Op.between]: [startDate, endDate]
-        }
-      },
-      order: [['timestamp', 'ASC']]
-    });
-
-    // Get active salary rules
-    const rules = await SalaryRule.findAll({
-      where: { isActive: true },
-      order: [['priority', 'DESC']]
-    });
-
-    // Initialize salary calculation
-    // Get baseSalary from user model (may be null/undefined, default to 0)
-    let baseSalary = parseFloat(user.baseSalary) || 0;
-    let bonus = 0;
-    let deduction = 0;
-
-    // Calculate based on attendance
-    const lateLogs = logs.filter(log => log.isLate === true);
-    const lateCount = lateLogs.length;
-    const earlyLeaveLogs = logs.filter(log => log.isEarlyLeave === true);
-    const earlyLeaveCount = earlyLeaveLogs.length;
-    
-    // Calculate total overtime hours from logs
-    let totalOvertimeHours = 0;
-    const overtimeLogs = logs.filter(log => log.isOvertime === true);
-    for (const log of overtimeLogs) {
-      // Parse overtime minutes from note (e.g., "Overtime 30 min" => 30)
-      if (log.note && log.note.includes('Overtime')) {
-        const match = log.note.match(/Overtime\s+(\d+)\s*min/);
-        if (match && match[1]) {
-          totalOvertimeHours += parseFloat(match[1]) / 60;
-        } else {
-          // Fallback: use default overtime threshold
-          totalOvertimeHours += (shift.overtimeThresholdMinutes || 15) / 60;
-        }
-      } else {
-        // Fallback: use default overtime threshold
-        totalOvertimeHours += (shift.overtimeThresholdMinutes || 15) / 60;
-      }
-    }
-
-    // Calculate absent days (working days without IN log)
-    const totalDaysInMonth = new Date(year, month, 0).getDate();
-    const workingDays = new Set();
-    logs.forEach(log => {
-      if (log.type === 'IN') {
-        const logDate = new Date(log.timestamp).getDate();
-        workingDays.add(logDate);
-      }
-    });
-    const absentDays = totalDaysInMonth - workingDays.size;
-
-    // Apply rules
-    for (const rule of rules) {
-      let ruleAmount = 0;
-      let shouldApply = false;
-
-      switch (rule.triggerType) {
-        case 'late':
-          // Rule applies if lateCount >= threshold (if threshold exists)
-          if (lateCount > 0 && (!rule.threshold || lateCount >= rule.threshold)) {
-            shouldApply = true;
-            if (rule.amountType === 'percentage') {
-              ruleAmount = baseSalary * parseFloat(rule.amount) / 100;
-              // If threshold exists, could multiply by (lateCount / threshold) but for simplicity, use once
-            } else {
-              // Fixed amount per occurrence if threshold is 1, or total if threshold is higher
-              ruleAmount = parseFloat(rule.amount) * (rule.threshold ? Math.floor(lateCount / rule.threshold) : lateCount);
-            }
-          }
-          break;
-        case 'early_leave':
-          // Rule applies if earlyLeaveCount >= threshold
-          if (earlyLeaveCount > 0 && (!rule.threshold || earlyLeaveCount >= rule.threshold)) {
-            shouldApply = true;
-            if (rule.amountType === 'percentage') {
-              ruleAmount = baseSalary * parseFloat(rule.amount) / 100;
-            } else {
-              ruleAmount = parseFloat(rule.amount) * (rule.threshold ? Math.floor(earlyLeaveCount / rule.threshold) : earlyLeaveCount);
-            }
-          }
-          break;
-        case 'overtime':
-          // Rule applies if totalOvertimeHours > 0
-          if (totalOvertimeHours > 0 && (!rule.threshold || totalOvertimeHours >= rule.threshold)) {
-            shouldApply = true;
-            if (rule.amountType === 'percentage') {
-              ruleAmount = baseSalary * parseFloat(rule.amount) / 100 * totalOvertimeHours;
-            } else {
-              // Fixed amount per hour
-              ruleAmount = parseFloat(rule.amount) * totalOvertimeHours;
-            }
-          }
-          break;
-        case 'absent':
-          // Rule applies if absentDays >= threshold
-          if (absentDays > 0 && (!rule.threshold || absentDays >= rule.threshold)) {
-            shouldApply = true;
-            if (rule.amountType === 'percentage') {
-              ruleAmount = baseSalary * parseFloat(rule.amount) / 100 * absentDays;
-            } else {
-              ruleAmount = parseFloat(rule.amount) * absentDays;
-            }
-          }
-          break;
-        case 'full_attendance':
-          // Calculate full attendance (no late, no early leave, all days present with both IN and OUT)
-          const hasFullAttendance = logs.length >= totalDaysInMonth * 2 && lateCount === 0 && earlyLeaveCount === 0 && absentDays === 0;
-          if (hasFullAttendance && (!rule.threshold || totalDaysInMonth >= rule.threshold)) {
-            shouldApply = true;
-            ruleAmount = rule.amountType === 'percentage' 
-              ? (baseSalary * parseFloat(rule.amount) / 100) 
-              : parseFloat(rule.amount);
-          }
-          break;
-        case 'custom':
-          // Custom rules need manual configuration, skip for now
-          break;
-      }
-
-      if (shouldApply) {
-        if (rule.type === 'bonus') {
-          bonus += ruleAmount;
-        } else {
-          deduction += Math.abs(ruleAmount);
-        }
-      }
-    }
-
-    const finalSalary = baseSalary + bonus - deduction;
-
-    // Create or update salary record
-    const [salary, created] = await Salary.findOrCreate({
-      where: { userId, month, year },
-      defaults: {
-        userId,
-        baseSalary,
-        bonus,
-        deduction,
-        finalSalary,
-        month,
-        year,
-        status: 'pending',
-        calculatedAt: new Date()
-      }
-    });
-
-    if (!created) {
-      await salary.update({
-        baseSalary,
-        bonus,
-        deduction,
-        finalSalary,
-        calculatedAt: new Date()
-      });
+    const { calculateSalaryForUser } = await import("../services/salaryCalculationService.js");
+    const result = await calculateSalaryForUser(userId, month, year, { requireExistingSalaryRecord: false });
+    if (!result.success) {
+      return res.status(403).json({ status: "error", message: result.error });
     }
 
     return res.json({
       status: "success",
       message: "Salary calculated successfully",
       salary: {
-        ...salary.toJSON(),
+        ...result.salary.toJSON(),
         attendance: {
-          totalLogs: logs.length,
-          lateCount,
-          earlyLeaveCount,
-          overtimeHours: totalOvertimeHours.toFixed(2),
-          absentDays
+          totalLogs: result.attendance.totalLogs,
+          lateCount: result.attendance.lateCount,
+          earlyLeaveCount: result.attendance.earlyLeaveCount,
+          overtimeHours: result.attendance.overtimeHours.toFixed(2),
+          absentDays: result.attendance.absentDays
         }
       }
     });
@@ -416,6 +255,13 @@ export const updateSalaryStatus = async (req, res) => {
     const { id } = req.params;
     const { status, notes } = req.body;
 
+    if (!status) {
+      return res.status(400).json({
+        status: "error",
+        message: "Missing required field: status"
+      });
+    }
+
     const salary = await Salary.findByPk(id);
     if (!salary) {
       return res.status(404).json({
@@ -424,10 +270,25 @@ export const updateSalaryStatus = async (req, res) => {
       });
     }
 
+    const role = req.user?.role;
+    const fromStatus = salary.status;
+    const toStatus = status;
+
+    // Validate transition + role.
+    const errMsg = getSalaryTransitionError({ fromStatus, toStatus, role });
+    if (errMsg) {
+      return res.status(403).json({
+        status: "error",
+        message: errMsg
+      });
+    }
+
     const updateData = {};
     if (status) updateData.status = status;
     if (notes !== undefined) updateData.notes = notes;
-    if (status === 'paid') updateData.paidAt = new Date();
+    if (status === SALARY_STATUS.APPROVED) updateData.calculatedAt = new Date();
+    if (status === SALARY_STATUS.PAID) updateData.paidAt = new Date();
+    if (status === SALARY_STATUS.PENDING) updateData.paidAt = null;
 
     await salary.update(updateData);
 
@@ -443,6 +304,25 @@ export const updateSalaryStatus = async (req, res) => {
       message: err.message
     });
   }
+};
+
+// Accountant-only: mark approved salary as paid
+export const markPaidSalary = async (req, res) => {
+  // Accept both { notes } and { reason } for audit context.
+  if (req.body?.reason !== undefined && req.body?.notes === undefined) {
+    req.body.notes = req.body.reason;
+  }
+  req.body = { ...(req.body || {}), status: SALARY_STATUS.PAID };
+  return updateSalaryStatus(req, res);
+};
+
+// Manager-only: revert paid salary back to pending for re-check/rework
+export const revertSalaryToPending = async (req, res) => {
+  if (req.body?.reason !== undefined && req.body?.notes === undefined) {
+    req.body.notes = req.body.reason;
+  }
+  req.body = { ...(req.body || {}), status: SALARY_STATUS.PENDING };
+  return updateSalaryStatus(req, res);
 };
 
 // Get pending salaries for admin approval
@@ -466,12 +346,28 @@ export const getPendingSalaries = async (req, res) => {
       order: [['year', 'DESC'], ['month', 'DESC'], ['createdAt', 'ASC']]
     });
 
-    console.log(`Found ${pendingSalaries.length} pending salaries`);
+    // Bản ghi bị từ chối (chờ kế toán tính lại) — tách khỏi hàng chờ duyệt chính
+    const awaitingRecalc = [];
+    const awaitingApproval = [];
+    for (const row of pendingSalaries) {
+      const n = row.notes;
+      if (typeof n === "string" && n.trim().startsWith("[REJECTED]")) {
+        awaitingRecalc.push(row);
+      } else {
+        awaitingApproval.push(row);
+      }
+    }
+
+    console.log(
+      `Found ${pendingSalaries.length} pending salaries (${awaitingApproval.length} chờ duyệt, ${awaitingRecalc.length} bị trả về tính lại)`
+    );
 
     return res.json({
       status: "success",
-      count: pendingSalaries.length,
-      salaries: pendingSalaries
+      count: awaitingApproval.length,
+      salaries: awaitingApproval,
+      awaitingRecalc,
+      awaitingRecalcCount: awaitingRecalc.length,
     });
   } catch (err) {
     console.error("Error fetching pending salaries:", err.message);
@@ -497,10 +393,24 @@ export const approveSalary = async (req, res) => {
       });
     }
 
+    // Enforce workflow: only pending -> approved.
+    if (salary.status !== SALARY_STATUS.PENDING) {
+      return res.status(403).json({
+        status: "error",
+        message: `Cannot approve salary from status '${salary.status}'. Only '${SALARY_STATUS.PENDING}' -> '${SALARY_STATUS.APPROVED}' is allowed.`
+      });
+    }
+
     await salary.update({
       status: 'approved',
       calculatedAt: new Date()
     });
+
+    // Send broadcast notification
+    const employee = await User.findByPk(salary.userId, { attributes: ['name', 'employeeCode'] });
+    await sendNotification(null, 'system', 'Salary Approved', 
+      `Salary for ${employee?.name || 'employee'} (${employee?.employeeCode || salary.userId}) for ${salary.month}/${salary.year} has been approved.`, 
+      { salaryId: salary.id, action: 'approved' });
 
     return res.json({
       status: "success",
@@ -527,6 +437,15 @@ export const rejectSalary = async (req, res) => {
       return res.status(404).json({
         status: "error",
         message: "Salary record not found"
+      });
+    }
+
+    // Enforce workflow: only pending -> pending (reject notes) for audit trail.
+    // Rejecting an already-approved/paid salary should be done via `/revert`.
+    if (salary.status !== SALARY_STATUS.PENDING) {
+      return res.status(403).json({
+        status: "error",
+        message: `Cannot reject salary from status '${salary.status}'. Only '${SALARY_STATUS.PENDING}' is rejectable.`
       });
     }
 
@@ -562,6 +481,14 @@ export const adjustSalary = async (req, res) => {
       return res.status(404).json({
         status: "error",
         message: "Salary record not found"
+      });
+    }
+
+    // Disallow adjustments after paid.
+    if (salary.status === SALARY_STATUS.PAID) {
+      return res.status(403).json({
+        status: "error",
+        message: "Cannot adjust a salary that is already paid."
       });
     }
 

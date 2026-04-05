@@ -3,6 +3,7 @@ import { matchDescriptor } from "../services/matchService.js";
 import { Op } from "sequelize";
 import { ShiftSetting } from "../models/pg/index.js";
 import Notification from "../models/pg/Notification.js";
+import { emitToRoom } from "../socket.js";
 
 export const logAttendance = async (req, res) => {
   try {
@@ -128,6 +129,17 @@ export const logAttendance = async (req, res) => {
 
       console.log(`Attendance logged: ${match.detectedName} (Distance: ${match.distance.toFixed(3)}) type=${type} flags:${isLate? 'LATE':''}${isEarlyLeave? ' EARLY':''}${isOvertime? ' OT':''}`);
 
+      // Emit real-time update
+      emitToRoom('admin', 'attendance-update', {
+        userId: match.userId,
+        detectedName: match.detectedName,
+        type,
+        timestamp: now,
+        isLate,
+        isEarlyLeave,
+        isOvertime
+      });
+
       const finished = type === 'OUT';
 
       return res.json({
@@ -194,7 +206,7 @@ export const getTodayAttendance = async (req, res) => {
           [Op.lt]: tomorrow
         }
       },
-      include: [{ model: User, attributes: ['name', 'email', 'employeeCode'] }],
+      include: [{ model: User, as: "User", attributes: ['name', 'email', 'employeeCode'] }],
       order: [['timestamp', 'DESC']]
     });
 
@@ -207,6 +219,7 @@ export const getTodayAttendance = async (req, res) => {
         userId: log.userId,
         detectedName: log.detectedName,
         timestamp: log.timestamp,
+        type: log.type || 'IN',
         confidence: log.confidence,
         matchDistance: log.matchDistance
       }))

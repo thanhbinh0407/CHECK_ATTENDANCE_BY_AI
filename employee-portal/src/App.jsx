@@ -1,27 +1,84 @@
 import { useState, useEffect } from "react";
-import LoginForm from "./components/LoginForm.jsx";
+import EmployeeDashboard from "./components/EmployeeDashboard.jsx";
 import AttendanceHistory from "./components/AttendanceHistory.jsx";
 import SalaryHistory from "./components/SalaryHistory.jsx";
+import JobHistoryTimeline from "./components/JobHistoryTimeline.jsx";
 import LeaveRequest from "./components/LeaveRequest.jsx";
 import Qualifications from "./components/Qualifications.jsx";
 import Dependents from "./components/Dependents.jsx";
 import ApprovalManagement from "./components/ApprovalManagement.jsx";
 import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
+import SalaryAdvanceRequest from "./components/SalaryAdvanceRequest.jsx";
+import OvertimeRequest from "./components/OvertimeRequest.jsx";
+import BusinessTripRequest from "./components/BusinessTripRequest.jsx";
+import ChangePassword from "./components/ChangePassword.jsx";
 import "./App.css";
 
 function App() {
-  const [authToken, setAuthToken] = useState(null);
-  const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState("attendance");
+  const [authToken, setAuthToken] = useState(() => {
+    return localStorage.getItem("authToken");
+  });
+  const [user, setUser] = useState(() => {
+    const userData = localStorage.getItem("user");
+    return userData ? JSON.parse(userData) : null;
+  });
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // Check if already logged in
-    const token = localStorage.getItem("authToken");
-    const userData = localStorage.getItem("user");
-    if (token && userData) {
-      setAuthToken(token);
-      setUser(JSON.parse(userData));
-    }
+    const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+    (async () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tokenFromUrl = urlParams.get("token");
+        const userFromUrl = urlParams.get("user");
+
+        if (tokenFromUrl && userFromUrl) {
+          try {
+            const decodedToken = decodeURIComponent(tokenFromUrl);
+            const decodedUser = JSON.parse(decodeURIComponent(userFromUrl));
+            localStorage.setItem("authToken", decodedToken);
+            localStorage.setItem("user", JSON.stringify(decodedUser));
+            setAuthToken(decodedToken);
+            setUser(decodedUser);
+            window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+          } catch (error) {
+            console.error("Error parsing token/user from URL:", error);
+          }
+        }
+
+        if (tokenFromUrl) {
+          try {
+            const decodedToken = decodeURIComponent(tokenFromUrl);
+            localStorage.setItem("authToken", decodedToken);
+            const res = await fetch(`${apiBase}/api/auth/me`, {
+              headers: { Authorization: `Bearer ${decodedToken}` },
+            });
+            const data = await res.json();
+            if (data.status === "success" && data.user) {
+              localStorage.setItem("user", JSON.stringify(data.user));
+              setAuthToken(decodedToken);
+              setUser(data.user);
+              window.history.replaceState({}, document.title, window.location.pathname);
+              return;
+            }
+          } catch (e) {
+            console.error("auth/me from URL token:", e);
+          }
+        }
+
+        const token = localStorage.getItem("authToken");
+        const userData = localStorage.getItem("user");
+        if (token && userData) {
+          setAuthToken(token);
+          setUser(JSON.parse(userData));
+        }
+      } finally {
+        setIsChecking(false);
+      }
+    })();
   }, []);
 
   const handleLoginSuccess = (token, userData) => {
@@ -35,21 +92,39 @@ function App() {
     setAuthToken(null);
     setUser(null);
     setActiveTab("attendance");
+    // Redirect to login portal
+    window.location.href = "http://localhost:3000/";
   };
 
+  // Redirect to login portal if not authenticated (only after checking localStorage)
+  useEffect(() => {
+    if (!isChecking) {
+      const token = localStorage.getItem("authToken");
+      const userData = localStorage.getItem("user");
+      if (!token || !userData) {
+        window.location.href = "http://localhost:3000/";
+      }
+    }
+  }, [isChecking]);
+
+  // Show loading while checking
+  if (isChecking) {
+    return null;
+  }
+
   if (!authToken || !user) {
-    return <LoginForm onLoginSuccess={handleLoginSuccess} />;
+    return null; // Return null while redirecting
   }
 
   const headerStyle = {
-    backgroundColor: "#1a1a1a",
+    background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
     color: "#fff",
-    padding: "24px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.15)"
+    padding: "20px 24px",
+    boxShadow: "0 4px 12px rgba(162, 185, 237, 0.3)"
   };
 
   const headerContentStyle = {
-    maxWidth: "1200px",
+    maxWidth: "1400px",
     margin: "0 auto",
     display: "flex",
     justifyContent: "space-between",
@@ -57,124 +132,255 @@ function App() {
   };
 
   const tabsStyle = {
-    maxWidth: "1200px",
+    maxWidth: "1400px",
     margin: "0 auto",
     display: "flex",
-    borderBottom: "2px solid #e0e0e0",
-    backgroundColor: "#fff"
+    flexWrap: "nowrap",
+    overflowX: "auto",
+    overflowY: "hidden",
+    gap: "6px",
+    rowGap: "8px",
+    backgroundColor: "#fff",
+    borderBottom: "2px solid #e8eaf6",
+    padding: "10px 16px 12px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+    alignItems: "center",
+    // smooth horizontal scroll across browsers
+    WebkitOverflowScrolling: "touch",
+    scrollbarWidth: "thin",
+    scrollbarColor: "rgba(162,185,237,0.7) transparent",
   };
 
   const tabStyle = (active) => ({
-    padding: "16px 32px",
+    padding: "10px 14px",
     cursor: "pointer",
     fontWeight: "600",
-    fontSize: "15px",
-    borderBottom: active ? "3px solid #007bff" : "3px solid transparent",
-    color: active ? "#007bff" : "#666",
-    backgroundColor: "transparent",
-    transition: "all 0.3s"
+    fontSize: "11px",
+    textTransform: "uppercase",
+    letterSpacing: "0.45px",
+    border: "none",
+    borderBottom: active ? "3px solid #A2B9ED" : "3px solid transparent",
+    color: active ? "#A2B9ED" : "#666",
+    background: active
+      ? "linear-gradient(135deg, rgba(162, 185, 237, 0.12) 0%, rgba(139, 163, 224, 0.12) 100%)"
+      : "transparent",
+    transition: "all 0.2s ease",
+    outline: "none",
+    borderRadius: "8px",
+    flex: "0 0 auto",
+    whiteSpace: "nowrap",
+    minHeight: "40px",
+    boxSizing: "border-box",
   });
 
+  const handleTabHover = (e, isActive) => {
+    if (!isActive) {
+      e.target.style.background = "linear-gradient(135deg, rgba(162, 185, 237, 0.06) 0%, rgba(139, 163, 224, 0.06) 100%)";
+      e.target.style.color = "#A2B9ED";
+      e.target.style.transform = "translateY(-1px)";
+    }
+  };
+
+  const handleTabLeave = (e, isActive) => {
+    if (!isActive) {
+      e.target.style.background = "transparent";
+      e.target.style.color = "#666";
+      e.target.style.transform = "translateY(0)";
+    }
+  };
+
   const contentStyle = {
-    maxWidth: "1200px",
+    maxWidth: "1400px",
     margin: "0 auto",
-    padding: "32px 20px"
+    padding: "32px 24px",
+    backgroundColor: "#f8f9fa"
   };
 
   return (
-    <div style={{ width: "100%", minHeight: "100vh", backgroundColor: "#f5f7fa" }}>
+    <div style={{ width: "100%", minHeight: "100vh", backgroundColor: "#f8f9fa" }}>
       {/* Header */}
       <div style={headerStyle}>
         <div style={headerContentStyle}>
           <div>
-            <h1 style={{ fontSize: "28px", fontWeight: "700", margin: "0 0 4px 0" }}>
-              👤 Employee Portal
+            <h1 style={{ 
+              fontSize: "24px", 
+              fontWeight: "700", 
+              margin: "0 0 4px 0",
+              letterSpacing: "0.5px"
+            }}>
+              EMPLOYEE PORTAL
             </h1>
-            <p style={{ margin: 0, fontSize: "14px", opacity: 0.9 }}>
-              Hệ thống quản lý điểm danh và lương nhân viên
+            <p style={{ 
+              margin: 0, 
+              fontSize: "13px", 
+              opacity: 0.9,
+              fontWeight: "400"
+            }}>
+              Attendance & Payroll Management System
             </p>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontWeight: "600", fontSize: "16px" }}>{user?.name}</div>
-              <div style={{ fontSize: "13px", opacity: 0.8 }}>{user?.email}</div>
+              <div style={{ fontWeight: "600", fontSize: "15px" }}>{user?.name}</div>
+              <div style={{ fontSize: "12px", opacity: 0.85 }}>{user?.email}</div>
             </div>
             <button
               onClick={handleLogout}
               style={{
-                padding: "10px 20px",
+                padding: "10px 24px",
                 backgroundColor: "#dc3545",
                 color: "#fff",
                 border: "none",
-                borderRadius: "6px",
+                borderRadius: "4px",
                 cursor: "pointer",
                 fontWeight: "600",
-                fontSize: "14px"
+                fontSize: "13px",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+                transition: "all 0.2s"
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = "#c82333";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = "#dc3545";
               }}
             >
-              Đăng xuất
+              Logout
             </button>
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={tabsStyle}>
+      {/* Tabs — wrap + cuộn ngang khi hẹp, tránh tràn một hàng */}
+      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", backgroundColor: "#fff" }}>
+        <div style={tabsStyle}>
+        <button
+          onClick={() => setActiveTab("dashboard")}
+          style={tabStyle(activeTab === "dashboard")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "dashboard")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "dashboard")}
+        >
+          Dashboard
+        </button>
         <button
           onClick={() => setActiveTab("attendance")}
           style={tabStyle(activeTab === "attendance")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "attendance")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "attendance")}
         >
-          📅 Điểm Danh
+          Attendance
         </button>
         <button
           onClick={() => setActiveTab("salary")}
           style={tabStyle(activeTab === "salary")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "salary")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "salary")}
         >
-          💰 Lương
+          Salary
+        </button>
+        <button
+          onClick={() => setActiveTab("job-history")}
+          style={tabStyle(activeTab === "job-history")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "job-history")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "job-history")}
+        >
+          Job History
         </button>
         <button
           onClick={() => setActiveTab("leave")}
           style={tabStyle(activeTab === "leave")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "leave")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "leave")}
         >
-          📝 Đơn Nghỉ Phép
+          Leave Request
         </button>
         <button
           onClick={() => setActiveTab("qualifications")}
           style={tabStyle(activeTab === "qualifications")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "qualifications")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "qualifications")}
         >
-          📜 Chứng Chỉ
+          Qualifications
         </button>
         <button
           onClick={() => setActiveTab("dependents")}
           style={tabStyle(activeTab === "dependents")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "dependents")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "dependents")}
         >
-          👨‍👩‍👧‍👦 Người Phụ Thuộc
+          Dependents
+        </button>
+        <button
+          onClick={() => setActiveTab("salary-advance")}
+          style={tabStyle(activeTab === "salary-advance")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "salary-advance")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "salary-advance")}
+        >
+          Salary Advance
+        </button>
+        <button
+          onClick={() => setActiveTab("overtime")}
+          style={tabStyle(activeTab === "overtime")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "overtime")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "overtime")}
+        >
+          Overtime
+        </button>
+        <button
+          onClick={() => setActiveTab("business-trip")}
+          style={tabStyle(activeTab === "business-trip")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "business-trip")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "business-trip")}
+        >
+          Business Trip
+        </button>
+        <button
+          onClick={() => setActiveTab("account")}
+          style={tabStyle(activeTab === "account")}
+          onMouseEnter={(e) => handleTabHover(e, activeTab === "account")}
+          onMouseLeave={(e) => handleTabLeave(e, activeTab === "account")}
+        >
+          Account
         </button>
         {user?.role === "admin" && (
           <>
             <button
               onClick={() => setActiveTab("approval")}
               style={tabStyle(activeTab === "approval")}
+              onMouseEnter={(e) => handleTabHover(e, activeTab === "approval")}
+              onMouseLeave={(e) => handleTabLeave(e, activeTab === "approval")}
             >
-              ✅ Phê Duyệt Hồ Sơ
+              Approval
             </button>
             <button
               onClick={() => setActiveTab("rules")}
               style={tabStyle(activeTab === "rules")}
+              onMouseEnter={(e) => handleTabHover(e, activeTab === "rules")}
+              onMouseLeave={(e) => handleTabLeave(e, activeTab === "rules")}
             >
-              ⚙️ Quy Tắc Lương
+              Salary Rules
             </button>
           </>
         )}
+        </div>
       </div>
 
       {/* Content */}
       <div style={contentStyle}>
+        {activeTab === "dashboard" && (
+          <EmployeeDashboard userId={user?.id} userName={user?.name} onNavigate={setActiveTab} />
+        )}
         {activeTab === "attendance" && <AttendanceHistory userId={user?.id} />}
-        {activeTab === "salary" && <SalaryHistory userId={user?.id} />}
+        {activeTab === "salary" && <SalaryHistory userId={user?.id} isActive={true} />}
+        {activeTab === "job-history" && <JobHistoryTimeline />}
         {activeTab === "leave" && <LeaveRequest userId={user?.id} />}
         {activeTab === "qualifications" && <Qualifications userId={user?.id} />}
         {activeTab === "dependents" && <Dependents userId={user?.id} />}
+        {activeTab === "salary-advance" && <SalaryAdvanceRequest userId={user?.id} />}
+        {activeTab === "overtime" && <OvertimeRequest userId={user?.id || user?.userId} />}
+        {activeTab === "business-trip" && <BusinessTripRequest userId={user?.id} />}
+        {activeTab === "account" && <ChangePassword />}
         {activeTab === "approval" && user?.role === "admin" && <ApprovalManagement />}
         {activeTab === "rules" && user?.role === "admin" && <SalaryRulesManagement />}
       </div>

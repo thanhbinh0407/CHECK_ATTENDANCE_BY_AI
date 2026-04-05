@@ -4,6 +4,8 @@ import AttendanceLog from "./AttendanceLog.js";
 import ShiftSetting from "./ShiftSetting.js";
 import Salary from "./Salary.js";
 import SalaryRule from "./SalaryRule.js";
+import JobHistory from "./JobHistory.js";
+import SalaryHistory from "./SalaryHistory.js";
 import LeaveRequest from "./LeaveRequest.js";
 import Notification from "./Notification.js";
 import Department from "./Department.js";
@@ -11,10 +13,20 @@ import JobTitle from "./JobTitle.js";
 import SalaryGrade from "./SalaryGrade.js";
 import Qualification from "./Qualification.js";
 import Dependent from "./Dependent.js";
+import WorkExperience from "./WorkExperience.js";
+import Document from "./Document.js";
+import OvertimeRequest from "./OvertimeRequest.js";
+import BusinessTripRequest from "./BusinessTripRequest.js";
+import SalaryAdvance from "./SalaryAdvance.js";
+import ApprovalWorkflow from "./ApprovalWorkflow.js";
+import InsuranceConfig from "./InsuranceConfig.js";
 import SalaryPolicy from "./SalaryPolicy.js";
 import PayrollComponent from "./PayrollComponent.js";
 import Payroll from "./Payroll.js";
 import PayrollDetail from "./PayrollDetail.js";
+import InsuranceForm from "./InsuranceForm.js";
+import D02LTReport from "./D02LTReport.js";
+import RoleChangeAudit from "./RoleChangeAudit.js";
 
 // USER ASSOCIATIONS - Organizational Structure
 User.belongsTo(Department, { foreignKey: "departmentId" });
@@ -34,34 +46,78 @@ Qualification.belongsTo(User, { foreignKey: "userId" });
 User.hasMany(Dependent, { foreignKey: "userId", as: "Dependents" });
 Dependent.belongsTo(User, { foreignKey: "userId" });
 
+// WORK EXPERIENCE ASSOCIATIONS
+User.hasMany(WorkExperience, { foreignKey: "userId", as: "WorkExperiences" });
+WorkExperience.belongsTo(User, { foreignKey: "userId" });
+
+// DOCUMENT ASSOCIATIONS
+User.hasMany(Document, { foreignKey: "userId", as: "Documents" });
+Document.belongsTo(User, { foreignKey: "userId" });
+Document.belongsTo(User, { foreignKey: "uploadedBy", as: "Uploader" });
+
+// OVERTIME REQUEST ASSOCIATIONS
+User.hasMany(OvertimeRequest, { foreignKey: "userId", as: "OvertimeRequests" });
+OvertimeRequest.belongsTo(User, { foreignKey: "userId", as: "User" });
+OvertimeRequest.belongsTo(User, { foreignKey: "approvedBy", as: "Approver" });
+OvertimeRequest.belongsTo(User, { foreignKey: "currentApproverId", as: "CurrentApprover" });
+
+// BUSINESS TRIP REQUEST ASSOCIATIONS
+User.hasMany(BusinessTripRequest, { foreignKey: "userId", as: "BusinessTripRequests" });
+BusinessTripRequest.belongsTo(User, { foreignKey: "userId", as: "User" });
+BusinessTripRequest.belongsTo(User, { foreignKey: "approvedBy", as: "Approver" });
+BusinessTripRequest.belongsTo(User, { foreignKey: "currentApproverId", as: "CurrentApprover" });
+
+// SALARY ADVANCE ASSOCIATIONS
+User.hasMany(SalaryAdvance, { foreignKey: "userId", as: "SalaryAdvances" });
+SalaryAdvance.belongsTo(User, { foreignKey: "userId" });
+SalaryAdvance.belongsTo(User, { foreignKey: "approvedBy", as: "Approver" });
+SalaryAdvance.belongsTo(User, { foreignKey: "currentApproverId", as: "CurrentApprover" });
+
+// APPROVAL WORKFLOW ASSOCIATIONS
+ApprovalWorkflow.belongsTo(User, { foreignKey: "approverId", as: "Approver" });
+
 // EXISTING ASSOCIATIONS
 User.hasMany(FaceProfile, { foreignKey: "userId" });
 FaceProfile.belongsTo(User, { foreignKey: "userId" });
 
-User.hasMany(AttendanceLog, { foreignKey: "userId" });
-AttendanceLog.belongsTo(User, { foreignKey: "userId" });
+User.hasMany(AttendanceLog, { foreignKey: "userId", as: "AttendanceLogs" });
+AttendanceLog.belongsTo(User, { foreignKey: "userId", as: "User" });
 
 User.hasMany(Salary, { foreignKey: "userId" });
 Salary.belongsTo(User, { foreignKey: "userId" });
 
-User.hasMany(LeaveRequest, { foreignKey: "userId" });
+User.hasMany(LeaveRequest, { foreignKey: "userId", as: "LeaveRequests" });
 LeaveRequest.belongsTo(User, { foreignKey: "userId", as: "User" });
 LeaveRequest.belongsTo(User, { foreignKey: "approvedBy", as: "Approver" });
 
 User.hasMany(Notification, { foreignKey: "userId" });
 Notification.belongsTo(User, { foreignKey: "userId" });
 
-// Ensure LeaveRequest associations are properly set up
-if (!LeaveRequest.associations.User) {
-  LeaveRequest.belongsTo(User, { foreignKey: "userId", as: "User" });
-}
-if (!LeaveRequest.associations.Approver) {
-  LeaveRequest.belongsTo(User, { foreignKey: "approvedBy", as: "Approver" });
-}
-
 // Department Manager Association
 Department.belongsTo(User, { foreignKey: "managerId", as: "Manager" });
 User.hasMany(Department, { foreignKey: "managerId", as: "ManagedDepartments" });
+
+// ROLE CHANGE AUDIT ASSOCIATIONS
+User.hasMany(RoleChangeAudit, { foreignKey: "userId", as: "RoleChangeHistory" });
+RoleChangeAudit.belongsTo(User, { foreignKey: "userId", as: "TargetUser" });
+RoleChangeAudit.belongsTo(User, { foreignKey: "changedBy", as: "ChangedByUser" });
+
+// Employee Direct Manager Association (Self-referential)
+User.belongsTo(User, { foreignKey: "managerId", as: "Manager" });
+User.hasMany(User, { foreignKey: "managerId", as: "DirectReports" });
+
+// JOB & SALARY HISTORY ASSOCIATIONS
+User.hasMany(JobHistory, { foreignKey: "userId", as: "JobHistories" });
+JobHistory.belongsTo(User, { foreignKey: "userId", as: "Employee" });
+JobHistory.belongsTo(Department, { foreignKey: "fromDepartmentId", as: "FromDepartment" });
+JobHistory.belongsTo(Department, { foreignKey: "toDepartmentId", as: "ToDepartment" });
+JobHistory.belongsTo(JobTitle, { foreignKey: "fromJobTitleId", as: "FromJobTitle" });
+JobHistory.belongsTo(JobTitle, { foreignKey: "toJobTitleId", as: "ToJobTitle" });
+JobHistory.belongsTo(User, { foreignKey: "changedBy", as: "ChangedByUser" });
+
+User.hasMany(SalaryHistory, { foreignKey: "userId", as: "SalaryHistories" });
+SalaryHistory.belongsTo(User, { foreignKey: "userId", as: "Employee" });
+SalaryHistory.belongsTo(User, { foreignKey: "changedBy", as: "ChangedByUser" });
 
 // PAYROLL ASSOCIATIONS - Pre-built Payroll System
 User.hasMany(Payroll, { foreignKey: "userId" });
@@ -80,6 +136,11 @@ PayrollComponent.hasMany(PayrollDetail, { foreignKey: "payrollComponentId" });
 Payroll.belongsTo(User, { foreignKey: "approvedBy", as: "Approver" });
 User.hasMany(Payroll, { foreignKey: "approvedBy", as: "ApprovedPayrolls" });
 
+// INSURANCE FORM ASSOCIATIONS
+// Use a unique alias to avoid conflicts with any default-generated association names
+User.hasMany(InsuranceForm, { foreignKey: "userId", as: "UserInsuranceForms" });
+InsuranceForm.belongsTo(User, { foreignKey: "userId" });
+
 // Export models
 export { 
   User, 
@@ -88,6 +149,8 @@ export {
   ShiftSetting, 
   Salary, 
   SalaryRule, 
+  JobHistory,
+  SalaryHistory,
   LeaveRequest, 
   Notification,
   Department,
@@ -95,10 +158,19 @@ export {
   SalaryGrade,
   Qualification,
   Dependent,
+  WorkExperience,
+  Document,
+  OvertimeRequest,
+  BusinessTripRequest,
+  SalaryAdvance,
+  ApprovalWorkflow,
+  InsuranceConfig,
   SalaryPolicy,
   PayrollComponent,
   Payroll,
-  PayrollDetail
+  PayrollDetail,
+  InsuranceForm,
+  RoleChangeAudit
 };
 
 

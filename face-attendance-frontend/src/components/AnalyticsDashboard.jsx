@@ -1,313 +1,164 @@
 import React, { useState, useEffect } from "react";
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
-import { theme, commonStyles } from "../styles/theme.js";
+import { theme } from "../styles/theme.js";
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff7300'];
 
 export default function AnalyticsDashboard() {
-  const [overview, setOverview] = useState(null);
-  const [attendanceTrend, setAttendanceTrend] = useState([]);
-  const [employeeStats, setEmployeeStats] = useState([]);
-  const [salaryStats, setSalaryStats] = useState(null);
-  const [distribution, setDistribution] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [trendDays, setTrendDays] = useState(30);
-
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  const token = localStorage.getItem("authToken");
+
+  const [loading, setLoading] = useState(true);
+  const [analytics, setAnalytics] = useState(null);
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [year, setYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
-    fetchAllData();
-  }, [selectedMonth, selectedYear, trendDays]);
+    fetchAnalytics();
+  }, [month, year]);
 
-  const fetchAllData = async () => {
+  const fetchAnalytics = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("authToken");
-      if (!token) return;
-
-      const [overviewRes, trendRes, employeeRes, salaryRes, distRes] = await Promise.all([
-        fetch(`${apiBase}/api/analytics/overview`, {
-          headers: { "Authorization": `Bearer ${token}` }
-        }),
-        fetch(`${apiBase}/api/analytics/attendance-trend?days=${trendDays}`, {
-          headers: { "Authorization": `Bearer ${token}` }
-        }),
-        fetch(`${apiBase}/api/analytics/employee-stats?month=${selectedMonth}&year=${selectedYear}`, {
-          headers: { "Authorization": `Bearer ${token}` }
-        }),
-        fetch(`${apiBase}/api/analytics/salary-stats?month=${selectedMonth}&year=${selectedYear}`, {
-          headers: { "Authorization": `Bearer ${token}` }
-        }),
-        fetch(`${apiBase}/api/analytics/attendance-distribution?month=${selectedMonth}&year=${selectedYear}`, {
-          headers: { "Authorization": `Bearer ${token}` }
-        })
-      ]);
-
-      const [overviewData, trendData, employeeData, salaryData, distData] = await Promise.all([
-        overviewRes.json(),
-        trendRes.json(),
-        employeeRes.json(),
-        salaryRes.json(),
-        distRes.json()
-      ]);
-
-      if (overviewData.status === "success") setOverview(overviewData.overview);
-      if (trendData.status === "success") setAttendanceTrend(trendData.trend);
-      if (employeeData.status === "success") setEmployeeStats(employeeData.stats);
-      if (salaryData.status === "success") setSalaryStats(salaryData.stats);
-      if (distData.status === "success") setDistribution(distData.distribution);
-    } catch (error) {
-      console.error("Error fetching analytics:", error);
+      const res = await fetch(`${apiBase}/api/analytics/dashboard?month=${month}&year=${year}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to load analytics");
+      }
+      if (!data.analytics) {
+        throw new Error("Analytics data is missing");
+      }
+      setAnalytics(data.analytics);
+    } catch (err) {
+      console.error("Error fetching analytics:", err);
+      setAnalytics(null);
+      alert(`Error loading analytics: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const COLORS = ['#28a745', '#ffc107', '#dc3545', '#17a2b8'];
+  const cardStyle = {
+    backgroundColor: theme.neutral.white,
+    borderRadius: theme.radius.lg,
+    border: `1px solid ${theme.neutral.gray200}`,
+    boxShadow: theme.shadows.sm,
+    padding: theme.spacing.xl,
+  };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND"
-    }).format(amount);
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: theme.radius.md,
+    border: `1px solid ${theme.neutral.gray300}`,
+    fontWeight: 600,
   };
 
   if (loading) {
     return (
-      <div style={{ textAlign: "center", padding: "60px", color: "#666" }}>
-        <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏳</div>
-        <div style={{ fontSize: "16px", fontWeight: "500" }}>Đang tải dữ liệu phân tích...</div>
+      <div style={cardStyle}>
+        <div style={{ textAlign: "center", padding: theme.spacing.xl }}>
+          <div style={{ fontSize: 18, fontWeight: 600 }}>Loading analytics...</div>
+        </div>
       </div>
     );
   }
 
-  const pieData = distribution ? [
-    { name: "Đúng giờ", value: distribution.onTime },
-    { name: "Muộn", value: distribution.late },
-    { name: "Về sớm", value: distribution.earlyLeave },
-    { name: "Chưa khớp", value: distribution.unmatched }
-  ].filter(item => item.value > 0) : [];
+  if (!analytics) {
+    return (
+      <div style={cardStyle}>
+        <div style={{ textAlign: "center", padding: theme.spacing.xl }}>
+          <div style={{ fontSize: 18, fontWeight: 600, color: theme.error.main }}>Failed to load analytics</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "0" }}>
-      {/* Welcome Header */}
-      <div style={{
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        color: "#fff",
-        padding: "48px 40px",
-        borderRadius: "16px 16px 0 0"
-      }}>
-        <h1 style={{ margin: "0 0 12px 0", fontSize: "36px", fontWeight: "700" }}>
-          📊 Analytics Dashboard
-        </h1>
-        <p style={{ margin: 0, fontSize: "16px", opacity: 0.95 }}>
-          Phân tích và thống kê toàn diện về điểm danh, nhân viên và lương. Xem xu hướng và insights chi tiết.
-        </p>
+    <div style={{ display: "grid", gap: theme.spacing.xl }}>
+      {/* Header */}
+      <div style={{ ...cardStyle, background: theme.gradients.primary, color: theme.neutral.white, border: "none" }}>
+        <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>📊 Advanced Analytics Dashboard</div>
+        <div style={{ opacity: 0.95 }}>Visual analytics and insights for HR management</div>
       </div>
 
-      {/* Main Content */}
-      <div style={{
-        backgroundColor: "#ffffff",
-        borderRadius: "0 0 16px 16px",
-        padding: "40px",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.1)"
-      }}>
-        {/* Overview Cards */}
-        {overview && (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: "24px",
-            marginBottom: "32px"
-          }}>
-            <div style={{
-              backgroundColor: "#fff",
-              padding: "24px",
-              borderRadius: "12px",
-              boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-              border: "1px solid #e0e0e0"
-            }}>
-              <div style={{ fontSize: "14px", color: "#666", marginBottom: "8px", fontWeight: "500" }}>
-                Tổng nhân viên
-              </div>
-              <div style={{ fontSize: "32px", fontWeight: "700", color: "#667eea" }}>
-                {overview.totalEmployees}
-              </div>
-            </div>
-            <div style={{
-              backgroundColor: "#fff",
-              padding: "24px",
-              borderRadius: "12px",
-              boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-              border: "1px solid #e0e0e0"
-            }}>
-              <div style={{ fontSize: "14px", color: "#666", marginBottom: "8px", fontWeight: "500" }}>
-                Điểm danh hôm nay
-              </div>
-              <div style={{ fontSize: "32px", fontWeight: "700", color: "#28a745" }}>
-                {overview.todayAttendance}
-              </div>
-            </div>
-            <div style={{
-              backgroundColor: "#fff",
-              padding: "24px",
-              borderRadius: "12px",
-              boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-              border: "1px solid #e0e0e0"
-            }}>
-              <div style={{ fontSize: "14px", color: "#666", marginBottom: "8px", fontWeight: "500" }}>
-                Đơn nghỉ chờ duyệt
-              </div>
-              <div style={{ fontSize: "32px", fontWeight: "700", color: "#ffc107" }}>
-                {overview.pendingLeaves}
-              </div>
-            </div>
-            <div style={{
-              backgroundColor: "#fff",
-              padding: "24px",
-              borderRadius: "12px",
-              boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-              border: "1px solid #e0e0e0"
-            }}>
-              <div style={{ fontSize: "14px", color: "#666", marginBottom: "8px", fontWeight: "500" }}>
-                Đã đăng ký khuôn mặt
-              </div>
-              <div style={{ fontSize: "32px", fontWeight: "700", color: "#17a2b8" }}>
-                {overview.employeesWithFace}
-              </div>
-            </div>
+      {/* Filters */}
+      <div style={cardStyle}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: theme.spacing.md, maxWidth: "400px" }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: theme.neutral.gray700, marginBottom: 6 }}>Month</div>
+            <input
+              type="number"
+              min="1"
+              max="12"
+              value={month}
+              onChange={(e) => setMonth(parseInt(e.target.value) || 1)}
+              style={inputStyle}
+            />
           </div>
-        )}
-
-        {/* Filters */}
-        <div style={{
-          backgroundColor: "#fff",
-          borderRadius: "12px",
-          padding: "24px",
-          marginBottom: "32px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
-        }}>
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center" }}>
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "13px", color: "#495057" }}>
-                Tháng
-              </label>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                style={{
-                  padding: "10px 16px",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  cursor: "pointer"
-                }}
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                  <option key={m} value={m}>Tháng {m}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "13px", color: "#495057" }}>
-                Năm
-              </label>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                style={{
-                  padding: "10px 16px",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  cursor: "pointer"
-                }}
-              >
-                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "13px", color: "#495057" }}>
-                Xu hướng (ngày)
-              </label>
-              <select
-                value={trendDays}
-                onChange={(e) => setTrendDays(parseInt(e.target.value))}
-                style={{
-                  padding: "10px 16px",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  cursor: "pointer"
-                }}
-              >
-                <option value={7}>7 ngày</option>
-                <option value={30}>30 ngày</option>
-                <option value={90}>90 ngày</option>
-              </select>
-            </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: theme.neutral.gray700, marginBottom: 6 }}>Year</div>
+            <input
+              type="number"
+              value={year}
+              onChange={(e) => setYear(parseInt(e.target.value) || new Date().getFullYear())}
+              style={inputStyle}
+            />
           </div>
         </div>
+      </div>
 
-        {/* Charts Grid */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(500px, 1fr))",
-          gap: "24px",
-          marginBottom: "32px"
-        }}>
-          {/* Attendance Trend Line Chart */}
-          <div style={{
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            padding: "24px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
-          }}>
-            <h3 style={{ margin: "0 0 20px 0", fontSize: "20px", fontWeight: "700", color: "#1a1a1a" }}>
-              📈 Xu Hướng Điểm Danh
-            </h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={attendanceTrend}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="total" stroke="#667eea" strokeWidth={2} name="Tổng" />
-                <Line type="monotone" dataKey="onTime" stroke="#28a745" strokeWidth={2} name="Đúng giờ" />
-                <Line type="monotone" dataKey="late" stroke="#ffc107" strokeWidth={2} name="Muộn" />
-              </LineChart>
-            </ResponsiveContainer>
+      {/* Summary Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: theme.spacing.md }}>
+        <div style={cardStyle}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: theme.neutral.gray600, marginBottom: 8 }}>Total Employees</div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: theme.primary.main }}>
+            {analytics.summary?.totalEmployees || 0}
           </div>
+        </div>
+        <div style={cardStyle}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: theme.neutral.gray600, marginBottom: 8 }}>Average Attendance Rate</div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: theme.success.main }}>
+            {analytics.summary?.currentMonthAttendance?.averageAttendanceRate || 0}%
+          </div>
+        </div>
+        <div style={cardStyle}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: theme.neutral.gray600, marginBottom: 8 }}>Total Payroll Cost</div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: theme.warning.main }}>
+            {new Intl.NumberFormat('vi-VN').format(analytics.summary?.currentMonthPayroll?.totalCost || 0)} VND
+          </div>
+        </div>
+        <div style={cardStyle}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: theme.neutral.gray600, marginBottom: 8 }}>Total Overtime Hours</div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: theme.secondary.main }}>
+            {analytics.summary?.currentMonthOvertime?.totalHours || 0}
+          </div>
+        </div>
+      </div>
 
-          {/* Attendance Distribution Pie Chart */}
-          <div style={{
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            padding: "24px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
-          }}>
-            <h3 style={{ margin: "0 0 20px 0", fontSize: "20px", fontWeight: "700", color: "#1a1a1a" }}>
-              🥧 Phân Bố Điểm Danh
-            </h3>
+      {/* Charts Row 1: Pie Charts */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: theme.spacing.lg }}>
+        {/* Structure by Department */}
+        {analytics.charts?.structureByDepartment && analytics.charts.structureByDepartment.length > 0 && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Cơ cấu theo Phòng ban</div>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={pieData}
+                  data={analytics.charts.structureByDepartment}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
                   label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={100}
+                  outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {pieData.map((entry, index) => (
+                  {analytics.charts.structureByDepartment.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -315,106 +166,131 @@ export default function AnalyticsDashboard() {
               </PieChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        )}
 
-        {/* Top Employees Bar Chart */}
-        {employeeStats.length > 0 && (
-          <div style={{
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            padding: "24px",
-            marginBottom: "32px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
-          }}>
-            <h3 style={{ margin: "0 0 20px 0", fontSize: "20px", fontWeight: "700", color: "#1a1a1a" }}>
-              🏆 Top Nhân Viên Đi Làm Đúng Giờ
-            </h3>
+        {/* Age Distribution */}
+        {analytics.charts?.ageDistribution && analytics.charts.ageDistribution.length > 0 && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Phân bổ theo Độ tuổi</div>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={employeeStats.slice(0, 10)}>
+              <PieChart>
+                <Pie
+                  data={analytics.charts.ageDistribution}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {analytics.charts.ageDistribution.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* Charts Row 2: Line Charts */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(500px, 1fr))", gap: theme.spacing.lg }}>
+        {/* Turnover Trend */}
+        {analytics.charts?.turnoverTrend && analytics.charts.turnoverTrend.length > 0 && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Xu hướng Tỷ lệ Luân chuyển (6 tháng)</div>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={analytics.charts.turnoverTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" height={100} />
-                <YAxis tick={{ fontSize: 12 }} />
+                <XAxis dataKey="label" />
+                <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="onTimeCount" fill="#28a745" name="Đúng giờ" />
-                <Bar dataKey="lateCount" fill="#ffc107" name="Muộn" />
-                <Bar dataKey="earlyLeaveCount" fill="#dc3545" name="Về sớm" />
+                <Line type="monotone" dataKey="turnoverRate" stroke="#8884d8" name="Tỷ lệ luân chuyển (%)" />
+                <Line type="monotone" dataKey="newEmployees" stroke="#82ca9d" name="Nhân viên mới" />
+                <Line type="monotone" dataKey="terminatedEmployees" stroke="#ff7300" name="Nhân viên nghỉ" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Payroll Cost Trend */}
+        {analytics.charts?.payrollTrend && analytics.charts.payrollTrend.length > 0 && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Xu hướng Chi phí Lương (6 tháng)</div>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={analytics.charts.payrollTrend}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="label" />
+                <YAxis />
+                <Tooltip formatter={(value) => new Intl.NumberFormat('vi-VN').format(value) + ' VND'} />
+                <Legend />
+                <Line type="monotone" dataKey="totalCost" stroke="#8884d8" name="Tổng chi phí" />
+                <Line type="monotone" dataKey="totalGrossSalary" stroke="#82ca9d" name="Lương gộp" />
+                <Line type="monotone" dataKey="totalInsurance" stroke="#ff7300" name="Bảo hiểm" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* Charts Row 3: Bar Charts */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(500px, 1fr))", gap: theme.spacing.lg }}>
+        {/* Overtime by Department */}
+        {analytics.charts?.overtimeByDepartment && analytics.charts.overtimeByDepartment.length > 0 && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Giờ làm thêm theo Phòng ban</div>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={analytics.charts.overtimeByDepartment}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="hours" fill="#8884d8" name="Tổng giờ" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         )}
 
-        {/* Salary Statistics */}
-        {salaryStats && (
-          <div style={{
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            padding: "24px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
-          }}>
-            <h3 style={{ margin: "0 0 20px 0", fontSize: "20px", fontWeight: "700", color: "#1a1a1a" }}>
-              💰 Thống Kê Lương Tháng {selectedMonth}/{selectedYear}
-            </h3>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-              gap: "16px"
-            }}>
-              <div style={{
-                padding: "20px",
-                backgroundColor: "#f8f9fa",
-                borderRadius: "8px"
-              }}>
-                <div style={{ fontSize: "13px", color: "#666", marginBottom: "8px" }}>Tổng lương cơ bản</div>
-                <div style={{ fontSize: "24px", fontWeight: "700", color: "#667eea" }}>
-                  {formatCurrency(salaryStats.totalBaseSalary)}
-                </div>
-              </div>
-              <div style={{
-                padding: "20px",
-                backgroundColor: "#f8f9fa",
-                borderRadius: "8px"
-              }}>
-                <div style={{ fontSize: "13px", color: "#666", marginBottom: "8px" }}>Tổng thưởng</div>
-                <div style={{ fontSize: "24px", fontWeight: "700", color: "#28a745" }}>
-                  {formatCurrency(salaryStats.totalBonus)}
-                </div>
-              </div>
-              <div style={{
-                padding: "20px",
-                backgroundColor: "#f8f9fa",
-                borderRadius: "8px"
-              }}>
-                <div style={{ fontSize: "13px", color: "#666", marginBottom: "8px" }}>Tổng khấu trừ</div>
-                <div style={{ fontSize: "24px", fontWeight: "700", color: "#dc3545" }}>
-                  {formatCurrency(salaryStats.totalDeduction)}
-                </div>
-              </div>
-              <div style={{
-                padding: "20px",
-                backgroundColor: "#f8f9fa",
-                borderRadius: "8px"
-              }}>
-                <div style={{ fontSize: "13px", color: "#666", marginBottom: "8px" }}>Tổng thực nhận</div>
-                <div style={{ fontSize: "24px", fontWeight: "700", color: "#f5576c" }}>
-                  {formatCurrency(salaryStats.totalFinalSalary)}
-                </div>
-              </div>
-              <div style={{
-                padding: "20px",
-                backgroundColor: "#f8f9fa",
-                borderRadius: "8px"
-              }}>
-                <div style={{ fontSize: "13px", color: "#666", marginBottom: "8px" }}>Lương trung bình</div>
-                <div style={{ fontSize: "24px", fontWeight: "700", color: "#17a2b8" }}>
-                  {formatCurrency(salaryStats.averageSalary)}
-                </div>
-              </div>
-            </div>
+        {/* Top 10 Overtime Employees */}
+        {analytics.charts?.topOvertimeEmployees && analytics.charts.topOvertimeEmployees.length > 0 && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Top 10 Nhân viên Làm thêm giờ</div>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={analytics.charts.topOvertimeEmployees} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" />
+                <YAxis dataKey="name" type="category" width={150} />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="hours" fill="#82ca9d" name="Giờ làm thêm" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         )}
       </div>
+
+      {/* Attendance Trend */}
+      {analytics.charts?.attendanceTrend && analytics.charts.attendanceTrend.length > 0 && (
+        <div style={cardStyle}>
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Xu hướng Chấm công (6 tháng)</div>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={analytics.charts.attendanceTrend}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="averageAttendanceRate" stroke="#8884d8" name="Tỷ lệ chấm công (%)" />
+              <Line type="monotone" dataKey="totalLate" stroke="#ff7300" name="Tổng đi muộn" />
+              <Line type="monotone" dataKey="totalAbsent" stroke="#ffc658" name="Tổng vắng mặt" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
-

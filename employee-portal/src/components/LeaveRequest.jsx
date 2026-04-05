@@ -1,17 +1,23 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 
 export default function LeaveRequest({ userId }) {
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState(""); // "success" or "error"
   const [leaveBalance, setLeaveBalance] = useState({ total: 12, used: 0, remaining: 12 });
+  const [editingId, setEditingId] = useState(null); // Track which request is being edited
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteRequestId, setDeleteRequestId] = useState(null);
   const [formData, setFormData] = useState({
     type: "paid",
     startDate: "",
     endDate: "",
     reason: ""
   });
+  const [formErrors, setFormErrors] = useState({});
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
@@ -32,7 +38,7 @@ export default function LeaveRequest({ userId }) {
 
       if (res.ok) {
         const data = await res.json();
-        setLeaveRequests(data.requests || []);
+        setLeaveRequests(data.leaveRequests || []);
       }
     } catch (error) {
       console.error("Error fetching leave requests:", error);
@@ -68,32 +74,77 @@ export default function LeaveRequest({ userId }) {
     return diffDays;
   };
 
+  const validateForm = () => {
+    const errors = {};
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (!formData.startDate) {
+      errors.startDate = "Start date is required";
+    } else {
+      const startDate = new Date(formData.startDate);
+      startDate.setHours(0, 0, 0, 0);
+      
+      // Only validate against today if creating a new request (not editing)
+      if (!editingId && startDate < today) {
+        errors.startDate = "Start date cannot be earlier than today";
+      }
+    }
+    
+    if (!formData.endDate) {
+      errors.endDate = "End date is required";
+    }
+    
+    if (formData.startDate && formData.endDate) {
+      if (new Date(formData.endDate) < new Date(formData.startDate)) {
+        errors.endDate = "End date must be after start date";
+      }
+    }
+    
+    if (!formData.reason || formData.reason.trim().length < 10) {
+      errors.reason = "Please provide a reason (at least 10 characters)";
+    }
+    
+    const days = calculateDays(formData.startDate, formData.endDate);
+    if (formData.type === "paid" && days > leaveBalance.remaining) {
+      errors.general = `You only have ${leaveBalance.remaining} days remaining. Please adjust your dates.`;
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const showMessage = (msg, type) => {
+    setMessage(msg);
+    setMessageType(type);
+    setTimeout(() => {
+      setMessage("");
+      setMessageType("");
+    }, 4000);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.startDate || !formData.endDate) {
-      setMessage("Vui lòng chọn ngày bắt đầu và ngày kết thúc");
+    if (!validateForm()) {
       return;
     }
 
     const days = calculateDays(formData.startDate, formData.endDate);
-    if (days <= 0) {
-      setMessage("Ngày kết thúc phải sau ngày bắt đầu");
-      return;
-    }
-
-    if (formData.type === "paid" && days > leaveBalance.remaining) {
-      setMessage(`Bạn chỉ còn ${leaveBalance.remaining} ngày phép. Vui lòng chọn lại thời gian.`);
-      return;
-    }
 
     try {
-      setLoading(true);
+      setSubmitting(true);
       const token = localStorage.getItem("authToken");
       if (!token) return;
 
-      const res = await fetch(`${apiBase}/api/leave/request`, {
-        method: "POST",
+      // Check if we're editing or creating
+      const url = editingId 
+        ? `${apiBase}/api/leave/requests/${editingId}`
+        : `${apiBase}/api/leave/request`;
+      const method = editingId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method: method,
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
@@ -106,322 +157,930 @@ export default function LeaveRequest({ userId }) {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Gửi đơn nghỉ phép thành công!");
+        showMessage(
+          editingId 
+            ? "Leave request updated successfully!" 
+            : "Leave request submitted successfully!", 
+          "success"
+        );
         setShowForm(false);
+        setEditingId(null);
         setFormData({ type: "paid", startDate: "", endDate: "", reason: "" });
+        setFormErrors({});
         fetchLeaveRequests();
         fetchLeaveBalance();
-        setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể gửi đơn nghỉ phép"));
+        showMessage("Error: " + (data.message || "Unable to submit leave request"), "error");
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      showMessage("Error: " + error.message, "error");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
+  const handleEdit = (request) => {
+    setEditingId(request.id);
+    setFormData({
+      type: request.type,
+      startDate: request.startDate,
+      endDate: request.endDate,
+      reason: request.reason || ""
+    });
+    setFormErrors({});
+    setShowForm(true);
+  };
+
   const handleDelete = async (requestId) => {
-    if (!window.confirm("Bạn có chắc chắn muốn hủy đơn nghỉ phép này?")) return;
+    setDeleteRequestId(requestId);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteRequestId) return;
 
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
       if (!token) return;
 
-      const res = await fetch(`${apiBase}/api/leave/requests/${requestId}`, {
+      const res = await fetch(`${apiBase}/api/leave/requests/${deleteRequestId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (res.ok) {
-        setMessage("Hủy đơn nghỉ phép thành công!");
+        showMessage("Leave request deleted successfully!", "success");
         fetchLeaveRequests();
         fetchLeaveBalance();
-        setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi khi hủy đơn nghỉ phép");
+        showMessage("Error deleting leave request", "error");
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      showMessage("Error: " + error.message, "error");
     } finally {
       setLoading(false);
+      setShowDeleteConfirm(false);
+      setDeleteRequestId(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setDeleteRequestId(null);
   };
 
   const getStatusBadge = (status) => {
     const styles = {
-      pending: { background: "#fff3cd", color: "#997404" },
-      approved: { background: "#d4edda", color: "#155724" },
-      rejected: { background: "#f8d7da", color: "#721c24" }
+      pending: { backgroundColor: "#ff9800", color: "#fff" },
+      approved: { backgroundColor: "#28a745", color: "#fff" },
+      rejected: { backgroundColor: "#dc3545", color: "#fff" }
     };
     const labels = {
-      pending: "Chờ duyệt",
-      approved: "Đã duyệt",
-      rejected: "Từ chối"
+      pending: "PENDING",
+      approved: "APPROVED",
+      rejected: "REJECTED"
     };
-    return { style: styles[status] || styles.pending, label: labels[status] || status };
+    const style = styles[status] || styles.pending;
+    const label = labels[status] || status.toUpperCase();
+    
+    return (
+      <span style={{
+        ...style,
+        padding: "5px 14px",
+        borderRadius: "4px",
+        fontSize: "11px",
+        fontWeight: "600",
+        textTransform: "uppercase",
+        letterSpacing: "0.5px",
+        display: "inline-block"
+      }}>
+        {label}
+      </span>
+    );
   };
 
   const getTypeLabel = (type) => {
     const labels = {
-      paid: "Nghỉ phép có lương",
-      unpaid: "Nghỉ phép không lương",
-      sick: "Nghỉ ốm",
-      maternity: "Nghỉ thai sản",
-      personal: "Nghỉ việc riêng",
-      other: "Khác"
+      paid: "Paid Leave",
+      unpaid: "Unpaid Leave",
+      sick: "Sick Leave",
+      maternity: "Maternity Leave",
+      personal: "Personal Leave",
+      other: "Other"
     };
     return labels[type] || type;
   };
 
-  return (
-    <div style={{ backgroundColor: "white", borderRadius: "8px", padding: "24px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-        <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#333" }}>📅 Đơn Nghỉ Phép</h2>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          style={{
-            padding: "10px 20px",
-            backgroundColor: "#007bff",
-            color: "white",
-            border: "none",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontWeight: "600",
-            fontSize: "14px"
-          }}
-        >
-          {showForm ? "Hủy" : "+ Gửi Đơn Nghỉ"}
-        </button>
-      </div>
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    });
+  };
 
+  return (
+    <div style={{
+      backgroundColor: "#f8f9fa",
+      minHeight: "100vh",
+      padding: "24px"
+    }}>
+      {/* Toast Message */}
       {message && (
         <div style={{
-          padding: "12px",
-          marginBottom: "20px",
-          backgroundColor: message.includes("thành công") ? "#d4edda" : "#f8d7da",
-          color: message.includes("thành công") ? "#155724" : "#721c24",
-          borderRadius: "6px",
-          fontSize: "14px"
+          position: "fixed",
+          top: "24px",
+          right: "24px",
+          zIndex: 2000,
+          padding: "16px 24px",
+          backgroundColor: messageType === "success" ? "#28a745" : "#dc3545",
+          color: "#fff",
+          borderRadius: "8px",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+          fontSize: "14px",
+          fontWeight: "600",
+          maxWidth: "400px",
+          animation: "slideIn 0.3s ease"
         }}>
           {message}
+          <style>{`
+            @keyframes slideIn {
+              from { transform: translateX(400px); opacity: 0; }
+              to { transform: translateX(0); opacity: 1; }
+            }
+          `}</style>
         </div>
       )}
 
-      {/* Leave Balance */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "15px", marginBottom: "24px" }}>
-        <div style={{ padding: "20px", backgroundColor: "#e7f3ff", borderRadius: "8px", textAlign: "center" }}>
-          <div style={{ fontSize: "28px", fontWeight: "700", color: "#007bff" }}>{leaveBalance.total}</div>
-          <div style={{ fontSize: "14px", color: "#666", marginTop: "5px" }}>Tổng ngày phép</div>
-        </div>
-        <div style={{ padding: "20px", backgroundColor: "#fff3cd", borderRadius: "8px", textAlign: "center" }}>
-          <div style={{ fontSize: "28px", fontWeight: "700", color: "#997404" }}>{leaveBalance.used}</div>
-          <div style={{ fontSize: "14px", color: "#666", marginTop: "5px" }}>Đã sử dụng</div>
-        </div>
-        <div style={{ padding: "20px", backgroundColor: "#d4edda", borderRadius: "8px", textAlign: "center" }}>
-          <div style={{ fontSize: "28px", fontWeight: "700", color: "#155724" }}>{leaveBalance.remaining}</div>
-          <div style={{ fontSize: "14px", color: "#666", marginTop: "5px" }}>Còn lại</div>
+      {/* Header Section */}
+      <div style={{
+        backgroundColor: "#fff",
+        borderRadius: "16px",
+        padding: "24px 32px",
+        marginBottom: "24px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.06)"
+      }}>
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "16px"
+        }}>
+          <div>
+            <h2 style={{ 
+              margin: "0 0 8px 0", 
+              fontSize: "28px", 
+              fontWeight: "700", 
+              color: "#1a1a1a"
+            }}>
+              Leave Request
+            </h2>
+            <p style={{ 
+              margin: 0, 
+              color: "#666", 
+              fontSize: "14px" 
+            }}>
+              Manage your leave requests and balance
+            </p>
+          </div>
+          
+          <button
+            onClick={() => {
+              setEditingId(null);
+              setFormData({ type: "paid", startDate: "", endDate: "", reason: "" });
+              setFormErrors({});
+              setShowForm(true);
+            }}
+            style={{
+              padding: "12px 24px",
+              backgroundColor: "#1976d2",
+              color: "#fff",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "700",
+              fontSize: "14px",
+              textTransform: "uppercase",
+              letterSpacing: "0.8px",
+              transition: "all 0.2s",
+              boxShadow: "0 2px 8px rgba(25,118,210,0.3)"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#1565c0";
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow = "0 4px 12px rgba(25,118,210,0.4)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#1976d2";
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "0 2px 8px rgba(25,118,210,0.3)";
+            }}
+          >
+            + Request Leave
+          </button>
         </div>
       </div>
 
-      {/* Leave Request Form */}
-      {showForm && (
-        <div style={{ marginBottom: "24px", padding: "20px", backgroundColor: "#f8f9fa", borderRadius: "8px", border: "1px solid #dee2e6" }}>
-          <h3 style={{ marginTop: 0, marginBottom: "20px", fontSize: "18px", fontWeight: "600" }}>📝 Gửi Đơn Nghỉ Phép</h3>
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: "15px" }}>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", fontSize: "14px" }}>Loại nghỉ phép</label>
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  border: "1px solid #dee2e6",
-                  borderRadius: "6px",
-                  fontSize: "14px"
-                }}
-              >
-                <option value="paid">Nghỉ phép có lương</option>
-                <option value="unpaid">Nghỉ phép không lương</option>
-                <option value="sick">Nghỉ ốm</option>
-                <option value="maternity">Nghỉ thai sản</option>
-                <option value="personal">Nghỉ việc riêng</option>
-                <option value="other">Khác</option>
-              </select>
+      {/* Statistics Cards */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+        gap: "24px",
+        marginBottom: "32px"
+      }}>
+        {/* Total Requests */}
+        <div style={{
+          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          borderRadius: "16px",
+          padding: "28px 24px",
+          boxShadow: "0 8px 24px rgba(102, 126, 234, 0.25)",
+          position: "relative",
+          overflow: "hidden",
+          transition: "all 0.3s ease",
+          cursor: "pointer"
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "0 12px 32px rgba(102, 126, 234, 0.35)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 8px 24px rgba(102, 126, 234, 0.25)";
+        }}>
+          {/* Background Pattern */}
+          <div style={{
+            position: "absolute",
+            top: "-20px",
+            right: "-20px",
+            width: "100px",
+            height: "100px",
+            backgroundColor: "rgba(255,255,255,0.1)",
+            borderRadius: "50%"
+          }}></div>
+          
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: "16px"
+          }}>
+            <div style={{
+              fontSize: "13px",
+              fontWeight: "600",
+              color: "rgba(255,255,255,0.9)",
+              textTransform: "uppercase",
+              letterSpacing: "1px"
+            }}>
+              Total Requests
             </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-              <div>
-                <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", fontSize: "14px" }}>Từ ngày</label>
-                <input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => {
-                    setFormData({ ...formData, startDate: e.target.value });
-                    if (formData.endDate && e.target.value > formData.endDate) {
-                      setFormData({ ...formData, startDate: e.target.value, endDate: "" });
-                    }
-                  }}
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    border: "1px solid #dee2e6",
-                    borderRadius: "6px",
-                    fontSize: "14px"
-                  }}
-                  required
-                />
-              </div>
-              <div>
-                <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", fontSize: "14px" }}>Đến ngày</label>
-                <input
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                  min={formData.startDate}
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    border: "1px solid #dee2e6",
-                    borderRadius: "6px",
-                    fontSize: "14px"
-                  }}
-                  required
-                />
-              </div>
+            <div style={{
+              width: "48px",
+              height: "48px",
+              backgroundColor: "rgba(255,255,255,0.2)",
+              borderRadius: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(10px)"
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
             </div>
-
-            {formData.startDate && formData.endDate && (
-              <div style={{ marginBottom: "15px", padding: "10px", backgroundColor: "#e7f3ff", borderRadius: "6px" }}>
-                <strong>Số ngày nghỉ: {calculateDays(formData.startDate, formData.endDate)} ngày</strong>
-              </div>
-            )}
-
-            <div style={{ marginBottom: "15px" }}>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", fontSize: "14px" }}>Lý do</label>
-              <textarea
-                value={formData.reason}
-                onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  border: "1px solid #dee2e6",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                  minHeight: "100px",
-                  resize: "vertical"
-                }}
-                placeholder="Nhập lý do nghỉ phép..."
-                required
-              />
-            </div>
-
-            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(false);
-                  setFormData({ type: "paid", startDate: "", endDate: "", reason: "" });
-                }}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: "#6c757d",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                  fontSize: "14px"
-                }}
-              >
-                Hủy
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: "#007bff",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  fontWeight: "600",
-                  fontSize: "14px",
-                  opacity: loading ? 0.6 : 1
-                }}
-              >
-                {loading ? "Đang gửi..." : "Gửi Đơn"}
-              </button>
-            </div>
-          </form>
+          </div>
+          
+          <div style={{
+            fontSize: "40px",
+            fontWeight: "800",
+            color: "#fff",
+            lineHeight: "1",
+            marginBottom: "4px"
+          }}>
+            {leaveRequests.length}
+          </div>
+          
+          <div style={{
+            fontSize: "13px",
+            color: "rgba(255,255,255,0.8)",
+            fontWeight: "500"
+          }}>
+            All time requests
+          </div>
         </div>
-      )}
 
-      {/* Leave Requests List */}
-      <div>
-        <h3 style={{ marginBottom: "15px", fontSize: "18px", fontWeight: "600" }}>Lịch Sử Đơn Nghỉ Phép</h3>
+        {/* Pending */}
+        <div style={{
+          background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+          borderRadius: "16px",
+          padding: "28px 24px",
+          boxShadow: "0 8px 24px rgba(240, 147, 251, 0.25)",
+          position: "relative",
+          overflow: "hidden",
+          transition: "all 0.3s ease",
+          cursor: "pointer"
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "0 12px 32px rgba(240, 147, 251, 0.35)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 8px 24px rgba(240, 147, 251, 0.25)";
+        }}>
+          <div style={{
+            position: "absolute",
+            top: "-20px",
+            right: "-20px",
+            width: "100px",
+            height: "100px",
+            backgroundColor: "rgba(255,255,255,0.1)",
+            borderRadius: "50%"
+          }}></div>
+          
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: "16px"
+          }}>
+            <div style={{
+              fontSize: "13px",
+              fontWeight: "600",
+              color: "rgba(255,255,255,0.9)",
+              textTransform: "uppercase",
+              letterSpacing: "1px"
+            }}>
+              Pending
+            </div>
+            <div style={{
+              width: "48px",
+              height: "48px",
+              backgroundColor: "rgba(255,255,255,0.2)",
+              borderRadius: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(10px)"
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+            </div>
+          </div>
+          
+          <div style={{
+            fontSize: "40px",
+            fontWeight: "800",
+            color: "#fff",
+            lineHeight: "1",
+            marginBottom: "4px"
+          }}>
+            {leaveRequests.filter(r => r.status === 'pending').length}
+          </div>
+          
+          <div style={{
+            fontSize: "13px",
+            color: "rgba(255,255,255,0.8)",
+            fontWeight: "500"
+          }}>
+            Awaiting approval
+          </div>
+        </div>
+
+        {/* Approved */}
+        <div style={{
+          background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+          borderRadius: "16px",
+          padding: "28px 24px",
+          boxShadow: "0 8px 24px rgba(79, 172, 254, 0.25)",
+          position: "relative",
+          overflow: "hidden",
+          transition: "all 0.3s ease",
+          cursor: "pointer"
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "0 12px 32px rgba(79, 172, 254, 0.35)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 8px 24px rgba(79, 172, 254, 0.25)";
+        }}>
+          <div style={{
+            position: "absolute",
+            top: "-20px",
+            right: "-20px",
+            width: "100px",
+            height: "100px",
+            backgroundColor: "rgba(255,255,255,0.1)",
+            borderRadius: "50%"
+          }}></div>
+          
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: "16px"
+          }}>
+            <div style={{
+              fontSize: "13px",
+              fontWeight: "600",
+              color: "rgba(255,255,255,0.9)",
+              textTransform: "uppercase",
+              letterSpacing: "1px"
+            }}>
+              Approved
+            </div>
+            <div style={{
+              width: "48px",
+              height: "48px",
+              backgroundColor: "rgba(255,255,255,0.2)",
+              borderRadius: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(10px)"
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+          </div>
+          
+          <div style={{
+            fontSize: "40px",
+            fontWeight: "800",
+            color: "#fff",
+            lineHeight: "1",
+            marginBottom: "4px"
+          }}>
+            {leaveRequests.filter(r => r.status === 'approved').length}
+          </div>
+          
+          <div style={{
+            fontSize: "13px",
+            color: "rgba(255,255,255,0.8)",
+            fontWeight: "500"
+          }}>
+            Successfully approved
+          </div>
+        </div>
+
+        {/* Rejected */}
+        <div style={{
+          background: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+          borderRadius: "16px",
+          padding: "28px 24px",
+          boxShadow: "0 8px 24px rgba(250, 112, 154, 0.25)",
+          position: "relative",
+          overflow: "hidden",
+          transition: "all 0.3s ease",
+          cursor: "pointer"
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "0 12px 32px rgba(250, 112, 154, 0.35)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 8px 24px rgba(250, 112, 154, 0.25)";
+        }}>
+          <div style={{
+            position: "absolute",
+            top: "-20px",
+            right: "-20px",
+            width: "100px",
+            height: "100px",
+            backgroundColor: "rgba(255,255,255,0.1)",
+            borderRadius: "50%"
+          }}></div>
+          
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: "16px"
+          }}>
+            <div style={{
+              fontSize: "13px",
+              fontWeight: "600",
+              color: "rgba(255,255,255,0.9)",
+              textTransform: "uppercase",
+              letterSpacing: "1px"
+            }}>
+              Rejected
+            </div>
+            <div style={{
+              width: "48px",
+              height: "48px",
+              backgroundColor: "rgba(255,255,255,0.2)",
+              borderRadius: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(10px)"
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
+              </svg>
+            </div>
+          </div>
+          
+          <div style={{
+            fontSize: "40px",
+            fontWeight: "800",
+            color: "#fff",
+            lineHeight: "1",
+            marginBottom: "4px"
+          }}>
+            {leaveRequests.filter(r => r.status === 'rejected').length}
+          </div>
+          
+          <div style={{
+            fontSize: "13px",
+            color: "rgba(255,255,255,0.8)",
+            fontWeight: "500"
+          }}>
+            Declined requests
+          </div>
+        </div>
+
+        {/* Total Days Leave */}
+        <div style={{
+          background: "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
+          borderRadius: "16px",
+          padding: "28px 24px",
+          boxShadow: "0 8px 24px rgba(168, 237, 234, 0.25)",
+          position: "relative",
+          overflow: "hidden",
+          transition: "all 0.3s ease",
+          cursor: "pointer"
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "0 12px 32px rgba(168, 237, 234, 0.35)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 8px 24px rgba(168, 237, 234, 0.25)";
+        }}>
+          <div style={{
+            position: "absolute",
+            top: "-20px",
+            right: "-20px",
+            width: "100px",
+            height: "100px",
+            backgroundColor: "rgba(255,255,255,0.15)",
+            borderRadius: "50%"
+          }}></div>
+          
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: "16px"
+          }}>
+            <div style={{
+              fontSize: "13px",
+              fontWeight: "600",
+              color: "#2c3e50",
+              textTransform: "uppercase",
+              letterSpacing: "1px"
+            }}>
+              Total Days Leave
+            </div>
+            <div style={{
+              width: "48px",
+              height: "48px",
+              backgroundColor: "rgba(255,255,255,0.5)",
+              borderRadius: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(10px)"
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2c3e50" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+            </div>
+          </div>
+          
+          <div style={{
+            fontSize: "40px",
+            fontWeight: "800",
+            color: "#2c3e50",
+            lineHeight: "1",
+            marginBottom: "4px"
+          }}>
+            {leaveRequests
+              .filter(r => r.status === 'approved')
+              .reduce((total, r) => {
+                const days = calculateDays(r.startDate, r.endDate);
+                return total + days;
+              }, 0)}
+          </div>
+          
+          <div style={{
+            fontSize: "13px",
+            color: "#34495e",
+            fontWeight: "500"
+          }}>
+            Days off approved
+          </div>
+        </div>
+      </div>
+
+      {/* Leave Request History */}
+      <div style={{
+        backgroundColor: "#fff",
+        borderRadius: "16px",
+        padding: "32px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.06)"
+      }}>
+        <h3 style={{ 
+          margin: "0 0 24px 0", 
+          fontSize: "20px", 
+          fontWeight: "700",
+          color: "#1a1a1a",
+          textTransform: "uppercase",
+          letterSpacing: "0.5px"
+        }}>
+          Leave Request History
+        </h3>
+
         {loading && leaveRequests.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px", color: "#999" }}>Đang tải...</div>
+          <div style={{ 
+            textAlign: "center", 
+            padding: "60px 20px",
+            color: "#666"
+          }}>
+            <div style={{
+              width: "50px",
+              height: "50px",
+              border: "4px solid #f0f0f0",
+              borderTop: "4px solid #1976d2",
+              borderRadius: "50%",
+              margin: "0 auto 16px",
+              animation: "spin 1s linear infinite"
+            }}></div>
+            <p style={{ margin: 0, fontSize: "16px", fontWeight: "500" }}>Loading leave requests...</p>
+            <style>{`
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+            `}</style>
+          </div>
         ) : leaveRequests.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px", color: "#999" }}>Chưa có đơn nghỉ phép nào</div>
+          <div style={{ 
+            textAlign: "center", 
+            padding: "60px 20px",
+            color: "#999"
+          }}>
+            <div style={{ fontSize: "64px", marginBottom: "16px", opacity: 0.3 }}>—</div>
+            <p style={{ 
+              margin: "0 0 8px 0", 
+              fontSize: "18px", 
+              fontWeight: "600",
+              color: "#666"
+            }}>
+              No Leave Requests
+            </p>
+            <p style={{ margin: 0, fontSize: "14px", color: "#999" }}>
+              You haven't submitted any leave requests yet
+            </p>
+          </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <table style={{ 
+              width: "100%", 
+              borderCollapse: "separate", 
+              borderSpacing: "0",
+              border: "1px solid #868e96",
+              borderRadius: "8px",
+              overflow: "hidden"
+            }}>
               <thead>
-                <tr style={{ backgroundColor: "#f8f9fa" }}>
-                  <th style={{ padding: "12px", textAlign: "left", borderBottom: "2px solid #dee2e6", fontSize: "14px", fontWeight: "600" }}>Loại</th>
-                  <th style={{ padding: "12px", textAlign: "left", borderBottom: "2px solid #dee2e6", fontSize: "14px", fontWeight: "600" }}>Từ ngày</th>
-                  <th style={{ padding: "12px", textAlign: "left", borderBottom: "2px solid #dee2e6", fontSize: "14px", fontWeight: "600" }}>Đến ngày</th>
-                  <th style={{ padding: "12px", textAlign: "center", borderBottom: "2px solid #dee2e6", fontSize: "14px", fontWeight: "600" }}>Số ngày</th>
-                  <th style={{ padding: "12px", textAlign: "left", borderBottom: "2px solid #dee2e6", fontSize: "14px", fontWeight: "600" }}>Trạng thái</th>
-                  <th style={{ padding: "12px", textAlign: "center", borderBottom: "2px solid #dee2e6", fontSize: "14px", fontWeight: "600" }}>Thao tác</th>
+                <tr>
+                  <th style={{ 
+                    padding: "16px", 
+                    textAlign: "left", 
+                    fontWeight: "700", 
+                    color: "#333", 
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    backgroundColor: "#f8f9fa",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96",
+                    borderTopLeftRadius: "8px"
+                  }}>
+                    Type
+                  </th>
+                  <th style={{ 
+                    padding: "16px", 
+                    textAlign: "left", 
+                    fontWeight: "700", 
+                    color: "#333", 
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    backgroundColor: "#f8f9fa",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
+                  }}>
+                    Start Date
+                  </th>
+                  <th style={{ 
+                    padding: "16px", 
+                    textAlign: "left", 
+                    fontWeight: "700", 
+                    color: "#333", 
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    backgroundColor: "#f8f9fa",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
+                  }}>
+                    End Date
+                  </th>
+                  <th style={{ 
+                    padding: "16px", 
+                    textAlign: "center", 
+                    fontWeight: "700", 
+                    color: "#333", 
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    backgroundColor: "#f8f9fa",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
+                  }}>
+                    Days
+                  </th>
+                  <th style={{ 
+                    padding: "16px", 
+                    textAlign: "left", 
+                    fontWeight: "700", 
+                    color: "#333", 
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    backgroundColor: "#f8f9fa",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
+                  }}>
+                    Status
+                  </th>
+                  <th style={{ 
+                    padding: "16px", 
+                    textAlign: "center", 
+                    fontWeight: "700", 
+                    color: "#333", 
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    backgroundColor: "#f8f9fa",
+                    borderBottom: "2px solid #868e96",
+                    borderTopRightRadius: "8px"
+                  }}>
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {leaveRequests.map((request) => {
-                  const statusBadge = getStatusBadge(request.status);
+                {leaveRequests.map((request, index) => {
+                  const isLastRow = index === leaveRequests.length - 1;
                   return (
-                    <tr key={request.id} style={{ borderBottom: "1px solid #dee2e6" }}>
-                      <td style={{ padding: "12px", fontSize: "14px" }}>{getTypeLabel(request.type)}</td>
-                      <td style={{ padding: "12px", fontSize: "14px" }}>{new Date(request.startDate).toLocaleDateString('vi-VN')}</td>
-                      <td style={{ padding: "12px", fontSize: "14px" }}>{new Date(request.endDate).toLocaleDateString('vi-VN')}</td>
-                      <td style={{ padding: "12px", textAlign: "center", fontSize: "14px", fontWeight: "600" }}>{request.days}</td>
-                      <td style={{ padding: "12px", fontSize: "14px" }}>
-                        <span style={{
-                          display: "inline-block",
-                          padding: "4px 12px",
-                          borderRadius: "12px",
-                          fontSize: "12px",
-                          fontWeight: "600",
-                          ...statusBadge.style
-                        }}>
-                          {statusBadge.label}
-                        </span>
-                      </td>
-                      <td style={{ padding: "12px", textAlign: "center" }}>
-                        {request.status === "pending" && (
+                  <tr key={request.id} style={{ 
+                    backgroundColor: "#fff",
+                    transition: "all 0.2s"
+                  }}>
+                    <td style={{ 
+                      padding: "20px 16px", 
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      color: "#333",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96",
+                      borderBottomLeftRadius: isLastRow ? "8px" : "0"
+                    }}>
+                      {getTypeLabel(request.type)}
+                    </td>
+                    <td style={{ 
+                      padding: "20px 16px", 
+                      fontSize: "14px",
+                      color: "#666",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96"
+                    }}>
+                      {formatDate(request.startDate)}
+                    </td>
+                    <td style={{ 
+                      padding: "20px 16px", 
+                      fontSize: "14px",
+                      color: "#666",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96"
+                    }}>
+                      {formatDate(request.endDate)}
+                    </td>
+                    <td style={{ 
+                      padding: "20px 16px", 
+                      textAlign: "center", 
+                      fontSize: "16px", 
+                      fontWeight: "700",
+                      color: "#1976d2",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96"
+                    }}>
+                      {request.days}
+                    </td>
+                    <td style={{ 
+                      padding: "20px 16px", 
+                      fontSize: "14px",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderRight: "1px solid #868e96"
+                    }}>
+                      {getStatusBadge(request.status)}
+                    </td>
+                    <td style={{ 
+                      padding: "20px 16px", 
+                      textAlign: "center",
+                      borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                      borderBottomRightRadius: isLastRow ? "8px" : "0"
+                    }}>
+                      {request.status === "pending" && (
+                        <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                          <button
+                            onClick={() => handleEdit(request)}
+                            style={{
+                              padding: "8px 16px",
+                              backgroundColor: "#1976d2",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                              fontWeight: "600",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.5px",
+                              transition: "all 0.2s"
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = "#1565c0";
+                              e.currentTarget.style.transform = "translateY(-1px)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = "#1976d2";
+                              e.currentTarget.style.transform = "translateY(0)";
+                            }}
+                          >
+                            Edit
+                          </button>
                           <button
                             onClick={() => handleDelete(request.id)}
                             style={{
-                              padding: "6px 12px",
+                              padding: "8px 16px",
                               backgroundColor: "#dc3545",
                               color: "white",
                               border: "none",
-                              borderRadius: "4px",
+                              borderRadius: "6px",
                               cursor: "pointer",
                               fontSize: "12px",
-                              fontWeight: "600"
+                              fontWeight: "600",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.5px",
+                              transition: "all 0.2s"
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = "#c82333";
+                              e.currentTarget.style.transform = "translateY(-1px)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = "#dc3545";
+                              e.currentTarget.style.transform = "translateY(0)";
                             }}
                           >
-                            Hủy
+                            Delete
                           </button>
-                        )}
-                      </td>
-                    </tr>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
                   );
                 })}
               </tbody>
@@ -429,7 +1088,642 @@ export default function LeaveRequest({ userId }) {
           </div>
         )}
       </div>
+
+      {/* Leave Request Form Modal */}
+      {showForm && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px"
+          }}
+          onClick={() => {
+            if (!submitting) {
+              setShowForm(false);
+              setEditingId(null);
+              setFormData({ type: "paid", startDate: "", endDate: "", reason: "" });
+              setFormErrors({});
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "16px",
+              padding: "0",
+              maxWidth: "700px",
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ 
+              padding: "24px 32px",
+              background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              borderTopLeftRadius: "16px",
+              borderTopRightRadius: "16px"
+            }}>
+              <div>
+                <h2 style={{ 
+                  margin: "0 0 4px 0", 
+                  fontSize: "22px", 
+                  fontWeight: "700", 
+                  color: "#fff",
+                  letterSpacing: "-0.5px"
+                }}>
+                  {editingId ? "✏️ Edit Leave Request" : "➕ Request Leave"}
+                </h2>
+                <p style={{ 
+                  margin: 0, 
+                  fontSize: "13px", 
+                  color: "rgba(255, 255, 255, 0.9)",
+                  fontWeight: "500"
+                }}>
+                  {editingId ? "Update your leave request" : "Submit your leave request"}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  if (!submitting) {
+                    setShowForm(false);
+                    setEditingId(null);
+                    setFormData({ type: "paid", startDate: "", endDate: "", reason: "" });
+                    setFormErrors({});
+                  }
+                }}
+                disabled={submitting}
+                style={{
+                  background: "rgba(255, 255, 255, 0.2)",
+                  border: "none",
+                  borderRadius: "8px",
+                  width: "36px",
+                  height: "36px",
+                  fontSize: "20px",
+                  cursor: submitting ? "not-allowed" : "pointer",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.3s ease",
+                  opacity: submitting ? 0.5 : 1,
+                  fontWeight: "600"
+                }}
+                onMouseEnter={(e) => {
+                  if (!submitting) {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)";
+                    e.currentTarget.style.transform = "rotate(90deg)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!submitting) {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
+                    e.currentTarget.style.transform = "rotate(0deg)";
+                  }
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSubmit}>
+              <div style={{ padding: "32px" }}>
+                {/* General Error */}
+                {formErrors.general && (
+                  <div style={{
+                    padding: "12px 16px",
+                    marginBottom: "20px",
+                    backgroundColor: "#ffebee",
+                    color: "#c62828",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    border: "1px solid #ffcdd2"
+                  }}>
+                    {formErrors.general}
+                  </div>
+                )}
+
+                {/* Leave Type */}
+                <div style={{ marginBottom: "24px" }}>
+                  <label style={{ 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    marginBottom: "10px", 
+                    fontWeight: "600", 
+                    fontSize: "14px",
+                    color: "#333"
+                  }}>
+                    <span>📋</span>
+                    <span>Leave Type</span>
+                  </label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => {
+                      setFormData({ ...formData, type: e.target.value });
+                      setFormErrors({ ...formErrors, general: "" });
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      fontWeight: "500",
+                      cursor: "pointer",
+                      transition: "all 0.3s ease",
+                      outline: "none",
+                      backgroundColor: "#f8f9fa",
+                      color: "#333"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value="paid">💰 Paid Leave</option>
+                    <option value="unpaid">📅 Unpaid Leave</option>
+                    <option value="sick">🏥 Sick Leave</option>
+                    <option value="maternity">👶 Maternity Leave</option>
+                    <option value="personal">👤 Personal Leave</option>
+                    <option value="other">📝 Other</option>
+                  </select>
+                </div>
+
+                {/* Date Range */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "24px" }}>
+                  <div>
+                    <label style={{ 
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      marginBottom: "10px", 
+                      fontWeight: "600", 
+                      fontSize: "14px",
+                      color: "#333"
+                    }}>
+                      <span>📅</span>
+                      <span>Start Date</span>
+                      <span style={{ color: "#dc3545" }}>*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.startDate}
+                      min={!editingId ? new Date().toISOString().split('T')[0] : undefined}
+                      onChange={(e) => {
+                        setFormData({ ...formData, startDate: e.target.value });
+                        setFormErrors({ ...formErrors, startDate: "", endDate: "", general: "" });
+                      }}
+                      style={{
+                        width: "100%",
+                        padding: "14px 16px",
+                        border: formErrors.startDate ? "2px solid #dc3545" : "2px solid #e0e0e0",
+                        borderRadius: "10px",
+                        fontSize: "15px",
+                        fontWeight: "500",
+                        transition: "all 0.3s ease",
+                        outline: "none",
+                        backgroundColor: formErrors.startDate ? "#fff" : "#f8f9fa"
+                      }}
+                      onFocus={(e) => {
+                        if (!formErrors.startDate) {
+                          e.target.style.borderColor = "#A2B9ED";
+                          e.target.style.backgroundColor = "white";
+                          e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (!formErrors.startDate) {
+                          e.target.style.borderColor = "#e0e0e0";
+                          e.target.style.backgroundColor = "#f8f9fa";
+                          e.target.style.boxShadow = "none";
+                        }
+                      }}
+                    />
+                    {formErrors.startDate && (
+                      <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#dc3545", fontWeight: "500" }}>
+                        {formErrors.startDate}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label style={{ 
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      marginBottom: "10px", 
+                      fontWeight: "600", 
+                      fontSize: "14px",
+                      color: "#333"
+                    }}>
+                      <span>⏰</span>
+                      <span>End Date</span>
+                      <span style={{ color: "#dc3545" }}>*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.endDate}
+                      onChange={(e) => {
+                        setFormData({ ...formData, endDate: e.target.value });
+                        setFormErrors({ ...formErrors, endDate: "", general: "" });
+                      }}
+                      min={formData.startDate}
+                      style={{
+                        width: "100%",
+                        padding: "14px 16px",
+                        border: formErrors.endDate ? "2px solid #dc3545" : "2px solid #e0e0e0",
+                        borderRadius: "10px",
+                        fontSize: "15px",
+                        fontWeight: "500",
+                        transition: "all 0.3s ease",
+                        outline: "none",
+                        backgroundColor: formErrors.endDate ? "#fff" : "#f8f9fa"
+                      }}
+                      onFocus={(e) => {
+                        if (!formErrors.endDate) {
+                          e.target.style.borderColor = "#A2B9ED";
+                          e.target.style.backgroundColor = "white";
+                          e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (!formErrors.endDate) {
+                          e.target.style.borderColor = "#e0e0e0";
+                          e.target.style.backgroundColor = "#f8f9fa";
+                          e.target.style.boxShadow = "none";
+                        }
+                      }}
+                    />
+                    {formErrors.endDate && (
+                      <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#dc3545", fontWeight: "500" }}>
+                        {formErrors.endDate}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Reason */}
+                <div style={{ marginBottom: "24px" }}>
+                  <label style={{ 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    marginBottom: "10px", 
+                    fontWeight: "600", 
+                    fontSize: "14px",
+                    color: "#333"
+                  }}>
+                    <span>📝</span>
+                    <span>Reason</span>
+                    <span style={{ color: "#dc3545" }}>*</span>
+                  </label>
+                  <textarea
+                    value={formData.reason}
+                    onChange={(e) => {
+                      setFormData({ ...formData, reason: e.target.value });
+                      setFormErrors({ ...formErrors, reason: "" });
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      border: formErrors.reason ? "2px solid #dc3545" : "2px solid #e0e0e0",
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      minHeight: "120px",
+                      resize: "vertical",
+                      fontFamily: "inherit",
+                      lineHeight: "1.6",
+                      transition: "all 0.3s ease",
+                      outline: "none",
+                      backgroundColor: formErrors.reason ? "#fff" : "#f8f9fa"
+                    }}
+                    placeholder="Enter your reason for leave request..."
+                    onFocus={(e) => {
+                      if (!formErrors.reason) {
+                        e.target.style.borderColor = "#A2B9ED";
+                        e.target.style.backgroundColor = "white";
+                        e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                      }
+                    }}
+                    onBlur={(e) => {
+                      if (!formErrors.reason) {
+                        e.target.style.borderColor = "#e0e0e0";
+                        e.target.style.backgroundColor = "#f8f9fa";
+                        e.target.style.boxShadow = "none";
+                      }
+                    }}
+                  />
+                  {formErrors.reason && (
+                    <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#dc3545", fontWeight: "500" }}>
+                      {formErrors.reason}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div style={{ 
+                padding: "24px 32px",
+                borderTop: "1px solid #e0e0e0",
+                backgroundColor: "#f8f9fa",
+                display: "flex",
+                gap: "16px",
+                justifyContent: "flex-end"
+              }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!submitting) {
+                      setShowForm(false);
+                      setEditingId(null);
+                      setFormData({ type: "paid", startDate: "", endDate: "", reason: "" });
+                      setFormErrors({});
+                    }
+                  }}
+                  disabled={submitting}
+                  style={{
+                    padding: "14px 28px",
+                    backgroundColor: "#6c757d",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "10px",
+                    cursor: submitting ? "not-allowed" : "pointer",
+                    fontWeight: "600",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    opacity: submitting ? 0.5 : 1,
+                    boxShadow: "0 2px 8px rgba(108, 117, 125, 0.2)"
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!submitting) {
+                      e.currentTarget.style.backgroundColor = "#5a6268";
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(108, 117, 125, 0.3)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!submitting) {
+                      e.currentTarget.style.backgroundColor = "#6c757d";
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "0 2px 8px rgba(108, 117, 125, 0.2)";
+                    }
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  style={{
+                    padding: "14px 32px",
+                    background: submitting 
+                      ? "linear-gradient(135deg, #90caf9 0%, #81b9f0 100%)" 
+                      : "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "10px",
+                    cursor: submitting ? "not-allowed" : "pointer",
+                    fontWeight: "600",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    boxShadow: submitting 
+                      ? "none" 
+                      : "0 4px 12px rgba(162, 185, 237, 0.3)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!submitting) {
+                      e.currentTarget.style.background = "linear-gradient(135deg, #8BA3E0 0%, #7B93D0 100%)";
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow = "0 6px 16px rgba(162, 185, 237, 0.4)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!submitting) {
+                      e.currentTarget.style.background = "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)";
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(162, 185, 237, 0.3)";
+                    }
+                  }}
+                >
+                  {submitting ? (
+                    <>
+                      <div style={{
+                        width: "16px",
+                        height: "16px",
+                        border: "2px solid #fff",
+                        borderTop: "2px solid transparent",
+                        borderRadius: "50%",
+                        animation: "spin 0.8s linear infinite"
+                      }}></div>
+                      {editingId ? "Updating..." : "Submitting..."}
+                    </>
+                  ) : (
+                    editingId ? "✏️ Update Request" : "✅ Submit Request"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.6)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 2000,
+          padding: "20px"
+        }}>
+          <div style={{
+            backgroundColor: "#fff",
+            borderRadius: "16px",
+            padding: "32px",
+            maxWidth: "480px",
+            width: "100%",
+            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
+            animation: "slideDown 0.3s ease-out",
+            position: "relative"
+          }}>
+            {/* Warning Icon */}
+            <div style={{
+              width: "64px",
+              height: "64px",
+              borderRadius: "50%",
+              backgroundColor: "#fff3e0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 24px",
+              border: "3px solid #ff9800"
+            }}>
+              <svg 
+                width="32" 
+                height="32" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="#ff9800" 
+                strokeWidth="2.5" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+            </div>
+
+            {/* Title */}
+            <h3 style={{
+              margin: "0 0 12px",
+              fontSize: "24px",
+              fontWeight: "700",
+              color: "#1a1a1a",
+              textAlign: "center",
+              letterSpacing: "-0.5px"
+            }}>
+              Delete Leave Request?
+            </h3>
+
+            {/* Description */}
+            <p style={{
+              margin: "0 0 28px",
+              fontSize: "15px",
+              color: "#666",
+              textAlign: "center",
+              lineHeight: "1.6"
+            }}>
+              This action cannot be undone. Are you sure you want to permanently delete this leave request?
+            </p>
+
+            {/* Buttons */}
+            <div style={{
+              display: "flex",
+              gap: "12px",
+              justifyContent: "center"
+            }}>
+              {/* Cancel Button */}
+              <button
+                onClick={cancelDelete}
+                disabled={loading}
+                style={{
+                  flex: 1,
+                  padding: "12px 24px",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  color: "#666",
+                  backgroundColor: "#f5f5f5",
+                  border: "2px solid #e0e0e0",
+                  borderRadius: "10px",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  transition: "all 0.2s ease",
+                  letterSpacing: "0.3px",
+                  opacity: loading ? 0.6 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.backgroundColor = "#eeeeee";
+                    e.currentTarget.style.borderColor = "#d0d0d0";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.backgroundColor = "#f5f5f5";
+                    e.currentTarget.style.borderColor = "#e0e0e0";
+                  }
+                }}
+              >
+                Cancel
+              </button>
+
+              {/* Delete Button */}
+              <button
+                onClick={confirmDelete}
+                disabled={loading}
+                style={{
+                  flex: 1,
+                  padding: "12px 24px",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  color: "#fff",
+                  backgroundColor: "#dc3545",
+                  border: "none",
+                  borderRadius: "10px",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  transition: "all 0.2s ease",
+                  letterSpacing: "0.3px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  opacity: loading ? 0.6 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.backgroundColor = "#c82333";
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(220, 53, 69, 0.3)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.backgroundColor = "#dc3545";
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }
+                }}
+              >
+                {loading ? (
+                  <>
+                    <div style={{
+                      width: "16px",
+                      height: "16px",
+                      border: "2px solid #fff",
+                      borderTop: "2px solid transparent",
+                      borderRadius: "50%",
+                      animation: "spin 0.8s linear infinite"
+                    }}></div>
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

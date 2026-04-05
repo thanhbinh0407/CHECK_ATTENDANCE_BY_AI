@@ -128,27 +128,30 @@ export const calculateAntiSpoofingScore = (video) => {
   
   let score = 0;
   
-  // Texture: max 40 points
-  if (texture.isHighQuality) score += 40;
-  else score += Math.max(0, (texture.textureScore / 15) * 40);
-  
+  // Texture: max 40 points (guard against NaN from invalid textureScore)
+  const t = Number(texture.textureScore);
+  if (texture.isHighQuality && Number.isFinite(t)) score += 40;
+  else if (Number.isFinite(t)) score += Math.max(0, (t / 15) * 40);
+
   // Frequency: max 30 points
-  if (!frequency.hasArtificialPattern) score += 30;
-  else score += Math.max(0, 30 - (frequency.frequencyScore - 30) / 5);
-  
+  const f = Number(frequency.frequencyScore);
+  if (!frequency.hasArtificialPattern && Number.isFinite(f)) score += 30;
+  else if (Number.isFinite(f)) score += Math.max(0, 30 - (f - 30) / 5);
+
   // Color: max 30 points
-  if (color.isColorDistributed) score += 30;
-  else score += Math.max(0, (color.colorScore / 0.3) * 30);
-  
-  // Threshold: > 70 = real face, < 70 = suspicious
-  const isFace = score > 70;
-  
-  console.log(`[AntiSpoofing] TOTAL SCORE: ${score.toFixed(0)}/100, Result: ${isFace ? 'REAL FACE ✓' : 'SUSPICIOUS ✗'}`);
-  
-  return { 
-    isFace, 
-    score: Math.round(score), 
-    details: { texture, frequency, color } 
+  const c = Number(color.colorScore);
+  if (color.isColorDistributed && Number.isFinite(c)) score += 30;
+  else if (Number.isFinite(c)) score += Math.max(0, (c / 0.3) * 30);
+
+  const finalScore = Number.isFinite(score) ? Math.round(Math.max(0, Math.min(100, score))) : 0;
+  const isFace = finalScore > 70;
+
+  console.log(`[AntiSpoofing] TOTAL SCORE: ${finalScore}/100, Result: ${isFace ? 'REAL FACE ✓' : 'SUSPICIOUS ✗'}`);
+
+  return {
+    isFace,
+    score: finalScore,
+    details: { texture, frequency, color }
   };
 };
 

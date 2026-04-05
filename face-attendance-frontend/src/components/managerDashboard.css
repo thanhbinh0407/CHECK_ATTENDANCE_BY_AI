@@ -1,0 +1,421 @@
+/* Manager Tổng quan — bento, KPI glass cards, dense quick links */
+.mgr-dash {
+  --dash-accent: #6366f1;
+  --dash-accent2: #8b5cf6;
+  --dash-surface: #ffffff;
+  --dash-border: rgba(148, 163, 184, 0.35);
+  --dash-muted: #64748b;
+  --dash-text: #0f172a;
+  max-width: 1320px;
+  margin: 0 auto;
+}
+
+.mgr-dash__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 16px;
+}
+
+.mgr-dash__title {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.5vw, 1.65rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--dash-text);
+  line-height: 1.2;
+}
+
+.mgr-dash__sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--dash-muted);
+  max-width: 52ch;
+  line-height: 1.45;
+}
+
+.mgr-dash__meta {
+  font-size: 12px;
+  color: var(--dash-muted);
+  padding: 8px 12px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(139, 92, 246, 0.05));
+  border: 1px solid var(--dash-border);
+  border-radius: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* KPI strip */
+.mgr-dash__kpis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 1200px) {
+  .mgr-dash__kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .mgr-dash__kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.mgr-dash__kpi {
+  position: relative;
+  overflow: hidden;
+  padding: 14px 14px 12px;
+  border-radius: 14px;
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.2s, border-color 0.2s, transform 0.15s;
+}
+
+.mgr-dash__kpi:hover {
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.08);
+}
+
+.mgr-dash__kpi--link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  cursor: pointer;
+}
+
+.mgr-dash__kpi--link:hover {
+  transform: translateY(-2px);
+}
+
+.mgr-dash__kpi-deco {
+  position: absolute;
+  right: -6px;
+  top: -10px;
+  font-size: 2.65rem;
+  line-height: 1;
+  opacity: 0.09;
+  pointer-events: none;
+  user-select: none;
+}
+
+.mgr-dash__kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dash-muted);
+  margin-bottom: 4px;
+}
+
+.mgr-dash__kpi-value {
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.mgr-dash__kpi-value--sm {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.mgr-dash__kpi--accent .mgr-dash__kpi-value {
+  color: var(--dash-accent);
+}
+
+.mgr-dash__kpi--warn .mgr-dash__kpi-value {
+  color: #c2410c;
+}
+
+.mgr-dash__kpi--ok .mgr-dash__kpi-value {
+  color: #15803d;
+}
+
+.mgr-dash__kpi--danger .mgr-dash__kpi-value {
+  color: #b91c1c;
+}
+
+.mgr-dash__kpi-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 8px;
+}
+
+.mgr-dash__chip {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* Bento: quick access full width */
+.mgr-dash__quick {
+  margin-bottom: 14px;
+  padding: 16px 18px 14px;
+  border-radius: 16px;
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.mgr-dash__quick-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.mgr-dash__quick-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--dash-text);
+}
+
+.mgr-dash__quick-hint {
+  font-size: 11px;
+  color: var(--dash-muted);
+}
+
+.mgr-dash__groups {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px 18px;
+}
+
+@media (max-width: 1100px) {
+  .mgr-dash__groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .mgr-dash__groups {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mgr-dash__group-title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+  margin: 0 0 8px;
+}
+
+.mgr-dash__links {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.mgr-dash__link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--dash-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s, background 0.15s;
+}
+
+.mgr-dash__link:hover {
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.1);
+  transform: translateY(-1px);
+  background: #fff;
+}
+
+.mgr-dash__link-ico {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.08));
+}
+
+.mgr-dash__link-arrow {
+  margin-left: auto;
+  font-size: 11px;
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.mgr-dash__link:hover .mgr-dash__link-arrow {
+  color: var(--dash-accent);
+}
+
+/* Lower bento: feed + stats */
+.mgr-dash__lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+@media (max-width: 900px) {
+  .mgr-dash__lower {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mgr-dash__panel {
+  border-radius: 16px;
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  padding: 16px 18px;
+  min-height: 0;
+}
+
+.mgr-dash__panel-title {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--dash-text);
+  letter-spacing: -0.01em;
+}
+
+.mgr-dash__feed {
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+.mgr-dash__feed-item {
+  padding: 10px 0;
+  border-top: 1px solid #f1f5f9;
+}
+
+.mgr-dash__feed-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.mgr-dash__feed-meta {
+  font-size: 11px;
+  color: var(--dash-muted);
+  margin-bottom: 2px;
+}
+
+.mgr-dash__feed-name {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.mgr-dash__feed-desc {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.mgr-dash__type-pill {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.mgr-dash__type-pill--job {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.mgr-dash__type-pill--role {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.mgr-dash__type-pill--salary {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.mgr-dash__stat-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mgr-dash__stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.mgr-dash__stat-row span:first-child {
+  color: var(--dash-muted);
+}
+
+.mgr-dash__stat-row strong {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.mgr-dash__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.mgr-dash__bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--dash-accent), var(--dash-accent2));
+}
+
+.mgr-dash__role-block {
+  margin-top: 4px;
+}
+
+.mgr-dash__error {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.mgr-dash__loading {
+  font-size: 13px;
+  color: var(--dash-muted);
+  padding: 8px 0;
+}

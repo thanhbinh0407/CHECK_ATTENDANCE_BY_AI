@@ -9,6 +9,9 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     deductionAdjustment: 0,
     notes: ""
   });
+  const [showBaseDetails, setShowBaseDetails] = useState(false);
+  const [showBonusDetails, setShowBonusDetails] = useState(false);
+  const [showDeductionDetails, setShowDeductionDetails] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const modalStyle = {
@@ -17,7 +20,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.7)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -27,67 +30,83 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
   };
 
   const contentStyle = {
-    backgroundColor: "white",
-    borderRadius: "12px",
-    padding: "30px",
-    maxWidth: "800px",
+    backgroundColor: theme.neutral.white,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.xl,
+    maxWidth: "900px",
     width: "100%",
     maxHeight: "90vh",
     overflowY: "auto",
-    boxShadow: "0 10px 40px rgba(0,0,0,0.3)"
+    boxShadow: theme.shadows.lg,
+    border: `1px solid ${theme.neutral.gray200}`
   };
 
   const headerStyle = {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "25px",
-    paddingBottom: "15px",
-    borderBottom: `2px solid ${theme.colors.border}`
+    alignItems: "flex-start",
+    marginBottom: theme.spacing.xl,
+    paddingBottom: theme.spacing.lg,
+    borderBottom: `2px solid ${theme.neutral.gray200}`
   };
 
   const titleStyle = {
-    fontSize: "22px",
+    fontSize: "26px",
     fontWeight: "700",
-    color: theme.colors.primary,
-    margin: 0
+    color: theme.primary.main,
+    margin: 0,
+    marginBottom: theme.spacing.xs,
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing.sm
   };
 
   const closeButtonStyle = {
     background: "none",
     border: "none",
-    fontSize: "24px",
     cursor: "pointer",
-    color: "#999",
-    transition: "color 0.2s"
+    color: theme.neutral.gray500,
+    transition: "all 0.2s",
+    padding: theme.spacing.sm,
+    borderRadius: theme.radius.md,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "36px",
+    height: "36px"
   };
 
   const sectionStyle = {
-    marginBottom: "25px",
-    paddingBottom: "20px",
-    borderBottom: `1px solid ${theme.colors.border}`
+    marginBottom: theme.spacing.xl,
+    paddingBottom: theme.spacing.lg,
+    borderBottom: `1px solid ${theme.neutral.gray200}`
   };
 
   const sectionTitleStyle = {
-    fontSize: "16px",
+    fontSize: "18px",
     fontWeight: "700",
-    color: theme.colors.primary,
-    marginBottom: "15px",
+    color: theme.primary.main,
+    marginBottom: theme.spacing.lg,
     display: "flex",
     alignItems: "center",
-    gap: "8px"
+    gap: theme.spacing.sm,
+    padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+    backgroundColor: theme.neutral.gray50,
+    borderRadius: theme.radius.md
   };
 
   const itemRowStyle = {
     display: "grid",
     gridTemplateColumns: "2fr 1fr 1fr",
-    gap: "15px",
-    padding: "12px",
-    backgroundColor: "#f9f9f9",
-    marginBottom: "8px",
-    borderRadius: "5px",
+    gap: theme.spacing.lg,
+    padding: theme.spacing.md,
+    backgroundColor: theme.neutral.gray50,
+    marginBottom: theme.spacing.sm,
+    borderRadius: theme.radius.md,
     alignItems: "center",
-    fontSize: "14px"
+    fontSize: "14px",
+    transition: "all 0.2s",
+    border: `1px solid ${theme.neutral.gray200}`
   };
 
   const labelStyle = {
@@ -98,7 +117,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
   const amountStyle = {
     textAlign: "right",
     fontWeight: "600",
-    color: theme.colors.primary
+    color: theme.primary.main
   };
 
   const percentStyle = {
@@ -122,73 +141,72 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
 
   const editFormStyle = {
     backgroundColor: "#f0f8ff",
-    padding: "20px",
-    borderRadius: "8px",
-    marginTop: "15px"
+    padding: theme.spacing.xl,
+    borderRadius: theme.radius.lg,
+    marginTop: theme.spacing.lg,
+    border: `2px solid #b3d9ff`,
+    boxShadow: theme.shadows.sm
   };
 
   const formGroupStyle = {
-    marginBottom: "15px"
+    marginBottom: theme.spacing.lg
   };
 
   const labelFormStyle = {
     display: "block",
     fontWeight: "600",
-    marginBottom: "5px",
-    color: theme.colors.primary,
-    fontSize: "14px"
+    marginBottom: theme.spacing.sm,
+    color: theme.primary.main,
+    fontSize: "14px",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px"
   };
 
   const inputStyle = {
     width: "100%",
-    padding: "10px",
-    border: `1px solid ${theme.colors.border}`,
-    borderRadius: "5px",
-    fontSize: "14px",
-    boxSizing: "border-box"
+    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+    border: `2px solid ${theme.neutral.gray300}`,
+    borderRadius: theme.radius.md,
+    fontSize: "15px",
+    boxSizing: "border-box",
+    transition: "all 0.2s",
+    outline: "none",
+    fontFamily: "inherit"
   };
 
   const textareaStyle = {
     ...inputStyle,
-    minHeight: "80px",
-    resize: "vertical"
+    minHeight: "100px",
+    resize: "vertical",
+    fontFamily: "inherit"
   };
 
   const buttonGroupStyle = {
     display: "flex",
-    gap: "10px",
-    marginTop: "20px",
-    justifyContent: "flex-end"
+    gap: theme.spacing.md,
+    marginTop: theme.spacing.xl,
+    justifyContent: "flex-end",
+    alignItems: "center"
   };
 
-  const buttonStyle = {
-    padding: "10px 20px",
+  const iconButtonStyle = (bgColor) => ({
+    padding: `${theme.spacing.sm} ${theme.spacing.md}`,
     border: "none",
-    borderRadius: "5px",
+    borderRadius: theme.radius.md,
     cursor: "pointer",
     fontWeight: "600",
     fontSize: "14px",
-    transition: "all 0.2s"
-  };
+    transition: "all 0.2s",
+    backgroundColor: bgColor,
+    color: theme.neutral.white,
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    boxShadow: theme.shadows.sm,
+    minWidth: "120px",
+    justifyContent: "center"
+  });
 
-  const primaryButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: theme.colors.primary,
-    color: "white"
-  };
-
-  const secondaryButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: "#6c757d",
-    color: "white"
-  };
-
-  const editButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: "#ffc107",
-    color: "#333",
-    marginLeft: "auto"
-  };
 
   const handleSaveAdjustments = async () => {
     try {
@@ -210,12 +228,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
         const updatedSalary = await res.json();
         if (onUpdate) onUpdate(updatedSalary);
         setEditMode(false);
-        alert("Cập nhật phiên bản lương thành công");
+        alert("Payroll version updated successfully");
       } else {
-        alert("Lỗi khi cập nhật");
+        alert("Error updating");
       }
     } catch (error) {
-      alert("Lỗi: " + error.message);
+      alert("Error: " + error.message);
     } finally {
       setSaving(false);
     }
@@ -223,137 +241,262 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
 
   const calculateGrossAdjusted = () => {
     const baseAdjusted = (salary?.baseSalary || 0) + adjustments.baseAdjustment;
-    const bonusAdjusted = (salary?.totalBonus || 0) + adjustments.bonusAdjustment;
+    const bonusBase = (salary?.totalBonus != null ? salary.totalBonus : (salary?.bonus || 0));
+    const bonusAdjusted = bonusBase + adjustments.bonusAdjustment;
     return baseAdjusted + bonusAdjusted;
   };
 
   const calculateNetAdjusted = () => {
+    const deductionBase = (salary?.totalDeduction != null ? salary.totalDeduction : (salary?.deduction || 0));
     return (
       calculateGrossAdjusted() -
-      (salary?.totalDeduction || 0) -
+      deductionBase -
       adjustments.deductionAdjustment
     );
   };
 
+  const formatCurrency = (value) => {
+    return (value || 0).toLocaleString('vi-VN', { 
+      style: 'decimal',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2 
+    });
+  };
+
   return (
-    <div style={modalStyle} onClick={onClose}>
-      <div style={contentStyle} onClick={(e) => e.stopPropagation()}>
+    <>
+      <div style={modalStyle} onClick={onClose}>
+        <div style={contentStyle} onClick={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <div>
-            <h2 style={titleStyle}>💰 Chi Tiết Tính Lương</h2>
+            <h2 style={titleStyle}>💰 Chi Tiết Lương Tháng</h2>
             <div style={{ fontSize: "14px", color: "#666", marginTop: "5px" }}>
-              {employee?.name} - {new Date(salary?.month).toLocaleDateString("vi-VN", {
-                month: "long",
-                year: "numeric"
-              })}
+              <strong>{employee?.name}</strong> - Tháng {salary?.month}/{salary?.year}
+            </div>
+            <div style={{ fontSize: "12px", color: "#999", marginTop: "3px" }}>
+              Mã nhân viên: <strong>{employee?.employeeId}</strong>
             </div>
           </div>
           <button
             style={closeButtonStyle}
             onClick={onClose}
-            onMouseOver={(e) => (e.target.style.color = "#333")}
-            onMouseOut={(e) => (e.target.style.color = "#999")}
+            title="Đóng"
           >
-            ✕
+            ×
           </button>
         </div>
 
-        {/* Base Salary */}
-        <div style={sectionStyle}>
-          <div style={sectionTitleStyle}>📊 Lương Cơ Bản</div>
-          <div style={itemRowStyle}>
-            <div style={labelStyle}>Lương cơ bản tháng</div>
-            <div style={amountStyle}>
-              {((salary?.baseSalary || 0) / 1000000).toFixed(2)}M₫
-            </div>
-            <div style={percentStyle}>100%</div>
+        {/* Employee Info */}
+        <div style={{
+          ...sectionStyle,
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: theme.spacing.lg,
+          marginBottom: theme.spacing.xl
+        }}>
+          <div style={{ padding: theme.spacing.md, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+            <div style={{ fontSize: "12px", color: "#999", marginBottom: "4px" }}>Bộ Phận</div>
+            <div style={{ fontSize: "15px", fontWeight: "600", color: "#333" }}>{employee?.department || "N/A"}</div>
+          </div>
+          <div style={{ padding: theme.spacing.md, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+            <div style={{ fontSize: "12px", color: "#999", marginBottom: "4px" }}>Chức Vụ</div>
+            <div style={{ fontSize: "15px", fontWeight: "600", color: "#333" }}>{employee?.jobTitle || "N/A"}</div>
+          </div>
+          <div style={{ padding: theme.spacing.md, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+            <div style={{ fontSize: "12px", color: "#999", marginBottom: "4px" }}>Cấp Bậc Lương</div>
+            <div style={{ fontSize: "15px", fontWeight: "600", color: "#333" }}>{employee?.salaryGrade || "N/A"}</div>
           </div>
         </div>
 
-        {/* Bonuses */}
-        {salary?.bonuses && salary.bonuses.length > 0 && (
-          <div style={sectionStyle}>
-            <div style={sectionTitleStyle}>🎁 Các Khoản Thưởng</div>
-            {salary.bonuses.map((bonus, idx) => {
-              const rule = rules.find((r) => r.id === bonus.ruleId);
-              return (
-                <div key={idx} style={itemRowStyle}>
-                  <div style={labelStyle}>{rule?.name || "Thưởng"}</div>
-                  <div style={amountStyle}>+{(bonus.amount / 1000000).toFixed(2)}M₫</div>
-                  <div style={percentStyle}>{rule?.description || ""}</div>
-                </div>
-              );
-            })}
-            <div style={{ ...itemRowStyle, backgroundColor: "#e8f5e9" }}>
-              <div style={labelStyle}>Tổng thưởng</div>
-              <div style={{ ...amountStyle, color: "#28a745" }}>
-                +{((salary?.totalBonus || 0) / 1000000).toFixed(2)}M₫
-              </div>
-              <div></div>
-            </div>
-          </div>
-        )}
-
-        {/* Deductions */}
-        {salary?.deductions && salary.deductions.length > 0 && (
-          <div style={sectionStyle}>
-            <div style={sectionTitleStyle}>📉 Các Khoản Khấu Trừ</div>
-            {salary.deductions.map((deduction, idx) => {
-              const rule = rules.find((r) => r.id === deduction.ruleId);
-              return (
-                <div key={idx} style={itemRowStyle}>
-                  <div style={labelStyle}>{rule?.name || "Khấu trừ"}</div>
-                  <div style={{ ...amountStyle, color: "#dc3545" }}>
-                    -{(deduction.amount / 1000000).toFixed(2)}M₫
-                  </div>
-                  <div style={percentStyle}>{rule?.description || ""}</div>
-                </div>
-              );
-            })}
-            <div style={{ ...itemRowStyle, backgroundColor: "#ffe5e5" }}>
-              <div style={labelStyle}>Tổng khấu trừ</div>
-              <div style={{ ...amountStyle, color: "#dc3545" }}>
-                -{((salary?.totalDeduction || 0) / 1000000).toFixed(2)}M₫
-              </div>
-              <div></div>
-            </div>
-          </div>
-        )}
-
-        {/* Summary */}
+        {/* Breakdown Table */}
         <div style={sectionStyle}>
-          <div style={sectionTitleStyle}>📈 Tổng Hợp</div>
-          <div style={summaryStyle}>
-            <div style={{ ...summaryItemStyle, backgroundColor: "#f0f8ff", borderLeft: `4px solid ${theme.colors.primary}` }}>
-              <div style={{ fontSize: "12px", color: "#666", marginBottom: "5px" }}>Tổng Gross</div>
-              <div style={{ fontSize: "20px", fontWeight: "700", color: theme.colors.primary }}>
-                {editMode
-                  ? (calculateGrossAdjusted() / 1000000).toFixed(2)
-                  : ((salary?.baseSalary || 0 + salary?.totalBonus || 0) / 1000000).toFixed(2)}
-                M₫
+          <h3 style={sectionTitleStyle}>📊 Chi Tiết Thành Phần Lương</h3>
+          <div style={{ display: "grid", gap: theme.spacing.md }}>
+            {/* Base Salary */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "2fr 1fr",
+                gap: theme.spacing.lg,
+                padding: theme.spacing.lg,
+                backgroundColor: "#e3f2fd",
+                borderRadius: theme.radius.md,
+                borderLeft: `4px solid #1976d2`,
+                cursor: "pointer"
+              }}
+              onClick={() => setShowBaseDetails(!showBaseDetails)}
+            >
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "#1976d2", marginBottom: "4px" }}>Lương Cơ Bản</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>Mức lương hàng tháng cơ bản</div>
+                {showBaseDetails && (
+                  <div style={{ marginTop: "8px", fontSize: "12px", color: "#555" }}>
+                    <div>Gốc: ₫{formatCurrency(salary?.baseSalary || 0)}</div>
+                    {adjustments.baseAdjustment !== 0 && (
+                      <div>Điều chỉnh: ₫{formatCurrency(adjustments.baseAdjustment)}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#1976d2" }}>
+                ₫{formatCurrency((salary?.baseSalary || 0) + adjustments.baseAdjustment)}
               </div>
             </div>
-            <div style={{ ...summaryItemStyle, backgroundColor: "#e8f5e9", borderLeft: "4px solid #28a745" }}>
-              <div style={{ fontSize: "12px", color: "#666", marginBottom: "5px" }}>Lương Net</div>
-              <div style={{ fontSize: "20px", fontWeight: "700", color: "#28a745" }}>
-                {editMode
-                  ? (calculateNetAdjusted() / 1000000).toFixed(2)
-                  : ((salary?.netSalary || salary?.baseSalary - salary?.totalDeduction || 0) / 1000000).toFixed(2)}
-                M₫
+
+            {/* Bonus */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "2fr 1fr",
+                gap: theme.spacing.lg,
+                padding: theme.spacing.lg,
+                backgroundColor: "#c8e6c9",
+                borderRadius: theme.radius.md,
+                borderLeft: `4px solid #388e3c`,
+                cursor: "pointer"
+              }}
+              onClick={() => setShowBonusDetails(!showBonusDetails)}
+            >
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "#388e3c", marginBottom: "4px" }}>Thưởng</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>Thưởng hiệu suất, khác</div>
+                {showBonusDetails && (
+                  <div style={{ marginTop: "8px", fontSize: "12px", color: "#555" }}>
+                    <div>Thưởng gốc: ₫{formatCurrency(salary?.bonus || 0)}</div>
+                    {adjustments.bonusAdjustment !== 0 && (
+                      <div>Điều chỉnh: ₫{formatCurrency(adjustments.bonusAdjustment)}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#388e3c" }}>
+                +₫{formatCurrency((salary?.bonus || 0) + adjustments.bonusAdjustment)}
               </div>
             </div>
+
+            {/* Gross Salary */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: theme.spacing.lg,
+              padding: theme.spacing.lg,
+              backgroundColor: "#fff3e0",
+              borderRadius: theme.radius.md,
+              borderLeft: `4px solid #f57c00`
+            }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "#f57c00", marginBottom: "4px" }}>Tổng Lương Brutto</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>Lương cơ bản + Thưởng</div>
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#f57c00" }}>
+                ₫{formatCurrency(calculateGrossAdjusted())}
+              </div>
+            </div>
+
+            {/* Deduction */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "2fr 1fr",
+                gap: theme.spacing.lg,
+                padding: theme.spacing.lg,
+                backgroundColor: "#ffcdd2",
+                borderRadius: theme.radius.md,
+                borderLeft: `4px solid #d32f2f`,
+                cursor: "pointer"
+              }}
+              onClick={() => setShowDeductionDetails(!showDeductionDetails)}
+            >
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "#d32f2f", marginBottom: "4px" }}>Các Khoản Giảm Trừ</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>Thuế, BHXH, BHYT, ứng lương, v.v.</div>
+                {showDeductionDetails && (
+                  <div style={{ marginTop: "8px", fontSize: "12px", color: "#555" }}>
+                    {salary?.advanceDeduction > 0 && (
+                      <div>Ứng lương: ₫{formatCurrency(salary.advanceDeduction)}</div>
+                    )}
+                    <div>
+                      Các khoản khác (thuế, BHXH, BHYT...): ₫
+                      {formatCurrency((salary?.deduction || salary?.totalDeduction || 0) - (salary?.advanceDeduction || 0))}
+                    </div>
+                    {adjustments.deductionAdjustment !== 0 && (
+                      <div>Điều chỉnh khấu trừ: ₫{formatCurrency(adjustments.deductionAdjustment)}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "16px", color: "#d32f2f" }}>
+                -₫{formatCurrency((salary?.deduction || salary?.totalDeduction || 0) + adjustments.deductionAdjustment)}
+              </div>
+            </div>
+
+            {/* Net Salary */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: theme.spacing.lg,
+              padding: theme.spacing.xl,
+              backgroundColor: "#2196f3",
+              borderRadius: theme.radius.md,
+              borderLeft: `4px solid #1565c0`,
+              marginTop: theme.spacing.md
+            }}>
+              <div>
+                <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>LƯƠNG NHẬN (NETTO)</div>
+                <div style={{ fontSize: "12px", color: "#e3f2fd" }}>Số tiền lương thực tế nhận được</div>
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "20px", color: "#fff" }}>
+                ₫{formatCurrency(calculateNetAdjusted())}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Status & Additional Info */}
+        <div style={{
+          ...sectionStyle,
+          marginTop: theme.spacing.xl
+        }}>
+          <h3 style={sectionTitleStyle}>📋 Trạng Thái & Thông Tin Khác</h3>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: theme.spacing.lg
+          }}>
+            <div style={{ padding: theme.spacing.lg, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+              <div style={{ fontSize: "12px", color: "#999", textTransform: "uppercase", marginBottom: "8px", fontWeight: "600" }}>Trạng Thái</div>
+              <div style={{
+                display: "inline-block",
+                padding: "6px 16px",
+                borderRadius: "20px",
+                fontSize: "13px",
+                fontWeight: "600",
+                backgroundColor: salary?.status === "paid" ? "#c8e6c9" : salary?.status === "approved" ? "#fff9c4" : "#ffccbc",
+                color: salary?.status === "paid" ? "#2e7d32" : salary?.status === "approved" ? "#f57f17" : "#d84315"
+              }}>
+                {salary?.status === "pending" ? "Chờ Duyệt" : salary?.status === "approved" ? "Đã Duyệt" : "Đã Chi"}
+              </div>
+            </div>
+            <div style={{ padding: theme.spacing.lg, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md }}>
+              <div style={{ fontSize: "12px", color: "#999", textTransform: "uppercase", marginBottom: "8px", fontWeight: "600" }}>Thời Gian Tính Lương</div>
+              <div style={{ fontSize: "14px", fontWeight: "600", color: "#333" }}>
+                {salary?.calculatedAt ? new Date(salary.calculatedAt).toLocaleDateString("vi-VN") : "N/A"}
+              </div>
+            </div>
+            {salary?.notes && (
+              <div style={{ padding: theme.spacing.lg, backgroundColor: theme.neutral.gray50, borderRadius: theme.radius.md, gridColumn: "1 / -1" }}>
+                <div style={{ fontSize: "12px", color: "#999", textTransform: "uppercase", marginBottom: "8px", fontWeight: "600" }}>Ghi Chú</div>
+                <div style={{ fontSize: "14px", color: "#333", whiteSpace: "pre-wrap" }}>{salary.notes}</div>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Edit Mode */}
         {editMode && (
           <div style={editFormStyle}>
-            <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>
-              ✏️ Điều Chỉnh Lương
-            </h3>
-
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Điều chỉnh lương cơ bản (đơn vị: đồng)</label>
+              <label style={labelFormStyle}>Base Salary Adjustment</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -364,12 +507,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     baseAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                placeholder="Nhập số điều chỉnh (âm để giảm, dương để tăng)"
+                placeholder="Enter adjustment (negative to decrease, positive to increase)"
               />
             </div>
 
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Điều chỉnh thưởng (đơn vị: đồng)</label>
+              <label style={labelFormStyle}>Bonus Adjustment</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -380,12 +523,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     bonusAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                placeholder="Nhập số điều chỉnh thưởng"
+                placeholder="Enter bonus adjustment amount"
               />
             </div>
 
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Điều chỉnh khấu trừ (đơn vị: đồng)</label>
+              <label style={labelFormStyle}>Deduction Adjustment</label>
               <input
                 type="number"
                 style={inputStyle}
@@ -396,12 +539,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     deductionAdjustment: parseFloat(e.target.value) || 0
                   })
                 }
-                placeholder="Nhập số điều chỉnh khấu trừ"
+                placeholder="Enter deduction adjustment amount"
               />
             </div>
 
             <div style={formGroupStyle}>
-              <label style={labelFormStyle}>Ghi chú</label>
+              <label style={labelFormStyle}>Notes</label>
               <textarea
                 style={textareaStyle}
                 value={adjustments.notes}
@@ -411,7 +554,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     notes: e.target.value
                   })
                 }
-                placeholder="Ghi chú về điều chỉnh..."
+                placeholder="Notes about adjustment..."
               />
             </div>
           </div>
@@ -421,11 +564,10 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
         <div style={buttonGroupStyle}>
           <button
             onClick={onClose}
-            style={secondaryButtonStyle}
-            onMouseOver={(e) => (e.target.style.opacity = 0.9)}
-            onMouseOut={(e) => (e.target.style.opacity = 1)}
+            style={iconButtonStyle(theme.neutral.gray600)}
+            title="Đóng"
           >
-            Đóng
+            Close
           </button>
 
           {editMode && (
@@ -440,20 +582,18 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     notes: ""
                   });
                 }}
-                style={secondaryButtonStyle}
-                onMouseOver={(e) => (e.target.style.opacity = 0.9)}
-                onMouseOut={(e) => (e.target.style.opacity = 1)}
+                style={iconButtonStyle(theme.neutral.gray600)}
+                title="Hủy"
               >
-                Hủy
+                Cancel
               </button>
               <button
                 onClick={handleSaveAdjustments}
-                style={primaryButtonStyle}
+                style={iconButtonStyle(theme.primary.main)}
                 disabled={saving}
-                onMouseOver={(e) => !saving && (e.target.style.opacity = 0.9)}
-                onMouseOut={(e) => !saving && (e.target.style.opacity = 1)}
+                title="Lưu điều chỉnh"
               >
-                {saving ? "Đang lưu..." : "Lưu Điều Chỉnh"}
+                {saving ? "Saving..." : "Save"}
               </button>
             </>
           )}
@@ -461,15 +601,17 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
           {!editMode && (
             <button
               onClick={() => setEditMode(true)}
-              style={editButtonStyle}
-              onMouseOver={(e) => (e.target.style.opacity = 0.9)}
-              onMouseOut={(e) => (e.target.style.opacity = 1)}
+              style={iconButtonStyle("#ffc107")}
+              title="Điều chỉnh lương"
             >
-              ✏️ Điều Chỉnh
+              Edit
             </button>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
+
+

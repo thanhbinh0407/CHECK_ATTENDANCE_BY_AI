@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { exportAttendanceToExcel, exportAttendanceToPDF } from "../utils/exportUtils.js";
-import { theme, commonStyles } from "../styles/theme.js";
 
 export default function AttendanceLog() {
   const [allLogs, setAllLogs] = useState([]);
@@ -47,7 +46,7 @@ export default function AttendanceLog() {
         setEmployees(empData.employees);
       }
     } catch (err) {
-      setError("Lỗi tải dữ liệu: " + err.message);
+      setError("Error loading data: " + err.message);
       console.error("Fetch error:", err);
     } finally {
       setLoading(false);
@@ -166,8 +165,9 @@ export default function AttendanceLog() {
   if (loading) {
     return (
       <div style={containerStyle}>
-        <div style={{ textAlign: "center", padding: "40px", color: "#666" }}>
-          📊 Đang tải dữ liệu lịch sử điểm danh...
+        <div style={{ textAlign: "center", padding: "60px", color: "#666" }}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏳</div>
+          <div style={{ fontSize: "16px", fontWeight: "500" }}>Loading attendance history...</div>
         </div>
       </div>
     );
@@ -177,16 +177,17 @@ export default function AttendanceLog() {
     <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "0" }}>
       {/* Welcome Header */}
       <div style={{
-        background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
         color: "#fff",
         padding: "48px 40px",
-        borderRadius: "16px 16px 0 0"
+        borderRadius: "16px 16px 0 0",
+        boxShadow: "0 4px 20px rgba(102, 126, 234, 0.3)"
       }}>
         <h1 style={{ margin: "0 0 12px 0", fontSize: "36px", fontWeight: "700" }}>
-          📊 Lịch Sử Điểm Danh
+          📊 Attendance History
         </h1>
         <p style={{ margin: 0, fontSize: "16px", opacity: 0.95 }}>
-          Xem chi tiết lịch sử điểm danh của tất cả nhân viên. Theo dõi thời gian vào/ra, độ chính xác và trạng thái điểm danh.
+          View detailed attendance history for all employees. Track check-in/out times, accuracy, and attendance status.
         </p>
       </div>
 
@@ -216,17 +217,18 @@ export default function AttendanceLog() {
           </div>
         )}
 
-        {/* Advanced Search & Filters */}
+        {/* Search & Filters - Leave Management style */}
         <div style={{
           backgroundColor: "#fff",
-          borderRadius: "12px",
+          borderRadius: "16px",
           padding: "24px",
           marginBottom: "32px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+          boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+          border: "1px solid #e8e8e8"
         }}>
           <div style={{ marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#1a1a1a" }}>
-              🔍 Tìm kiếm & Lọc nâng cao
+              🔍 Search & Advanced Filter
             </h3>
             <button
               onClick={() => {
@@ -255,13 +257,13 @@ export default function AttendanceLog() {
             {/* Search Input */}
             <div>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "13px", color: "#495057" }}>
-                Tìm kiếm
+                Search
               </label>
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tên, mã NV, thiết bị..."
+                placeholder="Name, employee code, device..."
                 style={{
                   width: "100%",
                   padding: "10px 14px",
@@ -275,7 +277,7 @@ export default function AttendanceLog() {
             {/* Employee Filter */}
             <div>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "13px", color: "#495057" }}>
-                Nhân viên
+                Employee
               </label>
               <select
                 value={selectedEmployeeId || ""}
@@ -289,7 +291,7 @@ export default function AttendanceLog() {
                   cursor: "pointer"
                 }}
               >
-                <option value="">Tất cả</option>
+                <option value="">All</option>
                 {employees.map(emp => (
                   <option key={emp.id} value={emp.id}>
                     {emp.name}
@@ -301,7 +303,7 @@ export default function AttendanceLog() {
             {/* Type Filter */}
             <div>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "13px", color: "#495057" }}>
-                Loại
+                Type
               </label>
               <select
                 value={filterType}
@@ -315,16 +317,16 @@ export default function AttendanceLog() {
                   cursor: "pointer"
                 }}
               >
-                <option value="all">Tất cả</option>
-                <option value="IN">Vào</option>
-                <option value="OUT">Ra</option>
+                <option value="all">All</option>
+                <option value="IN">Check-in</option>
+                <option value="OUT">Check-out</option>
               </select>
             </div>
 
             {/* Status Filter */}
             <div>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "13px", color: "#495057" }}>
-                Trạng thái
+                Status
               </label>
               <select
                 value={filterStatus}
@@ -338,9 +340,9 @@ export default function AttendanceLog() {
                   cursor: "pointer"
                 }}
               >
-                <option value="all">Tất cả</option>
-                <option value="matched">Đã khớp</option>
-                <option value="unmatched">Chưa khớp</option>
+                <option value="all">All</option>
+                <option value="matched">Matched</option>
+                <option value="unmatched">Unmatched</option>
               </select>
             </div>
           </div>
@@ -349,7 +351,7 @@ export default function AttendanceLog() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
             <div>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "13px", color: "#495057" }}>
-                Từ ngày
+                From Date
               </label>
               <input
                 type="date"
@@ -366,7 +368,7 @@ export default function AttendanceLog() {
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "13px", color: "#495057" }}>
-                Đến ngày
+                To Date
               </label>
               <input
                 type="date"
@@ -401,7 +403,7 @@ export default function AttendanceLog() {
                   fontWeight: "500"
                 }}
               >
-                Hôm nay
+                Today
               </button>
               <button
                 onClick={() => {
@@ -423,7 +425,7 @@ export default function AttendanceLog() {
                   fontWeight: "500"
                 }}
               >
-                Tuần này
+                This Week
               </button>
               <button
                 onClick={() => {
@@ -444,12 +446,12 @@ export default function AttendanceLog() {
                   fontWeight: "500"
                 }}
               >
-                Tháng này
+                This Month
               </button>
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
               <button
-                onClick={() => exportAttendanceToExcel(filteredLogs, employees, `lich-su-diem-danh-${new Date().toISOString().split('T')[0]}`)}
+                onClick={() => exportAttendanceToExcel(filteredLogs, employees, `attendance-history-${new Date().toISOString().split('T')[0]}`)}
                 style={{
                   padding: "10px 20px",
                   backgroundColor: "#28a745",
@@ -464,34 +466,40 @@ export default function AttendanceLog() {
                   gap: "8px"
                 }}
               >
-                📥 Xuất Excel
+                📥 Export Excel
               </button>
               <button
-                onClick={() => exportAttendanceToPDF(filteredLogs, employees, `lich-su-diem-danh-${new Date().toISOString().split('T')[0]}`)}
+                onClick={() => exportAttendanceToPDF(filteredLogs, employees, `attendance-history-${new Date().toISOString().split('T')[0]}`)}
               style={{
-                ...commonStyles.button.danger,
-                padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
+                padding: "10px 20px",
+                backgroundColor: "#dc3545",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "600",
+                fontSize: "14px",
                 display: "flex",
                 alignItems: "center",
-                gap: theme.spacing.sm
+                gap: "8px"
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = theme.error.dark;
+                e.currentTarget.style.backgroundColor = "#c82333";
                 e.currentTarget.style.transform = "translateY(-2px)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = theme.error.main;
+                e.currentTarget.style.backgroundColor = "#dc3545";
                 e.currentTarget.style.transform = "translateY(0)";
               }}
               >
-                📄 Xuất PDF
+                📄 Export PDF
               </button>
             </div>
           </div>
 
           {/* Results Count */}
           <div style={{ marginTop: "16px", fontSize: "14px", color: "#666", paddingTop: "16px", borderTop: "1px solid #f0f0f0" }}>
-            Hiển thị <strong>{filteredLogs.length}</strong> / {allLogs.length} bản ghi
+            Showing <strong>{filteredLogs.length}</strong> / {allLogs.length} records
           </div>
         </div>
 
@@ -515,7 +523,7 @@ export default function AttendanceLog() {
                 {filteredLogs.length}
               </div>
               <div style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>
-                Tổng lần điểm danh
+                Total Records
               </div>
             </div>
             <div style={{
@@ -530,7 +538,7 @@ export default function AttendanceLog() {
                 {filteredLogs.filter(l => l.userId).length}
               </div>
               <div style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>
-                Lần khớp chính xác
+                Matched Records
               </div>
             </div>
           </div>
@@ -547,12 +555,12 @@ export default function AttendanceLog() {
           }}>
             <div style={{ fontSize: "64px", marginBottom: "16px" }}>📭</div>
             <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#333", marginBottom: "8px" }}>
-              {selectedEmployeeId ? "Chưa có lịch sử điểm danh" : "Chưa có dữ liệu"}
+              {selectedEmployeeId ? "No attendance history" : "No data"}
             </h3>
             <p style={{ fontSize: "14px", color: "#666" }}>
               {selectedEmployeeId
-                ? `Nhân viên này chưa có lần điểm danh nào`
-                : `Chưa có dữ liệu lịch sử điểm danh`
+                ? "This employee has no attendance records"
+                : "No attendance history data"
               }
             </p>
           </div>
@@ -582,7 +590,7 @@ export default function AttendanceLog() {
                       color: "#495057",
                       textTransform: "uppercase",
                       letterSpacing: "0.5px"
-                    }}>Thời gian</th>
+                    }}>Time</th>
                     <th style={{
                       padding: "16px",
                       textAlign: "left",
@@ -591,7 +599,7 @@ export default function AttendanceLog() {
                       color: "#495057",
                       textTransform: "uppercase",
                       letterSpacing: "0.5px"
-                    }}>Nhân viên</th>
+                    }}>Employee</th>
                     <th style={{
                       padding: "16px",
                       textAlign: "left",
@@ -600,7 +608,7 @@ export default function AttendanceLog() {
                       color: "#495057",
                       textTransform: "uppercase",
                       letterSpacing: "0.5px"
-                    }}>Mã NV</th>
+                    }}>Code</th>
                     <th style={{
                       padding: "16px",
                       textAlign: "left",
@@ -609,7 +617,7 @@ export default function AttendanceLog() {
                       color: "#495057",
                       textTransform: "uppercase",
                       letterSpacing: "0.5px"
-                    }}>Loại</th>
+                    }}>Type</th>
                     <th style={{
                       padding: "16px",
                       textAlign: "center",
@@ -618,7 +626,7 @@ export default function AttendanceLog() {
                       color: "#495057",
                       textTransform: "uppercase",
                       letterSpacing: "0.5px"
-                    }}>Độ tin cậy</th>
+                    }}>Confidence</th>
                     <th style={{
                       padding: "16px",
                       textAlign: "center",
@@ -627,7 +635,7 @@ export default function AttendanceLog() {
                       color: "#495057",
                       textTransform: "uppercase",
                       letterSpacing: "0.5px"
-                    }}>Khoảng cách</th>
+                    }}>Distance</th>
                     <th style={{
                       padding: "16px",
                       textAlign: "left",
@@ -636,7 +644,7 @@ export default function AttendanceLog() {
                       color: "#495057",
                       textTransform: "uppercase",
                       letterSpacing: "0.5px"
-                    }}>Thiết bị</th>
+                    }}>Device</th>
                     <th style={{
                       padding: "16px",
                       textAlign: "center",
@@ -645,7 +653,7 @@ export default function AttendanceLog() {
                       color: "#495057",
                       textTransform: "uppercase",
                       letterSpacing: "0.5px"
-                    }}>Ảnh</th>
+                    }}>Photo</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -673,10 +681,10 @@ export default function AttendanceLog() {
                           color: "#1a1a1a"
                         }}>
                           <div style={{ fontWeight: "600" }}>
-                            {new Date(log.timestamp).toLocaleDateString("vi-VN")}
+                            {new Date(log.timestamp).toLocaleDateString("en-US")}
                           </div>
                           <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>
-                            {new Date(log.timestamp).toLocaleTimeString("vi-VN")}
+                            {new Date(log.timestamp).toLocaleTimeString("en-US")}
                           </div>
                         </td>
                         <td style={{ padding: "16px" }}>
@@ -711,7 +719,7 @@ export default function AttendanceLog() {
                             display: "inline-block",
                             border: `2px solid ${typeColor}`
                           }}>
-                            {isIn ? "🟢 VÀO" : "🔴 RA"}
+                            {isIn ? "🟢 IN" : "🔴 OUT"}
                           </span>
                         </td>
                         <td style={{

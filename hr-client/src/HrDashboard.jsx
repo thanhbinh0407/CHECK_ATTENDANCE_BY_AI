@@ -1,0 +1,312 @@
+import { useEffect, useState, useMemo } from 'react';
+
+const API = 'http://localhost:5000/api';
+
+function authHeaders(token) {
+  return { Authorization: `Bearer ${token}` };
+}
+
+function extractList(data, keys) {
+  for (const k of keys) {
+    if (Array.isArray(data[k])) return data[k];
+  }
+  return [];
+}
+
+export default function HrDashboard({ token, onNavigate }) {
+  const [dash, setDash] = useState({
+    loading: true,
+    empTotal: 0,
+    empActive: 0,
+    departments: 0,
+    jobTitles: 0,
+    pendingLeave: 0,
+    pendingLeaveList: [],
+    pendingOt: 0,
+    pendingOtList: [],
+    pendingTrip: 0,
+    pendingTripList: [],
+    pendingAdvance: 0,
+    pendingAdvanceList: [],
+    recentLogs: [],
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    const h = authHeaders(token);
+
+    const run = async () => {
+      try {
+        const [
+          empRes,
+          deptRes,
+          jtRes,
+          leaveRes,
+          otRes,
+          tripRes,
+          advRes,
+          logRes,
+        ] = await Promise.all([
+          fetch(`${API}/admin/employees`, { headers: h }),
+          fetch(`${API}/departments`, { headers: h }),
+          fetch(`${API}/job-titles`, { headers: h }),
+          fetch(`${API}/leave/requests?status=pending`, { headers: h }),
+          fetch(`${API}/overtime-requests?status=pending`, { headers: h }),
+          fetch(`${API}/business-trip-requests?status=pending`, { headers: h }),
+          fetch(`${API}/salary-advances?status=pending`, { headers: h }),
+          fetch(`${API}/admin/logs`, { headers: h }).catch(() => null),
+        ]);
+
+        const empData = empRes.ok ? await empRes.json() : {};
+        const list = empData.employees || empData.data || [];
+        const empTotal = Array.isArray(list) ? list.length : 0;
+        const empActive = Array.isArray(list) ? list.filter((e) => e.isActive !== false).length : 0;
+
+        const deptData = deptRes.ok ? await deptRes.json() : {};
+        const departments = (deptData.departments || deptData.data || []).length;
+
+        const jtData = jtRes.ok ? await jtRes.json() : {};
+        const jobTitles = (jtData.jobTitles || jtData.data || []).length;
+
+        const leaveData = leaveRes.ok ? await leaveRes.json() : {};
+        const leaveList = extractList(leaveData, ['leaveRequests', 'data']);
+        const pendingLeave = Array.isArray(leaveList) ? leaveList.length : 0;
+
+        const otData = otRes.ok ? await otRes.json() : {};
+        const otList = extractList(otData, ['requests', 'overtimeRequests', 'data']);
+        const pendingOt = Array.isArray(otList) ? otList.length : 0;
+
+        const tripData = tripRes.ok ? await tripRes.json() : {};
+        const tripList = extractList(tripData, ['requests', 'businessTripRequests', 'data']);
+        const pendingTrip = Array.isArray(tripList) ? tripList.length : 0;
+
+        const advData = advRes.ok ? await advRes.json() : {};
+        const advList = extractList(advData, ['advances', 'salaryAdvances', 'data']);
+        const pendingAdvance = Array.isArray(advList) ? advList.length : 0;
+
+        let recentLogs = [];
+        if (logRes && logRes.ok) {
+          const logJson = await logRes.json();
+          recentLogs = (logJson.logs || []).slice(0, 8);
+        }
+
+        if (!cancelled) {
+          setDash({
+            loading: false,
+            empTotal,
+            empActive,
+            departments,
+            jobTitles,
+            pendingLeave,
+            pendingLeaveList: (leaveList || []).slice(0, 4),
+            pendingOt,
+            pendingOtList: (otList || []).slice(0, 4),
+            pendingTrip,
+            pendingTripList: (tripList || []).slice(0, 4),
+            pendingAdvance,
+            pendingAdvanceList: (advList || []).slice(0, 4),
+            recentLogs,
+          });
+        }
+      } catch {
+        if (!cancelled) setDash((d) => ({ ...d, loading: false }));
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const go = (tab) => {
+    if (typeof onNavigate === 'function') onNavigate(tab);
+  };
+
+  const today = useMemo(
+    () =>
+      new Intl.DateTimeFormat('vi-VN', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }).format(new Date()),
+    []
+  );
+
+  const totalPending = dash.pendingLeave + dash.pendingOt + dash.pendingTrip + dash.pendingAdvance;
+
+  if (dash.loading) {
+    return (
+      <div className="hr-dash-root">
+        <div className="loading">Đang tải tổng quan…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="hr-dash-root">
+      <div className="hr-dash-hero-v2">
+        <div className="hr-dash-hero-v2-inner">
+          <h1>Trung tâm HR</h1>
+          <p>
+            Theo dõi quy mô nhân sự, đơn từ chờ xử lý và hoạt động chấm công gần nhất — mọi thao tác chi tiết nằm ở menu trái.
+          </p>
+          <div className="hr-dash-hero-meta">
+            <span className="hr-dash-pill">{today}</span>
+            <span className="hr-dash-pill">{dash.empActive} nhân viên đang làm</span>
+            <span className="hr-dash-pill">{totalPending} đơn chờ xử lý (toàn hệ thống)</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="hr-kpi-row hr-kpi-row--4">
+        <div className="hr-kpi-card">
+          <span className="hr-kpi-deco" aria-hidden>👥</span>
+          <div className="hr-kpi-label">Nhân viên</div>
+          <div className="hr-kpi-value">{dash.empTotal}</div>
+          <div className="hr-kpi-hint">Đang hoạt động: {dash.empActive}</div>
+        </div>
+        <div className="hr-kpi-card">
+          <span className="hr-kpi-deco" aria-hidden>🏢</span>
+          <div className="hr-kpi-label">Phòng ban</div>
+          <div className="hr-kpi-value">{dash.departments}</div>
+          <div className="hr-kpi-hint">Chức danh: {dash.jobTitles}</div>
+        </div>
+        <button
+          type="button"
+          className="hr-kpi-card"
+          onClick={() => go('leave')}
+          style={{ cursor: 'pointer', textAlign: 'left', border: '1px solid rgba(148, 163, 184, 0.35)', font: 'inherit' }}
+        >
+          <span className="hr-kpi-deco" aria-hidden>✅</span>
+          <div className="hr-kpi-label">Nghỉ phép chờ</div>
+          <div className="hr-kpi-value hr-kpi-value--accent">{dash.pendingLeave}</div>
+          <div className="hr-kpi-hint">Mở màn duyệt nghỉ →</div>
+        </button>
+        <div className="hr-kpi-card">
+          <span className="hr-kpi-deco" aria-hidden>📬</span>
+          <div className="hr-kpi-label">Đơn khác chờ</div>
+          <div className="hr-kpi-value" style={{ fontSize: '1.35rem' }}>
+            OT {dash.pendingOt} · CT {dash.pendingTrip} · Ứng {dash.pendingAdvance}
+          </div>
+          <div className="hr-kpi-hint">Tăng ca · Công tác · Tạm ứng</div>
+        </div>
+      </div>
+
+      <div className="hr-dash-split">
+        <div className="hr-dash-panel">
+          <h3>Hoạt động chấm công gần đây</h3>
+          {dash.recentLogs.length === 0 ? (
+            <p style={{ color: '#94a3b8', fontSize: 14 }}>Chưa có dữ liệu log hoặc chưa tải được.</p>
+          ) : (
+            dash.recentLogs.map((log) => (
+              <div key={log.id} className="hr-dash-log-row">
+                <div>
+                  <strong>{log.User?.name || '—'}</strong>
+                  <div style={{ fontSize: 12, color: '#94a3b8' }}>{log.User?.employeeCode || log.userId}</div>
+                </div>
+                <span>{log.timestamp ? new Date(log.timestamp).toLocaleString('vi-VN') : '—'}</span>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="hr-dash-panel">
+          <h3>Tóm tắt nhanh</h3>
+          <div className="hr-mini-kpis">
+            <div className="hr-mini-kpi">
+              <div className="lbl">Tỷ lệ đang làm</div>
+              <div className="val">
+                {dash.empTotal ? Math.round((dash.empActive / dash.empTotal) * 100) : 0}%
+              </div>
+            </div>
+            <div className="hr-mini-kpi">
+              <div className="lbl">Chức danh</div>
+              <div className="val">{dash.jobTitles}</div>
+            </div>
+            <div className="hr-mini-kpi">
+              <div className="lbl">Đơn chờ (tổng)</div>
+              <div className="val">{totalPending}</div>
+            </div>
+            <div className="hr-mini-kpi">
+              <div className="lbl">Phòng ban</div>
+              <div className="val">{dash.departments}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <p className="card-title" style={{ marginBottom: 12 }}>Đơn chờ mới nhất</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+          <div className="hr-dash-mini" style={{ padding: 14, borderRadius: 14, background: "#fff", border: "1px solid rgba(148,163,184,0.35)" }}>
+            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Nghỉ phép</div>
+            {dash.pendingLeaveList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Trống</div> : dash.pendingLeaveList.map((l) => (
+              <div key={l.id} style={{ marginBottom: 10 }}>
+                <div style={{ fontWeight: 700 }}>{l.User?.name || l.userId || "—"}</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>{l.startDate} → {l.endDate}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hr-dash-mini" style={{ padding: 14, borderRadius: 14, background: "#fff", border: "1px solid rgba(148,163,184,0.35)" }}>
+            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Tăng ca</div>
+            {dash.pendingOtList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Trống</div> : dash.pendingOtList.map((r) => (
+              <div key={r.id} style={{ marginBottom: 10 }}>
+                <div style={{ fontWeight: 700 }}>{r.User?.name || r.userId || "—"}</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>{r.date} • {r.totalHours || 0}h</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hr-dash-mini" style={{ padding: 14, borderRadius: 14, background: "#fff", border: "1px solid rgba(148,163,184,0.35)" }}>
+            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Công tác</div>
+            {dash.pendingTripList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Trống</div> : dash.pendingTripList.map((r) => (
+              <div key={r.id} style={{ marginBottom: 10 }}>
+                <div style={{ fontWeight: 700 }}>{r.User?.name || r.userId || "—"}</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>{r.destination || r.location || "—"}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hr-dash-mini" style={{ padding: 14, borderRadius: 14, background: "#fff", border: "1px solid rgba(148,163,184,0.35)" }}>
+            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Tạm ứng</div>
+            {dash.pendingAdvanceList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Trống</div> : dash.pendingAdvanceList.map((a) => (
+              <div key={a.id} style={{ marginBottom: 10 }}>
+                <div style={{ fontWeight: 700 }}>{a.User?.name || a.userId || "—"}</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>{a.month}/{a.year} • {Number(a.amount || 0).toLocaleString("vi-VN")} VND</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 0 }}>
+        <p className="card-title" style={{ marginBottom: 12 }}>Truy cập nhanh</p>
+        <div className="hr-bento-actions">
+          {[
+            ['employees', '👥', 'Quản lý nhân viên'],
+            ['departments', '🏢', 'Phòng ban'],
+            ['job-titles', '📋', 'Chức danh'],
+            ['attendance', '📅', 'Chấm công'],
+            ['leave', '🏖️', 'Duyệt nghỉ phép'],
+            ['analytics', '📉', 'Phân tích'],
+            ['reports', '📑', 'Báo cáo HR'],
+          ].map(([tab, icon, label]) => (
+            <button
+              key={tab}
+              type="button"
+              className="hr-action-tile"
+              style={{ border: 'none', cursor: 'pointer', font: 'inherit', width: '100%' }}
+              onClick={() => go(tab)}
+            >
+              <span className="hr-action-ico">{icon}</span>
+              <span>{label}</span>
+              <span className="hr-action-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

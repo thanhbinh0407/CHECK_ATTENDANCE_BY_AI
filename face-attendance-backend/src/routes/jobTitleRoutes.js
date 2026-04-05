@@ -6,19 +6,21 @@ import {
   updateJobTitle,
   deleteJobTitle
 } from "../controllers/jobTitleController.js";
-import { authMiddleware, adminOnly } from "../middleware/authMiddleware.js";
+import { authMiddleware, hrOrManager } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// All routes require authentication and admin access
+// All routes require authentication
 router.use(authMiddleware);
-router.use(adminOnly);
 
+// Đọc: tất cả (nhân viên cần biết chức danh)
 router.get("/", getAllJobTitles);
 router.get("/:id", getJobTitleById);
-router.post("/", createJobTitle);
-router.put("/:id", updateJobTitle);
-router.delete("/:id", deleteJobTitle);
+
+// Ghi: HR hoặc Manager
+router.post("/", hrOrManager, createJobTitle);
+router.put("/:id", hrOrManager, updateJobTitle);
+router.delete("/:id", hrOrManager, deleteJobTitle);
 
 export default router;
 

@@ -15,8 +15,41 @@ export default function Dependents({ userId }) {
     email: ""
   });
   const [editingId, setEditingId] = useState(null);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
+  const [errors, setErrors] = useState({
+    fullName: "",
+    phoneNumber: "",
+    email: "",
+    dateOfBirth: "",
+    idNumber: ""
+  });
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [fileUploadError, setFileUploadError] = useState("");
+  const [uploadingDocs, setUploadingDocs] = useState(false);
+
+  const getLocalToday = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+  const today = getLocalToday();
+
+  const showMessage = (text, type) => {
+    setMessage(text);
+    setMessageType(type);
+    setTimeout(() => {
+      setMessage("");
+      setMessageType("");
+    }, 3000);
+  };
 
   useEffect(() => {
+    console.log("Component mounted/updated with userId:", userId);
     fetchDependents();
   }, [userId]);
 
@@ -26,8 +59,20 @@ export default function Dependents({ userId }) {
       const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
       const token = localStorage.getItem("authToken");
 
-      if (!token) return;
+      if (!token) {
+        console.log("No auth token found");
+        return;
+      }
 
+      // Decode token to see user info
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        console.log("Token contains user:", payload);
+      } catch (e) {
+        console.log("Cannot decode token");
+      }
+
+      console.log("Fetching dependents from API...");
       const res = await fetch(`${apiBase}/api/dependents/my`, {
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -36,8 +81,13 @@ export default function Dependents({ userId }) {
       });
 
       const data = await res.json();
+      console.log("Fetch dependents response:", data);
+      
       if (res.ok) {
+        console.log("Setting dependents:", data.dependents || []);
         setDependents(data.dependents || []);
+      } else {
+        console.error("Failed to fetch dependents:", data);
       }
     } catch (error) {
       console.error("Error fetching dependents:", error);
@@ -46,24 +96,291 @@ export default function Dependents({ userId }) {
     }
   };
 
+  // Validation functions
+  const validateFullName = (value) => {
+    if (!value || value.trim() === "") {
+      return "Full Name is required";
+    }
+    // Check for numbers
+    if (/\d/.test(value)) {
+      return "Full Name cannot contain numbers";
+    }
+    // Check for special characters (allow spaces, hyphens, apostrophes, and all Vietnamese characters)
+    // Only block: numbers, and special characters except spaces, hyphens, apostrophes
+    if (/[0-9!@#$%^&*()_+=\[\]{};:"\\|,.<>\/?~`]/.test(value)) {
+      return "Full Name cannot contain numbers or special characters";
+    }
+    return "";
+  };
+
+  const validatePhoneNumber = (value) => {
+    if (!value || value.trim() === "") {
+      return "Phone Number is required";
+    }
+    // Only allow numbers
+    if (!/^\d+$/.test(value)) {
+      return "Phone Number must contain only numbers";
+    }
+    // Maximum 10 digits
+    if (value.length > 10) {
+      return "Phone Number must be maximum 10 digits";
+    }
+    return "";
+  };
+
+  const validateEmail = (value) => {
+    if (!value || value.trim() === "") {
+      return "Email is required";
+    }
+    // Must end with @gmail.com
+    if (!value.toLowerCase().endsWith("@gmail.com")) {
+      return "Email must end with @gmail.com";
+    }
+    return "";
+  };
+
+  const validateDateOfBirth = (value) => {
+    if (!value) {
+      return "";
+    }
+    const selectedDate = new Date(value);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
+    
+    if (selectedDate > today) {
+      return "Date of Birth cannot be in the future";
+    }
+    return "";
+  };
+
+  const validateIdNumber = (value) => {
+    if (!value || value.trim() === "") {
+      return "ID Number is required";
+    }
+    // Must be exactly 12 digits
+    if (!/^\d{12}$/.test(value)) {
+      return "ID Number must be exactly 12 digits";
+    }
+    return "";
+  };
+
+  // Capitalize first letter of each word while preserving Vietnamese accents
+  // Only capitalize if the first letter is lowercase, preserve accents
+  const capitalizeWords = (str) => {
+    return str
+      .split(" ")
+      .map(word => {
+        if (!word) return word;
+        const firstChar = word.charAt(0);
+        const rest = word.slice(1);
+        // Only capitalize if first char is lowercase letter (a-z), preserve Vietnamese accents
+        if (firstChar >= 'a' && firstChar <= 'z') {
+          return firstChar.toUpperCase() + rest;
+        }
+        // If already uppercase or has accent, keep as is
+        return word;
+      })
+      .join(" ");
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    let processedValue = value;
+    let error = "";
+
+    // Process and validate based on field name
+    if (name === "fullName") {
+      // Remove only numbers and special characters (keep all letters including Vietnamese with accents)
+      // Allow: all Unicode letters, spaces, hyphens, apostrophes
+      // Block: numbers and special characters like !@#$%^&*() etc.
+      processedValue = value.replace(/[0-9!@#$%^&*()_+=\[\]{};:"\\|,.<>\/?~`]/g, "");
+      // Don't capitalize while typing, only on blur (and only if needed)
+      error = validateFullName(processedValue);
+    } else if (name === "phoneNumber") {
+      // Only allow numbers
+      processedValue = value.replace(/\D/g, "");
+      // Limit to 10 digits
+      if (processedValue.length > 10) {
+        processedValue = processedValue.substring(0, 10);
+      }
+      error = validatePhoneNumber(processedValue);
+    } else if (name === "email") {
+      error = validateEmail(value);
+    } else if (name === "dateOfBirth") {
+      error = validateDateOfBirth(value);
+    } else if (name === "idNumber") {
+      processedValue = value.replace(/\D/g, "");
+      if (processedValue.length > 12) {
+        processedValue = processedValue.substring(0, 12);
+      }
+      error = validateIdNumber(processedValue);
+    }
+
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: processedValue
     }));
+
+    // Update errors
+    setErrors(prev => ({
+      ...prev,
+      [name]: error
+    }));
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    let error = "";
+
+    if (name === "fullName") {
+      // Only capitalize if first letter of each word is lowercase (a-z), preserve Vietnamese accents
+      // This way "nguyễn" becomes "Nguyễn" but "Nguyễn" stays "Nguyễn"
+      const capitalized = capitalizeWords(value);
+      if (capitalized !== value) {
+        setFormData(prev => ({
+          ...prev,
+          [name]: capitalized
+        }));
+        error = validateFullName(capitalized);
+      } else {
+        error = validateFullName(value);
+      }
+    } else if (name === "phoneNumber") {
+      error = validatePhoneNumber(value);
+    } else if (name === "email") {
+      error = validateEmail(value);
+    } else if (name === "dateOfBirth") {
+      error = validateDateOfBirth(value);
+    } else if (name === "idNumber") {
+      error = validateIdNumber(value);
+    }
+
+    setErrors(prev => ({
+      ...prev,
+      [name]: error
+    }));
+  };
+
+  const handleDependentDocsChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    setFileUploadError("");
+
+    if (files.length === 0) {
+      setUploadedFiles([]);
+      return;
+    }
+
+    if (files.length > 10) {
+      setUploadedFiles([]);
+      setFileUploadError("You can upload up to 10 PDF files.");
+      return;
+    }
+
+    const invalid = files.find((f) => f.type !== "application/pdf" || !f.name.toLowerCase().endsWith(".pdf"));
+    if (invalid) {
+      setUploadedFiles([]);
+      setFileUploadError("Only PDF files are allowed.");
+      return;
+    }
+
+    const tooLarge = files.find((f) => f.size > 10 * 1024 * 1024);
+    if (tooLarge) {
+      setUploadedFiles([]);
+      setFileUploadError("Each file must not exceed 10MB.");
+      return;
+    }
+
+    setUploadedFiles(files);
+  };
+
+  const uploadDependentDocs = async (dependentId, token, apiBase) => {
+    if (!uploadedFiles || uploadedFiles.length === 0) return true;
+
+    const fd = new FormData();
+    uploadedFiles.forEach((f) => fd.append("documents", f));
+
+    setUploadingDocs(true);
+    try {
+      const res = await fetch(`${apiBase}/api/dependents/${dependentId}/documents`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: fd
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showMessage(`Upload failed: ${data.message || "Unable to upload documents"}`, "error");
+        return false;
+      }
+      return true;
+    } catch (err) {
+      showMessage(`Upload error: ${err.message}`, "error");
+      return false;
+    } finally {
+      setUploadingDocs(false);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate all fields
+    const fullNameError = validateFullName(formData.fullName);
+    const phoneNumberError = validatePhoneNumber(formData.phoneNumber);
+    const emailError = validateEmail(formData.email);
+    const dateOfBirthError = validateDateOfBirth(formData.dateOfBirth);
+    const idNumberError = validateIdNumber(formData.idNumber);
+
+    setErrors({
+      fullName: fullNameError,
+      phoneNumber: phoneNumberError,
+      email: emailError,
+      dateOfBirth: dateOfBirthError,
+      idNumber: idNumberError
+    });
+
+    // If there are validation errors, don't submit
+    if (fullNameError || phoneNumberError || emailError || dateOfBirthError || idNumberError) {
+      showMessage("Please fix the validation errors before submitting.", "error");
+      return;
+    }
+
+    // For new dependent, require at least one PDF document
+    if (!editingId && (!uploadedFiles || uploadedFiles.length === 0)) {
+      showMessage("Please upload at least one PDF document for this dependent.", "error");
+      return;
+    }
+    if (fileUploadError) {
+      showMessage(fileUploadError, "error");
+      return;
+    }
+
     try {
       const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
       const token = localStorage.getItem("authToken");
 
+      if (!token) {
+        showMessage("Authentication required. Please login again.", "error");
+        return;
+      }
+
+      // Extract user ID from token
+      let userIdFromToken = userId;
+      try {
+        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+        // Use the 'id' field from token if available, otherwise use userId prop
+        userIdFromToken = tokenPayload.id || tokenPayload.userId || userId;
+        console.log("Using userId from token:", userIdFromToken, "Token payload:", tokenPayload);
+      } catch (e) {
+        console.log("Cannot decode token, using prop userId:", userId);
+      }
+
+      // Send userId from token in the request
       const payload = {
-        userId,
+        userId: userIdFromToken,
         ...formData
       };
+
+      console.log("Submitting dependent data:", payload);
 
       const url = editingId 
         ? `${apiBase}/api/dependents/${editingId}`
@@ -80,22 +397,48 @@ export default function Dependents({ userId }) {
         body: JSON.stringify(payload)
       });
 
+      const responseData = await res.json();
+      console.log("API Response:", responseData);
+
       if (res.ok) {
+        const depId = responseData?.dependent?.id || responseData?.dependentId || editingId;
+        if (depId) {
+          const uploadedOk = await uploadDependentDocs(depId, token, apiBase);
+          if (!uploadedOk) return;
+        }
+
+        showMessage(editingId ? "Dependent updated successfully!" : "Dependent added successfully!", "success");
         await fetchDependents();
-        setShowForm(false);
-        setEditingId(null);
-        setFormData({
-          fullName: "",
-          relationship: "spouse",
-          dateOfBirth: "",
-          gender: "male",
-          idNumber: "",
-          address: "",
-          phoneNumber: "",
-          email: ""
-        });
+        setTimeout(() => {
+          setShowForm(false);
+          setEditingId(null);
+          setFormData({
+            fullName: "",
+            relationship: "spouse",
+            dateOfBirth: "",
+            gender: "male",
+            idNumber: "",
+            address: "",
+            phoneNumber: "",
+            email: ""
+          });
+          setErrors({
+            fullName: "",
+            phoneNumber: "",
+            email: "",
+            dateOfBirth: "",
+            idNumber: ""
+          });
+          setUploadedFiles([]);
+          setFileUploadError("");
+        }, 2000);
+      } else {
+        const errorMsg = responseData.message || responseData.error || "Failed to save dependent";
+        showMessage(`Error: ${errorMsg}`, "error");
+        console.error("API Error:", responseData);
       }
     } catch (error) {
+      showMessage("Network error: " + error.message, "error");
       console.error("Error saving dependent:", error);
     }
   };
@@ -112,17 +455,17 @@ export default function Dependents({ userId }) {
       phoneNumber: dep.phoneNumber || "",
       email: dep.email || ""
     });
+    setUploadedFiles([]);
+    setFileUploadError("");
     setShowForm(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Xóa người phụ thuộc này?")) return;
-
+  const handleDelete = async () => {
     try {
       const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
       const token = localStorage.getItem("authToken");
 
-      const res = await fetch(`${apiBase}/api/dependents/${id}`, {
+      const res = await fetch(`${apiBase}/api/dependents/${deleteId}`, {
         method: "DELETE",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -130,203 +473,1415 @@ export default function Dependents({ userId }) {
       });
 
       if (res.ok) {
+        showMessage("Dependent deleted successfully!", "success");
         await fetchDependents();
+      } else {
+        showMessage("Failed to delete dependent", "error");
       }
     } catch (error) {
+      showMessage("Error: " + error.message, "error");
       console.error("Error deleting dependent:", error);
+    } finally {
+      setShowDeleteConfirm(false);
+      setDeleteId(null);
     }
   };
 
-  const getRelationshipDisplay = (rel) => {
+  const getRelationshipLabel = (rel) => {
     const translations = {
-      "spouse": "Vợ/Chồng",
-      "child": "Con",
-      "parent": "Bố mẹ",
-      "grandparent": "Ông bà",
-      "sibling": "Anh chị em",
-      "other": "Khác"
+      "spouse": "Spouse",
+      "child": "Child",
+      "parent": "Parent",
+      "grandparent": "Grandparent",
+      "sibling": "Sibling",
+      "other": "Other"
     };
     return translations[rel] || rel;
   };
 
+  const getGenderLabel = (gender) => {
+    const labels = {
+      "male": "Male",
+      "female": "Female",
+      "other": "Other"
+    };
+    return labels[gender] || gender;
+  };
+
+  const stats = {
+    total: dependents.length,
+    spouse: dependents.filter(d => d.relationship === 'spouse').length,
+    children: dependents.filter(d => d.relationship === 'child').length,
+    others: dependents.filter(d => !['spouse', 'child'].includes(d.relationship)).length
+  };
+
   return (
-    <div style={{ padding: "20px", backgroundColor: "#f9f9f9", borderRadius: "8px" }}>
-      <h3>👨‍👩‍👧‍👦 Người phụ thuộc</h3>
-
-      {!showForm && (
-        <button
-          onClick={() => setShowForm(true)}
-          style={{
-            padding: "8px 16px",
-            backgroundColor: "#4CAF50",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            marginBottom: "15px"
-          }}
-        >
-          + Thêm người phụ thuộc
-        </button>
-      )}
-
-      {showForm && (
-        <form onSubmit={handleSubmit} style={{ backgroundColor: "white", padding: "15px", borderRadius: "8px", marginBottom: "15px" }}>
-          <div style={{ marginBottom: "10px" }}>
-            <label>Họ tên: </label>
-            <input
-              type="text"
-              name="fullName"
-              value={formData.fullName}
-              onChange={handleInputChange}
-              required
-              style={{ width: "100%", padding: "8px" }}
-            />
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
-            <div>
-              <label>Quan hệ: </label>
-              <select name="relationship" value={formData.relationship} onChange={handleInputChange} required>
-                <option value="spouse">Vợ/Chồng</option>
-                <option value="child">Con</option>
-                <option value="parent">Bố mẹ</option>
-                <option value="grandparent">Ông bà</option>
-                <option value="sibling">Anh chị em</option>
-                <option value="other">Khác</option>
-              </select>
-            </div>
-            <div>
-              <label>Giới tính: </label>
-              <select name="gender" value={formData.gender} onChange={handleInputChange}>
-                <option value="male">Nam</option>
-                <option value="female">Nữ</option>
-                <option value="other">Khác</option>
-              </select>
-            </div>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
-            <div>
-              <label>Ngày sinh: </label>
-              <input
-                type="date"
-                name="dateOfBirth"
-                value={formData.dateOfBirth}
-                onChange={handleInputChange}
-                style={{ width: "100%", padding: "8px" }}
-              />
-            </div>
-            <div>
-              <label>Số CMND/CCCD: </label>
-              <input
-                type="text"
-                name="idNumber"
-                value={formData.idNumber}
-                onChange={handleInputChange}
-                style={{ width: "100%", padding: "8px" }}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: "10px" }}>
-            <label>Địa chỉ: </label>
-            <input
-              type="text"
-              name="address"
-              value={formData.address}
-              onChange={handleInputChange}
-              style={{ width: "100%", padding: "8px" }}
-            />
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "15px" }}>
-            <div>
-              <label>Số điện thoại: </label>
-              <input
-                type="tel"
-                name="phoneNumber"
-                value={formData.phoneNumber}
-                onChange={handleInputChange}
-                style={{ width: "100%", padding: "8px" }}
-              />
-            </div>
-            <div>
-              <label>Email: </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                style={{ width: "100%", padding: "8px" }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <button type="submit" style={{ padding: "8px 16px", backgroundColor: "#2196F3", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>
-              {editingId ? "Cập nhật" : "Thêm"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowForm(false);
-                setEditingId(null);
-                setFormData({ fullName: "", relationship: "spouse", dateOfBirth: "", gender: "male", idNumber: "", address: "", phoneNumber: "", email: "" });
-              }}
-              style={{ padding: "8px 16px", backgroundColor: "#666", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", marginLeft: "10px" }}
-            >
-              Hủy
-            </button>
-          </div>
-        </form>
-      )}
-
-      {loading ? (
-        <p>Đang tải...</p>
-      ) : (
+    <div style={{ padding: "32px", backgroundColor: "#f8f9fa", minHeight: "100vh" }}>
+      {/* Header Section */}
+      <div style={{ 
+        display: "flex", 
+        justifyContent: "space-between", 
+        alignItems: "center", 
+        marginBottom: "32px" 
+      }}>
         <div>
-          {dependents.length === 0 ? (
-            <p style={{ color: "#666" }}>Chưa có người phụ thuộc</p>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <h2 style={{ 
+            fontSize: "28px", 
+            fontWeight: "700", 
+            color: "#1a1a1a", 
+            marginBottom: "8px" 
+          }}>
+            Dependents
+          </h2>
+          <p style={{ 
+            fontSize: "14px", 
+            color: "#6c757d", 
+            margin: 0 
+          }}>
+            Manage your family dependents information
+          </p>
+        </div>
+        
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            style={{
+              padding: "12px 24px",
+              backgroundColor: "#2196F3",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontSize: "14px",
+              fontWeight: "600",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              boxShadow: "0 2px 8px rgba(33, 150, 243, 0.3)",
+              transition: "all 0.3s ease"
+            }}
+            onMouseOver={(e) => {
+              e.target.style.backgroundColor = "#1976D2";
+              e.target.style.transform = "translateY(-2px)";
+              e.target.style.boxShadow = "0 4px 12px rgba(33, 150, 243, 0.4)";
+            }}
+            onMouseOut={(e) => {
+              e.target.style.backgroundColor = "#2196F3";
+              e.target.style.transform = "translateY(0)";
+              e.target.style.boxShadow = "0 2px 8px rgba(33, 150, 243, 0.3)";
+            }}
+          >
+            <span style={{ fontSize: "18px" }}>+</span>
+            ADD DEPENDENT
+          </button>
+        )}
+      </div>
+
+      {/* Statistics Cards */}
+      <div style={{ 
+        display: "grid", 
+        gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", 
+        gap: "24px", 
+        marginBottom: "32px" 
+      }}>
+        {/* Total Dependents */}
+        <div style={{
+          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          borderRadius: "16px",
+          padding: "28px 24px",
+          color: "white",
+          boxShadow: "0 4px 15px rgba(102, 126, 234, 0.3)",
+          transition: "all 0.3s ease",
+          cursor: "pointer"
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "0 8px 25px rgba(102, 126, 234, 0.4)";
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 4px 15px rgba(102, 126, 234, 0.3)";
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ 
+                fontSize: "11px", 
+                fontWeight: "600", 
+                letterSpacing: "0.8px", 
+                opacity: 0.9, 
+                marginBottom: "12px",
+                textTransform: "uppercase"
+              }}>
+                Total Dependents
+              </div>
+              <div style={{ fontSize: "36px", fontWeight: "700", marginBottom: "4px" }}>
+                {stats.total}
+              </div>
+              <div style={{ fontSize: "13px", opacity: 0.85 }}>
+                All family members
+              </div>
+            </div>
+            <div style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "12px",
+              background: "rgba(255,255,255,0.2)",
+              backdropFilter: "blur(10px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Spouse */}
+        <div style={{
+          background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+          borderRadius: "16px",
+          padding: "28px 24px",
+          color: "white",
+          boxShadow: "0 4px 15px rgba(240, 147, 251, 0.3)",
+          transition: "all 0.3s ease",
+          cursor: "pointer"
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "0 8px 25px rgba(240, 147, 251, 0.4)";
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 4px 15px rgba(240, 147, 251, 0.3)";
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ 
+                fontSize: "11px", 
+                fontWeight: "600", 
+                letterSpacing: "0.8px", 
+                opacity: 0.9, 
+                marginBottom: "12px",
+                textTransform: "uppercase"
+              }}>
+                Spouse
+              </div>
+              <div style={{ fontSize: "36px", fontWeight: "700", marginBottom: "4px" }}>
+                {stats.spouse}
+              </div>
+              <div style={{ fontSize: "13px", opacity: 0.85 }}>
+                Husband/Wife
+              </div>
+            </div>
+            <div style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "12px",
+              background: "rgba(255,255,255,0.2)",
+              backdropFilter: "blur(10px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Children */}
+        <div style={{
+          background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+          borderRadius: "16px",
+          padding: "28px 24px",
+          color: "white",
+          boxShadow: "0 4px 15px rgba(79, 172, 254, 0.3)",
+          transition: "all 0.3s ease",
+          cursor: "pointer"
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "0 8px 25px rgba(79, 172, 254, 0.4)";
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 4px 15px rgba(79, 172, 254, 0.3)";
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ 
+                fontSize: "11px", 
+                fontWeight: "600", 
+                letterSpacing: "0.8px", 
+                opacity: 0.9, 
+                marginBottom: "12px",
+                textTransform: "uppercase"
+              }}>
+                Children
+              </div>
+              <div style={{ fontSize: "36px", fontWeight: "700", marginBottom: "4px" }}>
+                {stats.children}
+              </div>
+              <div style={{ fontSize: "13px", opacity: 0.85 }}>
+                Sons and daughters
+              </div>
+            </div>
+            <div style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "12px",
+              background: "rgba(255,255,255,0.2)",
+              backdropFilter: "blur(10px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="8" r="5"></circle>
+                <path d="M3 21v-2a7 7 0 0 1 7-7"></path>
+                <path d="M16 11l2 2 4-4"></path>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Others */}
+        <div style={{
+          background: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+          borderRadius: "16px",
+          padding: "28px 24px",
+          color: "white",
+          boxShadow: "0 4px 15px rgba(250, 112, 154, 0.3)",
+          transition: "all 0.3s ease",
+          cursor: "pointer"
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "0 8px 25px rgba(250, 112, 154, 0.4)";
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 4px 15px rgba(250, 112, 154, 0.3)";
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ 
+                fontSize: "11px", 
+                fontWeight: "600", 
+                letterSpacing: "0.8px", 
+                opacity: 0.9, 
+                marginBottom: "12px",
+                textTransform: "uppercase"
+              }}>
+                Others
+              </div>
+              <div style={{ fontSize: "36px", fontWeight: "700", marginBottom: "4px" }}>
+                {stats.others}
+              </div>
+              <div style={{ fontSize: "13px", opacity: 0.85 }}>
+                Parents & siblings
+              </div>
+            </div>
+            <div style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "12px",
+              background: "rgba(255,255,255,0.2)",
+              backdropFilter: "blur(10px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Form Modal */}
+      {showForm && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.6)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1000,
+          padding: "20px",
+          backdropFilter: "blur(4px)"
+        }}>
+          <div style={{
+            backgroundColor: "white",
+            borderRadius: "16px",
+            maxWidth: "700px",
+            width: "100%",
+            maxHeight: "90vh",
+            overflowY: "auto",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            display: "flex",
+            flexDirection: "column"
+          }}>
+            {/* Header */}
+            <div style={{
+              background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
+              padding: "24px 32px",
+              borderTopLeftRadius: "16px",
+              borderTopRightRadius: "16px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}>
+              <h3 style={{ 
+                fontSize: "22px", 
+                fontWeight: "700", 
+                color: "#fff",
+                margin: 0
+              }}>
+                {editingId ? "✏️ Edit Dependent" : "➕ Add New Dependent"}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingId(null);
+                  setFormData({ 
+                    fullName: "", 
+                    relationship: "spouse", 
+                    dateOfBirth: "", 
+                    gender: "male", 
+                    idNumber: "", 
+                    address: "", 
+                    phoneNumber: "", 
+                    email: "" 
+                  });
+                  setMessage("");
+                  setErrors({
+                    fullName: "",
+                    phoneNumber: "",
+                    email: ""
+                  });
+                }}
+                style={{
+                  background: "rgba(255, 255, 255, 0.2)",
+                  border: "none",
+                  borderRadius: "8px",
+                  width: "36px",
+                  height: "36px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontSize: "20px",
+                  fontWeight: "600",
+                  transition: "all 0.3s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = "rgba(255, 255, 255, 0.3)";
+                  e.target.style.transform = "rotate(90deg)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = "rgba(255, 255, 255, 0.2)";
+                  e.target.style.transform = "rotate(0deg)";
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Form Content */}
+            <div style={{ padding: "32px" }}>
+
+            <form onSubmit={handleSubmit}>
+              {/* Full Name */}
+              <div style={{ marginBottom: "24px" }}>
+                <label style={{ 
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "14px", 
+                  fontWeight: "600", 
+                  color: "#333", 
+                  marginBottom: "10px"
+                }}>
+                  <span>👤</span>
+                  <span>Full Name</span>
+                  <span style={{ color: "#dc3545" }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  name="fullName"
+                  value={formData.fullName}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="Enter full name"
+                  style={{
+                    width: "100%",
+                    padding: "14px 16px",
+                    border: `2px solid ${errors.fullName ? "#dc3545" : "#e0e0e0"}`,
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    backgroundColor: "#f8f9fa"
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = errors.fullName ? "#dc3545" : "#A2B9ED";
+                    e.target.style.backgroundColor = "white";
+                    e.target.style.boxShadow = `0 0 0 3px ${errors.fullName ? "rgba(220, 53, 69, 0.1)" : "rgba(162, 185, 237, 0.1)"}`;
+                  }}
+                  onBlur={(e) => {
+                    handleBlur(e);
+                    e.target.style.borderColor = errors.fullName ? "#dc3545" : "#e0e0e0";
+                    e.target.style.backgroundColor = "#f8f9fa";
+                    e.target.style.boxShadow = "none";
+                  }}
+                />
+                {errors.fullName && (
+                  <div style={{
+                    marginTop: "6px",
+                    fontSize: "12px",
+                    color: "#dc3545",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}>
+                    <span>⚠️</span>
+                    <span>{errors.fullName}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Relationship & Gender */}
+              <div style={{ 
+                display: "grid", 
+                gridTemplateColumns: "1fr 1fr", 
+                gap: "20px", 
+                marginBottom: "24px" 
+              }}>
+                <div>
+                  <label style={{ 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
+                    fontWeight: "600", 
+                    color: "#333", 
+                    marginBottom: "10px"
+                  }}>
+                    <span>👨‍👩‍👧‍👦</span>
+                    <span>Relationship</span>
+                    <span style={{ color: "#dc3545" }}>*</span>
+                  </label>
+                  <select 
+                    name="relationship" 
+                    value={formData.relationship} 
+                    onChange={handleInputChange} 
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      backgroundColor: "#f8f9fa",
+                      color: "#333",
+                      cursor: "pointer"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value="spouse">💑 Spouse</option>
+                    <option value="child">👶 Child</option>
+                    <option value="parent">👨‍👩‍👦 Parent</option>
+                    <option value="grandparent">👴👵 Grandparent</option>
+                    <option value="sibling">👫 Sibling</option>
+                    <option value="other">👤 Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
+                    fontWeight: "600", 
+                    color: "#333", 
+                    marginBottom: "10px"
+                  }}>
+                    <span>⚧️</span>
+                    <span>Gender</span>
+                  </label>
+                  <select 
+                    name="gender" 
+                    value={formData.gender} 
+                    onChange={handleInputChange}
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      backgroundColor: "#f8f9fa",
+                      color: "#333",
+                      cursor: "pointer"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value="male">👨 Male</option>
+                    <option value="female">👩 Female</option>
+                    <option value="other">⚧️ Other</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Date of Birth & ID Number */}
+              <div style={{ 
+                display: "grid", 
+                gridTemplateColumns: "1fr 1fr", 
+                gap: "20px", 
+                marginBottom: "24px" 
+              }}>
+                <div>
+                  <label style={{ 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
+                    fontWeight: "600", 
+                    color: "#333", 
+                    marginBottom: "10px"
+                  }}>
+                    <span>📅</span>
+                    <span>Date of Birth</span>
+                  </label>
+                  <input
+                    type="date"
+                    name="dateOfBirth"
+                    value={formData.dateOfBirth}
+                    onChange={handleInputChange}
+                    max={today}
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      border: `2px solid ${errors.dateOfBirth ? "#dc3545" : "#e0e0e0"}`,
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      backgroundColor: "#f8f9fa"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = errors.dateOfBirth ? "#dc3545" : "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = `0 0 0 3px ${errors.dateOfBirth ? "rgba(220, 53, 69, 0.1)" : "rgba(162, 185, 237, 0.1)"}`;
+                    }}
+                    onBlur={(e) => {
+                      handleBlur(e);
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
+                  />
+                  {errors.dateOfBirth && (
+                    <div style={{
+                      marginTop: "6px",
+                      fontSize: "12px",
+                      color: "#dc3545",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}>
+                      <span>⚠️</span>
+                      <span>{errors.dateOfBirth}</span>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label style={{ 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
+                    fontWeight: "600", 
+                    color: "#333", 
+                    marginBottom: "10px"
+                  }}>
+                    <span>🆔</span>
+                    <span>ID Number</span>
+                    <span style={{ color: "#dc3545" }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="idNumber"
+                    value={formData.idNumber}
+                    onChange={handleInputChange}
+                    onBlur={handleBlur}
+                    required
+                    inputMode="numeric"
+                    pattern="\\d{12}"
+                    maxLength={12}
+                    placeholder="ID/Passport number"
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      border: `2px solid ${errors.idNumber ? "#dc3545" : "#e0e0e0"}`,
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      backgroundColor: "#f8f9fa"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = errors.idNumber ? "#dc3545" : "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = `0 0 0 3px ${errors.idNumber ? "rgba(220, 53, 69, 0.1)" : "rgba(162, 185, 237, 0.1)"}`;
+                    }}
+                    onBlur={(e) => {
+                      handleBlur(e);
+                      e.target.style.borderColor = errors.idNumber ? "#dc3545" : "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
+                  />
+                  {errors.idNumber && (
+                    <div style={{
+                      marginTop: "6px",
+                      fontSize: "12px",
+                      color: "#dc3545",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}>
+                      <span>⚠️</span>
+                      <span>{errors.idNumber}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Dependent Documents Upload */}
+              <div style={{
+                marginBottom: "24px",
+                padding: "20px",
+                background: "linear-gradient(135deg, rgba(255, 193, 7, 0.12) 0%, rgba(255, 193, 7, 0.06) 100%)",
+                borderRadius: "12px",
+                border: "2px solid #ffc107"
+              }}>
+                <label style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontWeight: "600",
+                  marginBottom: "10px",
+                  color: "#856404",
+                  fontSize: "15px"
+                }}>
+                  <span>📄</span>
+                  <span>Dependent Documents (PDF)</span>
+                  {!editingId && <span style={{ color: "#dc3545" }}>*</span>}
+                </label>
+                <div style={{
+                  fontSize: "12px",
+                  color: "#856404",
+                  marginBottom: "12px",
+                  lineHeight: "1.5"
+                }}>
+                  Upload supporting documents for your dependent (PDF only, up to 10 files, max 10MB each).
+                </div>
+
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  multiple
+                  onChange={handleDependentDocsChange}
+                  style={{ marginBottom: "10px" }}
+                />
+
+                {fileUploadError && (
+                  <div style={{
+                    marginTop: "6px",
+                    fontSize: "12px",
+                    color: "#dc3545",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}>
+                    <span>⚠️</span>
+                    <span>{fileUploadError}</span>
+                  </div>
+                )}
+
+                {uploadedFiles?.length > 0 && (
+                  <div style={{
+                    marginTop: "10px",
+                    padding: "10px 12px",
+                    backgroundColor: "#fff",
+                    borderRadius: "10px",
+                    border: "1px solid #ffe08a"
+                  }}>
+                    <div style={{ fontSize: "12px", fontWeight: "700", color: "#856404", marginBottom: "6px" }}>
+                      Selected files
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "#495057" }}>
+                      {uploadedFiles.map((f, idx) => (
+                        <li key={idx}>
+                          {f.name} ({(f.size / 1024 / 1024).toFixed(2)} MB)
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      type="button"
+                      onClick={() => setUploadedFiles([])}
+                      style={{
+                        marginTop: "10px",
+                        padding: "6px 12px",
+                        backgroundColor: "#dc3545",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "8px",
+                        cursor: "pointer",
+                        fontSize: "12px",
+                        fontWeight: "600"
+                      }}
+                    >
+                      Remove selected
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Address */}
+              <div style={{ marginBottom: "24px" }}>
+                <label style={{ 
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "14px", 
+                  fontWeight: "600", 
+                  color: "#333", 
+                  marginBottom: "10px"
+                }}>
+                  <span>📍</span>
+                  <span>Address</span>
+                </label>
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  placeholder="Home address"
+                  style={{
+                    width: "100%",
+                    padding: "14px 16px",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    backgroundColor: "#f8f9fa"
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "#A2B9ED";
+                    e.target.style.backgroundColor = "white";
+                    e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "#e0e0e0";
+                    e.target.style.backgroundColor = "#f8f9fa";
+                    e.target.style.boxShadow = "none";
+                  }}
+                />
+              </div>
+
+              {/* Phone & Email */}
+              <div style={{ 
+                display: "grid", 
+                gridTemplateColumns: "1fr 1fr", 
+                gap: "20px", 
+                marginBottom: "24px" 
+              }}>
+                <div>
+                  <label style={{ 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
+                    fontWeight: "600", 
+                    color: "#333", 
+                    marginBottom: "10px"
+                  }}>
+                    <span>📞</span>
+                    <span>Phone Number</span>
+                  </label>
+                  <input
+                    type="tel"
+                    name="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="Enter phone number (max 10 digits)"
+                    maxLength={10}
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      border: `2px solid ${errors.phoneNumber ? "#dc3545" : "#e0e0e0"}`,
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      backgroundColor: "#f8f9fa"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = errors.phoneNumber ? "#dc3545" : "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = `0 0 0 3px ${errors.phoneNumber ? "rgba(220, 53, 69, 0.1)" : "rgba(162, 185, 237, 0.1)"}`;
+                    }}
+                    onBlur={(e) => {
+                      handleBlur(e);
+                      e.target.style.borderColor = errors.phoneNumber ? "#dc3545" : "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
+                  />
+                  {errors.phoneNumber && (
+                    <div style={{
+                      marginTop: "6px",
+                      fontSize: "12px",
+                      color: "#dc3545",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}>
+                      <span>⚠️</span>
+                      <span>{errors.phoneNumber}</span>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label style={{ 
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "14px", 
+                    fontWeight: "600", 
+                    color: "#333", 
+                    marginBottom: "10px"
+                  }}>
+                    <span>📧</span>
+                    <span>Email</span>
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="example@gmail.com"
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      border: `2px solid ${errors.email ? "#dc3545" : "#e0e0e0"}`,
+                      borderRadius: "10px",
+                      fontSize: "15px",
+                      transition: "all 0.3s ease",
+                      backgroundColor: "#f8f9fa"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = errors.email ? "#dc3545" : "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = `0 0 0 3px ${errors.email ? "rgba(220, 53, 69, 0.1)" : "rgba(162, 185, 237, 0.1)"}`;
+                    }}
+                    onBlur={(e) => {
+                      handleBlur(e);
+                      e.target.style.borderColor = errors.email ? "#dc3545" : "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
+                    }}
+                  />
+                  {errors.email && (
+                    <div style={{
+                      marginTop: "6px",
+                      fontSize: "12px",
+                      color: "#dc3545",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}>
+                      <span>⚠️</span>
+                      <span>{errors.email}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Message */}
+              {message && (
+                <div style={{
+                  padding: "12px 16px",
+                  marginBottom: "20px",
+                  backgroundColor: messageType === "success" ? "#d4edda" : "#f8d7da",
+                  color: messageType === "success" ? "#155724" : "#721c24",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                  border: `2px solid ${messageType === "success" ? "#28a745" : "#dc3545"}`
+                }}>
+                  {message}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div style={{ 
+                display: "flex", 
+                gap: "16px", 
+                justifyContent: "flex-end",
+                paddingTop: "8px",
+                borderTop: "1px solid #e0e0e0",
+                marginTop: "8px"
+              }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForm(false);
+                    setEditingId(null);
+                    setFormData({ 
+                      fullName: "", 
+                      relationship: "spouse", 
+                      dateOfBirth: "", 
+                      gender: "male", 
+                      idNumber: "", 
+                      address: "", 
+                      phoneNumber: "", 
+                      email: "" 
+                    });
+                    setMessage("");
+                    setErrors({
+                      fullName: "",
+                      phoneNumber: "",
+                      email: ""
+                    });
+                  }}
+                  style={{ 
+                    padding: "14px 28px", 
+                    backgroundColor: "#6c757d", 
+                    color: "white", 
+                    border: "none", 
+                    borderRadius: "10px", 
+                    cursor: "pointer",
+                    fontSize: "15px",
+                    fontWeight: "600",
+                    transition: "all 0.3s ease",
+                    boxShadow: "0 2px 8px rgba(108, 117, 125, 0.2)"
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.backgroundColor = "#5a6268";
+                    e.target.style.transform = "translateY(-2px)";
+                    e.target.style.boxShadow = "0 4px 12px rgba(108, 117, 125, 0.3)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.backgroundColor = "#6c757d";
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow = "0 2px 8px rgba(108, 117, 125, 0.2)";
+                  }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={uploadingDocs}
+                  style={{ 
+                    padding: "14px 28px", 
+                    background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
+                    color: "white", 
+                    border: "none", 
+                    borderRadius: "10px", 
+                    cursor: "pointer",
+                    fontSize: "15px",
+                    fontWeight: "600",
+                    transition: "all 0.3s ease",
+                    boxShadow: "0 4px 12px rgba(162, 185, 237, 0.3)"
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.background = "linear-gradient(135deg, #8BA3E0 0%, #7B93D0 100%)";
+                    e.target.style.transform = "translateY(-2px)";
+                    e.target.style.boxShadow = "0 6px 16px rgba(162, 185, 237, 0.4)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.background = "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)";
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow = "0 4px 12px rgba(162, 185, 237, 0.3)";
+                  }}
+                >
+                  {uploadingDocs ? "⏳ Uploading..." : (editingId ? "✏️ Update" : "✅ Add")}
+                </button>
+              </div>
+            </form>
+          </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dependents List */}
+      <div style={{
+        backgroundColor: "white",
+        borderRadius: "16px",
+        padding: "24px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+      }}>
+        <h3 style={{ 
+          fontSize: "18px", 
+          fontWeight: "700", 
+          marginBottom: "20px",
+          color: "#1a1a1a"
+        }}>
+          Dependents List
+        </h3>
+
+        {loading ? (
+          <div style={{ 
+            textAlign: "center", 
+            padding: "40px", 
+            color: "#6c757d" 
+          }}>
+            Loading...
+          </div>
+        ) : dependents.length === 0 ? (
+          <div style={{ 
+            textAlign: "center", 
+            padding: "40px", 
+            color: "#6c757d" 
+          }}>
+            No dependents added yet
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ 
+              width: "100%", 
+              borderCollapse: "separate",
+              borderSpacing: "0"
+            }}>
               <thead>
-                <tr style={{ backgroundColor: "#e0e0e0" }}>
-                  <th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Họ tên</th>
-                  <th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Quan hệ</th>
-                  <th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Ngày sinh</th>
-                  <th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Số điện thoại</th>
-                  <th style={{ padding: "10px", border: "1px solid #ddd", textAlign: "left" }}>Hành động</th>
+                <tr style={{ backgroundColor: "#f8f9fa" }}>
+                  <th style={{ 
+                    padding: "14px 16px", 
+                    textAlign: "left",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    color: "#495057",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #dee2e6",
+                    borderTopLeftRadius: "8px"
+                  }}>
+                    Full Name
+                  </th>
+                  <th style={{ 
+                    padding: "14px 16px", 
+                    textAlign: "left",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    color: "#495057",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #dee2e6"
+                  }}>
+                    Relationship
+                  </th>
+                  <th style={{ 
+                    padding: "14px 16px", 
+                    textAlign: "left",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    color: "#495057",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #dee2e6"
+                  }}>
+                    Date of Birth
+                  </th>
+                  <th style={{ 
+                    padding: "14px 16px", 
+                    textAlign: "left",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    color: "#495057",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #dee2e6"
+                  }}>
+                    Phone Number
+                  </th>
+                  <th style={{ 
+                    padding: "14px 16px", 
+                    textAlign: "center",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    color: "#495057",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #dee2e6",
+                    borderTopRightRadius: "8px"
+                  }}>
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {dependents.map(dep => (
-                  <tr key={dep.id} style={{ backgroundColor: dep.isDependent ? "white" : "#f5f5f5" }}>
-                    <td style={{ padding: "10px", border: "1px solid #ddd" }}>{dep.fullName}</td>
-                    <td style={{ padding: "10px", border: "1px solid #ddd" }}>{getRelationshipDisplay(dep.relationship)}</td>
-                    <td style={{ padding: "10px", border: "1px solid #ddd" }}>
-                      {dep.dateOfBirth ? new Date(dep.dateOfBirth).toLocaleDateString("vi-VN") : "-"}
+                  <tr 
+                    key={dep.id} 
+                    style={{ 
+                      backgroundColor: "white",
+                      transition: "all 0.2s ease"
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f8f9fa";
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = "white";
+                    }}
+                  >
+                    <td style={{ 
+                      padding: "16px", 
+                      borderBottom: "1px solid #e9ecef",
+                      fontSize: "14px",
+                      color: "#212529",
+                      fontWeight: "500"
+                    }}>
+                      {dep.fullName}
                     </td>
-                    <td style={{ padding: "10px", border: "1px solid #ddd" }}>{dep.phoneNumber || "-"}</td>
-                    <td style={{ padding: "10px", border: "1px solid #ddd" }}>
-                      <button
-                        onClick={() => handleEdit(dep)}
-                        style={{ padding: "4px 8px", backgroundColor: "#FFC107", color: "white", border: "none", borderRadius: "3px", cursor: "pointer", marginRight: "5px" }}
-                      >
-                        Sửa
-                      </button>
-                      <button
-                        onClick={() => handleDelete(dep.id)}
-                        style={{ padding: "4px 8px", backgroundColor: "#f44336", color: "white", border: "none", borderRadius: "3px", cursor: "pointer" }}
-                      >
-                        Xóa
-                      </button>
+                    <td style={{ 
+                      padding: "16px", 
+                      borderBottom: "1px solid #e9ecef",
+                      fontSize: "13px",
+                      color: "#495057",
+                      fontWeight: "600"
+                    }}>
+                      {getRelationshipLabel(dep.relationship)}
+                    </td>
+                    <td style={{ 
+                      padding: "16px", 
+                      borderBottom: "1px solid #e9ecef",
+                      fontSize: "13px",
+                      color: "#6c757d"
+                    }}>
+                      {dep.dateOfBirth ? new Date(dep.dateOfBirth).toLocaleDateString("en-US") : "-"}
+                    </td>
+                    <td style={{ 
+                      padding: "16px", 
+                      borderBottom: "1px solid #e9ecef",
+                      fontSize: "13px",
+                      color: "#6c757d"
+                    }}>
+                      {dep.phoneNumber || "-"}
+                    </td>
+                    <td style={{ 
+                      padding: "16px", 
+                      borderBottom: "1px solid #e9ecef",
+                      textAlign: "center"
+                    }}>
+                      <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                        <button
+                          onClick={() => handleEdit(dep)}
+                          style={{ 
+                            padding: "6px 14px", 
+                            backgroundColor: "#FFC107", 
+                            color: "white", 
+                            border: "none", 
+                            borderRadius: "6px", 
+                            cursor: "pointer",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            transition: "all 0.2s ease"
+                          }}
+                          onMouseOver={(e) => {
+                            e.target.style.backgroundColor = "#FFB300";
+                            e.target.style.transform = "translateY(-1px)";
+                          }}
+                          onMouseOut={(e) => {
+                            e.target.style.backgroundColor = "#FFC107";
+                            e.target.style.transform = "translateY(0)";
+                          }}
+                        >
+                          EDIT
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeleteId(dep.id);
+                            setShowDeleteConfirm(true);
+                          }}
+                          style={{ 
+                            padding: "6px 14px", 
+                            backgroundColor: "#dc3545", 
+                            color: "white", 
+                            border: "none", 
+                            borderRadius: "6px", 
+                            cursor: "pointer",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            transition: "all 0.2s ease"
+                          }}
+                          onMouseOver={(e) => {
+                            e.target.style.backgroundColor = "#c82333";
+                            e.target.style.transform = "translateY(-1px)";
+                          }}
+                          onMouseOut={(e) => {
+                            e.target.style.backgroundColor = "#dc3545";
+                            e.target.style.transform = "translateY(0)";
+                          }}
+                        >
+                          DELETE
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
+          </div>
+        )}
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.6)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1000,
+          backdropFilter: "blur(4px)"
+        }}>
+          <div style={{
+            backgroundColor: "white",
+            borderRadius: "16px",
+            padding: "32px",
+            maxWidth: "440px",
+            width: "90%",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            textAlign: "center"
+          }}>
+            <div style={{
+              width: "64px",
+              height: "64px",
+              borderRadius: "50%",
+              backgroundColor: "#fee",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 20px"
+            }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#dc3545" strokeWidth="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+            </div>
+
+            <h3 style={{ 
+              fontSize: "22px", 
+              fontWeight: "700", 
+              marginBottom: "12px",
+              color: "#1a1a1a"
+            }}>
+              Delete Dependent
+            </h3>
+            
+            <p style={{ 
+              fontSize: "14px", 
+              color: "#6c757d", 
+              marginBottom: "28px",
+              lineHeight: "1.6"
+            }}>
+              Are you sure you want to delete this dependent? This action cannot be undone.
+            </p>
+
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteId(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: "12px 24px",
+                  backgroundColor: "#f8f9fa",
+                  color: "#495057",
+                  border: "2px solid #dee2e6",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  transition: "all 0.2s ease"
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.backgroundColor = "#e9ecef";
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.backgroundColor = "#f8f9fa";
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                style={{
+                  flex: 1,
+                  padding: "12px 24px",
+                  backgroundColor: "#dc3545",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  transition: "all 0.2s ease"
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.backgroundColor = "#c82333";
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.backgroundColor = "#dc3545";
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

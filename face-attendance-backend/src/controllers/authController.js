@@ -1,6 +1,7 @@
 import User from "../models/pg/User.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { getPermissionsByRole } from "../config/permissionMatrix.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 const JWT_EXPIRE = "7d";
@@ -29,13 +30,17 @@ export const register = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Validate role
+    const validRoles = ["manager", "hr", "accountant", "supervisor", "employee"];
+    const assignedRole = validRoles.includes(role) ? role : "employee";
+
     // Create user
     const user = await User.create({
       name,
       email,
       password: hashedPassword,
       employeeCode: employeeCode || `EMP${Date.now()}`,
-      role: role || "employee",
+      role: assignedRole,
       isActive: true
     });
 
@@ -72,7 +77,7 @@ export const register = async (req, res) => {
 // Login
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, expectedRole } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -116,6 +121,15 @@ export const login = async (req, res) => {
       });
     }
 
+    const validPortalRoles = ["manager", "hr", "accountant", "supervisor", "employee"];
+    if (expectedRole && validPortalRoles.includes(expectedRole) && user.role !== expectedRole) {
+      return res.status(403).json({
+        status: "error",
+        message:
+          "Vai trò đăng nhập không khớp với tài khoản. Hãy chọn đúng vai trò hoặc dùng tài khoản tương ứng.",
+      });
+    }
+
     // Generate JWT
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
@@ -124,6 +138,8 @@ export const login = async (req, res) => {
     );
 
     console.log(`User logged in: ${email} (${user.role})`);
+
+    const permissions = getPermissionsByRole(user.role);
 
     return res.json({
       status: "success",
@@ -134,8 +150,10 @@ export const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        employeeCode: user.employeeCode
-      }
+        employeeCode: user.employeeCode,
+        permissions,
+      },
+      permissions,
     });
   } catch (err) {
     console.error("Login error:", err);
@@ -168,6 +186,8 @@ export const getCurrentUser = async (req, res) => {
       });
     }
 
+    const permissions = getPermissionsByRole(user.role);
+
     return res.json({
       status: "success",
       user: {
@@ -175,13 +195,66 @@ export const getCurrentUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        employeeCode: user.employeeCode
-      }
+        employeeCode: user.employeeCode,
+        permissions,
+      },
+      permissions,
     });
   } catch (err) {
     return res.status(401).json({
       status: "error",
       message: "Invalid token"
     });
+  }
+};
+
+// Change password (authenticated user)
+export const changePassword = async (req, res) => {
+  try {
+    const tokenUserId = req.user?.userId ?? req.user?.id;
+    const { currentPassword, newPassword } = req.body || {};
+
+    if (!tokenUserId) {
+      return res.status(401).json({ status: "error", message: "Unauthorized" });
+    }
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        status: "error",
+        message: "currentPassword and newPassword are required"
+      });
+    }
+
+    if (typeof newPassword !== "string" || newPassword.length < 8) {
+      return res.status(400).json({
+        status: "error",
+        message: "New password must be at least 8 characters"
+      });
+    }
+
+    const user = await User.findByPk(tokenUserId);
+    if (!user) {
+      return res.status(404).json({ status: "error", message: "User not found" });
+    }
+
+    if (!user.password) {
+      return res.status(400).json({
+        status: "error",
+        message: "Password not set. Please contact administrator."
+      });
+    }
+
+    const ok = await bcrypt.compare(currentPassword, user.password);
+    if (!ok) {
+      return res.status(400).json({ status: "error", message: "Current password is incorrect" });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await user.update({ password: hashed });
+
+    return res.json({ status: "success", message: "Password changed successfully" });
+  } catch (err) {
+    console.error("Change password error:", err);
+    return res.status(500).json({ status: "error", message: err.message });
   }
 };

@@ -7,26 +7,31 @@ import {
   deleteQualification,
   approveQualificationRequest,
   rejectQualificationRequest,
-  getMyQualifications
+  getMyQualifications,
+  uploadQualificationDocument
 } from "../controllers/qualificationController.js";
-import { authMiddleware, adminOnly } from "../middleware/authMiddleware.js";
+import { authMiddleware, hrOrManager } from "../middleware/authMiddleware.js";
+import { uploadQualification } from "../utils/fileUpload.js";
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(authMiddleware);
 
-// Employee can view and manage own qualifications
+// Upload document endpoint
+router.post("/upload", uploadQualification.single('document'), uploadQualificationDocument);
+
+// Nhân viên quản lý bằng cấp của mình
 router.get("/my", getMyQualifications);
 router.post("/", createQualification);
 router.put("/:id", updateQualification);
 router.delete("/:id", deleteQualification);
 
-// Admin only routes
-router.get("/", adminOnly, getAllQualifications);
-router.get("/:id", adminOnly, getQualificationById);
-router.put("/:id/approve", adminOnly, approveQualificationRequest);
-router.put("/:id/reject", adminOnly, rejectQualificationRequest);
+// HR hoặc Manager xem, duyệt, từ chối bằng cấp
+router.get("/", hrOrManager, getAllQualifications);
+router.get("/:id", hrOrManager, getQualificationById);
+router.put("/:id/approve", hrOrManager, approveQualificationRequest);
+router.put("/:id/reject", hrOrManager, rejectQualificationRequest);
 
 export default router;
 

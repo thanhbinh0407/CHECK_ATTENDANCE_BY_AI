@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { theme } from "../theme.js";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from 'recharts';
 
 export default function EmployeeDetailView() {
   const [employees, setEmployees] = useState([]);
@@ -9,6 +10,13 @@ export default function EmployeeDetailView() {
   const [message, setMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("info");
+  const [jobFilter, setJobFilter] = useState({ fromDate: "", toDate: "", changeType: "" });
+  const [salaryChangeFilter, setSalaryChangeFilter] = useState({ fromDate: "", toDate: "", changeType: "" });
+  const [jobHistoryData, setJobHistoryData] = useState([]);
+  const [salaryChangeData, setSalaryChangeData] = useState([]);
+  const [jobPagination, setJobPagination] = useState({ page: 1, pageSize: 8, totalPages: 1 });
+  const [salaryPagination, setSalaryPagination] = useState({ page: 1, pageSize: 8, totalPages: 1 });
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
@@ -28,11 +36,11 @@ export default function EmployeeDetailView() {
 
       if (res.ok) {
         const data = await res.json();
-        setEmployees(data.employees || []);
+        setEmployees(data.employees || data.data || []);
       }
     } catch (error) {
       console.error("Error fetching employees:", error);
-      setMessage("Lỗi khi tải danh sách nhân viên");
+      setMessage("Error loading employee list");
     } finally {
       setLoading(false);
     }
@@ -48,17 +56,24 @@ export default function EmployeeDetailView() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const data = await res.json();
         setEmployeeDetails(data.employee || {});
         setSelectedEmployee(employeeId);
         setActiveTab("info");
+        setJobFilter({ fromDate: "", toDate: "", changeType: "" });
+        setSalaryChangeFilter({ fromDate: "", toDate: "", changeType: "" });
+        setJobPagination({ page: 1, pageSize: 8, totalPages: 1 });
+        setSalaryPagination({ page: 1, pageSize: 8, totalPages: 1 });
+        setJobHistoryData([]);
+        setSalaryChangeData([]);
+        setMessage("");
       } else {
-        setMessage("Không thể tải chi tiết nhân viên");
+        setMessage(data?.message || `Không tải được hồ sơ (${res.status})`);
       }
     } catch (error) {
       console.error("Error fetching employee details:", error);
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -69,45 +84,119 @@ export default function EmployeeDetailView() {
     emp.employeeCode?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const [showModal, setShowModal] = useState(false);
-  const [selectedEmployeeForModal, setSelectedEmployeeForModal] = useState(null);
+  const tabButtonStyle = (tab) => ({
+    flex: 1,
+    minWidth: 130,
+    padding: "12px 10px",
+    border: "none",
+    borderBottom: activeTab === tab ? `3px solid ${theme.colors.secondary}` : "3px solid transparent",
+    backgroundColor: activeTab === tab ? "#eff6ff" : "white",
+    color: activeTab === tab ? theme.colors.primary : "#334155",
+    cursor: "pointer",
+    fontWeight: activeTab === tab ? 700 : 500,
+    transition: "all 0.2s ease",
+  });
 
-  const openEmployeeModal = async (employeeId) => {
+  const historyInputStyle = {
+    padding: "8px 10px",
+    border: "1px solid #d1d5db",
+    borderRadius: 8,
+    fontSize: 13,
+    backgroundColor: "#fff",
+  };
+
+  const historyCardStyle = {
+    border: "1px solid #e5e7eb",
+    borderRadius: 10,
+    padding: 14,
+    backgroundColor: "#f8fafc",
+  };
+
+  const historyTypes = {
+    job: ["hire", "initial_assignment", "transfer", "promotion", "demotion", "correction", "other"],
+    salary: ["initial_salary", "increase", "decrease", "correction", "other"]
+  };
+
+  const changeBadge = (type) => {
+    const map = {
+      hire: { bg: "#d1fae5", color: "#065f46" },
+      initial_assignment: { bg: "#e0f2fe", color: "#0c4a6e" },
+      transfer: { bg: "#ede9fe", color: "#5b21b6" },
+      promotion: { bg: "#fef3c7", color: "#92400e" },
+      demotion: { bg: "#fee2e2", color: "#991b1b" },
+      initial_salary: { bg: "#dbeafe", color: "#1e40af" },
+      increase: { bg: "#dcfce7", color: "#166534" },
+      decrease: { bg: "#fee2e2", color: "#991b1b" },
+      correction: { bg: "#e5e7eb", color: "#374151" },
+      other: { bg: "#e5e7eb", color: "#374151" }
+    };
+    return map[type] || map.other;
+  };
+
+  const fetchHistory = async (historyType) => {
+    if (!selectedEmployee) return;
     try {
-      setLoading(true);
+      setHistoryLoading(true);
       const token = localStorage.getItem("authToken");
       if (!token) return;
 
-      const res = await fetch(`${apiBase}/api/admin/employees/${employeeId}/details`, {
+      const filter = historyType === "job" ? jobFilter : salaryChangeFilter;
+      const pagination = historyType === "job" ? jobPagination : salaryPagination;
+      const params = new URLSearchParams({
+        historyType,
+        page: String(pagination.page),
+        pageSize: String(pagination.pageSize)
+      });
+      if (filter.fromDate) params.set("fromDate", filter.fromDate);
+      if (filter.toDate) params.set("toDate", filter.toDate);
+      if (filter.changeType) params.set("changeType", filter.changeType);
+
+      const res = await fetch(`${apiBase}/api/admin/employees/${selectedEmployee}/history?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.message || "Cannot load history");
+        return;
+      }
 
-      if (res.ok) {
-        const data = await res.json();
-        setSelectedEmployeeForModal(data.employee || {});
-        setShowModal(true);
+      if (historyType === "job") {
+        setJobHistoryData(data.jobHistory || []);
+        setJobPagination((prev) => ({ ...prev, ...(data.jobPagination || prev) }));
       } else {
-        setMessage("Không thể tải chi tiết nhân viên");
+        setSalaryChangeData(data.salaryChangeHistory || []);
+        setSalaryPagination((prev) => ({ ...prev, ...(data.salaryPagination || prev) }));
       }
     } catch (error) {
-      console.error("Error fetching employee details:", error);
-      setMessage("Lỗi: " + error.message);
+      setMessage(`Error loading ${historyType} history: ${error.message}`);
     } finally {
-      setLoading(false);
+      setHistoryLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (activeTab === "job-history") {
+      fetchHistory("job");
+    }
+  }, [activeTab, selectedEmployee, jobFilter.fromDate, jobFilter.toDate, jobFilter.changeType, jobPagination.page]);
+
+  useEffect(() => {
+    if (activeTab === "salary-change") {
+      fetchHistory("salary");
+    }
+  }, [activeTab, selectedEmployee, salaryChangeFilter.fromDate, salaryChangeFilter.toDate, salaryChangeFilter.changeType, salaryPagination.page]);
+
   return (
     <div style={{ padding: "20px", backgroundColor: theme.colors.light, minHeight: "100vh" }}>
-      <h1 style={{ color: theme.colors.primary, marginBottom: "20px" }}>👤 Thông Tin Chi Tiết Nhân Viên</h1>
+      <h1 style={{ color: theme.colors.primary, marginBottom: "20px" }}>👤 Employee Details</h1>
 
       {message && (
         <div
           style={{
             padding: "10px",
             marginBottom: "15px",
-            backgroundColor: message.includes("Lỗi") ? "#f8d7da" : "#d4edda",
-            color: message.includes("Lỗi") ? "#721c24" : "#155724",
+            backgroundColor: message.includes("Error") ? "#f8d7da" : "#d4edda",
+            color: message.includes("Error") ? "#721c24" : "#155724",
             borderRadius: "5px"
           }}
         >
@@ -126,11 +215,11 @@ export default function EmployeeDetailView() {
             height: "fit-content"
           }}
         >
-          <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>📋 Danh Sách Nhân Viên</h3>
+          <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>📋 Employee List</h3>
 
           <input
             type="text"
-            placeholder="Tìm kiếm tên hoặc mã NV..."
+            placeholder="Search by name or employee ID..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
@@ -145,22 +234,23 @@ export default function EmployeeDetailView() {
           <div style={{ maxHeight: "600px", overflowY: "auto" }}>
             {filteredEmployees.length === 0 ? (
               <p style={{ color: "#999", textAlign: "center", padding: "20px 0" }}>
-                Không tìm thấy nhân viên
+                No employees found
               </p>
             ) : (
               filteredEmployees.map((emp) => (
                 <div
                   key={emp.id}
-                  onClick={() => openEmployeeModal(emp.id)}
+                  onClick={() => viewEmployeeDetails(emp.id)}
                   style={{
                     padding: "12px",
                     marginBottom: "8px",
-                    backgroundColor: selectedEmployee === emp.id ? theme.colors.primary : "#f9f9f9",
+                    backgroundColor: selectedEmployee === emp.id ? (theme.colors?.primary || "#1e3a5f") : "#f9f9f9",
                     color: selectedEmployee === emp.id ? "white" : "black",
+                    fontWeight: selectedEmployee === emp.id ? 700 : "normal",
                     borderRadius: "5px",
                     cursor: "pointer",
-                    transition: "all 0.3s ease",
-                    borderLeft: selectedEmployee === emp.id ? `4px solid white` : "none"
+                    transition: "all 0.2s ease",
+                    borderLeft: selectedEmployee === emp.id ? "4px solid rgba(255,255,255,0.8)" : "none"
                   }}
                 >
                   <div style={{ fontWeight: "bold", fontSize: "0.95em" }}>{emp.name}</div>
@@ -173,9 +263,9 @@ export default function EmployeeDetailView() {
           </div>
         </div>
 
-        {/* Employee Details - Now shown in modal */}
-        <div>
-          {!showModal && (
+        {/* Employee details displayed on the right (no popup) */}
+        <div style={{ minHeight: "400px" }}>
+          {!employeeDetails && (
             <div
               style={{
                 backgroundColor: "white",
@@ -186,49 +276,25 @@ export default function EmployeeDetailView() {
               }}
             >
               <div style={{ fontSize: "3em", marginBottom: "10px" }}>👈</div>
-              <p>Chọn một nhân viên từ danh sách để xem chi tiết</p>
+              <p>Select an employee from the list to view details</p>
             </div>
           )}
-        </div>
-
-        {/* Employee Details Modal */}
-        {showModal && selectedEmployeeForModal && (
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0,0,0,0.5)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1000,
-              padding: "20px"
-            }}
-            onClick={() => {
-              setShowModal(false);
-              setSelectedEmployeeForModal(null);
-            }}
-          >
+          {employeeDetails && (
             <div
               style={{
                 backgroundColor: "white",
                 borderRadius: "8px",
                 overflow: "hidden",
                 boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                maxWidth: "900px",
-                width: "100%",
-                maxHeight: "90vh",
+                border: "1px solid #e5e7eb",
+                maxHeight: "85vh",
                 overflowY: "auto"
               }}
-              onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
               <div
                 style={{
-                  backgroundColor: theme.colors.primary,
+                  backgroundColor: theme.colors?.primary || "#1e3a5f",
                   color: "white",
                   padding: "20px",
                   display: "flex",
@@ -237,17 +303,17 @@ export default function EmployeeDetailView() {
                 }}
               >
                 <div>
-                  <h2 style={{ margin: "0 0 10px 0" }}>{selectedEmployeeForModal.name}</h2>
+                  <h2 style={{ margin: "0 0 10px 0" }}>{employeeDetails.name}</h2>
                   <div style={{ display: "flex", gap: "20px", fontSize: "0.95em" }}>
-                    <span><strong>Mã NV:</strong> {selectedEmployeeForModal.employeeCode}</span>
-                    <span><strong>Chức vụ:</strong> {selectedEmployeeForModal.jobTitle || "N/A"}</span>
-                    <span><strong>Phòng ban:</strong> {selectedEmployeeForModal.department || "N/A"}</span>
+                    <span><strong>Emp. ID:</strong> {employeeDetails.employeeCode}</span>
+                    <span><strong>Job Title:</strong> {employeeDetails.jobTitle || "N/A"}</span>
+                    <span><strong>Department:</strong> {employeeDetails.department || "N/A"}</span>
                   </div>
                 </div>
                 <button
                   onClick={() => {
-                    setShowModal(false);
-                    setSelectedEmployeeForModal(null);
+                    setEmployeeDetails(null);
+                    setSelectedEmployee(null);
                   }}
                   style={{
                     background: "none",
@@ -257,32 +323,26 @@ export default function EmployeeDetailView() {
                     cursor: "pointer",
                     padding: "5px 10px"
                   }}
+                  title="Close"
                 >
                   ✕
                 </button>
               </div>
 
               {/* Tabs */}
-              <div style={{ display: "flex", borderBottom: `1px solid ${theme.colors.border}` }}>
-                {["info", "attendance", "leave", "salary"].map((tab) => (
+              <div style={{ display: "flex", borderBottom: `1px solid ${theme.colors.border}`, overflowX: "auto" }}>
+                {["info", "attendance", "leave", "salary", "job-history", "salary-change"].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    style={{
-                      flex: 1,
-                      padding: "15px",
-                      border: "none",
-                      backgroundColor: activeTab === tab ? theme.colors.primary : "white",
-                      color: activeTab === tab ? "white" : "black",
-                      cursor: "pointer",
-                      fontWeight: activeTab === tab ? "bold" : "normal",
-                      borderBottom: activeTab === tab ? `3px solid ${theme.colors.secondary}` : "none"
-                    }}
+                    style={tabButtonStyle(tab)}
                   >
-                    {tab === "info" && "ℹ️ Thông Tin"}
-                    {tab === "attendance" && "📍 Chuyên Cần"}
-                    {tab === "leave" && "📅 Nghỉ Phép"}
-                    {tab === "salary" && "💰 Lương"}
+                    {tab === "info" && "ℹ️ Info"}
+                    {tab === "attendance" && "📍 Attendance"}
+                    {tab === "leave" && "📅 Leave"}
+                    {tab === "salary" && "💰 Salary"}
+                    {tab === "job-history" && "👔 Job History"}
+                    {tab === "salary-change" && "📈 Salary Changes"}
                   </button>
                 ))}
               </div>
@@ -290,43 +350,43 @@ export default function EmployeeDetailView() {
               {/* Tab Content */}
               <div style={{ padding: "20px" }}>
                 {/* Info Tab */}
-                {activeTab === "info" && selectedEmployeeForModal && (
+                {activeTab === "info" && employeeDetails && (
                   <div>
-                    <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Thông Tin Cá Nhân</h3>
+                    <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Personal Info</h3>
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" }}>
                       <div>
                         <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Email:</label>
-                        <p style={{ margin: 0, color: "#666" }}>{selectedEmployeeForModal.email}</p>
+                        <p style={{ margin: 0, color: "#666" }}>{employeeDetails.email}</p>
                       </div>
 
                       <div>
-                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Số điện thoại:</label>
-                        <p style={{ margin: 0, color: "#666" }}>{selectedEmployeeForModal.phoneNumber || "Chưa cập nhật"}</p>
+                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Phone:</label>
+                        <p style={{ margin: 0, color: "#666" }}>{employeeDetails.phoneNumber || "Not set"}</p>
                       </div>
 
                       <div>
-                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Ngày sinh:</label>
-                        <p style={{ margin: 0, color: "#666" }}>{selectedEmployeeForModal.dateOfBirth ? new Date(selectedEmployeeForModal.dateOfBirth).toLocaleDateString('vi-VN') : "Chưa cập nhật"}</p>
+                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Date of Birth:</label>
+                        <p style={{ margin: 0, color: "#666" }}>{employeeDetails.dateOfBirth ? new Date(employeeDetails.dateOfBirth).toLocaleDateString('en') : "Not set"}</p>
                       </div>
 
                       <div>
-                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Giới tính:</label>
-                        <p style={{ margin: 0, color: "#666" }}>{selectedEmployeeForModal.gender || "Chưa cập nhật"}</p>
+                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Gender:</label>
+                        <p style={{ margin: 0, color: "#666" }}>{employeeDetails.gender || "Not set"}</p>
                       </div>
                     </div>
 
                     <div style={{ borderTop: `1px solid ${theme.colors.border}`, paddingTop: "20px", marginTop: "20px" }}>
-                      <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>👨‍👩‍👧‍👦 Người Phụ Thuộc</h3>
+                      <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>👨‍👩‍👧‍👦 Dependents</h3>
 
-                      {selectedEmployeeForModal.dependents && selectedEmployeeForModal.dependents.length > 0 ? (
+                      {employeeDetails.dependents && employeeDetails.dependents.length > 0 ? (
                         <div>
                           <div style={{ marginBottom: "15px", padding: "10px", backgroundColor: "#f0f8ff", borderRadius: "5px" }}>
-                            <strong>Tổng cộng: {selectedEmployeeForModal.dependents.length} người</strong>
+                            <strong>Total: {employeeDetails.dependents.length} dependent(s)</strong>
                           </div>
                           
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
-                            {selectedEmployeeForModal.dependents.map((dep, idx) => (
+                            {employeeDetails.dependents.map((dep, idx) => (
                               <div
                                 key={idx}
                                 style={{
@@ -338,32 +398,32 @@ export default function EmployeeDetailView() {
                               >
                                 <div style={{ fontWeight: "bold", marginBottom: "5px" }}>{dep.fullName}</div>
                                 <div style={{ fontSize: "0.9em", color: "#666" }}>
-                                  <div>Quan hệ: {dep.relationship}</div>
-                                  <div>Ngày sinh: {dep.dateOfBirth ? new Date(dep.dateOfBirth).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}</div>
-                                  {dep.gender && <div>Giới tính: {dep.gender}</div>}
+                                  <div>Relationship: {dep.relationship}</div>
+                                  <div>DOB: {dep.dateOfBirth ? new Date(dep.dateOfBirth).toLocaleDateString('en') : 'Not set'}</div>
+                                  {dep.gender && <div>Gender: {dep.gender}</div>}
                                 </div>
                               </div>
                             ))}
                           </div>
                         </div>
                       ) : (
-                        <p style={{ color: "#999", fontStyle: "italic" }}>Chưa có người phụ thuộc</p>
+                        <p style={{ color: "#999", fontStyle: "italic" }}>No dependents</p>
                       )}
                     </div>
 
                     <div style={{ borderTop: `1px solid ${theme.colors.border}`, paddingTop: "20px", marginTop: "20px" }}>
-                      <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>📜 Bằng Cấp & Chứng Chỉ</h3>
+                      <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>📜 Qualifications & Certificates</h3>
 
-                      {selectedEmployeeForModal.qualifications && selectedEmployeeForModal.qualifications.length > 0 ? (
+                      {employeeDetails.qualifications && employeeDetails.qualifications.length > 0 ? (
                         <div>
                           <div style={{ marginBottom: "15px", padding: "10px", backgroundColor: "#f0f8ff", borderRadius: "5px" }}>
-                            <strong>Tổng cộng: {selectedEmployeeForModal.qualifications.length} bằng cấp</strong>
+                            <strong>Total: {employeeDetails.qualifications.length} qualification(s)</strong>
                           </div>
                           
                           {/* Qualifications by type */}
                           {(() => {
                             const grouped = {};
-                            selectedEmployeeForModal.qualifications.forEach(q => {
+                            employeeDetails.qualifications.forEach(q => {
                               if (!grouped[q.type]) grouped[q.type] = [];
                               grouped[q.type].push(q);
                             });
@@ -377,10 +437,10 @@ export default function EmployeeDetailView() {
                                   borderRadius: "4px",
                                   marginBottom: "10px"
                                 }}>
-                                  {type === 'degree' && '🎓 Bằng Cấp'}
-                                  {type === 'certificate' && '🏅 Chứng Chỉ'}
-                                  {type === 'license' && '📋 Giấy Phép'}
-                                  {type === 'training' && '📚 Huấn Luyện'}
+                                  {type === 'degree' && '🎓 Degree'}
+                                  {type === 'certificate' && '🏅 Certificate'}
+                                  {type === 'license' && '📋 License'}
+                                  {type === 'training' && '📚 Training'}
                                   <span style={{ marginLeft: "10px", color: "#666", fontWeight: "normal" }}>({quals.length})</span>
                                 </div>
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
@@ -397,11 +457,11 @@ export default function EmployeeDetailView() {
                                     >
                                       <div style={{ fontWeight: "bold", marginBottom: "5px" }}>{qual.name}</div>
                                       {qual.issuedBy && (
-                                        <div style={{ color: "#666", fontSize: "0.9em" }}>Cơ quan: {qual.issuedBy}</div>
+                                        <div style={{ color: "#666", fontSize: "0.9em" }}>Issued by: {qual.issuedBy}</div>
                                       )}
                                       {qual.issuedDate && (
                                         <div style={{ color: "#666", fontSize: "0.9em" }}>
-                                          Cấp ngày: {new Date(qual.issuedDate).toLocaleDateString('vi-VN')}
+                                          Issue date: {new Date(qual.issuedDate).toLocaleDateString('en')}
                                         </div>
                                       )}
                                     </div>
@@ -412,59 +472,87 @@ export default function EmployeeDetailView() {
                           })()}
                         </div>
                       ) : (
-                        <p style={{ color: "#999", fontStyle: "italic" }}>Chưa có bằng cấp hoặc chứng chỉ</p>
+                        <p style={{ color: "#999", fontStyle: "italic" }}>No qualifications or certificates</p>
+                      )}
+
+                      {/* Qualifications Chart */}
+                      {employeeDetails.qualifications && employeeDetails.qualifications.length > 0 && (
+                        <div style={{ marginTop: "30px" }}>
+                          <h4 style={{ marginBottom: "15px", color: theme.colors.primary }}>Qualifications by Type</h4>
+                          <ResponsiveContainer width="100%" height={300}>
+                            <BarChart
+                              data={(() => {
+                                const typeCount = {};
+                                employeeDetails.qualifications.forEach(q => {
+                                  const type = q.type || 'Other';
+                                  typeCount[type] = (typeCount[type] || 0) + 1;
+                                });
+                                return Object.entries(typeCount).map(([type, count]) => ({
+                                  type: type === 'degree' ? 'Degree' : type === 'certificate' ? 'Certificate' : type === 'license' ? 'License' : type === 'training' ? 'Training' : type,
+                                  count
+                                }));
+                              })()}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="type" />
+                              <YAxis />
+                              <Tooltip />
+                              <Bar dataKey="count" fill="#8884d8" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
                       )}
                     </div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "20px" }}>
                       <div>
-                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Phòng ban:</label>
-                        <p style={{ margin: 0, color: "#666" }}>{selectedEmployeeForModal.department || "N/A"}</p>
+                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Department:</label>
+                        <p style={{ margin: 0, color: "#666" }}>{employeeDetails.department || "N/A"}</p>
                       </div>
 
                       <div>
-                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Chức vụ:</label>
-                        <p style={{ margin: 0, color: "#666" }}>{selectedEmployeeForModal.jobTitle || "N/A"}</p>
+                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Job title:</label>
+                        <p style={{ margin: 0, color: "#666" }}>{employeeDetails.jobTitle || "N/A"}</p>
                       </div>
 
                       <div>
-                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Bậc lương:</label>
-                        <p style={{ margin: 0, color: "#666" }}>{selectedEmployeeForModal.salaryGrade || "Chưa cập nhật"}</p>
+                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Salary Grade:</label>
+                        <p style={{ margin: 0, color: "#666" }}>{employeeDetails.salaryGrade || "Not set"}</p>
                       </div>
 
                       <div>
-                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Lương cơ bản:</label>
+                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Base salary:</label>
                         <p style={{ margin: 0, color: "#666", fontWeight: "bold" }}>
-                          ₫{selectedEmployeeForModal.baseSalary?.toLocaleString("vi-VN") || "0"}
+                          ₫{employeeDetails.baseSalary?.toLocaleString("vi-VN") || "0"}
                         </p>
                       </div>
 
                       <div>
-                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Ngày vào công ty:</label>
-                        <p style={{ margin: 0, color: "#666" }}>{selectedEmployeeForModal.joiningDate ? new Date(selectedEmployeeForModal.joiningDate).toLocaleDateString('vi-VN') : "Chưa cập nhật"}</p>
+                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Join Date:</label>
+                        <p style={{ margin: 0, color: "#666" }}>{employeeDetails.joiningDate ? new Date(employeeDetails.joiningDate).toLocaleDateString('vi-VN') : "Not set"}</p>
                       </div>
 
                       <div>
-                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Trạng thái:</label>
+                        <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Status:</label>
                         <p
                           style={{
                             margin: 0,
                             display: "inline-block",
                             padding: "4px 12px",
                             borderRadius: "20px",
-                            backgroundColor: selectedEmployeeForModal.isActive ? "#d4edda" : "#f8d7da",
-                            color: selectedEmployeeForModal.isActive ? "#155724" : "#721c24"
+                            backgroundColor: employeeDetails.isActive ? "#d4edda" : "#f8d7da",
+                            color: employeeDetails.isActive ? "#155724" : "#721c24"
                           }}
                         >
-                          {selectedEmployeeForModal.isActive ? "Đang làm việc" : "Đã nghỉ"}
+                          {employeeDetails.isActive ? "Active" : "Left"}
                         </p>
                       </div>
                     </div>
                   </div>
                 )}
-                {activeTab === "attendance" && selectedEmployeeForModal && (
+                {activeTab === "attendance" && employeeDetails && (
                   <div>
-                    <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Thống Kê Chuyên Cần</h3>
+                    <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Attendance Stats</h3>
 
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "15px", marginBottom: "20px" }}>
                       <div
@@ -477,9 +565,9 @@ export default function EmployeeDetailView() {
                         }}
                       >
                         <div style={{ fontSize: "1.2em", fontWeight: "bold", color: theme.colors.primary }}>
-                          {selectedEmployeeForModal.attendanceStats?.totalDaysWorked || 0}
+                          {employeeDetails.attendanceStats?.totalDaysWorked || 0}
                         </div>
-                        <div style={{ fontSize: "0.9em", color: "#666" }}>Ngày làm việc</div>
+                        <div style={{ fontSize: "0.9em", color: "#666" }}>Days worked</div>
                       </div>
 
                       <div
@@ -492,9 +580,9 @@ export default function EmployeeDetailView() {
                         }}
                       >
                         <div style={{ fontSize: "1.2em", fontWeight: "bold", color: "#dc3545" }}>
-                          {selectedEmployeeForModal.attendanceStats?.totalLate || 0}
+                          {employeeDetails.attendanceStats?.totalLate || 0}
                         </div>
-                        <div style={{ fontSize: "0.9em", color: "#666" }}>Lần đi muộn</div>
+                        <div style={{ fontSize: "0.9em", color: "#666" }}>Late</div>
                       </div>
 
                       <div
@@ -507,9 +595,9 @@ export default function EmployeeDetailView() {
                         }}
                       >
                         <div style={{ fontSize: "1.2em", fontWeight: "bold", color: "#ffc107" }}>
-                          {selectedEmployeeForModal.attendanceStats?.totalAbsent || 0}
+                          {employeeDetails.attendanceStats?.totalAbsent || 0}
                         </div>
-                        <div style={{ fontSize: "0.9em", color: "#666" }}>Lần vắng</div>
+                        <div style={{ fontSize: "0.9em", color: "#666" }}>Absent</div>
                       </div>
 
                       <div
@@ -522,27 +610,66 @@ export default function EmployeeDetailView() {
                         }}
                       >
                         <div style={{ fontSize: "1.2em", fontWeight: "bold", color: "#28a745" }}>
-                          {selectedEmployeeForModal.attendanceStats?.totalEarlyLeave || 0}
+                          {employeeDetails.attendanceStats?.totalEarlyLeave || 0}
                         </div>
-                        <div style={{ fontSize: "0.9em", color: "#666" }}>Lần về sớm</div>
+                        <div style={{ fontSize: "0.9em", color: "#666" }}>Early leave</div>
                       </div>
                     </div>
 
-                    {selectedEmployeeForModal.recentAttendance && selectedEmployeeForModal.recentAttendance.length > 0 && (
+                    {/* Attendance Status Chart */}
+                    {employeeDetails.recentAttendance && employeeDetails.recentAttendance.length > 0 && (() => {
+                      const statusCount = {};
+                      employeeDetails.recentAttendance.forEach(record => {
+                        const status = record.status || 'Unknown';
+                        statusCount[status] = (statusCount[status] || 0) + 1;
+                      });
+                      const chartData = Object.entries(statusCount).map(([status, count]) => ({
+                        name: status,
+                        value: count
+                      }));
+                      const colors = ['#28a745', '#ffc107', '#dc3545', '#6c757d'];
+
+                      return (
+                        <div style={{ marginTop: "30px" }}>
+                          <h4 style={{ marginBottom: "15px", color: theme.colors.primary }}>Attendance Status Distribution</h4>
+                          <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                              <Pie
+                                data={chartData}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                outerRadius={80}
+                                fill="#8884d8"
+                                dataKey="value"
+                              >
+                                {chartData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      );
+                    })()}
+
+                    {employeeDetails.recentAttendance && employeeDetails.recentAttendance.length > 0 && (
                       <div>
-                        <h4 style={{ marginBottom: "10px" }}>Điểm danh gần đây:</h4>
+                        <h4 style={{ marginBottom: "10px" }}>Recent attendance:</h4>
                         <div style={{ maxHeight: "300px", overflowY: "auto" }}>
                           <table style={{ width: "100%", borderCollapse: "collapse" }}>
                             <thead style={{ backgroundColor: "#f5f5f5" }}>
                               <tr>
-                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Ngày</th>
-                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Giờ vào</th>
-                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Giờ ra</th>
-                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Trạng thái</th>
+                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Date</th>
+                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Check-in</th>
+                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Check-out</th>
+                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Status</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {selectedEmployeeForModal.recentAttendance.map((record, idx) => (
+                              {employeeDetails.recentAttendance.map((record, idx) => (
                                 <tr key={idx} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
                                   <td style={{ padding: "8px" }}>{record.date}</td>
                                   <td style={{ padding: "8px" }}>{record.checkIn || "-"}</td>
@@ -559,11 +686,11 @@ export default function EmployeeDetailView() {
                 )}
 
                 {/* Leave Tab */}
-                {activeTab === "leave" && selectedEmployeeForModal && (
+                {activeTab === "leave" && employeeDetails && (
                   <div>
-                    <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Lịch Sử Nghỉ Phép</h3>
+                    <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Leave History</h3>
 
-                    {selectedEmployeeForModal.leaveHistory && selectedEmployeeForModal.leaveHistory.length > 0 ? (
+                    {(employeeDetails.leaveHistory && employeeDetails.leaveHistory.length > 0) ? (
                       <div>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "20px" }}>
                           <div
@@ -575,9 +702,9 @@ export default function EmployeeDetailView() {
                             }}
                           >
                             <div style={{ fontSize: "1.2em", fontWeight: "bold", color: theme.colors.primary }}>
-                              {selectedEmployeeForModal.leaveStats?.totalDaysUsed || 0}
+                              {employeeDetails.leaveStats?.totalDaysUsed || 0}
                             </div>
-                            <div style={{ fontSize: "0.9em", color: "#666" }}>Ngày đã dùng</div>
+                            <div style={{ fontSize: "0.9em", color: "#666" }}>Days used</div>
                           </div>
 
                           <div
@@ -589,24 +716,63 @@ export default function EmployeeDetailView() {
                             }}
                           >
                             <div style={{ fontSize: "1.2em", fontWeight: "bold", color: "#28a745" }}>
-                              {selectedEmployeeForModal.leaveStats?.totalDaysRemaining || 0}
+                              {employeeDetails.leaveStats?.totalDaysRemaining || 0}
                             </div>
-                            <div style={{ fontSize: "0.9em", color: "#666" }}>Ngày còn lại</div>
+                            <div style={{ fontSize: "0.9em", color: "#666" }}>Days remaining</div>
                           </div>
                         </div>
+
+                        {/* Leave Types Chart */}
+                        {(() => {
+                          const typeCount = {};
+                          employeeDetails.leaveHistory.forEach(leave => {
+                            const type = leave.type || 'Other';
+                            typeCount[type] = (typeCount[type] || 0) + 1;
+                          });
+                          const chartData = Object.entries(typeCount).map(([type, count]) => ({
+                            name: type,
+                            value: count
+                          }));
+                          const colors = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+
+                          return (
+                            <div style={{ marginTop: "30px" }}>
+                              <h4 style={{ marginBottom: "15px", color: theme.colors.primary }}>Leave Types Distribution</h4>
+                              <ResponsiveContainer width="100%" height={300}>
+                                <PieChart>
+                                  <Pie
+                                    data={chartData}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                    outerRadius={80}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                  >
+                                    {chartData.map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                                    ))}
+                                  </Pie>
+                                  <Tooltip />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                          );
+                        })()}
 
                         <div style={{ maxHeight: "400px", overflowY: "auto" }}>
                           <table style={{ width: "100%", borderCollapse: "collapse" }}>
                             <thead style={{ backgroundColor: "#f5f5f5" }}>
                               <tr>
-                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Loại</th>
-                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Từ ngày</th>
-                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Đến ngày</th>
-                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Trạng thái</th>
+                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Type</th>
+                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>From</th>
+                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>To</th>
+                                <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Status</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {selectedEmployeeForModal.leaveHistory.map((leave, idx) => (
+                              {employeeDetails.leaveHistory.map((leave, idx) => (
                                 <tr key={idx} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
                                   <td style={{ padding: "8px" }}>{leave.type}</td>
                                   <td style={{ padding: "8px" }}>{leave.startDate}</td>
@@ -625,10 +791,10 @@ export default function EmployeeDetailView() {
                                       }}
                                     >
                                       {leave.status === "approved"
-                                        ? "Đã duyệt"
+                                        ? "Approved"
                                         : leave.status === "rejected"
-                                        ? "Từ chối"
-                                        : "Chờ duyệt"}
+                                        ? "Rejected"
+                                        : "Pending"}
                                     </span>
                                   </td>
                                 </tr>
@@ -639,82 +805,217 @@ export default function EmployeeDetailView() {
                       </div>
                     ) : (
                       <p style={{ color: "#999", textAlign: "center", padding: "20px" }}>
-                        Chưa có lịch sử nghỉ phép
+                        No leave history
                       </p>
                     )}
                   </div>
                 )}
 
-                {/* Salary Tab */}
-                {activeTab === "salary" && selectedEmployeeForModal && (
-                  <div>
-                    <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Lịch Sử Lương</h3>
+            {/* Salary Tab */}
+            {activeTab === "salary" && employeeDetails && (
+              <div>
+                <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Salary History</h3>
 
-                    {selectedEmployeeForModal.salaryHistory && selectedEmployeeForModal.salaryHistory.length > 0 ? (
-                      <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                          <thead style={{ backgroundColor: "#f5f5f5" }}>
-                            <tr>
-                              <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Tháng/Năm</th>
-                              <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Lương cơ bản</th>
-                              <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Thưởng</th>
-                              <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Khấu trừ</th>
-                              <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Lương thực</th>
-                              <th style={{ padding: "8px", textAlign: "center", borderBottom: `1px solid ${theme.colors.border}` }}>Trạng thái</th>
+                {employeeDetails.salaryHistory && employeeDetails.salaryHistory.length > 0 ? (
+                  <div>
+                    {/* Salary Trend Chart */}
+                    <div style={{ marginBottom: "30px" }}>
+                      <h4 style={{ marginBottom: "15px", color: theme.colors.primary }}>Salary Trend Over Time</h4>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart
+                          data={employeeDetails.salaryHistory.map(salary => ({
+                            period: `${salary.month}/${salary.year}`,
+                            netPay: salary.finalSalary || 0,
+                            baseSalary: salary.baseSalary || 0,
+                            bonus: salary.bonus || 0
+                          }))}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="period" />
+                          <YAxis />
+                          <Tooltip formatter={(value) => [`₫${value.toLocaleString("vi-VN")}`, '']} />
+                          <Legend />
+                          <Line type="monotone" dataKey="netPay" stroke="#8884d8" strokeWidth={2} name="Net Pay" />
+                          <Line type="monotone" dataKey="baseSalary" stroke="#82ca9d" strokeWidth={2} name="Base Salary" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <thead style={{ backgroundColor: "#f5f5f5" }}>
+                          <tr>
+                            <th style={{ padding: "8px", textAlign: "left", borderBottom: `1px solid ${theme.colors.border}` }}>Month/Year</th>
+                            <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Base Salary</th>
+                            <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Bonus</th>
+                            <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Advance Deduction</th>
+                            <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Other Deductions</th>
+                            <th style={{ padding: "8px", textAlign: "right", borderBottom: `1px solid ${theme.colors.border}` }}>Net Pay</th>
+                            <th style={{ padding: "8px", textAlign: "center", borderBottom: `1px solid ${theme.colors.border}` }}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {employeeDetails.salaryHistory.map((salary, idx) => (
+                            <tr key={idx} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
+                              <td style={{ padding: "8px" }}>{salary.month}/{salary.year}</td>
+                              <td style={{ padding: "8px", textAlign: "right" }}>
+                                ₫{salary.baseSalary?.toLocaleString("vi-VN") || "0"}
+                              </td>
+                              <td style={{ padding: "8px", textAlign: "right", color: "#28a745" }}>
+                                +₫{(salary.bonus || 0).toLocaleString("vi-VN")}
+                              </td>
+                              <td style={{ padding: "8px", textAlign: "right", color: "#dc3545" }}>
+                                -₫{(salary.advanceDeduction || 0).toLocaleString("vi-VN")}
+                              </td>
+                              <td style={{ padding: "8px", textAlign: "right", color: "#dc3545" }}>
+                                -₫{((salary.deduction || 0) - (salary.advanceDeduction || 0)).toLocaleString("vi-VN")}
+                              </td>
+                              <td style={{ padding: "8px", textAlign: "right", fontWeight: "bold", color: theme.colors.primary }}>
+                                ₫{salary.finalSalary?.toLocaleString("vi-VN") || "0"}
+                              </td>
+                              <td style={{ padding: "8px", textAlign: "center" }}>
+                                <span
+                                  style={{
+                                    display: "inline-block",
+                                    padding: "4px 8px",
+                                    borderRadius: "4px",
+                                    fontSize: "0.85em",
+                                    backgroundColor:
+                                      salary.status === "paid" ? "#d4edda" : salary.status === "approved" ? "#cfe2ff" : "#fff3cd",
+                                    color:
+                                      salary.status === "paid" ? "#155724" : salary.status === "approved" ? "#084298" : "#997404"
+                                  }}
+                                >
+                                  {salary.status === "paid"
+                                    ? "Paid"
+                                    : salary.status === "approved"
+                                    ? "Approved"
+                                    : "Pending"}
+                                </span>
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {selectedEmployeeForModal.salaryHistory.map((salary, idx) => (
-                              <tr key={idx} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
-                                <td style={{ padding: "8px" }}>{salary.month}/{salary.year}</td>
-                                <td style={{ padding: "8px", textAlign: "right" }}>
-                                  ₫{salary.baseSalary?.toLocaleString("vi-VN") || "0"}
-                                </td>
-                                <td style={{ padding: "8px", textAlign: "right", color: "#28a745" }}>
-                                  +₫{(salary.bonus || 0).toLocaleString("vi-VN")}
-                                </td>
-                                <td style={{ padding: "8px", textAlign: "right", color: "#dc3545" }}>
-                                  -₫{(salary.deduction || 0).toLocaleString("vi-VN")}
-                                </td>
-                                <td style={{ padding: "8px", textAlign: "right", fontWeight: "bold", color: theme.colors.primary }}>
-                                  ₫{salary.finalSalary?.toLocaleString("vi-VN") || "0"}
-                                </td>
-                                <td style={{ padding: "8px", textAlign: "center" }}>
-                                  <span
-                                    style={{
-                                      display: "inline-block",
-                                      padding: "4px 8px",
-                                      borderRadius: "4px",
-                                      fontSize: "0.85em",
-                                      backgroundColor:
-                                        salary.status === "paid" ? "#d4edda" : salary.status === "approved" ? "#cfe2ff" : "#fff3cd",
-                                      color:
-                                        salary.status === "paid" ? "#155724" : salary.status === "approved" ? "#084298" : "#997404"
-                                    }}
-                                  >
-                                    {salary.status === "paid"
-                                      ? "Đã thanh toán"
-                                      : salary.status === "approved"
-                                      ? "Đã duyệt"
-                                      : "Chưa duyệt"}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <p style={{ color: "#999", textAlign: "center", padding: "20px" }}>
-                        Chưa có lịch sử lương
-                      </p>
-                    )}
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
+                ) : (
+                  <p style={{ color: "#999", textAlign: "center", padding: "20px" }}>
+                    No salary history
+                  </p>
                 )}
               </div>
+            )}
+
+            {activeTab === "job-history" && employeeDetails && (
+              <div>
+                <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Job History</h3>
+                <div style={historyCardStyle}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                    <input type="date" value={jobFilter.fromDate} onChange={(e) => { setJobFilter({ ...jobFilter, fromDate: e.target.value }); setJobPagination((p) => ({ ...p, page: 1 })); }} style={historyInputStyle} />
+                    <input type="date" value={jobFilter.toDate} onChange={(e) => { setJobFilter({ ...jobFilter, toDate: e.target.value }); setJobPagination((p) => ({ ...p, page: 1 })); }} style={historyInputStyle} />
+                    <select value={jobFilter.changeType} onChange={(e) => { setJobFilter({ ...jobFilter, changeType: e.target.value }); setJobPagination((p) => ({ ...p, page: 1 })); }} style={historyInputStyle}>
+                      <option value="">All change types</option>
+                      {historyTypes.job.map((type) => <option key={type} value={type}>{type}</option>)}
+                    </select>
+                    <button onClick={() => { setJobFilter({ fromDate: "", toDate: "", changeType: "" }); setJobPagination((p) => ({ ...p, page: 1 })); }} style={{ ...historyInputStyle, cursor: "pointer", backgroundColor: "#eef2ff" }}>Reset filter</button>
+                  </div>
+                {historyLoading && <p style={{ color: "#64748b" }}>Loading history...</p>}
+                {!historyLoading && jobHistoryData.length > 0 ? (
+                  <div style={{ maxHeight: "420px", overflowY: "auto", backgroundColor: "#fff", borderRadius: 8 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead style={{ backgroundColor: "#f5f5f5" }}>
+                        <tr>
+                          <th style={{ padding: "8px", textAlign: "left" }}>Effective Date</th>
+                          <th style={{ padding: "8px", textAlign: "left" }}>Change Type</th>
+                          <th style={{ padding: "8px", textAlign: "left" }}>Department</th>
+                          <th style={{ padding: "8px", textAlign: "left" }}>Job Title</th>
+                          <th style={{ padding: "8px", textAlign: "left" }}>Note</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {jobHistoryData.map((item) => {
+                          const badge = changeBadge(item.changeType);
+                          return (
+                          <tr key={item.id} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
+                            <td style={{ padding: "8px" }}>{item.effectiveDate || "-"}</td>
+                            <td style={{ padding: "8px" }}><span style={{ background: badge.bg, color: badge.color, borderRadius: 999, padding: "3px 9px", fontSize: 12, fontWeight: 600 }}>{item.changeType || "-"}</span></td>
+                            <td style={{ padding: "8px" }}>{item.fromDepartmentName || "-"} → {item.toDepartmentName || "-"}</td>
+                            <td style={{ padding: "8px" }}>{item.fromJobTitleName || "-"} → {item.toJobTitleName || "-"}</td>
+                            <td style={{ padding: "8px" }}>{item.notes || "-"}</td>
+                          </tr>
+                        );})}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p style={{ color: "#999", textAlign: "center", padding: "20px" }}>No job history matching filters</p>
+                )}
+                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 10 }}>
+                  <button disabled={jobPagination.page <= 1} onClick={() => setJobPagination((p) => ({ ...p, page: p.page - 1 }))} style={{ ...historyInputStyle, cursor: jobPagination.page <= 1 ? "not-allowed" : "pointer" }}>Prev</button>
+                  <span style={{ fontSize: 13, color: "#475569" }}>Page {jobPagination.page} / {jobPagination.totalPages || 1}</span>
+                  <button disabled={jobPagination.page >= (jobPagination.totalPages || 1)} onClick={() => setJobPagination((p) => ({ ...p, page: p.page + 1 }))} style={{ ...historyInputStyle, cursor: jobPagination.page >= (jobPagination.totalPages || 1) ? "not-allowed" : "pointer" }}>Next</button>
+                </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "salary-change" && employeeDetails && (
+              <div>
+                <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Salary Change History</h3>
+                <div style={historyCardStyle}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                    <input type="date" value={salaryChangeFilter.fromDate} onChange={(e) => { setSalaryChangeFilter({ ...salaryChangeFilter, fromDate: e.target.value }); setSalaryPagination((p) => ({ ...p, page: 1 })); }} style={historyInputStyle} />
+                    <input type="date" value={salaryChangeFilter.toDate} onChange={(e) => { setSalaryChangeFilter({ ...salaryChangeFilter, toDate: e.target.value }); setSalaryPagination((p) => ({ ...p, page: 1 })); }} style={historyInputStyle} />
+                    <select value={salaryChangeFilter.changeType} onChange={(e) => { setSalaryChangeFilter({ ...salaryChangeFilter, changeType: e.target.value }); setSalaryPagination((p) => ({ ...p, page: 1 })); }} style={historyInputStyle}>
+                      <option value="">All change types</option>
+                      {historyTypes.salary.map((type) => <option key={type} value={type}>{type}</option>)}
+                    </select>
+                    <button onClick={() => { setSalaryChangeFilter({ fromDate: "", toDate: "", changeType: "" }); setSalaryPagination((p) => ({ ...p, page: 1 })); }} style={{ ...historyInputStyle, cursor: "pointer", backgroundColor: "#eef2ff" }}>Reset filter</button>
+                  </div>
+                {historyLoading && <p style={{ color: "#64748b" }}>Loading history...</p>}
+                {!historyLoading && salaryChangeData.length > 0 ? (
+                  <div style={{ maxHeight: "420px", overflowY: "auto", backgroundColor: "#fff", borderRadius: 8 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead style={{ backgroundColor: "#f5f5f5" }}>
+                        <tr>
+                          <th style={{ padding: "8px", textAlign: "left" }}>Effective Date</th>
+                          <th style={{ padding: "8px", textAlign: "left" }}>Change Type</th>
+                          <th style={{ padding: "8px", textAlign: "left" }}>Base Salary</th>
+                          <th style={{ padding: "8px", textAlign: "left" }}>Allowance</th>
+                          <th style={{ padding: "8px", textAlign: "left" }}>Reason</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salaryChangeData.map((item) => {
+                          const badge = changeBadge(item.changeType);
+                          return (
+                          <tr key={item.id} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
+                            <td style={{ padding: "8px" }}>{item.effectiveDate || "-"}</td>
+                            <td style={{ padding: "8px" }}><span style={{ background: badge.bg, color: badge.color, borderRadius: 999, padding: "3px 9px", fontSize: 12, fontWeight: 600 }}>{item.changeType || "-"}</span></td>
+                            <td style={{ padding: "8px" }}>{Number(item.previousBaseSalary || 0).toLocaleString("vi-VN")} → {Number(item.newBaseSalary || 0).toLocaleString("vi-VN")}</td>
+                            <td style={{ padding: "8px" }}>{Number(item.previousTotalAllowance || 0).toLocaleString("vi-VN")} → {Number(item.newTotalAllowance || 0).toLocaleString("vi-VN")}</td>
+                            <td style={{ padding: "8px" }}>{item.reason || "-"}</td>
+                          </tr>
+                        );})}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p style={{ color: "#999", textAlign: "center", padding: "20px" }}>No salary change history matching filters</p>
+                )}
+                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 10 }}>
+                  <button disabled={salaryPagination.page <= 1} onClick={() => setSalaryPagination((p) => ({ ...p, page: p.page - 1 }))} style={{ ...historyInputStyle, cursor: salaryPagination.page <= 1 ? "not-allowed" : "pointer" }}>Prev</button>
+                  <span style={{ fontSize: 13, color: "#475569" }}>Page {salaryPagination.page} / {salaryPagination.totalPages || 1}</span>
+                  <button disabled={salaryPagination.page >= (salaryPagination.totalPages || 1)} onClick={() => setSalaryPagination((p) => ({ ...p, page: p.page + 1 }))} style={{ ...historyInputStyle, cursor: salaryPagination.page >= (salaryPagination.totalPages || 1) ? "not-allowed" : "pointer" }}>Next</button>
+                </div>
+                </div>
+              </div>
+            )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

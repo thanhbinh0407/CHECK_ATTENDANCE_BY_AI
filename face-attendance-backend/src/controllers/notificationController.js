@@ -4,6 +4,7 @@ import AttendanceLog from "../models/pg/AttendanceLog.js";
 import LeaveRequest from "../models/pg/LeaveRequest.js";
 import { Op } from "sequelize";
 import nodemailer from "nodemailer";
+import { emitToRoom } from "../socket.js";
 
 // Email transporter setup (configure in .env)
 const getEmailTransporter = () => {
@@ -39,6 +40,28 @@ export const sendNotification = async (req, res) => {
       message,
       metadata: metadata || {}
     });
+
+    // Emit real-time notification
+    if (userId) {
+      emitToRoom(`user-${userId}`, 'new-notification', {
+        id: notification.id,
+        type,
+        title,
+        message,
+        metadata: notification.metadata,
+        createdAt: notification.createdAt
+      });
+    } else {
+      // Broadcast to all connected users for system-wide notifications
+      broadcast('new-notification', {
+        id: notification.id,
+        type,
+        title,
+        message,
+        metadata: notification.metadata,
+        createdAt: notification.createdAt
+      });
+    }
 
     // Send email if requested and configured
     if (sendEmail && userId) {
@@ -246,6 +269,7 @@ export const checkLateArrivals = async () => {
       },
       include: [{
         model: User,
+        as: "User",
         attributes: ['id', 'name', 'email']
       }]
     });
