@@ -31,9 +31,9 @@ function parseRejectionReason(notes) {
 async function readApiError(res) {
   try {
     const d = await res.json();
-    return d.message || d.error || `Lỗi ${res.status}`;
+    return d.message || d.error || `Error ${res.status}`;
   } catch {
-    return res.statusText || `Lỗi ${res.status}`;
+    return res.statusText || `Error ${res.status}`;
   }
 }
 
@@ -74,7 +74,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
     const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
     const token = localStorage.getItem("authToken");
     if (!token) {
-      setFetchError("Chưa đăng nhập.");
+      setFetchError("Not signed in.");
       setLoading(false);
       return;
     }
@@ -92,7 +92,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
       );
       const data = await res.json();
       if (!res.ok) {
-        setFetchError(data.message || "Không tải được danh sách.");
+        setFetchError(data.message || "Could not load the list.");
         setPendingSalaries([]);
         setAwaitingRecalc([]);
         return;
@@ -101,7 +101,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
       setAwaitingRecalc(data.awaitingRecalc || []);
     } catch (e) {
       console.error(e);
-      setFetchError(e.message || "Lỗi mạng.");
+      setFetchError(e.message || "Network error.");
       setPendingSalaries([]);
       setAwaitingRecalc([]);
     } finally {
@@ -140,11 +140,11 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
         return;
       }
       await fetchPendingSalaries();
-      setMessage("✅ Đã duyệt bảng lương. Kế toán có thể ghi nhận chi trả (mark paid) khi sẵn sàng.");
+      setMessage("✅ Payroll approved. Accountants can mark as paid when ready.");
       clearProgress(salaryId);
     } catch (e) {
       console.error(e);
-      setMessage("❌ Lỗi khi duyệt.");
+      setMessage("❌ Error while approving.");
       clearProgress(salaryId);
     }
   };
@@ -152,7 +152,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
   const rejectSalary = async (salaryId) => {
     const reason = (rejectReasons[salaryId] || "").trim();
     if (!reason) {
-      setMessage("❌ Vui lòng nhập lý do từ chối.");
+      setMessage("❌ Please enter a rejection reason.");
       return;
     }
     const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
@@ -180,11 +180,11 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
         delete n[salaryId];
         return n;
       });
-      setMessage("✅ Đã ghi nhận từ chối. Bản ghi chuyển sang mục “Chờ tính lại lương” — kế toán cần chạy lại tính lương.");
+      setMessage("✅ Rejection saved. Record moves to “Awaiting recalculation” — please rerun salary calculation.");
       clearProgress(salaryId);
     } catch (e) {
       console.error(e);
-      setMessage("❌ Lỗi khi từ chối.");
+      setMessage("❌ Error while rejecting.");
       clearProgress(salaryId);
     }
   };
@@ -240,25 +240,25 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
         }}
       >
         <h2 style={{ margin: "0 0 8px 0", fontSize: "1.35rem", fontWeight: "800" }}>
-          Duyệt bảng lương (payroll)
+          Payroll approval
         </h2>
         <p style={{ margin: 0, opacity: 0.88, fontSize: "14px", maxWidth: "640px", lineHeight: 1.5 }}>
           {canApprove && (
             <>
-              Bạn có quyền <strong>duyệt / từ chối</strong> các bản ghi trạng thái <em>chờ duyệt</em>. Từ chối sẽ đưa bản ghi về
-              luồng <strong>tính lại lương</strong> (kế toán xử lý), không xóa dữ liệu.
+              You may <strong>approve / reject</strong> records in <em>pending</em> status. Rejection sends the record back for{" "}
+              <strong>salary recalculation</strong> (handled by payroll), without deleting data.
             </>
           )}
           {isAccountant && (
             <>
-              Với vai trò <strong>kế toán</strong>, bạn <strong>không duyệt</strong> bảng lương (theo quy định hệ thống).
-              Hãy dùng trang này để <strong>theo dõi hàng chờ</strong> và các bản ghi bị trả về; sau khi Giám đốc/Supervisor duyệt,
-              dùng <strong>Quản lý lương</strong> để ghi nhận chi trả.
+              As <strong>accountant</strong>, you <strong>cannot approve</strong> payroll (per system rules).
+              Use this page to <strong>monitor queues</strong> and returned records; after a Director/Supervisor approves,
+              use <strong>Salary management</strong> to mark payments.
             </>
           )}
           {!canApprove && !isAccountant && (
             <>
-              Xem danh sách bảng lương chờ duyệt theo tháng/năm. Thao tác duyệt chỉ dành cho <strong>Supervisor</strong> hoặc{" "}
+              View payroll pending by month/year. Approval actions are only for <strong>Supervisor</strong> or{" "}
               <strong>Manager</strong>.
             </>
           )}
@@ -276,7 +276,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
       >
         <div>
           <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: theme.neutral.gray500, marginBottom: "6px" }}>
-            Tháng
+            Month
           </label>
           <select
             value={selectedMonth}
@@ -292,14 +292,14 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
           >
             {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
               <option key={m} value={m}>
-                Tháng {m}
+                Month {m}
               </option>
             ))}
           </select>
         </div>
         <div>
           <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: theme.neutral.gray500, marginBottom: "6px" }}>
-            Năm
+            Year
           </label>
           <select
             value={selectedYear}
@@ -334,11 +334,11 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
             fontSize: "14px",
           }}
         >
-          Làm mới
+          Refresh
         </button>
         <span style={{ fontSize: "14px", color: theme.neutral.gray600, fontWeight: "600" }}>
-          {pendingSalaries.length} chờ duyệt
-          {awaitingRecalc.length > 0 ? ` · ${awaitingRecalc.length} chờ tính lại` : ""}
+          {pendingSalaries.length} pending
+          {awaitingRecalc.length > 0 ? ` · ${awaitingRecalc.length} awaiting recalc` : ""}
         </span>
       </div>
 
@@ -354,7 +354,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
             color: "#92400e",
           }}
         >
-          Có bản ghi cần <strong>tính lại lương</strong>. Mở{" "}
+          Some records need <strong>salary recalculation</strong>. Open{" "}
           <button
             type="button"
             onClick={() => onNavigate("salary-calculation")}
@@ -367,9 +367,9 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
               textDecoration: "underline",
             }}
           >
-            Tính lương
+            Salary calculation
           </button>{" "}
-          cho đúng tháng/năm, sau đó bản ghi sẽ quay lại hàng chờ duyệt (sạch ghi chú từ chối).
+          for the correct month/year; the record will return to the approval queue (rejection notes cleared).
         </div>
       )}
 
@@ -380,7 +380,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
       )}
 
       {loading ? (
-        <p style={{ color: theme.neutral.gray500 }}>Đang tải…</p>
+        <p style={{ color: theme.neutral.gray500 }}>Loading…</p>
       ) : (
         <>
           <div
@@ -394,24 +394,24 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
             }}
           >
             <div style={{ padding: "12px 16px", background: theme.neutral.gray50, borderBottom: `1px solid ${theme.colors.border}` }}>
-              <strong style={{ color: theme.primary.main }}>Chờ duyệt (Supervisor / Manager)</strong>
+              <strong style={{ color: theme.primary.main }}>Pending approval (Supervisor / Manager)</strong>
             </div>
             {pendingSalaries.length === 0 ? (
               <div style={{ textAlign: "center", padding: "40px", color: theme.neutral.gray500 }}>
-                Không có bảng lương chờ duyệt cho {selectedMonth}/{selectedYear}.
+                No payroll pending approval for {selectedMonth}/{selectedYear}.
               </div>
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead style={{ background: theme.primary.main }}>
                     <tr>
-                      <th style={thStyle}>Nhân viên</th>
-                      <th style={thStyle}>Mã NV</th>
-                      <th style={{ ...thStyle, textAlign: "right" }}>Lương cơ bản</th>
-                      <th style={{ ...thStyle, textAlign: "right" }}>Thưởng</th>
-                      <th style={{ ...thStyle, textAlign: "right" }}>Khấu trừ</th>
-                      <th style={{ ...thStyle, textAlign: "right" }}>Thực lĩnh</th>
-                      <th style={{ ...thStyle, textAlign: "center" }}>Thao tác</th>
+                      <th style={thStyle}>Employee</th>
+                      <th style={thStyle}>Emp. ID</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Base salary</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Bonus</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Deduction</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Net pay</th>
+                      <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -421,13 +421,13 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                           <td style={cell}>
                             <div style={{ fontWeight: "700" }}>{salary.User?.name || "—"}</div>
                             <div style={{ fontSize: "12px", color: theme.neutral.gray500 }}>
-                              Kỳ {salary.month}/{salary.year}
+                              Period {salary.month}/{salary.year}
                             </div>
                             {approvalInProgress[salary.id] === "approving" && (
-                              <div style={{ fontSize: "12px", color: theme.accent.main }}>Đang duyệt…</div>
+                              <div style={{ fontSize: "12px", color: theme.accent.main }}>Approving…</div>
                             )}
                             {approvalInProgress[salary.id] === "rejecting" && (
-                              <div style={{ fontSize: "12px", color: "#ea580c" }}>Đang từ chối…</div>
+                              <div style={{ fontSize: "12px", color: "#ea580c" }}>Rejecting…</div>
                             )}
                           </td>
                           <td style={{ ...cell, fontWeight: "600" }}>{salary.User?.employeeCode || "—"}</td>
@@ -454,7 +454,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                                     fontWeight: "700",
                                   }}
                                 >
-                                  Duyệt
+                                  Approve
                                 </button>
                                 <button
                                   type="button"
@@ -475,12 +475,12 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                                     fontWeight: "700",
                                   }}
                                 >
-                                  Từ chối
+                                  Reject
                                 </button>
                               </div>
                             )}
                             {!canApprove && (
-                              <span style={{ fontSize: "12px", color: theme.neutral.gray400 }}>Chỉ xem</span>
+                              <span style={{ fontSize: "12px", color: theme.neutral.gray400 }}>View only</span>
                             )}
                           </td>
                         </tr>
@@ -488,7 +488,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                           <tr style={{ background: "#fffbeb" }}>
                             <td colSpan={7} style={{ padding: "16px" }}>
                               <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "13px" }}>
-                                Lý do từ chối (gửi kế toán để điều chỉnh / tính lại)
+                                Rejection reason (shared with payroll for adjustment / recalc)
                               </label>
                               <textarea
                                 value={rejectReasons[salary.id] || ""}
@@ -507,7 +507,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                                   minHeight: "72px",
                                   fontSize: "14px",
                                 }}
-                                placeholder="Ví dụ: Sai công chuẩn, thiếu phụ cấp…"
+                                placeholder="e.g. Wrong attendance, missing allowance…"
                               />
                               <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
                                 <button
@@ -523,7 +523,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                                     fontWeight: "700",
                                   }}
                                 >
-                                  Xác nhận từ chối
+                                  Confirm reject
                                 </button>
                                 <button
                                   type="button"
@@ -542,7 +542,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                                     fontWeight: "600",
                                   }}
                                 >
-                                  Hủy
+                                  Cancel
                                 </button>
                               </div>
                             </td>
@@ -567,19 +567,19 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
               }}
             >
               <div style={{ padding: "12px 16px", background: "#fff7ed", borderBottom: "1px solid #fed7aa" }}>
-                <strong style={{ color: "#9a3412" }}>Chờ tính lại lương (đã bị từ chối duyệt)</strong>
+                <strong style={{ color: "#9a3412" }}>Awaiting salary recalculation (approval rejected)</strong>
                 <div style={{ fontSize: "12px", color: "#c2410c", marginTop: "4px" }}>
-                  Không hiển thị trong hàng chờ duyệt. Sau khi kế toán tính lại, bản ghi quay về chờ duyệt bình thường.
+                  Not shown in the pending queue. After payroll recalculates, the record returns to normal pending approval.
                 </div>
               </div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead style={{ background: theme.neutral.gray700 }}>
                     <tr>
-                      <th style={thStyle}>Nhân viên</th>
-                      <th style={thStyle}>Kỳ</th>
-                      <th style={{ ...thStyle, textAlign: "right" }}>Thực lĩnh (hiện tại)</th>
-                      <th style={thStyle}>Lý do từ chối</th>
+                      <th style={thStyle}>Employee</th>
+                      <th style={thStyle}>Period</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Net pay (current)</th>
+                      <th style={thStyle}>Rejection reason</th>
                     </tr>
                   </thead>
                   <tbody>
