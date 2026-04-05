@@ -80,6 +80,51 @@ export const getAllEmployees = async (req, res) => {
   }
 };
 
+/** Tổng hợp điểm danh trong ngày theo userId (log cuối trong ngày = trạng thái hiện tại). */
+export const getTodayPresenceSummary = async (req, res) => {
+  try {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(todayStart);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const logs = await AttendanceLog.findAll({
+      where: {
+        userId: { [Op.ne]: null },
+        timestamp: { [Op.gte]: todayStart, [Op.lt]: tomorrow },
+      },
+      attributes: ["userId", "type", "timestamp"],
+      order: [["timestamp", "ASC"]],
+    });
+
+    const byUser = new Map();
+    for (const log of logs) {
+      const uid = log.userId;
+      if (!byUser.has(uid)) {
+        byUser.set(uid, { logCount: 0, lastType: null, lastAt: null });
+      }
+      const p = byUser.get(uid);
+      p.logCount += 1;
+      p.lastType = log.type;
+      p.lastAt = log.timestamp;
+    }
+
+    const presence = Object.fromEntries(byUser.entries());
+
+    return res.json({
+      status: "success",
+      date: todayStart.toISOString().split("T")[0],
+      presence,
+    });
+  } catch (err) {
+    console.error("Error fetching today presence:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message,
+    });
+  }
+};
+
 // Get employee by ID
 export const getEmployeeById = async (req, res) => {
   try {
