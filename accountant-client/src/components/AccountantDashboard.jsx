@@ -222,7 +222,7 @@ export default function AccountantDashboard({ onNavigate } = {}) {
         <div className="acc-dash-links" style={{ marginTop: 14 }}>
           <button type="button" className="acc-dash-link" onClick={() => go("salary-calculation")}>
             <span>💰</span>
-            <span>Tính lương</span>
+            <span>Salary calculation</span>
           </button>
           <button type="button" className="acc-dash-link" onClick={() => go("salary-management")}>
             <span>📊</span>

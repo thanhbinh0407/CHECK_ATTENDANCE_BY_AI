@@ -208,7 +208,7 @@ export const getPayrollCostReport = async (month, year) => {
     for (const salary of salaries) {
       const user = salary.User;
       const insurance = insuranceMap.get(user.id) || { employee: { total: 0 }, employer: { total: 0 } };
-      const tax = await calculatePersonalIncomeTax(user.id, salary.finalSalary || 0, month, year);
+      const tax = await calculatePersonalIncomeTax(user.id, salary.grossSalary || 0, month, year);
 
       totalGrossSalary += parseFloat(salary.grossSalary || 0);
       totalNetSalary += parseFloat(salary.finalSalary || 0);

@@ -586,7 +586,7 @@ async function seedDB() {
     await InsuranceConfig.create({
       name: 'Social Insurance 2025',
       effectiveDate: '2025-01-01',
-      employeeSocialInsuranceRate: 10.5,
+      employeeSocialInsuranceRate: 8,
       employerSocialInsuranceRate: 21.5,
       employeeHealthInsuranceRate: 1.5,
       employerHealthInsuranceRate: 3.0,
