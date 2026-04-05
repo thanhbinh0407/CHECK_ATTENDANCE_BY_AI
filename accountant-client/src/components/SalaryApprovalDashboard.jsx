@@ -54,6 +54,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
   const [showRejectReason, setShowRejectReason] = useState({});
   const [rejectReasons, setRejectReasons] = useState({});
   const [message, setMessage] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const role = useMemo(() => currentUserRole(), []);
   const canApprove = role === "manager" || role === "supervisor";
@@ -191,6 +192,62 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
 
   const formatCurrency = (amount) =>
     new Intl.NumberFormat("vi-VN").format(Number(amount) || 0) + " ₫";
+
+  const formatPayPeriod = (s) => {
+    const y = Number(s.year);
+    const m = Number(s.month);
+    if (Number.isFinite(y) && Number.isFinite(m) && m >= 1 && m <= 12) {
+      return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    }
+    return `${s.month ?? "—"}/${s.year ?? "—"}`;
+  };
+
+  const formatCalculatedShort = (s) => {
+    const raw = s.calculatedAt;
+    if (!raw) return "—";
+    try {
+      return new Date(raw).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "—";
+    }
+  };
+
+  /** Net display: align with salary management when DB net is 0 but gross − deductions is negative. */
+  const displayNetSalary = (s) => {
+    const stored = Number(s.finalSalary);
+    const g = parseFloat(s.grossSalary ?? 0);
+    const d = parseFloat(s.deduction ?? 0);
+    const recomputed = parseFloat((g - d).toFixed(2));
+    if (Math.abs(stored) < 0.005 && recomputed < 0) return recomputed;
+    return Number.isFinite(stored) ? stored : recomputed;
+  };
+
+  const filteredPendingSalaries = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return pendingSalaries;
+    return pendingSalaries.filter((s) => {
+      const name = (s.User?.name || "").toLowerCase();
+      const code = (s.User?.employeeCode || "").toLowerCase();
+      return name.includes(q) || code.includes(q);
+    });
+  }, [pendingSalaries, searchQuery]);
+
+  const filteredAwaitingRecalc = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return awaitingRecalc;
+    return awaitingRecalc.filter((s) => {
+      const name = (s.User?.name || "").toLowerCase();
+      const code = (s.User?.employeeCode || "").toLowerCase();
+      return name.includes(q) || code.includes(q);
+    });
+  }, [awaitingRecalc, searchQuery]);
+
+  const pendingTableColSpan = 11;
 
   const thStyle = {
     padding: "12px 14px",
@@ -336,9 +393,43 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
         >
           Refresh
         </button>
-        <span style={{ fontSize: "14px", color: theme.neutral.gray600, fontWeight: "600" }}>
-          {pendingSalaries.length} pending
-          {awaitingRecalc.length > 0 ? ` · ${awaitingRecalc.length} awaiting recalc` : ""}
+        <div style={{ flex: "1 1 240px", minWidth: "200px", maxWidth: "400px" }}>
+          <label
+            style={{ display: "block", fontSize: "12px", fontWeight: "600", color: theme.neutral.gray500, marginBottom: "6px" }}
+            htmlFor="payroll-approval-search"
+          >
+            Search
+          </label>
+          <input
+            id="payroll-approval-search"
+            type="search"
+            placeholder="Name or employee ID…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "10px 14px",
+              borderRadius: "10px",
+              border: `1px solid ${theme.colors.border}`,
+              fontSize: "14px",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+        <span style={{ fontSize: "14px", color: theme.neutral.gray600, fontWeight: "600", alignSelf: "center" }}>
+          {!searchQuery.trim() ? (
+            <>
+              {pendingSalaries.length} pending
+              {awaitingRecalc.length > 0 ? ` · ${awaitingRecalc.length} awaiting recalc` : ""}
+            </>
+          ) : (
+            <>
+              {filteredPendingSalaries.length}/{pendingSalaries.length} pending (search)
+              {awaitingRecalc.length > 0
+                ? ` · ${filteredAwaitingRecalc.length}/${awaitingRecalc.length} awaiting recalc`
+                : ""}
+            </>
+          )}
         </span>
       </div>
 
@@ -400,6 +491,10 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
               <div style={{ textAlign: "center", padding: "40px", color: theme.neutral.gray500 }}>
                 No payroll pending approval for {selectedMonth}/{selectedYear}.
               </div>
+            ) : filteredPendingSalaries.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px", color: theme.neutral.gray500 }}>
+                No rows match your search. Clear the search box or try another name / ID.
+              </div>
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -407,22 +502,23 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                     <tr>
                       <th style={thStyle}>Employee</th>
                       <th style={thStyle}>Emp. ID</th>
-                      <th style={{ ...thStyle, textAlign: "right" }}>Base salary</th>
+                      <th style={thStyle}>Pay period</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Gross</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Base</th>
                       <th style={{ ...thStyle, textAlign: "right" }}>Bonus</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Advance</th>
                       <th style={{ ...thStyle, textAlign: "right" }}>Deduction</th>
                       <th style={{ ...thStyle, textAlign: "right" }}>Net pay</th>
+                      <th style={thStyle}>Calculated</th>
                       <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pendingSalaries.map((salary) => (
+                    {filteredPendingSalaries.map((salary) => (
                       <React.Fragment key={salary.id}>
                         <tr style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
                           <td style={cell}>
                             <div style={{ fontWeight: "700" }}>{salary.User?.name || "—"}</div>
-                            <div style={{ fontSize: "12px", color: theme.neutral.gray500 }}>
-                              Period {salary.month}/{salary.year}
-                            </div>
                             {approvalInProgress[salary.id] === "approving" && (
                               <div style={{ fontSize: "12px", color: theme.accent.main }}>Approving…</div>
                             )}
@@ -431,11 +527,28 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                             )}
                           </td>
                           <td style={{ ...cell, fontWeight: "600" }}>{salary.User?.employeeCode || "—"}</td>
+                          <td style={{ ...cell, color: theme.neutral.gray600, fontSize: "13px" }}>
+                            {formatPayPeriod(salary)}
+                          </td>
+                          <td style={{ ...cell, textAlign: "right", fontWeight: "600" }}>{formatCurrency(salary.grossSalary)}</td>
                           <td style={{ ...cell, textAlign: "right" }}>{formatCurrency(salary.baseSalary)}</td>
                           <td style={{ ...cell, textAlign: "right", color: "#059669" }}>+{formatCurrency(salary.bonus)}</td>
+                          <td style={{ ...cell, textAlign: "right", color: "#b45309" }}>
+                            {Number(salary.advanceDeduction) > 0 ? `−${formatCurrency(salary.advanceDeduction)}` : "—"}
+                          </td>
                           <td style={{ ...cell, textAlign: "right", color: "#dc2626" }}>-{formatCurrency(salary.deduction)}</td>
-                          <td style={{ ...cell, textAlign: "right", fontWeight: "800", color: theme.accent.dark }}>
-                            {formatCurrency(salary.finalSalary)}
+                          <td
+                            style={{
+                              ...cell,
+                              textAlign: "right",
+                              fontWeight: "800",
+                              color: displayNetSalary(salary) < 0 ? "#b91c1c" : theme.accent.dark,
+                            }}
+                          >
+                            {formatCurrency(displayNetSalary(salary))}
+                          </td>
+                          <td style={{ ...cell, fontSize: "12px", color: theme.neutral.gray600, whiteSpace: "nowrap" }}>
+                            {formatCalculatedShort(salary)}
                           </td>
                           <td style={{ ...cell, textAlign: "center" }}>
                             {!approvalInProgress[salary.id] && canApprove && (
@@ -486,7 +599,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                         </tr>
                         {showRejectReason[salary.id] && canApprove && (
                           <tr style={{ background: "#fffbeb" }}>
-                            <td colSpan={7} style={{ padding: "16px" }}>
+                            <td colSpan={pendingTableColSpan} style={{ padding: "16px" }}>
                               <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "13px" }}>
                                 Rejection reason (shared with payroll for adjustment / recalc)
                               </label>
@@ -572,27 +685,34 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                   Not shown in the pending queue. After payroll recalculates, the record returns to normal pending approval.
                 </div>
               </div>
+              {filteredAwaitingRecalc.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "32px", color: theme.neutral.gray500 }}>
+                  No awaiting-recalc rows match your search.
+                </div>
+              ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead style={{ background: theme.neutral.gray700 }}>
                     <tr>
                       <th style={thStyle}>Employee</th>
                       <th style={thStyle}>Period</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Gross</th>
                       <th style={{ ...thStyle, textAlign: "right" }}>Net pay (current)</th>
                       <th style={thStyle}>Rejection reason</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {awaitingRecalc.map((s) => (
+                    {filteredAwaitingRecalc.map((s) => (
                       <tr key={s.id} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
                         <td style={cell}>
                           <strong>{s.User?.name || "—"}</strong>
                           <div style={{ fontSize: "12px", color: theme.neutral.gray500 }}>{s.User?.employeeCode}</div>
                         </td>
                         <td style={cell}>
-                          {s.month}/{s.year}
+                          {formatPayPeriod(s)}
                         </td>
-                        <td style={{ ...cell, textAlign: "right", fontWeight: "700" }}>{formatCurrency(s.finalSalary)}</td>
+                        <td style={{ ...cell, textAlign: "right", fontWeight: "600" }}>{formatCurrency(s.grossSalary)}</td>
+                        <td style={{ ...cell, textAlign: "right", fontWeight: "700" }}>{formatCurrency(displayNetSalary(s))}</td>
                         <td style={{ ...cell, fontSize: "13px", color: theme.neutral.gray700 }}>
                           {parseRejectionReason(s.notes) || "—"}
                         </td>
@@ -601,6 +721,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           )}
         </>
