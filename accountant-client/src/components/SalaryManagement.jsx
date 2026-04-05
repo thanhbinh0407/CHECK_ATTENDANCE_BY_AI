@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { theme } from "../theme.js";
 import { exportSalariesToExcel, exportSalariesToPDF } from "../utils/exportUtils.js";
 import SalaryBreakdownModal from "./SalaryBreakdownModal.jsx";
@@ -57,6 +57,9 @@ export default function SalaryManagement() {
   const [showBreakdownModal, setShowBreakdownModal] = useState(false);
   const [salaryBreakdown, setSalaryBreakdown] = useState(null);
   const [selectedEmployeeForModal, setSelectedEmployeeForModal] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
   const currentRole = (() => {
@@ -104,27 +107,79 @@ export default function SalaryManagement() {
     fetchRules();
   }, []);
 
-  const formatSalaryRowDate = (salary) => {
-    const raw = salary.calculatedAt || salary.updatedAt || salary.createdAt;
-    if (raw) {
-      return new Date(raw).toLocaleDateString("vi-VN", {
-        day: "2-digit",
-        month: "2-digit",
+  /** First/last calendar day of the payroll month (for date-range filter overlap). */
+  const getPayPeriodBounds = useCallback((salary) => {
+    const y = Number(salary.year);
+    const m = Number(salary.month);
+    if (Number.isFinite(y) && Number.isFinite(m) && m >= 1 && m <= 12) {
+      const start = new Date(y, m - 1, 1);
+      const end = new Date(y, m, 0);
+      return {
+        start: new Date(start.getFullYear(), start.getMonth(), start.getDate()),
+        end: new Date(end.getFullYear(), end.getMonth(), end.getDate()),
+      };
+    }
+    return null;
+  }, []);
+
+  /** Month + year only — avoids showing a specific "day" that can still be in the future mid-month. */
+  const formatPayPeriodLabel = (salary) => {
+    const y = Number(salary.year);
+    const m = Number(salary.month);
+    if (Number.isFinite(y) && Number.isFinite(m) && m >= 1 && m <= 12) {
+      return new Date(y, m - 1, 1).toLocaleDateString("en-US", {
+        month: "short",
         year: "numeric",
       });
     }
-    const y = Number(salary.year);
-    const m = Number(salary.month);
-    if (Number.isFinite(y) && Number.isFinite(m)) {
-      const end = new Date(y, m, 0);
-      return end.toLocaleDateString("vi-VN", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
+    const raw = salary.calculatedAt || salary.updatedAt || salary.createdAt;
+    if (raw) {
+      const d = new Date(raw);
+      return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
     }
     return "—";
   };
+
+  const parseFilterInputDate = (s) => {
+    if (!s || typeof s !== "string") return null;
+    const parts = s.split("-").map(Number);
+    if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+    const [y, m, d] = parts;
+    return new Date(y, m - 1, d);
+  };
+
+  const filteredSalaries = useMemo(() => {
+    let list = salaries;
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter((s) => {
+        const name = (s.User?.name || "").toLowerCase();
+        const code = (s.User?.employeeCode || "").toLowerCase();
+        return name.includes(q) || code.includes(q);
+      });
+    }
+    const from = parseFilterInputDate(filterDateFrom);
+    const to = parseFilterInputDate(filterDateTo);
+    if (from || to) {
+      list = list.filter((s) => {
+        const b = getPayPeriodBounds(s);
+        if (!b) return false;
+        if (from && b.end < from) return false;
+        if (to && b.start > to) return false;
+        return true;
+      });
+    }
+    return list;
+  }, [salaries, searchQuery, filterDateFrom, filterDateTo, getPayPeriodBounds]);
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setFilterDateFrom("");
+    setFilterDateTo("");
+  };
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" || filterDateFrom !== "" || filterDateTo !== "";
 
   const viewSalaryBreakdown = (salary) => {
     setSalaryBreakdown(salary);
@@ -543,20 +598,20 @@ export default function SalaryManagement() {
         </div>
 
         <button
-          onClick={() => exportSalariesToExcel(salaries, `bang-luong-${selectedMonth}-${selectedYear}`)}
-          disabled={salaries.length === 0}
+          onClick={() => exportSalariesToExcel(filteredSalaries, `bang-luong-${selectedMonth}-${selectedYear}`)}
+          disabled={filteredSalaries.length === 0}
             style={{
               ...buttonStyle,
-              opacity: salaries.length === 0 ? 0.5 : 1,
-              cursor: salaries.length === 0 ? "not-allowed" : "pointer"
+              opacity: filteredSalaries.length === 0 ? 0.5 : 1,
+              cursor: filteredSalaries.length === 0 ? "not-allowed" : "pointer"
             }}
             onMouseEnter={(e) => {
-              if (salaries.length > 0) {
+              if (filteredSalaries.length > 0) {
                 e.currentTarget.style.background = theme.accent.hover;
               }
             }}
             onMouseLeave={(e) => {
-              if (salaries.length > 0) {
+              if (filteredSalaries.length > 0) {
                 e.currentTarget.style.background = theme.accent.main;
               }
             }}
@@ -566,21 +621,21 @@ export default function SalaryManagement() {
         </button>
 
         <button
-          onClick={() => exportSalariesToPDF(salaries, `bang-luong-${selectedMonth}-${selectedYear}`)}
-          disabled={salaries.length === 0}
+          onClick={() => exportSalariesToPDF(filteredSalaries, `bang-luong-${selectedMonth}-${selectedYear}`)}
+          disabled={filteredSalaries.length === 0}
             style={{
               ...buttonStyle,
               background: "#b91c1c",
-              opacity: salaries.length === 0 ? 0.5 : 1,
-              cursor: salaries.length === 0 ? "not-allowed" : "pointer"
+              opacity: filteredSalaries.length === 0 ? 0.5 : 1,
+              cursor: filteredSalaries.length === 0 ? "not-allowed" : "pointer"
             }}
             onMouseEnter={(e) => {
-              if (salaries.length > 0) {
+              if (filteredSalaries.length > 0) {
                 e.currentTarget.style.background = "#991b1b";
               }
             }}
             onMouseLeave={(e) => {
-              if (salaries.length > 0) {
+              if (filteredSalaries.length > 0) {
                 e.currentTarget.style.background = "#b91c1c";
               }
             }}
@@ -617,6 +672,96 @@ export default function SalaryManagement() {
           <span>Recalculate</span>
         </button>
         </div>
+
+        <div
+          style={{
+            marginTop: "20px",
+            paddingTop: "20px",
+            borderTop: "1px solid #e2e8f0",
+            display: "flex",
+            gap: "16px",
+            alignItems: "flex-end",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ ...inputWrapperStyle, flex: "1 1 220px", minWidth: "200px", maxWidth: "360px" }}>
+            <label style={labelStyle} htmlFor="salary-mgmt-search">
+              Search
+            </label>
+            <input
+              id="salary-mgmt-search"
+              type="search"
+              placeholder="Name or employee ID…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                ...inputStyle,
+                cursor: "text",
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = theme.accent.main;
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "#e2e8f0";
+              }}
+            />
+          </div>
+          <div style={inputWrapperStyle}>
+            <label style={labelStyle} htmlFor="salary-filter-from">
+              Date from
+            </label>
+            <input
+              id="salary-filter-from"
+              type="date"
+              value={filterDateFrom}
+              onChange={(e) => setFilterDateFrom(e.target.value)}
+              style={inputStyle}
+              onFocus={(e) => {
+                e.target.style.borderColor = theme.accent.main;
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "#e2e8f0";
+              }}
+            />
+          </div>
+          <div style={inputWrapperStyle}>
+            <label style={labelStyle} htmlFor="salary-filter-to">
+              Date to
+            </label>
+            <input
+              id="salary-filter-to"
+              type="date"
+              value={filterDateTo}
+              onChange={(e) => setFilterDateTo(e.target.value)}
+              style={inputStyle}
+              onFocus={(e) => {
+                e.target.style.borderColor = theme.accent.main;
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "#e2e8f0";
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={clearFilters}
+            disabled={!hasActiveFilters}
+            style={{
+              padding: "10px 18px",
+              background: hasActiveFilters ? "#f1f5f9" : "#f8fafc",
+              color: hasActiveFilters ? "#475569" : "#94a3b8",
+              border: "1px solid #e2e8f0",
+              borderRadius: "8px",
+              fontSize: "14px",
+              fontWeight: "600",
+              cursor: hasActiveFilters ? "pointer" : "not-allowed",
+              height: "42px",
+              alignSelf: "flex-end",
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
       </div>
 
       {/* Salary Table */}
@@ -639,14 +784,54 @@ export default function SalaryManagement() {
             </p>
           </div>
         </div>
+      ) : filteredSalaries.length === 0 ? (
+        <div style={tableContainerStyle}>
+          <div style={emptyStateStyle}>
+            <div style={{ fontSize: "48px", marginBottom: "16px", opacity: 0.6 }}>🔍</div>
+            <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#334155", margin: "0 0 6px 0" }}>
+              No matching rows
+            </h3>
+            <p style={{ fontSize: "14px", color: "#64748b", margin: "0 0 16px 0" }}>
+              Try changing search or date range, or clear filters.
+            </p>
+            <button
+              type="button"
+              onClick={clearFilters}
+              style={{
+                ...buttonStyle,
+                padding: "10px 20px",
+                fontSize: "14px",
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
+        </div>
       ) : (
         <div style={tableContainerStyle}>
+          <div
+            style={{
+              padding: "12px 20px",
+              fontSize: "13px",
+              color: "#64748b",
+              borderBottom: "1px solid #f1f5f9",
+              background: "#fafafa",
+            }}
+          >
+            Showing{" "}
+            <strong style={{ color: "#334155" }}>{filteredSalaries.length}</strong> of{" "}
+            <strong style={{ color: "#334155" }}>{salaries.length}</strong> row
+            {salaries.length !== 1 ? "s" : ""}
+            {hasActiveFilters ? " (filters applied)" : ""}
+          </div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead style={tableHeaderStyle}>
               <tr>
                 <th style={{ ...thStyle }}>Employee</th>
                 <th style={{ ...thStyle }}>Emp. ID</th>
-                <th style={{ ...thStyle }}>Date</th>
+                <th style={{ ...thStyle }} title="Payroll month and year (same period as Month/Year filter above)">
+                  Pay period
+                </th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Base Salary</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Bonus</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Deduction</th>
@@ -656,7 +841,7 @@ export default function SalaryManagement() {
               </tr>
             </thead>
           <tbody>
-              {salaries.map((salary, index) => {
+              {filteredSalaries.map((salary, index) => {
               const statusBadge = getStatusBadge(salary.status);
               return (
                   <tr
@@ -676,7 +861,7 @@ export default function SalaryManagement() {
                   >
                     <td style={{ ...tdStyle, fontWeight: "600" }}>{salary.User?.name || "N/A"}</td>
                     <td style={{ ...tdStyle, fontWeight: "600", color: theme.accent.dark }}>{salary.User?.employeeCode || "N/A"}</td>
-                    <td style={{ ...tdStyle, color: "#64748b", fontSize: "13px" }}>{formatSalaryRowDate(salary)}</td>
+                    <td style={{ ...tdStyle, color: "#64748b", fontSize: "13px" }}>{formatPayPeriodLabel(salary)}</td>
                     <td style={{ ...tdStyle, textAlign: "right", fontWeight: "600" }}>{formatCurrency(salary.baseSalary)}</td>
                     <td style={{ ...tdStyle, textAlign: "right", color: theme.accent.dark, fontWeight: "600" }}>+{formatCurrency(salary.bonus)}</td>
                     <td style={{ ...tdStyle, textAlign: "right", color: "#ef4444", fontWeight: "600" }}>-{formatCurrency(salary.deduction)}</td>

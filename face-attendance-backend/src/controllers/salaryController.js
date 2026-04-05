@@ -228,8 +228,8 @@ export const getSalaries = async (req, res) => {
 
     const where = {};
     if (userId) where.userId = userId;
-    if (month) where.month = month;
-    if (year) where.year = year;
+    if (month !== undefined && month !== "") where.month = parseInt(month, 10);
+    if (year !== undefined && year !== "") where.year = parseInt(year, 10);
 
     const salaries = await Salary.findAll({
       where,
