@@ -30,14 +30,21 @@ function buildReportUrl(type, month, year) {
   return `${API}/reports/${type}?${qs}`;
 }
 
-function ReportRenderer({ type, data }) {
+function ReportRenderer({ type, data, keyword = '' }) {
   if (!data) return null;
+
+  const kw = String(keyword || '').trim().toLowerCase();
+  const matchRow = (row, fields = []) => {
+    if (!kw) return true;
+    const source = fields.length > 0 ? fields.map((f) => row?.[f]) : Object.values(row || {});
+    return source.some((v) => String(v ?? '').toLowerCase().includes(kw));
+  };
 
   if (data.status === 'error') {
     return (
       <div className="sup-rep-alert sup-rep-alert--err">
-        <strong>Không tải được báo cáo</strong>
-        <p>{data.message || 'Lỗi không xác định'}</p>
+        <strong>Unable to load report</strong>
+        <p>{data.message || 'Unknown error'}</p>
       </div>
     );
   }
@@ -46,34 +53,37 @@ function ReportRenderer({ type, data }) {
   if (!rep && data.status !== 'success') {
     return (
       <div className="sup-rep-alert sup-rep-alert--err">
-        <p>Phản hồi không đúng định dạng.</p>
+        <p>Unexpected response format.</p>
       </div>
     );
   }
 
   if (type === 'attendance' && rep?.report) {
     const rows = rep.report;
+    const filteredRows = rows.filter((r) =>
+      matchRow(r, ['employeeCode', 'employeeName', 'department', 'attendanceRate', 'presentDays', 'lateCount'])
+    );
     return (
       <div className="sup-rep-card">
-        <h3 className="sup-rep-card-title">Chấm công — {rep.month}/{rep.year}</h3>
-        <p className="sup-rep-muted">{rep.totalEmployees} nhân viên</p>
+        <h3 className="sup-rep-card-title">Attendance — {rep.month}/{rep.year}</h3>
+        <p className="sup-rep-muted">{filteredRows.length}/{rows.length} employees</p>
         <div className="sup-rep-table-wrap">
           <table className="sup-rep-table">
             <thead>
               <tr>
-                <th>Mã NV</th>
-                <th>Họ tên</th>
-                <th>PB</th>
-                <th>Có mặt</th>
-                <th>Nghỉ</th>
-                <th>Vắng</th>
-                <th>Muộn</th>
-                <th>TC (giờ)</th>
+                <th>Emp Code</th>
+                <th>Employee</th>
+                <th>Department</th>
+                <th>Present</th>
+                <th>Leave</th>
+                <th>Absent</th>
+                <th>Late</th>
+                <th>OT (hours)</th>
                 <th>%</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {filteredRows.map((r) => (
                 <tr key={r.employeeId}>
                   <td>{r.employeeCode}</td>
                   <td>{r.employeeName}</td>
@@ -86,6 +96,9 @@ function ReportRenderer({ type, data }) {
                   <td>{r.attendanceRate}</td>
                 </tr>
               ))}
+              {filteredRows.length === 0 && (
+                <tr><td colSpan={9} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -95,24 +108,28 @@ function ReportRenderer({ type, data }) {
 
   if (type === 'leave-status' && rep) {
     const rows = rep.report || [];
+    const filteredRows = rows.filter((r) =>
+      matchRow(r, ['employeeCode', 'employeeName', 'department', 'totalLeaveDaysUsed', 'remainingLeaveDays'])
+    );
     const sum = rep.summary;
     return (
       <div className="sup-rep-card">
-        <h3 className="sup-rep-card-title">Trạng thái nghỉ phép — năm {rep.year}</h3>
+        <h3 className="sup-rep-card-title">Leave Status — Year {rep.year}</h3>
+        <p className="sup-rep-muted">{filteredRows.length}/{rows.length} employees</p>
         {sum && (
           <div className="sup-rep-kpis">
-            <div className="sup-rep-kpi"><span>Tổng ngày nghỉ đã dùng</span><strong>{sum.totalLeaveDaysUsed}</strong></div>
-            <div className="sup-rep-kpi"><span>Ngày phép còn (ước)</span><strong>{sum.totalRemainingLeaveDays}</strong></div>
-            <div className="sup-rep-kpi"><span>TB sử dụng %</span><strong>{sum.averageUtilizationRate}</strong></div>
+            <div className="sup-rep-kpi"><span>Total leave used</span><strong>{sum.totalLeaveDaysUsed}</strong></div>
+            <div className="sup-rep-kpi"><span>Estimated leave remaining</span><strong>{sum.totalRemainingLeaveDays}</strong></div>
+            <div className="sup-rep-kpi"><span>Avg utilization %</span><strong>{sum.averageUtilizationRate}</strong></div>
           </div>
         )}
         <div className="sup-rep-table-wrap">
           <table className="sup-rep-table">
             <thead>
-              <tr><th>Mã</th><th>Họ tên</th><th>PB</th><th>Đã nghỉ</th><th>Còn</th></tr>
+              <tr><th>Code</th><th>Employee</th><th>Department</th><th>Used</th><th>Remaining</th></tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {filteredRows.map((r) => (
                 <tr key={r.employeeId}>
                   <td>{r.employeeCode}</td>
                   <td>{r.employeeName}</td>
@@ -121,6 +138,9 @@ function ReportRenderer({ type, data }) {
                   <td>{r.remainingLeaveDays}</td>
                 </tr>
               ))}
+              {filteredRows.length === 0 && (
+                <tr><td colSpan={5} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -131,23 +151,27 @@ function ReportRenderer({ type, data }) {
   if (type === 'overtime' && rep) {
     const sum = rep.summary;
     const byEmp = rep.byEmployee || [];
+    const filteredByEmp = byEmp.filter((r) =>
+      matchRow(r, ['employeeCode', 'employeeName', 'department', 'totalHours', 'requestCount'])
+    );
     return (
       <div className="sup-rep-card">
-        <h3 className="sup-rep-card-title">Tăng ca — {rep.month}/{rep.year}</h3>
+        <h3 className="sup-rep-card-title">Overtime — {rep.month}/{rep.year}</h3>
+        <p className="sup-rep-muted">{filteredByEmp.length}/{byEmp.length} employees</p>
         {sum && (
           <div className="sup-rep-kpis">
-            <div className="sup-rep-kpi"><span>Tổng giờ</span><strong>{sum.totalHours}</strong></div>
-            <div className="sup-rep-kpi"><span>Số đơn</span><strong>{sum.totalRequests}</strong></div>
-            <div className="sup-rep-kpi"><span>Nhân viên</span><strong>{sum.totalEmployees}</strong></div>
+            <div className="sup-rep-kpi"><span>Total hours</span><strong>{sum.totalHours}</strong></div>
+            <div className="sup-rep-kpi"><span>Total requests</span><strong>{sum.totalRequests}</strong></div>
+            <div className="sup-rep-kpi"><span>Employees</span><strong>{sum.totalEmployees}</strong></div>
           </div>
         )}
         <div className="sup-rep-table-wrap">
           <table className="sup-rep-table">
             <thead>
-              <tr><th>Mã</th><th>Họ tên</th><th>PB</th><th>Giờ</th><th>Số đơn</th></tr>
+              <tr><th>Code</th><th>Employee</th><th>Department</th><th>Hours</th><th>Requests</th></tr>
             </thead>
             <tbody>
-              {byEmp.map((r) => (
+              {filteredByEmp.map((r) => (
                 <tr key={r.employeeId}>
                   <td>{r.employeeCode}</td>
                   <td>{r.employeeName}</td>
@@ -156,6 +180,9 @@ function ReportRenderer({ type, data }) {
                   <td>{r.requestCount}</td>
                 </tr>
               ))}
+              {filteredByEmp.length === 0 && (
+                <tr><td colSpan={5} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -166,28 +193,32 @@ function ReportRenderer({ type, data }) {
   if (type === 'payroll-cost' && rep) {
     const sum = rep.summary;
     const rows = rep.breakdown || [];
+    const filteredRows = rows.filter((r) =>
+      matchRow(r, ['employeeName', 'department', 'grossSalary', 'netSalary', 'employeeInsurance', 'tax'])
+    );
     return (
       <div className="sup-rep-card">
-        <h3 className="sup-rep-card-title">Chi phí lương — {rep.month}/{rep.year}</h3>
+        <h3 className="sup-rep-card-title">Payroll Cost — {rep.month}/{rep.year}</h3>
+        <p className="sup-rep-muted">{filteredRows.length}/{rows.length} records</p>
         {sum && (
           <div className="sup-rep-kpis sup-rep-kpis--wrap">
-            <div className="sup-rep-kpi"><span>Tổng gross</span><strong>{formatVnd(sum.totalGrossSalary)}</strong></div>
-            <div className="sup-rep-kpi"><span>Tổng net</span><strong>{formatVnd(sum.totalNetSalary)}</strong></div>
-            <div className="sup-rep-kpi"><span>BHXH NLĐ</span><strong>{formatVnd(sum.totalEmployeeInsurance)}</strong></div>
-            <div className="sup-rep-kpi"><span>BHXH NSDLĐ</span><strong>{formatVnd(sum.totalEmployerInsurance)}</strong></div>
-            <div className="sup-rep-kpi"><span>Thuế</span><strong>{formatVnd(sum.totalTax)}</strong></div>
-            <div className="sup-rep-kpi"><span>Tổng chi phí</span><strong>{formatVnd(sum.totalCost)}</strong></div>
+            <div className="sup-rep-kpi"><span>Total gross</span><strong>{formatVnd(sum.totalGrossSalary)}</strong></div>
+            <div className="sup-rep-kpi"><span>Total net</span><strong>{formatVnd(sum.totalNetSalary)}</strong></div>
+            <div className="sup-rep-kpi"><span>Employee insurance</span><strong>{formatVnd(sum.totalEmployeeInsurance)}</strong></div>
+            <div className="sup-rep-kpi"><span>Employer insurance</span><strong>{formatVnd(sum.totalEmployerInsurance)}</strong></div>
+            <div className="sup-rep-kpi"><span>Tax</span><strong>{formatVnd(sum.totalTax)}</strong></div>
+            <div className="sup-rep-kpi"><span>Total cost</span><strong>{formatVnd(sum.totalCost)}</strong></div>
           </div>
         )}
         <div className="sup-rep-table-wrap">
           <table className="sup-rep-table">
             <thead>
               <tr>
-                <th>NV</th><th>PB</th><th>Gross</th><th>Net</th><th>BHXH NV</th><th>Thuế</th>
+                <th>Employee</th><th>Department</th><th>Gross</th><th>Net</th><th>Insurance (Emp)</th><th>Tax</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {filteredRows.map((r) => (
                 <tr key={r.employeeId}>
                   <td>{r.employeeName}</td>
                   <td>{r.department}</td>
@@ -197,6 +228,9 @@ function ReportRenderer({ type, data }) {
                   <td>{formatVnd(r.tax)}</td>
                 </tr>
               ))}
+              {filteredRows.length === 0 && (
+                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -205,24 +239,28 @@ function ReportRenderer({ type, data }) {
   }
 
   if (type === 'average-income' && rep) {
+    const byDepartment = (rep.byDepartment || []).filter((r) =>
+      matchRow(r, ['name', 'count', 'average', 'min', 'max'])
+    );
     return (
       <div className="sup-rep-card">
-        <h3 className="sup-rep-card-title">Thu nhập bình quân — {rep.month}/{rep.year}</h3>
+        <h3 className="sup-rep-card-title">Average Income — {rep.month}/{rep.year}</h3>
         {rep.overall && (
           <div className="sup-rep-kpis">
-            <div className="sup-rep-kpi"><span>TB toàn công ty</span><strong>{formatVnd(rep.overall.averageSalary)}</strong></div>
+            <div className="sup-rep-kpi"><span>Company average</span><strong>{formatVnd(rep.overall.averageSalary)}</strong></div>
             <div className="sup-rep-kpi"><span>Min</span><strong>{formatVnd(rep.overall.minSalary)}</strong></div>
             <div className="sup-rep-kpi"><span>Max</span><strong>{formatVnd(rep.overall.maxSalary)}</strong></div>
           </div>
         )}
-        <h4 className="sup-rep-subtitle">Theo phòng ban</h4>
+        <h4 className="sup-rep-subtitle">By Department</h4>
+        <p className="sup-rep-muted">{byDepartment.length}/{(rep.byDepartment || []).length} departments</p>
         <div className="sup-rep-table-wrap">
           <table className="sup-rep-table">
             <thead>
-              <tr><th>Phòng ban</th><th>Số người</th><th>TB</th><th>Min</th><th>Max</th></tr>
+              <tr><th>Department</th><th>Headcount</th><th>Average</th><th>Min</th><th>Max</th></tr>
             </thead>
             <tbody>
-              {(rep.byDepartment || []).map((r, i) => (
+              {byDepartment.map((r, i) => (
                 <tr key={i}>
                   <td>{r.name}</td>
                   <td>{r.count}</td>
@@ -231,6 +269,9 @@ function ReportRenderer({ type, data }) {
                   <td>{formatVnd(r.max)}</td>
                 </tr>
               ))}
+              {byDepartment.length === 0 && (
+                <tr><td colSpan={5} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -240,33 +281,43 @@ function ReportRenderer({ type, data }) {
 
   if (type === 'turnover' && rep) {
     const det = rep.details || {};
+    const newEmployees = (det.newEmployees || []).filter((e) => matchRow(e, ['employeeCode', 'name', 'startDate']));
+    const terminatedEmployees = (det.terminatedEmployees || []).filter((e) => matchRow(e, ['employeeCode', 'name', 'employmentStatus']));
     return (
       <div className="sup-rep-card">
-        <h3 className="sup-rep-card-title">Biến động nhân sự</h3>
+        <h3 className="sup-rep-card-title">Workforce Turnover</h3>
         <div className="sup-rep-kpis">
-          <div className="sup-rep-kpi"><span>Tuyển mới</span><strong>{rep.newEmployees}</strong></div>
-          <div className="sup-rep-kpi"><span>Nghỉ việc</span><strong>{rep.terminatedEmployees}</strong></div>
+          <div className="sup-rep-kpi"><span>New hires</span><strong>{rep.newEmployees}</strong></div>
+          <div className="sup-rep-kpi"><span>Terminations</span><strong>{rep.terminatedEmployees}</strong></div>
           <div className="sup-rep-kpi"><span>Turnover %</span><strong>{rep.turnoverRate}</strong></div>
         </div>
-        <h4 className="sup-rep-subtitle">Tuyển mới</h4>
+        <h4 className="sup-rep-subtitle">New Hires</h4>
+        <p className="sup-rep-muted">{newEmployees.length}/{(det.newEmployees || []).length} people</p>
         <div className="sup-rep-table-wrap sup-rep-mb">
           <table className="sup-rep-table">
-            <thead><tr><th>Mã</th><th>Họ tên</th><th>Ngày vào</th></tr></thead>
+            <thead><tr><th>Code</th><th>Name</th><th>Start date</th></tr></thead>
             <tbody>
-              {(det.newEmployees || []).map((e) => (
+              {newEmployees.map((e) => (
                 <tr key={e.id}><td>{e.employeeCode}</td><td>{e.name}</td><td>{String(e.startDate || '').slice(0, 10)}</td></tr>
               ))}
+              {newEmployees.length === 0 && (
+                <tr><td colSpan={3} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
+              )}
             </tbody>
           </table>
         </div>
-        <h4 className="sup-rep-subtitle">Nghỉ việc</h4>
+        <h4 className="sup-rep-subtitle">Terminations</h4>
+        <p className="sup-rep-muted">{terminatedEmployees.length}/{(det.terminatedEmployees || []).length} people</p>
         <div className="sup-rep-table-wrap">
           <table className="sup-rep-table">
-            <thead><tr><th>Mã</th><th>Họ tên</th><th>Trạng thái</th></tr></thead>
+            <thead><tr><th>Code</th><th>Name</th><th>Status</th></tr></thead>
             <tbody>
-              {(det.terminatedEmployees || []).map((e) => (
+              {terminatedEmployees.map((e) => (
                 <tr key={e.id}><td>{e.employeeCode}</td><td>{e.name}</td><td>{e.employmentStatus}</td></tr>
               ))}
+              {terminatedEmployees.length === 0 && (
+                <tr><td colSpan={3} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -276,7 +327,7 @@ function ReportRenderer({ type, data }) {
 
   return (
     <div className="sup-rep-card">
-      <h3 className="sup-rep-card-title">Dữ liệu</h3>
+      <h3 className="sup-rep-card-title">Raw Data</h3>
       <pre className="sup-rep-raw">{JSON.stringify(data, null, 2)}</pre>
     </div>
   );
@@ -288,6 +339,7 @@ export default function SupervisorReports({ token }) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [keyword, setKeyword] = useState('');
 
   const loadReport = async () => {
     setLoading(true);
@@ -307,17 +359,17 @@ export default function SupervisorReports({ token }) {
       <div className="sup-rep-toolbar card">
         <div className="sup-rep-filters">
           <select value={reportType} onChange={(e) => { setReportType(e.target.value); setReport(null); }}>
-            <option value="attendance">Chấm công</option>
-            <option value="leave-status">Nghỉ phép (theo năm)</option>
-            <option value="overtime">Tăng ca</option>
-            <option value="payroll-cost">Chi phí lương</option>
-            <option value="average-income">Thu nhập bình quân</option>
-            <option value="turnover">Biến động nhân sự (theo tháng)</option>
+            <option value="attendance">Attendance</option>
+            <option value="leave-status">Leave status (yearly)</option>
+            <option value="overtime">Overtime</option>
+            <option value="payroll-cost">Payroll cost</option>
+            <option value="average-income">Average income</option>
+            <option value="turnover">Turnover (monthly)</option>
           </select>
           {(reportType !== 'leave-status') && (
             <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
               {Array.from({ length: 12 }, (_, i) => (
-                <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+                <option key={i + 1} value={i + 1}>Month {i + 1}</option>
               ))}
             </select>
           )}
@@ -326,18 +378,27 @@ export default function SupervisorReports({ token }) {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
+          <input
+            type="text"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="Filter results by employee / department / code..."
+          />
+          <button type="button" className="btn btn-secondary" onClick={() => setKeyword('')}>
+            Clear filter
+          </button>
           <button type="button" className="btn btn-primary" onClick={loadReport} disabled={loading}>
-            {loading ? 'Đang tải…' : 'Xem báo cáo'}
+            {loading ? 'Loading…' : 'View report'}
           </button>
         </div>
         <p className="sup-rep-hint">
-          {reportType === 'leave-status' && 'Nghỉ phép: chỉ dùng năm đã chọn.'}
-          {reportType === 'turnover' && 'Biến động: khoảng từ đầu tháng đến cuối tháng đã chọn.'}
+          {reportType === 'leave-status' && 'Leave status uses the selected year only.'}
+          {reportType === 'turnover' && 'Turnover uses the full date range of the selected month.'}
         </p>
       </div>
 
-      {loading && <div className="loading">Đang tải báo cáo…</div>}
-      {!loading && report && <ReportRenderer type={reportType} data={report} />}
+      {loading && <div className="loading">Loading report…</div>}
+      {!loading && report && <ReportRenderer type={reportType} data={report} keyword={keyword} />}
     </div>
   );
 }

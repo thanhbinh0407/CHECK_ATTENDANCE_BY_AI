@@ -19,6 +19,14 @@ function extractList(data, keys) {
   return [];
 }
 
+function formatDuration(ms) {
+  const safeMs = Math.max(0, Number(ms) || 0);
+  const totalMinutes = Math.floor(safeMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+}
+
 export function useManagerDashboardData() {
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -30,6 +38,8 @@ export function useManagerDashboardData() {
     trip: 0,
     advance: 0,
   });
+  const [workDurations, setWorkDurations] = useState([]);
+  const [workSummary, setWorkSummary] = useState({ active: 0, finished: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -38,7 +48,7 @@ export function useManagerDashboardData() {
       setLoading(true);
       setError("");
 
-      const [empRes, deptRes, jtRes, auditRes, leaveRes, otRes, tripRes, advRes] = await Promise.all([
+      const [empRes, deptRes, jtRes, auditRes, leaveRes, otRes, tripRes, advRes, attendanceRes] = await Promise.all([
         fetch(`${API_BASE}/api/admin/employees`, { headers: authHeaders() }),
         fetch(`${API_BASE}/api/departments`, { headers: authHeaders() }),
         fetch(`${API_BASE}/api/job-titles`, { headers: authHeaders() }),
@@ -47,6 +57,7 @@ export function useManagerDashboardData() {
         fetch(`${API_BASE}/api/overtime-requests?status=pending`, { headers: authHeaders() }),
         fetch(`${API_BASE}/api/business-trip-requests?status=pending`, { headers: authHeaders() }),
         fetch(`${API_BASE}/api/salary-advances?status=pending`, { headers: authHeaders() }),
+        fetch(`${API_BASE}/api/attendance/today`, { headers: authHeaders() }).catch(() => null),
       ]);
 
       const empData = await empRes.json();
@@ -56,6 +67,75 @@ export function useManagerDashboardData() {
       setEmployees(list);
       setDepartments(deptData.departments || deptData.data || []);
       setJobTitles(jtData.jobTitles || jtData.data || []);
+
+      let attendanceJson = {};
+      if (attendanceRes && attendanceRes.ok) {
+        attendanceJson = await attendanceRes.json();
+      }
+      const todayLogs = attendanceJson.logs || attendanceJson.data || [];
+
+      const userNameMap = new Map();
+      list.forEach((u) => {
+        userNameMap.set(String(u.id), u.name || u.employeeCode || `#${u.id}`);
+      });
+
+      const byUser = new Map();
+      todayLogs.forEach((log) => {
+        if (!log?.userId) return;
+        const uid = String(log.userId);
+        const ts = new Date(log.timestamp);
+        if (!byUser.has(uid)) {
+          byUser.set(uid, {
+            userId: log.userId,
+            name: userNameMap.get(uid) || log.detectedName || `Nhân viên #${log.userId}`,
+            firstIn: null,
+            lastOut: null,
+            lastType: null,
+            lastAt: null,
+          });
+        }
+        const row = byUser.get(uid);
+        if (log.type === "IN" && (!row.firstIn || ts < row.firstIn)) {
+          row.firstIn = ts;
+        }
+        if (log.type === "OUT" && (!row.lastOut || ts > row.lastOut)) {
+          row.lastOut = ts;
+        }
+        if (!row.lastAt || ts > row.lastAt) {
+          row.lastAt = ts;
+          row.lastType = log.type;
+        }
+      });
+
+      const now = Date.now();
+      const workRows = Array.from(byUser.values())
+        .filter((u) => !!u.firstIn)
+        .map((u) => {
+          const endTime = u.lastType === "IN" ? now : u.lastOut ? u.lastOut.getTime() : now;
+          const durationMs = Math.max(0, endTime - u.firstIn.getTime());
+          const status = u.lastType === "IN" ? "Đang làm việc" : "Đã checkout";
+          return {
+            userId: u.userId,
+            name: u.name,
+            status,
+            durationMs,
+            durationText: formatDuration(durationMs),
+            firstInText: u.firstIn.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+            lastActionText: u.lastAt
+              ? u.lastAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+              : "—",
+          };
+        })
+        .sort((a, b) => {
+          if (a.status !== b.status) return a.status === "Đang làm việc" ? -1 : 1;
+          return b.durationMs - a.durationMs;
+        });
+
+      setWorkDurations(workRows);
+      setWorkSummary({
+        active: workRows.filter((r) => r.status === "Đang làm việc").length,
+        finished: workRows.filter((r) => r.status === "Đã checkout").length,
+      });
 
       const leaveJson = await leaveRes.json();
       const otJson = await otRes.json();
@@ -174,6 +254,8 @@ export function useManagerDashboardData() {
     jobTitles,
     recentChanges,
     pending,
+    workDurations,
+    workSummary,
     loading,
     error,
     summary,
