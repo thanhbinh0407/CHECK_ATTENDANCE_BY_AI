@@ -1716,7 +1716,7 @@ async function seedDB() {
           const taxableIncome = base + totalBonus - employeeInsurance - personalDeduction;
           const tax = taxableIncome > 0 ? Math.round(taxableIncome * 0.05) : 0;
           const totalDeduction = absentDeduction + advanceDeduction + employeeInsurance + tax;
-          const finalSalary = Math.max(0, Math.round(base + totalBonus - totalDeduction));
+          const finalSalary = Math.round(base + totalBonus - totalDeduction);
 
           // Seed salary statuses to cover the full workflow (pending -> approved -> paid)
           // - Tháng hiện tại (theo REFERENCE_DATE): mix pending/approved/paid

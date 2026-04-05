@@ -307,7 +307,7 @@ export async function calculateSalaryForUser(userId, month, year, { requireExist
     console.error("[salaryCalculation] BH/thuế:", err.message);
   }
 
-  const finalSalary = Math.max(0, grossSalary - deduction);
+  const finalSalary = parseFloat((grossSalary - deduction).toFixed(2));
 
   const statusToSet = statusDecision.nextStatus;
   const hadRejectionNote = typeof salary.notes === "string" && salary.notes.trim().startsWith("[REJECTED]");

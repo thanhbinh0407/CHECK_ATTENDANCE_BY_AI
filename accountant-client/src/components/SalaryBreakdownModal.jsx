@@ -8,6 +8,16 @@ function num(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Khi DB còn finalSalary = 0 (bản cũ bị clamp) nhưng gross − deduction âm → hiện đúng số âm. */
+function effectiveNetFromRecord(rec) {
+  const stored = num(rec?.finalSalary);
+  const g = num(rec?.grossSalary);
+  const d = num(rec?.deduction);
+  const fromParts = parseFloat((g - d).toFixed(2));
+  if (Math.abs(stored) < 0.005) return fromParts;
+  return stored;
+}
+
 /** Map API User (Department, JobTitle, SalaryGrade) to modal fields */
 function mapUserToEmployeeView(user) {
   if (!user) return null;
@@ -422,8 +432,8 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     !hasAdjustments && deductionMismatch ? sumDeductionDetail : storedDeduction;
   const editSummaryNet =
     !hasAdjustments && deductionMismatch
-      ? Math.max(0, num(record?.grossSalary) - sumDeductionDetail)
-      : num(record?.finalSalary);
+      ? num(record?.grossSalary) - sumDeductionDetail
+      : effectiveNetFromRecord(record);
 
   /** API: deduction = DB + adjustment. No edits + mismatch → preview from breakdown; with edits → save formula. */
   const previewNetAfterSave = () => {
@@ -432,11 +442,15 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     const dedAdj = num(adjustments.deductionAdjustment);
     const anyAdj = baseAdj !== 0 || bonusAdj !== 0 || dedAdj !== 0;
     if (!anyAdj && deductionMismatch && deductionRows.length > 0) {
-      return Math.max(0, num(record?.grossSalary) - sumDeductionDetail);
+      return num(record?.grossSalary) - sumDeductionDetail;
     }
-    return Math.max(
-      0,
-      num(record?.baseSalary) + baseAdj + num(record?.bonus) + bonusAdj - storedDeduction - dedAdj
+    return (
+      num(record?.baseSalary) +
+      baseAdj +
+      num(record?.bonus) +
+      bonusAdj -
+      storedDeduction -
+      dedAdj
     );
   };
 
@@ -462,10 +476,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
   const displayNet = () => {
     if (hasAdjustments) return calculateNetAdjusted();
     if (deductionMismatch && deductionRows.length > 0) {
-      return Math.max(0, num(record?.grossSalary) - sumDeductionDetail);
+      return num(record?.grossSalary) - sumDeductionDetail;
     }
-    return num(record?.finalSalary);
+    return effectiveNetFromRecord(record);
   };
+
+  const netPayShown = displayNet();
 
   const formatCurrency = (value) => {
     const n = num(value);
@@ -957,13 +973,22 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                     </div>
                     <div style={{ ...detailLineStyle, fontWeight: "700", borderBottom: "none" }}>
                       <span>= Net (record / adjustment / detail)</span>
-                      <span>₫{formatCurrency(displayNet())}</span>
+                      <span>
+                        {netPayShown < 0 ? "−" : ""}₫{formatCurrency(Math.abs(netPayShown))}
+                      </span>
                     </div>
                   </div>
                 )}
               </div>
-              <div style={{ textAlign: "right", fontWeight: "700", fontSize: "20px", color: "#fff" }}>
-                ₫{formatCurrency(displayNet())}
+              <div
+                style={{
+                  textAlign: "right",
+                  fontWeight: "700",
+                  fontSize: "20px",
+                  color: netPayShown < 0 ? "#ffecb3" : "#fff",
+                }}
+              >
+                {netPayShown < 0 ? "−" : ""}₫{formatCurrency(Math.abs(netPayShown))}
               </div>
             </div>
           </div>
@@ -1048,7 +1073,14 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                 </div>
                 <div>
                   <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px" }}>Net (take-home)</div>
-                  <div style={{ fontWeight: "700", color: "#1565c0" }}>₫{formatCurrency(editSummaryNet)}</div>
+                  <div
+                    style={{
+                      fontWeight: "700",
+                      color: editSummaryNet < 0 ? "#b91c1c" : "#1565c0",
+                    }}
+                  >
+                    {editSummaryNet < 0 ? "−" : ""}₫{formatCurrency(Math.abs(editSummaryNet))}
+                  </div>
                 </div>
               </div>
               {deductionMismatch && !hasAdjustments && (

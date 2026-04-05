@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
 import { exportSalariesToExcel, exportSalariesToPDF } from "../utils/exportUtils.js";
+import SalaryBreakdownModal from "./SalaryBreakdownModal.jsx";
 
 // Add keyframe animations
 const styleSheet = document.createElement("style");
@@ -52,6 +53,10 @@ export default function SalaryManagement() {
   const [toastPopup, setToastPopup] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [rules, setRules] = useState([]);
+  const [showBreakdownModal, setShowBreakdownModal] = useState(false);
+  const [salaryBreakdown, setSalaryBreakdown] = useState(null);
+  const [selectedEmployeeForModal, setSelectedEmployeeForModal] = useState(null);
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
   const currentRole = (() => {
@@ -79,6 +84,57 @@ export default function SalaryManagement() {
     fetchSalaries();
     fetchEmployees();
   }, [selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    const fetchRules = async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) return;
+        const res = await fetch(`${apiBase}/api/salary/rules`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setRules(data.rules || []);
+        }
+      } catch (e) {
+        console.error("Error fetching salary rules:", e);
+      }
+    };
+    fetchRules();
+  }, []);
+
+  const formatSalaryRowDate = (salary) => {
+    const raw = salary.calculatedAt || salary.updatedAt || salary.createdAt;
+    if (raw) {
+      return new Date(raw).toLocaleDateString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+    }
+    const y = Number(salary.year);
+    const m = Number(salary.month);
+    if (Number.isFinite(y) && Number.isFinite(m)) {
+      const end = new Date(y, m, 0);
+      return end.toLocaleDateString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+    }
+    return "—";
+  };
+
+  const viewSalaryBreakdown = (salary) => {
+    setSalaryBreakdown(salary);
+    const selected =
+      employees.find((e) => Number(e.id) === Number(salary.userId)) ||
+      salary.User ||
+      {};
+    setSelectedEmployeeForModal(selected);
+    setShowBreakdownModal(true);
+  };
 
   const fetchSalaries = async () => {
     try {
@@ -186,8 +242,65 @@ export default function SalaryManagement() {
     }
   };
 
+  /** Tính lại lương cho toàn bộ nhân viên theo tháng/năm đang chọn (toolbar). */
+  const handleRecalculateAllForMonth = async () => {
+    if (employees.length === 0) {
+      setMessage("No employees to recalculate");
+      return;
+    }
+    try {
+      setLoading(true);
+      setMessage("");
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+
+      let ok = 0;
+      let fail = 0;
+      for (const employee of employees) {
+        try {
+          const res = await fetch(`${apiBase}/api/salary/calculate`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId: employee.id,
+              month: selectedMonth,
+              year: selectedYear,
+            }),
+          });
+          if (res.ok) ok += 1;
+          else fail += 1;
+        } catch {
+          fail += 1;
+        }
+      }
+
+      await fetchSalaries();
+      setToastPopup(
+        `Recalculate: ${ok} OK${fail ? `, ${fail} failed` : ""} (${selectedMonth}/${selectedYear})`
+      );
+      setTimeout(() => setToastPopup(""), 6000);
+    } catch (error) {
+      setMessage("Error: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("vi-VN").format(amount || 0) + " ₫";
+    return new Intl.NumberFormat("vi-VN").format(amount ?? 0) + " ₫";
+  };
+
+  /** Net hiển thị: ưu tiên DB; nếu DB còn 0 (bản ghi cũ clamp) mà gross − deduction < 0 thì hiện âm đúng. */
+  const displayNetSalary = (s) => {
+    const stored = Number(s.finalSalary);
+    const g = parseFloat(s.grossSalary ?? 0);
+    const d = parseFloat(s.deduction ?? 0);
+    const recomputed = parseFloat((g - d).toFixed(2));
+    if (Math.abs(stored) < 0.005 && recomputed < 0) return recomputed;
+    return Number.isFinite(stored) ? stored : recomputed;
   };
 
   const getStatusBadge = (status) => {
@@ -475,6 +588,34 @@ export default function SalaryManagement() {
             <span>📄</span>
             <span>Export PDF</span>
         </button>
+
+        <button
+          type="button"
+          onClick={handleRecalculateAllForMonth}
+          disabled={loading || employees.length === 0}
+          style={{
+            ...buttonStyle,
+            background: "#2563eb",
+            opacity: loading || employees.length === 0 ? 0.5 : 1,
+            cursor: loading || employees.length === 0 ? "not-allowed" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+          onMouseEnter={(e) => {
+            if (!loading && employees.length > 0) {
+              e.currentTarget.style.background = "#1d4ed8";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!loading && employees.length > 0) {
+              e.currentTarget.style.background = "#2563eb";
+            }
+          }}
+        >
+          <span aria-hidden>🔄</span>
+          <span>Recalculate</span>
+        </button>
         </div>
       </div>
 
@@ -505,6 +646,7 @@ export default function SalaryManagement() {
               <tr>
                 <th style={{ ...thStyle }}>Employee</th>
                 <th style={{ ...thStyle }}>Emp. ID</th>
+                <th style={{ ...thStyle }}>Date</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Base Salary</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Bonus</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Deduction</th>
@@ -534,11 +676,20 @@ export default function SalaryManagement() {
                   >
                     <td style={{ ...tdStyle, fontWeight: "600" }}>{salary.User?.name || "N/A"}</td>
                     <td style={{ ...tdStyle, fontWeight: "600", color: theme.accent.dark }}>{salary.User?.employeeCode || "N/A"}</td>
+                    <td style={{ ...tdStyle, color: "#64748b", fontSize: "13px" }}>{formatSalaryRowDate(salary)}</td>
                     <td style={{ ...tdStyle, textAlign: "right", fontWeight: "600" }}>{formatCurrency(salary.baseSalary)}</td>
                     <td style={{ ...tdStyle, textAlign: "right", color: theme.accent.dark, fontWeight: "600" }}>+{formatCurrency(salary.bonus)}</td>
                     <td style={{ ...tdStyle, textAlign: "right", color: "#ef4444", fontWeight: "600" }}>-{formatCurrency(salary.deduction)}</td>
-                    <td style={{ ...tdStyle, textAlign: "right", fontWeight: "700", fontSize: "15px", color: theme.accent.dark }}>
-                      {formatCurrency(salary.finalSalary)}
+                    <td
+                      style={{
+                        ...tdStyle,
+                        textAlign: "right",
+                        fontWeight: "700",
+                        fontSize: "15px",
+                        color: displayNetSalary(salary) < 0 ? "#b91c1c" : theme.accent.dark,
+                      }}
+                    >
+                      {formatCurrency(displayNetSalary(salary))}
                     </td>
                   <td style={{ ...tdStyle, textAlign: "center" }}>
                     <span style={{
@@ -554,13 +705,13 @@ export default function SalaryManagement() {
                     </span>
                   </td>
                     <td style={{ ...tdStyle, textAlign: "center" }}>
-                      <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
-                      {salary.status === "approved" && currentRole === "accountant" && (
+                      <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap" }}>
                         <button
-                          onClick={() => handleMarkPaid(salary.id)}
+                          type="button"
+                          onClick={() => viewSalaryBreakdown(salary)}
                           style={{
                             padding: "8px 14px",
-                            background: theme.accent.main,
+                            background: "#b91c1c",
                             color: "#fff",
                             border: "none",
                             borderRadius: "8px",
@@ -568,19 +719,23 @@ export default function SalaryManagement() {
                             fontSize: "13px",
                             fontWeight: "600",
                             transition: "background 0.2s",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = theme.accent.hover;
+                            e.currentTarget.style.background = "#991b1b";
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.background = theme.accent.main;
+                            e.currentTarget.style.background = "#b91c1c";
                           }}
                         >
-                          Thanh toán
+                          <span aria-hidden>📄</span>
+                          Detail
                         </button>
-                      )}
-                      <button
-                        onClick={() => handleCalculateSalary(salary.User?.id)}
+                        <button
+                          type="button"
+                          onClick={() => handleCalculateSalary(salary.User?.id)}
                           style={{
                             padding: "8px 14px",
                             backgroundColor: "#64748b",
@@ -600,15 +755,59 @@ export default function SalaryManagement() {
                           }}
                         >
                           Recalculate
-                      </button>
-                    </div>
-                  </td>
+                        </button>
+                        {salary.status === "approved" && currentRole === "accountant" && (
+                          <button
+                            type="button"
+                            onClick={() => handleMarkPaid(salary.id)}
+                            style={{
+                              padding: "8px 14px",
+                              background: theme.accent.main,
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: "8px",
+                              cursor: "pointer",
+                              fontSize: "13px",
+                              fontWeight: "600",
+                              transition: "background 0.2s",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = theme.accent.hover;
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = theme.accent.main;
+                            }}
+                          >
+                            Thanh toán
+                          </button>
+                        )}
+                      </div>
+                    </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
         </div>
+      )}
+
+      {showBreakdownModal && salaryBreakdown && selectedEmployeeForModal && (
+        <SalaryBreakdownModal
+          salary={salaryBreakdown}
+          employee={selectedEmployeeForModal}
+          rules={rules}
+          onClose={() => {
+            setShowBreakdownModal(false);
+            setSalaryBreakdown(null);
+            setSelectedEmployeeForModal(null);
+          }}
+          onUpdate={(updatedSalary) => {
+            setSalaryBreakdown(updatedSalary);
+            setSalaries((prev) =>
+              prev.map((s) => (s.id === updatedSalary.id ? updatedSalary : s))
+            );
+          }}
+        />
       )}
     </div>
   );

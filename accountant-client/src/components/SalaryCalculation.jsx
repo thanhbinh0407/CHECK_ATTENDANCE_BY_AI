@@ -138,6 +138,15 @@ export default function SalaryCalculation() {
     return n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   };
 
+  const displayNetSalary = (s) => {
+    const stored = Number(s.finalSalary);
+    const g = parseFloat(s.grossSalary ?? 0);
+    const d = parseFloat(s.deduction ?? 0);
+    const recomputed = parseFloat((g - d).toFixed(2));
+    if (Math.abs(stored) < 0.005 && recomputed < 0) return recomputed;
+    return Number.isFinite(stored) ? stored : recomputed;
+  };
+
   // Auto-hide message after 5 seconds
   useEffect(() => {
     if (message) {
@@ -972,9 +981,9 @@ export default function SalaryCalculation() {
                         textAlign: "right",
                         fontWeight: "700",
                         fontSize: "15px",
-                        color: theme.accent.dark,
+                        color: displayNetSalary(salary) < 0 ? "#b91c1c" : theme.accent.dark,
                       }}>
-                        ₫{formatVnd(salary.finalSalary)}
+                        ₫{formatVnd(displayNetSalary(salary))}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "center" }}>
                         <span style={statusBadgeStyle(salary.status)}>

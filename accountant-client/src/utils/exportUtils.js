@@ -6,6 +6,16 @@ import { applyPlugin } from 'jspdf-autotable';
 // Apply the plugin to extend jsPDF prototype
 applyPlugin(jsPDF);
 
+/** Net xuất báo cáo: khớp màn hình — nếu DB còn 0 (bản cũ) mà gross − deduction < 0 thì dùng giá trị âm. */
+function displayNetSalary(s) {
+  const stored = Number(s.finalSalary);
+  const g = parseFloat(s.grossSalary ?? 0);
+  const d = parseFloat(s.deduction ?? 0);
+  const recomputed = parseFloat((g - d).toFixed(2));
+  if (Math.abs(stored) < 0.005 && recomputed < 0) return recomputed;
+  return Number.isFinite(stored) ? stored : recomputed;
+}
+
 // Helper function to format currency
 const formatCurrency = (amount) => {
   if (!amount && amount !== 0) return '0';
@@ -36,7 +46,7 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
       const baseSalary = parseFloat(salary.baseSalary) || 0;
       const bonus = parseFloat(salary.bonus) || 0;
       const deduction = parseFloat(salary.deduction) || 0;
-      const finalSalary = parseFloat(salary.finalSalary) || 0;
+      const netPay = displayNetSalary(salary);
 
       return {
         'Employee Name': user.name || salary.employeeName || 'N/A',
@@ -47,7 +57,7 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
         'Base Salary (VND)': baseSalary,
         'Bonus (VND)': bonus,
         'Deduction (VND)': deduction,
-        'Net Pay (VND)': finalSalary,
+        'Net Pay (VND)': netPay,
         'Status': salary.status === 'paid' ? 'Paid' : 
                    salary.status === 'approved' ? 'Approved' : 
                    salary.status === 'pending' ? 'Pending' : 'Unknown',
@@ -149,8 +159,8 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
       const baseSalary = parseFloat(salary.baseSalary) || 0;
       const bonus = parseFloat(salary.bonus) || 0;
       const deduction = parseFloat(salary.deduction) || 0;
-      const finalSalary = parseFloat(salary.finalSalary) || 0;
-      
+      const netPay = displayNetSalary(salary);
+
       const status = salary.status === 'paid' ? 'Paid' : 
                      salary.status === 'approved' ? 'Approved' : 
                      salary.status === 'pending' ? 'Pending' : 'Unknown';
@@ -162,7 +172,7 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
         formatCurrency(baseSalary),
         formatCurrency(bonus),
         formatCurrency(deduction),
-        formatCurrency(finalSalary),
+        formatCurrency(netPay),
         status
       ];
     });
