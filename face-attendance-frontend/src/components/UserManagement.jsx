@@ -71,9 +71,10 @@ export default function UserManagement() {
   const [detailJobMeta, setDetailJobMeta] = useState({ page: 1, pageSize: 8, totalPages: 1, totalItems: 0, currentPage: 1 });
   const [detailSalaryMeta, setDetailSalaryMeta] = useState({ page: 1, pageSize: 8, totalPages: 1, totalItems: 0, currentPage: 1 });
   const [form, setForm] = useState({
-    name: "", email: "", password: "", employeeCode: "",
+    name: "", email: "", employeeCode: "",
     role: "employee", isActive: true,
   });
+  const [newPwModal, setNewPwModal] = useState(null); // { name, employeeCode, password }
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [roleTarget, setRoleTarget] = useState(null);
   const [roleForm, setRoleForm] = useState({ role: "employee", reason: "" });
@@ -102,7 +103,7 @@ export default function UserManagement() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: "", email: "", password: "", employeeCode: "", role: "employee", isActive: true });
+    setForm({ name: "", email: "", employeeCode: "", role: "employee", isActive: true });
     setShowModal(true);
   };
 
@@ -111,7 +112,6 @@ export default function UserManagement() {
     setForm({
       name: user.name || "",
       email: user.email || "",
-      password: "",
       employeeCode: user.employeeCode || "",
       role: user.role || "employee",
       isActive: user.isActive !== false,
@@ -127,7 +127,6 @@ export default function UserManagement() {
       : `${API_BASE}/api/admin/employees/${editing.id}`;
     const method = isCreate ? "POST" : "PUT";
     const body = { ...form };
-    if (!isCreate && !body.password) delete body.password;
 
     const res = await fetch(url, { method, headers: getHeaders(), body: JSON.stringify(body) });
     const data = await res.json();
@@ -139,27 +138,34 @@ export default function UserManagement() {
       setShowModal(false);
       load();
       window.dispatchEvent(new CustomEvent("hrms-admin-refresh"));
+      if (isCreate && data.newPassword) {
+        setNewPwModal({
+          name: saved?.name || form.name,
+          employeeCode: saved?.employeeCode || form.employeeCode || "—",
+          password: data.newPassword,
+        });
+      }
     } else {
       alert(data.message || "Lỗi khi lưu tài khoản");
     }
   };
 
   const resetPassword = async (userId, userName) => {
-    const newPassword = prompt(`Nhập mật khẩu mới cho "${userName}":`);
-    if (!newPassword || newPassword.length < 8) {
-      alert("Password must be at least 8 characters");
-      return;
-    }
+    if (!confirm(`Reset mật khẩu ngẫu nhiên cho "${userName}"?`)) return;
     const res = await fetch(`${API_BASE}/api/admin/employees/${userId}/reset-password`, {
       method: "POST",
       headers: getHeaders(),
-      body: JSON.stringify({ newPassword }),
+      body: JSON.stringify({}),
     });
     const data = await res.json();
-    if (data.status === "success") {
-      alert("Password reset successfully");
+    if (data.status === "success" && data.newPassword) {
+      setNewPwModal({
+        name: data.employeeName || userName,
+        employeeCode: data.employeeCode || "—",
+        password: data.newPassword,
+      });
     } else {
-      alert(data.message || "Error resetting password");
+      alert(data.message || "Lỗi khi reset mật khẩu");
     }
   };
 
@@ -633,10 +639,14 @@ export default function UserManagement() {
               <button onClick={() => setShowModal(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#718096" }}>×</button>
             </div>
             <form onSubmit={save}>
+              {!editing && (
+                <div style={{ marginBottom: 14, padding: "10px 14px", background: "#ebf8ff", border: "1px solid #bee3f8", borderRadius: 8, fontSize: 13, color: "#2c5282" }}>
+                  🔐 Mật khẩu ngẫu nhiên sẽ được tự động tạo (ví dụ: <strong>HMA#9940</strong>) và hiển thị sau khi tạo tài khoản.
+                </div>
+              )}
               {[
                 { label: "Full Name *", key: "name", type: "text", required: true },
                 { label: "Email *", key: "email", type: "email", required: true },
-                { label: editing ? "New Password (leave blank to keep)" : "Password *", key: "password", type: "password", required: !editing },
                 { label: "Employee Code", key: "employeeCode", type: "text" },
               ].map(f => (
                 <div key={f.key} style={{ marginBottom: 14 }}>
@@ -905,6 +915,48 @@ export default function UserManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {newPwModal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setNewPwModal(null)}
+        >
+          <div
+            style={{ background: "#fff", borderRadius: 12, padding: 28, width: 420, maxWidth: "94vw", textAlign: "center" }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 36, marginBottom: 8 }}>🔐</div>
+            <h3 style={{ fontSize: 17, color: "#1a365d", marginBottom: 4 }}>Mật khẩu mới</h3>
+            <p style={{ fontSize: 13, color: "#718096", marginBottom: 18 }}>
+              <strong>{newPwModal.name}</strong> ({newPwModal.employeeCode})
+            </p>
+            <div
+              style={{
+                background: "#f0fff4", border: "2px solid #9ae6b4", borderRadius: 8,
+                padding: "14px 20px", fontSize: 26, fontWeight: 800, letterSpacing: 3,
+                color: "#276749", marginBottom: 18, fontFamily: "monospace",
+              }}
+            >
+              {newPwModal.password}
+            </div>
+            <p style={{ fontSize: 12, color: "#e53e3e", marginBottom: 20 }}>
+              ⚠️ Ghi lại mật khẩu này ngay — sẽ không hiển thị lại sau khi đóng.
+            </p>
+            <button
+              onClick={() => { navigator.clipboard?.writeText(newPwModal.password); }}
+              style={{ padding: "8px 18px", background: "#ebf8ff", border: "1px solid #90cdf4", borderRadius: 6, cursor: "pointer", fontSize: 13, marginRight: 8 }}
+            >
+              📋 Sao chép
+            </button>
+            <button
+              onClick={() => setNewPwModal(null)}
+              style={{ padding: "8px 18px", background: "#667eea", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+            >
+              Đã ghi lại ✓
+            </button>
           </div>
         </div>
       )}
