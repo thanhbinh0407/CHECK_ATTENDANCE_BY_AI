@@ -131,10 +131,10 @@ router.get(
   getEmployeeWithPassword
 );
 
-// DELETE employee (hard delete) - Manager only
+// DELETE employee (soft delete) - HR or Manager (UC-07.3)
 router.delete(
   "/employees/:id",
-  managerOnly,
+  hrOrManager,
   requirePermission(PERMISSIONS["user:delete"]),
   deleteEmployee
 );
@@ -147,10 +147,10 @@ router.delete(
   permanentlyDeleteEmployee
 );
 
-// POST reset password - Manager only
+// POST reset password - HR or Manager (UC-07.4)
 router.post(
   "/employees/:id/reset-password",
-  managerOnly,
+  hrOrManager,
   requirePermission(PERMISSIONS["user:role:update"]),
   resetEmployeePassword
 );
