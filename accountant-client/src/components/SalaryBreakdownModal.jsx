@@ -8,7 +8,7 @@ function num(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Khi DB còn finalSalary = 0 (bản cũ bị clamp) nhưng gross − deduction âm → hiện đúng số âm. */
+/** When DB finalSalary = 0 (legacy clamp) but gross − deduction is negative → show correct negative net. */
 function effectiveNetFromRecord(rec) {
   const stored = num(rec?.finalSalary);
   const g = num(rec?.grossSalary);

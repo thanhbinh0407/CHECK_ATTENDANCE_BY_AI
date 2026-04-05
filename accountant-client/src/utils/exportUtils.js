@@ -6,7 +6,7 @@ import { applyPlugin } from 'jspdf-autotable';
 // Apply the plugin to extend jsPDF prototype
 applyPlugin(jsPDF);
 
-/** Net xuất báo cáo: khớp màn hình — nếu DB còn 0 (bản cũ) mà gross − deduction < 0 thì dùng giá trị âm. */
+/** Report net export: match screen — if DB still 0 (legacy row) but gross − deduction < 0, use negative value. */
 function displayNetSalary(s) {
   const stored = Number(s.finalSalary);
   const g = parseFloat(s.grossSalary ?? 0);

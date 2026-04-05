@@ -3,7 +3,6 @@ import AccountantDashboard from "./components/AccountantDashboard.jsx";
 import SalaryManagement from "./components/SalaryManagement.jsx";
 import SalaryCalculation from "./components/SalaryCalculation.jsx";
 import SalaryApprovalDashboard from "./components/SalaryApprovalDashboard.jsx";
-import ApprovalManagement from "./components/ApprovalManagement.jsx";
 import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
 import EmployeeDetailView from "./components/EmployeeDetailView.jsx";
 import EmployeeManagement from "./components/EmployeeManagement.jsx";
@@ -113,6 +112,10 @@ function App() {
       socket.off('new-notification');
     };
   }, []);
+
+  useEffect(() => {
+    if (currentView === "approvals") setCurrentView("dashboard");
+  }, [currentView]);
 
   const handleLogout = () => {
     localStorage.removeItem("authToken");
@@ -247,16 +250,15 @@ function App() {
 
   const navFinance = financeExtraRoles.includes(user?.role)
     ? [
-        { id: "approvals", label: "Duyệt hồ sơ liên quan", icon: "🆗" },
-        { id: "rules", label: "Quy tắc lương", icon: "⚙️" },
-        { id: "d02-lt-report", label: "Báo cáo D02-LT", icon: "📄" },
-        { id: "tk1-ts-form", label: "Mẫu TK1-TS", icon: "🏥" },
+        { id: "rules", label: "Salary rules", icon: "⚙️" },
+        { id: "d02-lt-report", label: "D02-LT report", icon: "📄" },
+        { id: "tk1-ts-form", label: "TK1-TS form", icon: "🏥" },
       ]
     : [];
 
   const navPeople = [
-    { id: "employee-details", label: "Thông tin nhân viên", icon: "👤" },
-    { id: "employee-management", label: "Danh sách nhân viên", icon: "🏢" },
+    { id: "employee-details", label: "Employee details", icon: "👤" },
+    { id: "employee-management", label: "Employees", icon: "🏢" },
   ];
 
   const viewTitles = {
@@ -264,12 +266,11 @@ function App() {
     "salary-calculation": "Salary calculation",
     "salary-management": "Salary management",
     "salary-approval": "Payroll approval",
-    approvals: "Duyệt hồ sơ",
-    rules: "Quy tắc lương",
-    "d02-lt-report": "Báo cáo D02-LT",
-    "tk1-ts-form": "Mẫu TK1-TS",
-    "employee-details": "Thông tin nhân viên",
-    "employee-management": "Quản lý nhân viên",
+    rules: "Salary rules",
+    "d02-lt-report": "D02-LT report",
+    "tk1-ts-form": "TK1-TS form",
+    "employee-details": "Employee details",
+    "employee-management": "Employee management",
   };
 
   return (
@@ -297,7 +298,7 @@ function App() {
           ))}
           {navFinance.length > 0 && (
             <>
-              <div className="acc-nav-label">Tuân thủ &amp; cấu hình</div>
+              <div className="acc-nav-label">Compliance &amp; configuration</div>
               {navFinance.map((item) => (
                 <button
                   key={item.id}
@@ -311,7 +312,7 @@ function App() {
               ))}
             </>
           )}
-          <div className="acc-nav-label">Nhân sự</div>
+          <div className="acc-nav-label">Human resources</div>
           {navPeople.map((item) => (
             <button
               key={item.id}
@@ -353,7 +354,6 @@ function App() {
           {currentView === "salary-calculation" && <SalaryCalculation />}
           {currentView === "salary-management" && <SalaryManagement />}
           {currentView === "salary-approval" && <SalaryApprovalDashboard onNavigate={setCurrentView} />}
-          {currentView === "approvals" && <ApprovalManagement />}
           {currentView === "rules" && <SalaryRulesManagement />}
           {currentView === "d02-lt-report" && <D02LTReport />}
           {currentView === "tk1-ts-form" && <TK1TSForm />}

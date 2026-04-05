@@ -297,7 +297,7 @@ export default function SalaryManagement() {
     }
   };
 
-  /** Tính lại lương cho toàn bộ nhân viên theo tháng/năm đang chọn (toolbar). */
+  /** Recalculate salary for all employees for the selected month/year (toolbar). */
   const handleRecalculateAllForMonth = async () => {
     if (employees.length === 0) {
       setMessage("No employees to recalculate");
@@ -345,10 +345,10 @@ export default function SalaryManagement() {
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("vi-VN").format(amount ?? 0) + " ₫";
+    return new Intl.NumberFormat("en-US").format(amount ?? 0) + " ₫";
   };
 
-  /** Net hiển thị: ưu tiên DB; nếu DB còn 0 (bản ghi cũ clamp) mà gross − deduction < 0 thì hiện âm đúng. */
+  /** Display net: prefer DB; if DB is 0 (legacy clamp) but gross − deduction < 0, show correct negative. */
   const displayNetSalary = (s) => {
     const stored = Number(s.finalSalary);
     const g = parseFloat(s.grossSalary ?? 0);

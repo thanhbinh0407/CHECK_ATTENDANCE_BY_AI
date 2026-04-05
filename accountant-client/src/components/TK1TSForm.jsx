@@ -7,7 +7,7 @@ const TK1TSForm = () => {
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [employees, setEmployees] = useState([]);
   const [formData, setFormData] = useState({
-    // Thông tin người lao động
+    // Employee
     hoVaTen: "",
     ngaySinh: "",
     gioiTinh: "",
@@ -19,7 +19,7 @@ const TK1TSForm = () => {
     soDienThoai: "",
     email: "",
 
-    // Thông tin công việc
+    // Job
     chucVu: "",
     phongBan: "",
     ngayBatDauLamViec: "",
@@ -28,7 +28,7 @@ const TK1TSForm = () => {
     luongCoBan: "",
     phuCap: "",
 
-    // Thông tin BHXH/BHYT
+    // Insurance
     soSoBHXH: "",
     noiDangKyKCB: "",
     thamGiaBHXH: true,
@@ -38,12 +38,12 @@ const TK1TSForm = () => {
     tyLeDongBHYT: "",
     tyLeDongBHTN: "",
 
-    // Thông tin người liên hệ khẩn cấp
+    // Emergency contact
     nguoiLienHeKhanCap: "",
     quanHeVoiNguoiLD: "",
     soDienThoaiNguoiLienHe: "",
 
-    // Thông tin bổ sung
+    // Additional
     trinhDoHocVan: "",
     chuyenNganh: "",
     ngoaiNgu: "",
@@ -75,7 +75,7 @@ const TK1TSForm = () => {
         setEmployees(data.employees || []);
       }
     } catch (error) {
-      console.error('Lỗi khi tải danh sách nhân viên:', error);
+      console.error('Error loading employees:', error);
     }
   };
 
@@ -108,7 +108,7 @@ const TK1TSForm = () => {
         }
       }
     } catch (error) {
-      console.error('Lỗi khi tải dữ liệu nhân viên:', error);
+      console.error('Error loading employee data:', error);
     }
   };
 
@@ -121,7 +121,7 @@ const TK1TSForm = () => {
 
   const handleSave = async () => {
     if (!selectedEmployee) {
-      alert('Vui lòng chọn nhân viên!');
+      alert('Please select an employee.');
       return;
     }
 
@@ -141,14 +141,14 @@ const TK1TSForm = () => {
       });
 
       if (response.ok) {
-        alert('Dữ liệu đã được lưu thành công!');
+        alert('Data saved successfully.');
         setIsEditing(false);
       } else {
-        alert('Có lỗi xảy ra khi lưu dữ liệu!');
+        alert('An error occurred while saving.');
       }
     } catch (error) {
-      console.error('Lỗi khi lưu dữ liệu TK1-TS:', error);
-      alert('Có lỗi xảy ra khi lưu dữ liệu!');
+      console.error('Error saving TK1-TS:', error);
+      alert('An error occurred while saving.');
     } finally {
       setIsLoading(false);
     }
@@ -156,45 +156,40 @@ const TK1TSForm = () => {
 
   const exportToPDF = () => {
     if (!selectedEmployee) {
-      alert('Vui lòng chọn nhân viên trước khi xuất PDF!');
+      alert('Please select an employee before exporting PDF.');
       return;
     }
 
     const doc = new jsPDF();
     
-    // Thiết lập font hỗ trợ tiếng Việt
     doc.setFont('times', 'normal');
     
-    // Tiêu đề chính
     doc.setFontSize(16);
     doc.setFont('times', 'bold');
-    doc.text('TỜ KHAI', 105, 20, { align: 'center' });
-    doc.text('THAM GIA BẢO HIỂM XÃ HỘI, BẢO HIỂM Y TẾ', 105, 30, { align: 'center' });
+    doc.text('DECLARATION OF', 105, 20, { align: 'center' });
+    doc.text('SOCIAL & HEALTH INSURANCE PARTICIPATION', 105, 30, { align: 'center' });
     
-    // Mẫu TK1-TS
     doc.setFontSize(12);
     doc.setFont('times', 'normal');
-    doc.text('(Mẫu TK1-TS)', 105, 40, { align: 'center' });
+    doc.text('(Form TK1-TS)', 105, 40, { align: 'center' });
     
-    // Thông tin người lao động
     doc.setFontSize(14);
     doc.setFont('times', 'bold');
-    doc.text('I. THÔNG TIN NGƯỜI LAO ĐỘNG', 20, 60);
+    doc.text('I. EMPLOYEE INFORMATION', 20, 60);
     
     doc.setFontSize(11);
     doc.setFont('times', 'normal');
     
-    // Tạo bảng thông tin cá nhân
     const personalInfo = [
-      ['1. Họ và tên:', formData.hoVaTen || ''],
-      ['2. Ngày sinh:', formData.ngaySinh ? new Date(formData.ngaySinh).toLocaleDateString('vi-VN') : ''],
-      ['3. Giới tính:', formData.gioiTinh === 'Nam' ? 'Nam' : formData.gioiTinh === 'Nữ' ? 'Nữ' : ''],
-      ['4. Số CCCD/CMND:', formData.soCCCD || ''],
-      ['5. Ngày cấp:', formData.ngayCapCCCD ? new Date(formData.ngayCapCCCD).toLocaleDateString('vi-VN') : ''],
-      ['6. Nơi cấp:', formData.noiCapCCCD || ''],
-      ['7. Địa chỉ thường trú:', formData.diaChiThuongTru || ''],
-      ['8. Địa chỉ tạm trú:', formData.diaChiTamTru || ''],
-      ['9. Số điện thoại:', formData.soDienThoai || ''],
+      ['1. Full name:', formData.hoVaTen || ''],
+      ['2. Date of birth:', formData.ngaySinh ? new Date(formData.ngaySinh).toLocaleDateString('en-US') : ''],
+      ['3. Gender:', formData.gioiTinh === 'Nam' ? 'Male' : formData.gioiTinh === 'Nữ' ? 'Female' : (formData.gioiTinh || '')],
+      ['4. ID card no.:', formData.soCCCD || ''],
+      ['5. Issue date:', formData.ngayCapCCCD ? new Date(formData.ngayCapCCCD).toLocaleDateString('en-US') : ''],
+      ['6. Place of issue:', formData.noiCapCCCD || ''],
+      ['7. Permanent address:', formData.diaChiThuongTru || ''],
+      ['8. Temporary address:', formData.diaChiTamTru || ''],
+      ['9. Phone:', formData.soDienThoai || ''],
       ['10. Email:', formData.email || '']
     ];
     
@@ -215,22 +210,21 @@ const TK1TSForm = () => {
       margin: { left: 20, right: 20 }
     });
     
-    // Thông tin công việc
     const workInfoY = doc.lastAutoTable.finalY + 15;
     doc.setFontSize(14);
     doc.setFont('times', 'bold');
-    doc.text('II. THÔNG TIN CÔNG VIỆC', 20, workInfoY);
+    doc.text('II. JOB INFORMATION', 20, workInfoY);
     
     doc.setFontSize(11);
     doc.setFont('times', 'normal');
     
     const workInfo = [
-      ['1. Chức vụ:', formData.chucVu || ''],
-      ['2. Phòng ban:', formData.phongBan || ''],
-      ['3. Ngày bắt đầu làm việc:', formData.ngayBatDauLamViec ? new Date(formData.ngayBatDauLamViec).toLocaleDateString('vi-VN') : ''],
-      ['4. Loại hợp đồng:', formData.loaiHopDong || ''],
-      ['5. Thời hạn hợp đồng:', formData.thoiHanHopDong || ''],
-      ['6. Lương cơ bản:', formData.luongCoBan ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(formData.luongCoBan) : '']
+      ['1. Position:', formData.chucVu || ''],
+      ['2. Department:', formData.phongBan || ''],
+      ['3. Start date:', formData.ngayBatDauLamViec ? new Date(formData.ngayBatDauLamViec).toLocaleDateString('en-US') : ''],
+      ['4. Contract type:', formData.loaiHopDong || ''],
+      ['5. Contract term:', formData.thoiHanHopDong || ''],
+      ['6. Base salary:', formData.luongCoBan ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'VND' }).format(formData.luongCoBan) : '']
     ];
     
     doc.autoTable({
@@ -250,21 +244,20 @@ const TK1TSForm = () => {
       margin: { left: 20, right: 20 }
     });
     
-    // Thông tin BHXH/BHYT
     const insuranceY = doc.lastAutoTable.finalY + 15;
     doc.setFontSize(14);
     doc.setFont('times', 'bold');
-    doc.text('III. THÔNG TIN BẢO HIỂM XÃ HỘI, BẢO HIỂM Y TẾ', 20, insuranceY);
+    doc.text('III. SOCIAL & HEALTH INSURANCE', 20, insuranceY);
     
     doc.setFontSize(11);
     doc.setFont('times', 'normal');
     
     const insuranceInfo = [
-      ['1. Số sổ BHXH:', formData.soSoBHXH || ''],
-      ['2. Nơi đăng ký KCB:', formData.noiDangKyKCB || ''],
-      ['3. Tham gia BHXH:', formData.thamGiaBHXH ? 'Có' : 'Không'],
-      ['4. Tham gia BHYT:', formData.thamGiaBHYT ? 'Có' : 'Không'],
-      ['5. Tham gia BHTN:', formData.thamGiaBHTN ? 'Có' : 'Không']
+      ['1. Social insurance book no.:', formData.soSoBHXH || ''],
+      ['2. Medical registration place:', formData.noiDangKyKCB || ''],
+      ['3. Social insurance:', formData.thamGiaBHXH ? 'Yes' : 'No'],
+      ['4. Health insurance:', formData.thamGiaBHYT ? 'Yes' : 'No'],
+      ['5. Unemployment insurance:', formData.thamGiaBHTN ? 'Yes' : 'No']
     ];
     
     doc.autoTable({
@@ -284,19 +277,18 @@ const TK1TSForm = () => {
       margin: { left: 20, right: 20 }
     });
     
-    // Người liên hệ khẩn cấp
     const contactY = doc.lastAutoTable.finalY + 15;
     doc.setFontSize(14);
     doc.setFont('times', 'bold');
-    doc.text('IV. NGƯỜI LIÊN HỆ KHẨN CẤP', 20, contactY);
+    doc.text('IV. EMERGENCY CONTACT', 20, contactY);
     
     doc.setFontSize(11);
     doc.setFont('times', 'normal');
     
     const contactInfo = [
-      ['1. Họ tên:', formData.nguoiLienHeKhanCap || ''],
-      ['2. Quan hệ với người lao động:', formData.quanHeVoiNguoiLD || ''],
-      ['3. Số điện thoại:', formData.soDienThoaiNguoiLienHe || '']
+      ['1. Name:', formData.nguoiLienHeKhanCap || ''],
+      ['2. Relationship to employee:', formData.quanHeVoiNguoiLD || ''],
+      ['3. Phone:', formData.soDienThoaiNguoiLienHe || '']
     ];
     
     doc.autoTable({
@@ -316,20 +308,19 @@ const TK1TSForm = () => {
       margin: { left: 20, right: 20 }
     });
     
-    // Thông tin bổ sung
     const additionalY = doc.lastAutoTable.finalY + 15;
     doc.setFontSize(14);
     doc.setFont('times', 'bold');
-    doc.text('V. THÔNG TIN BỔ SUNG', 20, additionalY);
+    doc.text('V. ADDITIONAL INFORMATION', 20, additionalY);
     
     doc.setFontSize(11);
     doc.setFont('times', 'normal');
     
     const additionalInfo = [
-      ['1. Trình độ học vấn:', formData.trinhDoHocVan || ''],
-      ['2. Chuyên ngành:', formData.chuyenNganh || ''],
-      ['3. Ngoại ngữ:', formData.ngoaiNgu || ''],
-      ['4. Tin học:', formData.tinHoc || '']
+      ['1. Education:', formData.trinhDoHocVan || ''],
+      ['2. Major / field:', formData.chuyenNganh || ''],
+      ['3. Foreign languages:', formData.ngoaiNgu || ''],
+      ['4. IT skills:', formData.tinHoc || '']
     ];
     
     doc.autoTable({
@@ -349,18 +340,16 @@ const TK1TSForm = () => {
       margin: { left: 20, right: 20 }
     });
     
-    // Chữ ký
     const signatureY = doc.lastAutoTable.finalY + 30;
     doc.setFontSize(11);
     doc.setFont('times', 'normal');
-    doc.text('Tôi cam kết những thông tin trên là đúng sự thật.', 20, signatureY);
-    doc.text('Ngày ...... tháng ...... năm ......', 20, signatureY + 15);
-    doc.text('Người khai', 20, signatureY + 30);
-    doc.text('(Ký, ghi rõ họ tên)', 20, signatureY + 35);
+    doc.text('I certify that the above information is true and correct.', 20, signatureY);
+    doc.text('Date .......... / .......... / ..........', 20, signatureY + 15);
+    doc.text('Declarant', 20, signatureY + 30);
+    doc.text('(Signature, full name)', 20, signatureY + 35);
     
-    // Lưu file
-    const employeeName = formData.hoVaTen || 'NhanVien';
-    doc.save(`ToKhai_TK1-TS_${employeeName.replace(/\s+/g, '_')}.pdf`);
+    const employeeName = formData.hoVaTen || 'Employee';
+    doc.save(`TK1-TS_${employeeName.replace(/\s+/g, '_')}.pdf`);
   };
 
   const inputStyle = {
@@ -446,14 +435,14 @@ const TK1TSForm = () => {
             color: "#1e293b",
             margin: "0 0 4px 0"
           }}>
-            🏥 Mẫu Tờ Khai Tham Gia BHXH/BHYT
+            🏥 Social & health insurance declaration (TK1-TS)
           </h2>
           <p style={{
             fontSize: "16px",
             color: "#64748b",
             margin: 0
           }}>
-            Mẫu TK1-TS - Thông Tin Người Lao Động
+            Form TK1-TS — employee information
           </p>
         </div>
         <div>
@@ -465,7 +454,7 @@ const TK1TSForm = () => {
                 onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
                 onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
               >
-                ✏️ Chỉnh sửa
+                ✏️ Edit
               </button>
               <button
                 onClick={exportToPDF}
@@ -477,7 +466,7 @@ const TK1TSForm = () => {
                 onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
                 onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
               >
-                📄 Xuất PDF
+                📄 Export PDF
               </button>
             </div>
           ) : (
@@ -489,7 +478,7 @@ const TK1TSForm = () => {
                 onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
                 onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
               >
-                {isLoading ? "⏳ Đang lưu..." : "💾 Lưu"}
+                {isLoading ? "⏳ Saving…" : "💾 Save"}
               </button>
               <button
                 onClick={() => {
@@ -500,22 +489,22 @@ const TK1TSForm = () => {
                 onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
                 onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
               >
-                ❌ Hủy
+                ❌ Cancel
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Chọn nhân viên */}
+      {/* Employee selector */}
       <div style={{ marginBottom: "32px" }}>
-        <label style={labelStyle}>Chọn Nhân Viên</label>
+        <label style={labelStyle}>Employee</label>
         <select
           value={selectedEmployee}
           onChange={(e) => setSelectedEmployee(e.target.value)}
           style={inputStyle}
         >
-          <option value="">-- Chọn nhân viên --</option>
+          <option value="">-- Select employee --</option>
           {employees.map(emp => (
             <option key={emp.id} value={emp.id}>
               {emp.employeeCode} - {emp.name}
@@ -526,27 +515,27 @@ const TK1TSForm = () => {
 
       {selectedEmployee && (
         <div>
-          {/* Thông tin cá nhân */}
-          <h3 style={sectionTitleStyle}>👤 Thông Tin Cá Nhân</h3>
+          {/* Personal */}
+          <h3 style={sectionTitleStyle}>👤 Personal information</h3>
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
             gap: "24px"
           }}>
             <div>
-              <label style={labelStyle}>Họ và Tên</label>
+              <label style={labelStyle}>Full name</label>
               <input
                 type="text"
                 value={formData.hoVaTen}
                 onChange={(e) => handleInputChange('hoVaTen', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập họ và tên đầy đủ..."
+                placeholder="Enter full name…"
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Ngày Sinh</label>
+              <label style={labelStyle}>Date of birth</label>
               <input
                 type="date"
                 value={formData.ngaySinh}
@@ -557,34 +546,34 @@ const TK1TSForm = () => {
             </div>
 
             <div>
-              <label style={labelStyle}>Giới Tính</label>
+              <label style={labelStyle}>Gender</label>
               <select
                 value={formData.gioiTinh}
                 onChange={(e) => handleInputChange('gioiTinh', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
               >
-                <option value="">-- Chọn giới tính --</option>
-                <option value="Nam">Nam</option>
-                <option value="Nữ">Nữ</option>
-                <option value="Khác">Khác</option>
+                <option value="">-- Select gender --</option>
+                <option value="Nam">Male</option>
+                <option value="Nữ">Female</option>
+                <option value="Khác">Other</option>
               </select>
             </div>
 
             <div>
-              <label style={labelStyle}>Số CCCD/CMND</label>
+              <label style={labelStyle}>ID card number</label>
               <input
                 type="text"
                 value={formData.soCCCD}
                 onChange={(e) => handleInputChange('soCCCD', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập số CCCD/CMND..."
+                placeholder="Enter national ID…"
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Ngày Cấp CCCD</label>
+              <label style={labelStyle}>ID issue date</label>
               <input
                 type="date"
                 value={formData.ngayCapCCCD}
@@ -595,58 +584,58 @@ const TK1TSForm = () => {
             </div>
 
             <div>
-              <label style={labelStyle}>Nơi Cấp CCCD</label>
+              <label style={labelStyle}>Place of issue</label>
               <input
                 type="text"
                 value={formData.noiCapCCCD}
                 onChange={(e) => handleInputChange('noiCapCCCD', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập nơi cấp CCCD..."
+                placeholder="Place of issue…"
               />
             </div>
           </div>
 
-          {/* Địa chỉ */}
-          <h3 style={sectionTitleStyle}>🏠 Thông Tin Địa Chỉ</h3>
+          {/* Address */}
+          <h3 style={sectionTitleStyle}>🏠 Address</h3>
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
             gap: "24px"
           }}>
             <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Địa Chỉ Thường Trú</label>
+              <label style={labelStyle}>Permanent address</label>
               <input
                 type="text"
                 value={formData.diaChiThuongTru}
                 onChange={(e) => handleInputChange('diaChiThuongTru', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập địa chỉ thường trú..."
+                placeholder="Permanent address…"
               />
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Địa Chỉ Tạm Trú</label>
+              <label style={labelStyle}>Temporary address</label>
               <input
                 type="text"
                 value={formData.diaChiTamTru}
                 onChange={(e) => handleInputChange('diaChiTamTru', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập địa chỉ tạm trú..."
+                placeholder="Temporary address…"
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Số Điện Thoại</label>
+              <label style={labelStyle}>Phone</label>
               <input
                 type="tel"
                 value={formData.soDienThoai}
                 onChange={(e) => handleInputChange('soDienThoai', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập số điện thoại..."
+                placeholder="Phone number…"
               />
             </div>
 
@@ -658,44 +647,44 @@ const TK1TSForm = () => {
                 onChange={(e) => handleInputChange('email', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập địa chỉ email..."
+                placeholder="Email address…"
               />
             </div>
           </div>
 
-          {/* Thông tin công việc */}
-          <h3 style={sectionTitleStyle}>💼 Thông Tin Công Việc</h3>
+          {/* Job */}
+          <h3 style={sectionTitleStyle}>💼 Job information</h3>
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
             gap: "24px"
           }}>
             <div>
-              <label style={labelStyle}>Chức Vụ</label>
+              <label style={labelStyle}>Position</label>
               <input
                 type="text"
                 value={formData.chucVu}
                 onChange={(e) => handleInputChange('chucVu', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập chức vụ..."
+                placeholder="Job title…"
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Phòng Ban</label>
+              <label style={labelStyle}>Department</label>
               <input
                 type="text"
                 value={formData.phongBan}
                 onChange={(e) => handleInputChange('phongBan', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập phòng ban..."
+                placeholder="Department…"
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Ngày Bắt Đầu Làm Việc</label>
+              <label style={labelStyle}>Start date</label>
               <input
                 type="date"
                 value={formData.ngayBatDauLamViec}
@@ -706,225 +695,225 @@ const TK1TSForm = () => {
             </div>
 
             <div>
-              <label style={labelStyle}>Loại Hợp Đồng</label>
+              <label style={labelStyle}>Contract type</label>
               <select
                 value={formData.loaiHopDong}
                 onChange={(e) => handleInputChange('loaiHopDong', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
               >
-                <option value="">-- Chọn loại hợp đồng --</option>
-                <option value="Không xác định thời hạn">Không xác định thời hạn</option>
-                <option value="Xác định thời hạn">Xác định thời hạn</option>
-                <option value="Thời vụ">Thời vụ</option>
-                <option value="Thử việc">Thử việc</option>
+                <option value="">-- Select contract type --</option>
+                <option value="Không xác định thời hạn">Indefinite term</option>
+                <option value="Xác định thời hạn">Fixed term</option>
+                <option value="Thời vụ">Seasonal</option>
+                <option value="Thử việc">Probation</option>
               </select>
             </div>
 
             <div>
-              <label style={labelStyle}>Thời Hạn Hợp Đồng</label>
+              <label style={labelStyle}>Contract duration</label>
               <input
                 type="text"
                 value={formData.thoiHanHopDong}
                 onChange={(e) => handleInputChange('thoiHanHopDong', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Ví dụ: 2 năm, 6 tháng..."
+                placeholder="e.g. 2 years, 6 months…"
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Lương Cơ Bản (VNĐ)</label>
+              <label style={labelStyle}>Base salary (VND)</label>
               <input
                 type="number"
                 value={formData.luongCoBan}
                 onChange={(e) => handleInputChange('luongCoBan', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập lương cơ bản..."
+                placeholder="Base salary…"
               />
             </div>
           </div>
 
-          {/* Thông tin BHXH/BHYT */}
-          <h3 style={sectionTitleStyle}>🛡️ Thông Tin BHXH/BHYT/BHTN</h3>
+          {/* Insurance */}
+          <h3 style={sectionTitleStyle}>🛡️ Social / health / unemployment insurance</h3>
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
             gap: "24px"
           }}>
             <div>
-              <label style={labelStyle}>Số Sổ BHXH</label>
+              <label style={labelStyle}>Social insurance book no.</label>
               <input
                 type="text"
                 value={formData.soSoBHXH}
                 onChange={(e) => handleInputChange('soSoBHXH', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập số sổ BHXH..."
+                placeholder="Book number…"
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Nơi Đăng Ký KCB</label>
+              <label style={labelStyle}>Medical registration place</label>
               <input
                 type="text"
                 value={formData.noiDangKyKCB}
                 onChange={(e) => handleInputChange('noiDangKyKCB', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập nơi đăng ký khám chữa bệnh..."
+                placeholder="Where registered for care…"
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Tham Gia BHXH</label>
+              <label style={labelStyle}>Social insurance</label>
               <select
                 value={formData.thamGiaBHXH}
                 onChange={(e) => handleInputChange('thamGiaBHXH', e.target.value === 'true')}
                 disabled={!isEditing}
                 style={inputStyle}
               >
-                <option value={true}>Có</option>
-                <option value={false}>Không</option>
+                <option value={true}>Yes</option>
+                <option value={false}>No</option>
               </select>
             </div>
 
             <div>
-              <label style={labelStyle}>Tham Gia BHYT</label>
+              <label style={labelStyle}>Health insurance</label>
               <select
                 value={formData.thamGiaBHYT}
                 onChange={(e) => handleInputChange('thamGiaBHYT', e.target.value === 'true')}
                 disabled={!isEditing}
                 style={inputStyle}
               >
-                <option value={true}>Có</option>
-                <option value={false}>Không</option>
+                <option value={true}>Yes</option>
+                <option value={false}>No</option>
               </select>
             </div>
 
             <div>
-              <label style={labelStyle}>Tham Gia BHTN</label>
+              <label style={labelStyle}>Unemployment insurance</label>
               <select
                 value={formData.thamGiaBHTN}
                 onChange={(e) => handleInputChange('thamGiaBHTN', e.target.value === 'true')}
                 disabled={!isEditing}
                 style={inputStyle}
               >
-                <option value={false}>Không</option>
-                <option value={true}>Có</option>
+                <option value={false}>No</option>
+                <option value={true}>Yes</option>
               </select>
             </div>
           </div>
 
-          {/* Thông tin liên hệ khẩn cấp */}
-          <h3 style={sectionTitleStyle}>🚨 Người Liên Hệ Khẩn Cấp</h3>
+          {/* Emergency contact */}
+          <h3 style={sectionTitleStyle}>🚨 Emergency contact</h3>
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
             gap: "24px"
           }}>
             <div>
-              <label style={labelStyle}>Họ Tên Người Liên Hệ</label>
+              <label style={labelStyle}>Contact name</label>
               <input
                 type="text"
                 value={formData.nguoiLienHeKhanCap}
                 onChange={(e) => handleInputChange('nguoiLienHeKhanCap', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập họ tên người liên hệ..."
+                placeholder="Full name…"
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Quan Hệ Với Người Lao Động</label>
+              <label style={labelStyle}>Relationship to employee</label>
               <input
                 type="text"
                 value={formData.quanHeVoiNguoiLD}
                 onChange={(e) => handleInputChange('quanHeVoiNguoiLD', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Ví dụ: Vợ, Chồng, Cha, Mẹ..."
+                placeholder="e.g. spouse, parent…"
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Số Điện Thoại Liên Hệ</label>
+              <label style={labelStyle}>Contact phone</label>
               <input
                 type="tel"
                 value={formData.soDienThoaiNguoiLienHe}
                 onChange={(e) => handleInputChange('soDienThoaiNguoiLienHe', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập số điện thoại liên hệ..."
+                placeholder="Phone…"
               />
             </div>
           </div>
 
-          {/* Thông tin bổ sung */}
-          <h3 style={sectionTitleStyle}>📚 Thông Tin Bổ Sung</h3>
+          {/* Additional */}
+          <h3 style={sectionTitleStyle}>📚 Additional information</h3>
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
             gap: "24px"
           }}>
             <div>
-              <label style={labelStyle}>Trình Độ Học Vấn</label>
+              <label style={labelStyle}>Education</label>
               <select
                 value={formData.trinhDoHocVan}
                 onChange={(e) => handleInputChange('trinhDoHocVan', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
               >
-                <option value="">-- Chọn trình độ --</option>
-                <option value="Tiến sĩ">Tiến sĩ</option>
-                <option value="Thạc sĩ">Thạc sĩ</option>
-                <option value="Đại học">Đại học</option>
-                <option value="Cao đẳng">Cao đẳng</option>
-                <option value="Trung cấp">Trung cấp</option>
-                <option value="Trung học phổ thông">Trung học phổ thông</option>
-                <option value="Trung học cơ sở">Trung học cơ sở</option>
+                <option value="">-- Select level --</option>
+                <option value="Tiến sĩ">PhD</option>
+                <option value="Thạc sĩ">Master</option>
+                <option value="Đại học">University</option>
+                <option value="Cao đẳng">College</option>
+                <option value="Trung cấp">Intermediate</option>
+                <option value="Trung học phổ thông">High school</option>
+                <option value="Trung học cơ sở">Lower secondary</option>
               </select>
             </div>
 
             <div>
-              <label style={labelStyle}>Chuyên Ngành</label>
+              <label style={labelStyle}>Major / field</label>
               <input
                 type="text"
                 value={formData.chuyenNganh}
                 onChange={(e) => handleInputChange('chuyenNganh', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập chuyên ngành..."
+                placeholder="Field of study…"
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Ngoại Ngữ</label>
+              <label style={labelStyle}>Languages</label>
               <input
                 type="text"
                 value={formData.ngoaiNgu}
                 onChange={(e) => handleInputChange('ngoaiNgu', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Ví dụ: Tiếng Anh B2, Tiếng Nhật N3..."
+                placeholder="e.g. English B2, Japanese N3…"
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Tin Học</label>
+              <label style={labelStyle}>IT skills</label>
               <input
                 type="text"
                 value={formData.tinHoc}
                 onChange={(e) => handleInputChange('tinHoc', e.target.value)}
                 disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Ví dụ: MOS Word, MOS Excel..."
+                placeholder="e.g. MOS Word, Excel…"
               />
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Kinh Nghiệm Làm Việc</label>
+              <label style={labelStyle}>Work experience</label>
               <textarea
                 value={formData.kinhNghiem}
                 onChange={(e) => handleInputChange('kinhNghiem', e.target.value)}
@@ -934,7 +923,7 @@ const TK1TSForm = () => {
                   minHeight: "100px",
                   resize: "vertical"
                 }}
-                placeholder="Mô tả kinh nghiệm làm việc, kỹ năng chuyên môn..."
+                placeholder="Experience and professional skills…"
               />
             </div>
           </div>

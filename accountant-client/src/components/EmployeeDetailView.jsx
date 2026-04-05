@@ -69,7 +69,7 @@ export default function EmployeeDetailView() {
         setSalaryChangeData([]);
         setMessage("");
       } else {
-        setMessage(data?.message || `Không tải được hồ sơ (${res.status})`);
+        setMessage(data?.message || `Could not load profile (${res.status})`);
       }
     } catch (error) {
       console.error("Error fetching employee details:", error);
@@ -523,13 +523,13 @@ export default function EmployeeDetailView() {
                       <div>
                         <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Base salary:</label>
                         <p style={{ margin: 0, color: "#666", fontWeight: "bold" }}>
-                          ₫{employeeDetails.baseSalary?.toLocaleString("vi-VN") || "0"}
+                          ₫{employeeDetails.baseSalary?.toLocaleString("en-US") || "0"}
                         </p>
                       </div>
 
                       <div>
                         <label style={{ fontWeight: "bold", display: "block", marginBottom: "5px" }}>Join Date:</label>
-                        <p style={{ margin: 0, color: "#666" }}>{employeeDetails.joiningDate ? new Date(employeeDetails.joiningDate).toLocaleDateString('vi-VN') : "Not set"}</p>
+                        <p style={{ margin: 0, color: "#666" }}>{employeeDetails.joiningDate ? new Date(employeeDetails.joiningDate).toLocaleDateString("en-US") : "Not set"}</p>
                       </div>
 
                       <div>
@@ -833,7 +833,7 @@ export default function EmployeeDetailView() {
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="period" />
                           <YAxis />
-                          <Tooltip formatter={(value) => [`₫${value.toLocaleString("vi-VN")}`, '']} />
+                          <Tooltip formatter={(value) => [`₫${value.toLocaleString("en-US")}`, '']} />
                           <Legend />
                           <Line type="monotone" dataKey="netPay" stroke="#8884d8" strokeWidth={2} name="Net Pay" />
                           <Line type="monotone" dataKey="baseSalary" stroke="#82ca9d" strokeWidth={2} name="Base Salary" />
@@ -859,19 +859,19 @@ export default function EmployeeDetailView() {
                             <tr key={idx} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
                               <td style={{ padding: "8px" }}>{salary.month}/{salary.year}</td>
                               <td style={{ padding: "8px", textAlign: "right" }}>
-                                ₫{salary.baseSalary?.toLocaleString("vi-VN") || "0"}
+                                ₫{salary.baseSalary?.toLocaleString("en-US") || "0"}
                               </td>
                               <td style={{ padding: "8px", textAlign: "right", color: "#28a745" }}>
-                                +₫{(salary.bonus || 0).toLocaleString("vi-VN")}
+                                +₫{(salary.bonus || 0).toLocaleString("en-US")}
                               </td>
                               <td style={{ padding: "8px", textAlign: "right", color: "#dc3545" }}>
-                                -₫{(salary.advanceDeduction || 0).toLocaleString("vi-VN")}
+                                -₫{(salary.advanceDeduction || 0).toLocaleString("en-US")}
                               </td>
                               <td style={{ padding: "8px", textAlign: "right", color: "#dc3545" }}>
-                                -₫{((salary.deduction || 0) - (salary.advanceDeduction || 0)).toLocaleString("vi-VN")}
+                                -₫{((salary.deduction || 0) - (salary.advanceDeduction || 0)).toLocaleString("en-US")}
                               </td>
                               <td style={{ padding: "8px", textAlign: "right", fontWeight: "bold", color: theme.colors.primary }}>
-                                ₫{salary.finalSalary?.toLocaleString("vi-VN") || "0"}
+                                ₫{salary.finalSalary?.toLocaleString("en-US") || "0"}
                               </td>
                               <td style={{ padding: "8px", textAlign: "center" }}>
                                 <span
@@ -1001,8 +1001,8 @@ export default function EmployeeDetailView() {
                           <tr key={item.id} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
                             <td style={{ padding: "8px" }}>{item.effectiveDate || "-"}</td>
                             <td style={{ padding: "8px" }}><span style={{ background: badge.bg, color: badge.color, borderRadius: 999, padding: "3px 9px", fontSize: 12, fontWeight: 600 }}>{item.changeType || "-"}</span></td>
-                            <td style={{ padding: "8px" }}>{Number(item.previousBaseSalary || 0).toLocaleString("vi-VN")} → {Number(item.newBaseSalary || 0).toLocaleString("vi-VN")}</td>
-                            <td style={{ padding: "8px" }}>{Number(item.previousTotalAllowance || 0).toLocaleString("vi-VN")} → {Number(item.newTotalAllowance || 0).toLocaleString("vi-VN")}</td>
+                            <td style={{ padding: "8px" }}>{Number(item.previousBaseSalary || 0).toLocaleString("en-US")} → {Number(item.newBaseSalary || 0).toLocaleString("en-US")}</td>
+                            <td style={{ padding: "8px" }}>{Number(item.previousTotalAllowance || 0).toLocaleString("en-US")} → {Number(item.newTotalAllowance || 0).toLocaleString("en-US")}</td>
                             <td style={{ padding: "8px" }}>{item.reason || "-"}</td>
                           </tr>
                         );})}
