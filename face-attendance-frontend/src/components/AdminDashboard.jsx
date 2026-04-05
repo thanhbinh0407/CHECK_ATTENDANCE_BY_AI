@@ -1,28 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { exportEmployeesToExcel, exportEmployeesToPDF, importEmployeesFromExcel, downloadEmployeeTemplate } from "../utils/exportUtils.js";
 import EmployeeProfileModal from "./EmployeeProfileModal.jsx";
-import { theme } from "../styles/theme.js";
-import socket from "../socket.js";
-
-const EMPLOYMENT_LABELS = {
-  active: "Đang làm việc",
-  maternity_leave: "Thai sản",
-  unpaid_leave: "Nghỉ không lương",
-  suspended: "Tạm ngưng",
-  terminated: "Chấm dứt HĐ",
-  resigned: "Đã nghỉ việc",
-};
-
-/** API trả về null/empty khi DB chưa gán phòng ban, chức danh hoặc ngày vào làm. */
-const ORG_EMPTY = "Chưa cập nhật";
-
-function orgText(value) {
-  const s = value != null ? String(value).trim() : "";
-  return s || ORG_EMPTY;
-}
 
 export default function AdminDashboard() {
   const [employees, setEmployees] = useState([]);
+  const [filteredEmployees, setFilteredEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -31,31 +13,10 @@ export default function AdminDashboard() {
   const [resetPasswordSuccess, setResetPasswordSuccess] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all"); // all, withFace, withoutFace
-  const [filterDepartmentId, setFilterDepartmentId] = useState("");
-  const [filterEmployment, setFilterEmployment] = useState("all");
-  const [sortBy, setSortBy] = useState("name"); // name | startDate | department
   const [startDateFrom, setStartDateFrom] = useState("");
   const [startDateTo, setStartDateTo] = useState("");
   const [savedFilters, setSavedFilters] = useState([]);
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
-  const [presenceByUserId, setPresenceByUserId] = useState({});
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
-
-  const fetchTodayPresence = useCallback(async () => {
-    const token = localStorage.getItem("authToken");
-    if (!token?.trim()) return;
-    try {
-      const res = await fetch(`${apiBase}/api/admin/attendance/today-presence`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (res.ok && data.status === "success" && data.presence) {
-        setPresenceByUserId(data.presence);
-      }
-    } catch (e) {
-      console.error("Today presence:", e);
-    }
-  }, [apiBase]);
 
   const toLocalDateOnly = (value) => {
     if (!value) return null;
@@ -91,67 +52,32 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  // Apply search and filters
   useEffect(() => {
-    socket.emit("join-room", { room: "admin" });
-    const onAttendance = () => {
-      fetchTodayPresence();
-    };
-    socket.on("attendance-update", onAttendance);
-    const poll = setInterval(() => fetchTodayPresence(), 120000);
-    return () => {
-      socket.off("attendance-update", onAttendance);
-      clearInterval(poll);
-    };
-  }, [fetchTodayPresence]);
-
-  const departmentOptions = useMemo(() => {
-    const map = new Map();
-    employees.forEach((e) => {
-      const id = e.departmentId;
-      const name = e.Department?.name;
-      if (id != null && name) map.set(id, name);
-    });
-    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1], "vi"));
-  }, [employees]);
-
-  const filteredEmployees = useMemo(() => {
     let filtered = [...employees];
 
+    // Apply search query (full-text search)
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter((emp) => {
-        const dept = emp.Department?.name?.toLowerCase() || "";
-        const job = emp.JobTitle?.name?.toLowerCase() || "";
-        const phone = String(emp.phoneNumber || "").toLowerCase();
-        return (
-          emp.name?.toLowerCase().includes(query) ||
-          emp.email?.toLowerCase().includes(query) ||
-          emp.employeeCode?.toLowerCase().includes(query) ||
-          dept.includes(query) ||
-          job.includes(query) ||
-          phone.includes(query)
-        );
-      });
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(emp => 
+        emp.name?.toLowerCase().includes(query) ||
+        emp.email?.toLowerCase().includes(query) ||
+        emp.employeeCode?.toLowerCase().includes(query)
+      );
     }
 
-    if (filterDepartmentId) {
-      const idNum = Number(filterDepartmentId);
-      filtered = filtered.filter((emp) => Number(emp.departmentId) === idNum);
-    }
-
-    if (filterEmployment !== "all") {
-      filtered = filtered.filter((emp) => (emp.employmentStatus || "active") === filterEmployment);
-    }
-
+    // Apply status filter
     if (filterStatus === "withFace") {
-      filtered = filtered.filter((emp) => emp.FaceProfiles && emp.FaceProfiles.length > 0);
+      filtered = filtered.filter(emp => emp.FaceProfiles && emp.FaceProfiles.length > 0);
     } else if (filterStatus === "withoutFace") {
-      filtered = filtered.filter((emp) => !emp.FaceProfiles || emp.FaceProfiles.length === 0);
+      filtered = filtered.filter(emp => !emp.FaceProfiles || emp.FaceProfiles.length === 0);
     }
 
+    // Apply start date range filter
     if (startDateFrom || startDateTo) {
       const from = startDateFrom ? toLocalDateOnly(startDateFrom) : null;
       const to = startDateTo ? toLocalDateOnly(startDateTo) : null;
+
       filtered = filtered.filter((emp) => {
         const employeeStartDate = toLocalDateOnly(emp.startDate);
         if (!employeeStartDate) return false;
@@ -161,52 +87,8 @@ export default function AdminDashboard() {
       });
     }
 
-    const sorted = [...filtered];
-    if (sortBy === "name") {
-      sorted.sort((a, b) => (a.name || "").localeCompare(b.name || "", "vi", { sensitivity: "base" }));
-    } else if (sortBy === "department") {
-      sorted.sort((a, b) =>
-        (a.Department?.name || "").localeCompare(b.Department?.name || "", "vi", { sensitivity: "base" })
-      );
-    } else if (sortBy === "startDate") {
-      sorted.sort((a, b) => {
-        const ta = toLocalDateOnly(a.startDate)?.getTime() ?? 0;
-        const tb = toLocalDateOnly(b.startDate)?.getTime() ?? 0;
-        return tb - ta;
-      });
-    }
-
-    return sorted;
-  }, [
-    employees,
-    searchQuery,
-    filterDepartmentId,
-    filterEmployment,
-    filterStatus,
-    startDateFrom,
-    startDateTo,
-    sortBy,
-  ]);
-
-  const advancedFilterCount = useMemo(() => {
-    let n = 0;
-    if (filterDepartmentId) n++;
-    if (filterEmployment !== "all") n++;
-    if (filterStatus !== "all") n++;
-    if (startDateFrom || startDateTo) n++;
-    if (sortBy !== "name") n++;
-    return n;
-  }, [filterDepartmentId, filterEmployment, filterStatus, startDateFrom, startDateTo, sortBy]);
-
-  const resetAllFilters = () => {
-    setSearchQuery("");
-    setFilterStatus("all");
-    setFilterDepartmentId("");
-    setFilterEmployment("all");
-    setSortBy("name");
-    setStartDateFrom("");
-    setStartDateTo("");
-  };
+    setFilteredEmployees(filtered);
+  }, [searchQuery, filterStatus, startDateFrom, startDateTo, employees]);
 
   const fetchEmployees = async () => {
     try {
@@ -235,8 +117,8 @@ export default function AdminDashboard() {
       if (res.ok) {
         const empList = data.employees || [];
         setEmployees(empList);
+        setFilteredEmployees(empList);
         setMessage(""); // Clear any previous error messages
-        fetchTodayPresence();
       } else {
         if (res.status === 401) {
           setMessage("Authentication error: Invalid or expired token. Please log in again.");
@@ -308,93 +190,37 @@ export default function AdminDashboard() {
   };
 
   const containerStyle = {
-    maxWidth: "1200px",
+    maxWidth: "1400px",
     margin: "0 auto",
-    padding: `${theme.spacing.lg} ${theme.spacing.md} ${theme.spacing["2xl"]}`,
-    fontFamily: theme.typography.fontFamily,
-    background: `linear-gradient(180deg, ${theme.neutral.gray100} 0%, ${theme.neutral.gray50} 35%, ${theme.neutral.gray100} 100%)`,
-    minHeight: "100%",
-    boxSizing: "border-box",
-  };
-
-  const shellStyle = {
-    backgroundColor: theme.neutral.white,
-    borderRadius: theme.radius["2xl"] || theme.radius.xl,
-    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.06), 0 24px 48px -12px rgba(15,23,42,0.12)",
-    border: `1px solid ${theme.neutral.gray200}`,
-    overflow: "hidden",
+    padding: "0"
   };
 
   const contentCardStyle = {
-    padding: theme.spacing.xl,
-    paddingTop: theme.spacing.lg,
-  };
-
-  const fieldLabel = {
-    display: "block",
-    fontSize: "11px",
-    fontWeight: "600",
-    color: theme.neutral.gray400,
-    marginBottom: "4px",
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
-  };
-
-  const inputStyle = {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-    border: `1px solid ${theme.neutral.gray300}`,
-    borderRadius: theme.radius.lg,
-    fontSize: theme.typography.small.fontSize,
-    backgroundColor: theme.neutral.white,
-    color: theme.neutral.gray800,
-    outline: "none",
-    transition: theme.transitions.normal,
-  };
-
-  const selectStyle = {
-    ...inputStyle,
-    cursor: "pointer",
-    minHeight: "40px",
+    backgroundColor: "#ffffff",
+    borderRadius: "0 0 16px 16px",
+    padding: "40px",
+    boxShadow: "0 4px 24px rgba(0,0,0,0.1)"
   };
 
   return (
     <div style={containerStyle}>
-      <div style={shellStyle}>
-      <div
-        style={{
-          background: "linear-gradient(125deg, #0f172a 0%, #1e293b 42%, #334155 100%)",
-          color: theme.neutral.white,
-          padding: `${theme.spacing.xl} ${theme.spacing.xl} ${theme.spacing.lg}`,
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            right: "-10%",
-            top: "-40%",
-            width: "55%",
-            height: "180%",
-            background: "radial-gradient(circle, rgba(59,130,246,0.18) 0%, transparent 65%)",
-            pointerEvents: "none",
-          }}
-        />
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <p style={{ margin: "0 0 6px 0", fontSize: "11px", fontWeight: "600", letterSpacing: "0.12em", opacity: 0.65, textTransform: "uppercase" }}>
-            Quản lý nguồn nhân lực
-          </p>
-          <h1 style={{ margin: "0 0 10px 0", fontSize: "1.75rem", fontWeight: "800", letterSpacing: "-0.03em", lineHeight: 1.2 }}>
-            Hồ sơ nhân viên
-          </h1>
-          <p style={{ margin: 0, fontSize: theme.typography.small.fontSize, opacity: 0.82, maxWidth: "34rem", lineHeight: 1.55 }}>
-            Tìm kiếm, lọc và xuất danh sách. Trạng thái điểm danh trong ngày được cập nhật tự động.
-          </p>
-        </div>
+      {/* Welcome Header */}
+      <div style={{
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        color: "#fff",
+        padding: "48px 40px",
+        borderRadius: "16px 16px 0 0",
+        boxShadow: "0 4px 20px rgba(102, 126, 234, 0.3)"
+      }}>
+        <h1 style={{ margin: "0 0 12px 0", fontSize: "36px", fontWeight: "700" }}>
+          👥 Employee Management
+        </h1>
+        <p style={{ margin: 0, fontSize: "16px", opacity: 0.95 }}>
+          View, manage, and update information for all employees. Search, filter, and export employee data.
+        </p>
       </div>
 
+      {/* Main Content */}
       <div style={contentCardStyle}>
           {message && (
           <div style={{
@@ -415,351 +241,260 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        <div
-          style={{
-            backgroundColor: theme.neutral.gray50,
-            borderRadius: theme.radius.xl,
-            padding: theme.spacing.lg,
-            marginBottom: theme.spacing.xl,
-            border: `1px solid ${theme.neutral.gray200}`,
-            boxShadow: theme.shadows.xs,
-          }}
-        >
-          <div
-            style={{
+        {/* Filters - Leave Management style */}
+        <div style={{
+          backgroundColor: "#fff",
+          borderRadius: "16px",
+          padding: "20px 24px",
+          marginBottom: "32px",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+          border: "1px solid #e8e8e8",
+          display: "inline-block",
+          width: "100%"
+        }}>
+          <div style={{ 
+            display: "flex", 
+            gap: "20px", 
+            alignItems: "center",
+            flexWrap: "wrap"
+          }}>
+            <div style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              gap: "12px",
+              flex: "1",
+              minWidth: "200px"
+            }}>
+              <label style={{ 
+                fontWeight: "700", 
+                fontSize: "15px", 
+                color: "#495057",
+                whiteSpace: "nowrap"
+              }}>
+                Search:
+              </label>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name, email, employee code..."
+                style={{
+                  flex: 1,
+                  padding: "12px 20px",
+                  border: "2px solid #e0e0e0",
+                  borderRadius: "10px",
+                  fontSize: "15px",
+                  fontWeight: "500",
+                  transition: "all 0.2s",
+                  outline: "none",
+                  minWidth: "200px"
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "#667eea";
+                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(102, 126, 234, 0.1)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "#e0e0e0";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            </div>
+            <div style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              gap: "12px"
+            }}>
+              <label style={{ 
+                fontWeight: "700", 
+                fontSize: "15px", 
+                color: "#495057",
+                whiteSpace: "nowrap"
+              }}>
+                Filter by Status:
+              </label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                style={{
+                  padding: "12px 20px",
+                  border: "2px solid #e0e0e0",
+                  borderRadius: "10px",
+                  fontSize: "15px",
+                  fontWeight: "500",
+                  cursor: "pointer",
+                  backgroundColor: "#fff",
+                  transition: "all 0.2s",
+                  outline: "none",
+                  width: "auto",
+                  minWidth: "180px"
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "#667eea";
+                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(102, 126, 234, 0.1)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "#e0e0e0";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              >
+                <option value="all">All ({employees.length})</option>
+                <option value="withFace">Face Registered ({employees.filter(e => e.FaceProfiles && e.FaceProfiles.length > 0).length})</option>
+                <option value="withoutFace">Not Registered ({employees.filter(e => !e.FaceProfiles || e.FaceProfiles.length === 0).length})</option>
+              </select>
+            </div>
+            <div style={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: theme.spacing.sm,
-              marginBottom: theme.spacing.sm,
-            }}
-          >
-            <span style={{ fontSize: theme.typography.small.fontSize, fontWeight: "600", color: theme.neutral.gray700 }}>
-              Tìm kiếm
-            </span>
-            {searchQuery.trim() && (
-              <span
+              gap: "10px",
+              flexWrap: "wrap"
+            }}>
+              <label style={{
+                fontWeight: "700",
+                fontSize: "15px",
+                color: "#495057",
+                whiteSpace: "nowrap"
+              }}>
+                Start Date:
+              </label>
+              <input
+                type="date"
+                value={startDateFrom}
+                onChange={(e) => setStartDateFrom(e.target.value)}
                 style={{
-                  fontSize: theme.typography.tiny.fontSize,
-                  fontWeight: "600",
-                  color: theme.info.text,
-                  backgroundColor: theme.info.bg,
-                  padding: "4px 10px",
-                  borderRadius: theme.radius.full,
-                  border: `1px solid ${theme.info.border}`,
+                  padding: "12px 14px",
+                  border: "2px solid #e0e0e0",
+                  borderRadius: "10px",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  backgroundColor: "#fff",
+                  outline: "none"
                 }}
+              />
+              <span style={{ color: "#6c757d", fontWeight: "600" }}>to</span>
+              <input
+                type="date"
+                value={startDateTo}
+                onChange={(e) => setStartDateTo(e.target.value)}
+                style={{
+                  padding: "12px 14px",
+                  border: "2px solid #e0e0e0",
+                  borderRadius: "10px",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  backgroundColor: "#fff",
+                  outline: "none"
+                }}
+              />
+            </div>
+              <button
+              onClick={() => {
+                setSearchQuery("");
+                setFilterStatus("all");
+                setStartDateFrom("");
+                setStartDateTo("");
+              }}
+                style={{
+                  padding: "12px 20px",
+                  backgroundColor: "#6c757d",
+                  color: "#fff",
+                  border: "none",
+                borderRadius: "10px",
+                  cursor: "pointer",
+                fontWeight: "700",
+                  fontSize: "14px",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#5a6268"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#6c757d"}
               >
-                Đang tìm
-              </span>
-            )}
+                Reset
+              </button>
           </div>
 
-          <div style={{ marginBottom: theme.spacing.md }}>
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm theo tên, mã NV, email, SĐT, phòng ban, chức danh…"
-              style={{
-                ...inputStyle,
-                paddingLeft: theme.spacing.lg,
-                borderRadius: theme.radius.full,
-                backgroundColor: theme.neutral.white,
-                border: `1px solid ${theme.neutral.gray200}`,
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = theme.primary.main;
-                e.currentTarget.style.boxShadow = `0 0 0 3px ${theme.primary.subtle}`;
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = theme.neutral.gray300;
-                e.currentTarget.style.boxShadow = "none";
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: theme.spacing.sm,
-              marginBottom: filtersExpanded ? theme.spacing.md : 0,
-            }}
-          >
+          {/* Export/Import Buttons */}
+          <div style={{ marginTop: "20px", paddingTop: "20px", borderTop: "1px solid #e8e8e8", display: "flex", gap: "12px", flexWrap: "wrap" }}>
             <button
-              type="button"
-              onClick={() => setFiltersExpanded((v) => !v)}
+              onClick={() => exportEmployeesToExcel(filteredEmployees, `employees-${new Date().toISOString().split('T')[0]}`)}
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: theme.spacing.sm,
-                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                backgroundColor: theme.neutral.white,
-                color: theme.neutral.gray800,
-                border: `1px solid ${theme.neutral.gray300}`,
-                borderRadius: theme.radius.lg,
+                padding: "10px 20px",
+                backgroundColor: "#28a745",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
                 cursor: "pointer",
                 fontWeight: "600",
-                fontSize: theme.typography.small.fontSize,
-                transition: theme.transitions.normal,
+                fontSize: "14px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                transition: "all 0.2s"
               }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#218838"}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#28a745"}
             >
-              <span>{filtersExpanded ? "▲" : "▼"}</span>
-              Bộ lọc nâng cao
-              {advancedFilterCount > 0 && (
-                <span
-                  style={{
-                    fontSize: theme.typography.tiny.fontSize,
-                    fontWeight: "700",
-                    backgroundColor: theme.primary.subtle,
-                    color: theme.primary.main,
-                    padding: "2px 8px",
-                    borderRadius: theme.radius.full,
-                  }}
-                >
-                  {advancedFilterCount}
-                </span>
-              )}
+              Export Excel
             </button>
-            {!filtersExpanded && advancedFilterCount > 0 && (
-              <span style={{ fontSize: theme.typography.tiny.fontSize, color: theme.neutral.gray500 }}>
-                Đang áp dụng {advancedFilterCount} bộ lọc — mở để chỉnh
-              </span>
-            )}
-          </div>
-
-          {filtersExpanded && (
-            <>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                  gap: theme.spacing.md,
-                  marginBottom: theme.spacing.md,
-                  paddingTop: theme.spacing.md,
-                  borderTop: `1px solid ${theme.neutral.gray200}`,
-                }}
-              >
-                <div>
-                  <label style={fieldLabel}>Phòng ban</label>
-                  <select
-                    value={filterDepartmentId}
-                    onChange={(e) => setFilterDepartmentId(e.target.value)}
-                    style={selectStyle}
-                  >
-                    <option value="">Tất cả phòng ban</option>
-                    {departmentOptions.map(([id, name]) => (
-                      <option key={id} value={String(id)}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={fieldLabel}>Trạng thái làm việc</label>
-                  <select
-                    value={filterEmployment}
-                    onChange={(e) => setFilterEmployment(e.target.value)}
-                    style={selectStyle}
-                  >
-                    <option value="all">Tất cả</option>
-                    {Object.entries(EMPLOYMENT_LABELS).map(([key, label]) => (
-                      <option key={key} value={key}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={fieldLabel}>Đăng ký khuôn mặt</label>
-                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={selectStyle}>
-                    <option value="all">Tất cả ({employees.length})</option>
-                    <option value="withFace">
-                      Đã đăng ký ({employees.filter((e) => e.FaceProfiles && e.FaceProfiles.length > 0).length})
-                    </option>
-                    <option value="withoutFace">
-                      Chưa đăng ký ({employees.filter((e) => !e.FaceProfiles || e.FaceProfiles.length === 0).length})
-                    </option>
-                  </select>
-                </div>
-                <div>
-                  <label style={fieldLabel}>Sắp xếp</label>
-                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={selectStyle}>
-                    <option value="name">Tên (A–Z)</option>
-                    <option value="department">Phòng ban</option>
-                    <option value="startDate">Ngày vào làm (mới nhất)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  alignItems: "flex-end",
-                  gap: theme.spacing.md,
-                  paddingTop: theme.spacing.md,
-                  borderTop: `1px solid ${theme.neutral.gray200}`,
-                }}
-              >
-                <div style={{ flex: "1 1 140px", minWidth: "140px" }}>
-                  <label style={fieldLabel}>Ngày vào làm từ</label>
-                  <input type="date" value={startDateFrom} onChange={(e) => setStartDateFrom(e.target.value)} style={inputStyle} />
-                </div>
-                <div style={{ flex: "1 1 140px", minWidth: "140px" }}>
-                  <label style={fieldLabel}>Đến</label>
-                  <input type="date" value={startDateTo} onChange={(e) => setStartDateTo(e.target.value)} style={inputStyle} />
-                </div>
-                <button
-                  type="button"
-                  onClick={resetAllFilters}
-                  style={{
-                    padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
-                    backgroundColor: theme.neutral.white,
-                    color: theme.neutral.gray700,
-                    border: `1px solid ${theme.neutral.gray300}`,
-                    borderRadius: theme.radius.lg,
-                    cursor: "pointer",
-                    fontWeight: "600",
-                    fontSize: theme.typography.small.fontSize,
-                    transition: theme.transitions.normal,
-                    marginBottom: "1px",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = theme.neutral.gray100;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = theme.neutral.white;
-                  }}
-                >
-                  Xóa bộ lọc
-                </button>
-              </div>
-            </>
-          )}
-
-          <div
-            style={{
-              marginTop: theme.spacing.lg,
-              paddingTop: theme.spacing.lg,
-              borderTop: `1px solid ${theme.neutral.gray200}`,
-              display: "flex",
-              gap: theme.spacing.sm,
-              flexWrap: "wrap",
-            }}
-          >
             <button
-              type="button"
-              onClick={() =>
-                exportEmployeesToExcel(filteredEmployees, `employees-${new Date().toISOString().split("T")[0]}`, {
-                  presenceByUserId,
-                })
-              }
+              onClick={() => exportEmployeesToPDF(filteredEmployees, `employees-${new Date().toISOString().split('T')[0]}`)}
               style={{
-                padding: "10px 16px",
-                backgroundColor: theme.neutral.white,
-                color: theme.success.dark,
-                border: `1px solid ${theme.success.border}`,
-                borderRadius: theme.radius.lg,
+                padding: "10px 20px",
+                backgroundColor: "#dc3545",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
                 cursor: "pointer",
                 fontWeight: "600",
-                fontSize: theme.typography.small.fontSize,
-                display: "inline-flex",
+                fontSize: "14px",
+                display: "flex",
                 alignItems: "center",
-                gap: "6px",
-                transition: theme.transitions.normal,
+                gap: "8px",
+                transition: "all 0.2s"
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = theme.success.bg;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = theme.neutral.white;
-              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#c82333"}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#dc3545"}
             >
-              Xuất Excel
+              Export PDF
             </button>
             <button
-              type="button"
-              onClick={() =>
-                exportEmployeesToPDF(filteredEmployees, `employees-${new Date().toISOString().split("T")[0]}`, {
-                  presenceByUserId,
-                })
-              }
-              style={{
-                padding: "10px 16px",
-                backgroundColor: theme.neutral.white,
-                color: theme.error.dark,
-                border: `1px solid ${theme.error.border}`,
-                borderRadius: theme.radius.lg,
-                cursor: "pointer",
-                fontWeight: "600",
-                fontSize: theme.typography.small.fontSize,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                transition: theme.transitions.normal,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = theme.error.bg;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = theme.neutral.white;
-              }}
-            >
-              Xuất PDF
-            </button>
-            <button
-              type="button"
               onClick={downloadEmployeeTemplate}
               style={{
-                padding: "10px 16px",
-                backgroundColor: theme.neutral.white,
-                color: theme.info.dark,
-                border: `1px solid ${theme.info.border}`,
-                borderRadius: theme.radius.lg,
+                padding: "10px 20px",
+                backgroundColor: "#17a2b8",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
                 cursor: "pointer",
                 fontWeight: "600",
-                fontSize: theme.typography.small.fontSize,
-                display: "inline-flex",
+                fontSize: "14px",
+                display: "flex",
                 alignItems: "center",
-                gap: "6px",
-                transition: theme.transitions.normal,
+                gap: "8px",
+                transition: "all 0.2s"
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = theme.info.bg;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = theme.neutral.white;
-              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#138496"}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#17a2b8"}
             >
-              Mẫu Excel
+              Download Template
             </button>
             <label
               style={{
-                padding: "10px 16px",
-                backgroundColor: theme.neutral.white,
-                color: theme.warning.text,
-                border: `1px solid ${theme.warning.border}`,
-                borderRadius: theme.radius.lg,
+                padding: "10px 20px",
+                backgroundColor: "#ffc107",
+                color: "#000",
+                border: "none",
+                borderRadius: "8px",
                 cursor: "pointer",
                 fontWeight: "600",
-                fontSize: theme.typography.small.fontSize,
-                display: "inline-flex",
+                fontSize: "14px",
+                display: "flex",
                 alignItems: "center",
-                gap: "6px",
-                transition: theme.transitions.normal,
+                gap: "8px",
+                transition: "all 0.2s"
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = theme.warning.bg;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = theme.neutral.white;
-              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#e0a800"}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#ffc107"}
             >
-              Import Excel
+              Import from Excel
               <input
                 type="file"
                 accept=".xlsx,.xls"
@@ -822,391 +557,255 @@ export default function AdminDashboard() {
             </label>
           </div>
 
-          <div
-            style={{
-              marginTop: theme.spacing.md,
-              fontSize: theme.typography.small.fontSize,
-              color: theme.neutral.gray500,
-            }}
-          >
-            Hiển thị <strong style={{ color: theme.neutral.gray800 }}>{filteredEmployees.length}</strong> / {employees.length}{" "}
-            nhân viên
+          {/* Results Count */}
+          <div style={{ marginTop: "16px", fontSize: "14px", color: "#666" }}>
+            Showing <strong>{filteredEmployees.length}</strong> / {employees.length} employees
           </div>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: theme.spacing["2xl"], color: theme.neutral.gray500 }}>
-            <div style={{ fontSize: "2rem", marginBottom: theme.spacing.md }}>⏳</div>
-            <div style={{ fontSize: theme.typography.small.fontSize, fontWeight: "600" }}>Đang tải danh sách…</div>
+          <div style={{ textAlign: "center", padding: "60px", color: "#666" }}>
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏳</div>
+            <div style={{ fontSize: "16px", fontWeight: "500" }}>Loading employees...</div>
           </div>
         ) : filteredEmployees.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: `${theme.spacing["2xl"]} ${theme.spacing.xl}`,
-              backgroundColor: theme.neutral.gray50,
-              borderRadius: theme.radius.xl,
-              border: `2px dashed ${theme.neutral.gray300}`,
-            }}
-          >
-            <div style={{ fontSize: "2.5rem", marginBottom: theme.spacing.md }}>📭</div>
-            <h3 style={{ fontSize: theme.typography.h5.fontSize, fontWeight: "600", color: theme.neutral.gray800, margin: `0 0 ${theme.spacing.sm} 0` }}>
-              {employees.length === 0 ? "Chưa có nhân viên" : "Không có kết quả"}
+          <div style={{
+            textAlign: "center",
+            padding: "60px 40px",
+            backgroundColor: "#f8f9fa",
+            borderRadius: "16px",
+            border: "2px dashed #dee2e6"
+          }}>
+            <div style={{ fontSize: "64px", marginBottom: "16px" }}>📭</div>
+            <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#333", marginBottom: "8px" }}>
+              {employees.length === 0 ? "No Employees" : "No Results"}
             </h3>
-            <p style={{ fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500, margin: 0, maxWidth: "28rem", marginLeft: "auto", marginRight: "auto" }}>
-              {employees.length === 0
-                ? "Danh sách trống. Thêm nhân viên từ mục quản lý tài khoản hoặc import Excel."
-                : "Không có nhân viên khớp bộ lọc. Thử đổi từ khóa hoặc xóa bộ lọc."}
+            <p style={{ fontSize: "14px", color: "#666" }}>
+              {employees.length === 0 
+                ? "No employees found. Start by registering new employees."
+                : `No employees match the current filters. Try adjusting your search or filters.`
+              }
             </p>
             {employees.length > 0 && (
               <button
-                type="button"
-                onClick={resetAllFilters}
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilterStatus("all");
+                  setStartDateFrom("");
+                  setStartDateTo("");
+                }}
                 style={{
-                  marginTop: theme.spacing.lg,
-                  padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
-                  backgroundColor: theme.primary.main,
-                  color: theme.neutral.white,
+                  marginTop: "16px",
+                  padding: "12px 24px",
+                  backgroundColor: "#667eea",
+                  color: "#fff",
                   border: "none",
-                  borderRadius: theme.radius.lg,
+                  borderRadius: "12px",
                   cursor: "pointer",
                   fontWeight: "600",
-                  fontSize: theme.typography.small.fontSize,
-                  transition: theme.transitions.normal,
+                  fontSize: "14px",
+                  transition: "all 0.2s"
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = theme.primary.dark;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = theme.primary.main;
-                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#5a67d8"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#667eea"}
               >
-                Xóa bộ lọc
+                Clear Filters
               </button>
             )}
           </div>
         ) : (
         <>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-              gap: theme.spacing.lg,
-            }}
-          >
-            {filteredEmployees.map((emp) => {
+          {/* Employee Cards Grid - Leave Management style */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
+            gap: "20px"
+          }}>
+            {filteredEmployees.map((emp, index) => {
               const hasFace = emp.FaceProfiles && emp.FaceProfiles.length > 0;
               const statusStyle = hasFace
-                ? { bg: theme.success.bg, color: theme.success.text, text: "Đã đăng ký" }
-                : { bg: theme.warning.bg, color: theme.warning.text, text: "Chưa đăng ký" };
-              const es = emp.employmentStatus || "active";
-              const workColor =
-                es === "active"
-                  ? theme.success.dark
-                  : es === "maternity_leave" || es === "unpaid_leave"
-                    ? theme.warning.dark
-                    : es === "suspended"
-                      ? "#ea580c"
-                      : theme.error.dark;
-              const workLabel = EMPLOYMENT_LABELS[es] || es;
-              const pres = presenceByUserId[String(emp.id)];
-              let presLabel = "Chưa điểm danh";
-              let presColor = theme.neutral.gray500;
-              let presTime = "";
-              if (pres?.lastType === "IN") {
-                presLabel = "Đang làm việc";
-                presColor = theme.success.dark;
-                presTime = pres.lastAt
-                  ? new Date(pres.lastAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
-                  : "";
-              } else if (pres?.lastType === "OUT") {
-                presLabel = "Đã check-out";
-                presColor = theme.neutral.gray600;
-                presTime = pres.lastAt
-                  ? new Date(pres.lastAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
-                  : "";
-              }
-              const accent =
-                pres?.lastType === "IN"
-                  ? theme.success.main
-                  : pres?.lastType === "OUT"
-                    ? theme.neutral.gray300
-                    : theme.neutral.gray100;
-
+                ? { bg: "#d4edda", color: "#155724", text: "✅ Registered" }
+                : { bg: "#fff3cd", color: "#856404", text: "⏳ Not Registered" };
               return (
                 <div
                   key={emp.id}
                   style={{
-                    backgroundColor: theme.neutral.white,
+                    backgroundColor: "#fff",
                     borderRadius: "16px",
-                    padding: 0,
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(15,23,42,0.06)",
-                    border: `1px solid ${theme.neutral.gray200}`,
-                    borderLeft: `4px solid ${accent}`,
-                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    padding: "0",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                    border: "1px solid #e8e8e8",
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                     position: "relative",
-                    overflow: "hidden",
+                    overflow: "hidden"
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-3px)";
-                    e.currentTarget.style.boxShadow = "0 12px 32px rgba(15,23,42,0.1)";
+                    e.currentTarget.style.transform = "translateY(-4px)";
+                    e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
+                    e.currentTarget.style.borderColor = "#667eea";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(15,23,42,0.06)";
+                    e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
+                    e.currentTarget.style.borderColor = "#e8e8e8";
                   }}
                 >
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: theme.spacing.md,
-                      right: theme.spacing.md,
-                      padding: "5px 10px",
-                      borderRadius: theme.radius.full,
-                      fontSize: "10px",
-                      fontWeight: "700",
-                      letterSpacing: "0.03em",
-                      backgroundColor: statusStyle.bg,
-                      color: statusStyle.color,
-                      border: `1px solid ${statusStyle.color}40`,
-                      zIndex: 1,
-                    }}
-                  >
+                  <style>{`
+                    @keyframes fadeInUp {
+                      from { opacity: 0; transform: translateY(20px); }
+                      to { opacity: 1; transform: translateY(0); }
+                    }
+                  `}</style>
+
+                  {/* Status Badge */}
+                  <div style={{
+                    position: "absolute",
+                    top: "16px",
+                    right: "16px",
+                    padding: "5px 10px",
+                    borderRadius: "8px",
+                    fontSize: "10px",
+                    fontWeight: "600",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.3px",
+                    backgroundColor: statusStyle.bg,
+                    color: statusStyle.color,
+                    border: `1px solid ${statusStyle.color}20`,
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                    zIndex: 10
+                  }}>
                     {statusStyle.text}
                   </div>
 
-                  <div
-                    style={{ padding: `${theme.spacing.lg} ${theme.spacing.md} ${theme.spacing.md}` }}
-                    onClick={() => setSelectedEmployee(emp)}
-                  >
-                    <div style={{ marginBottom: theme.spacing.md, display: "flex", alignItems: "flex-start", gap: theme.spacing.md }}>
-                      <div
-                        style={{
-                          width: "52px",
-                          height: "52px",
-                          borderRadius: "14px",
-                          background: "linear-gradient(145deg, #334155 0%, #0f172a 100%)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "1.2rem",
-                          fontWeight: "800",
-                          color: theme.neutral.white,
-                          flexShrink: 0,
-                          boxShadow: "0 4px 14px rgba(15,23,42,0.25), 0 0 0 3px rgba(255,255,255,0.95)",
-                        }}
-                      >
+                  {/* Card Content */}
+                  <div style={{ padding: "20px" }} onClick={() => setSelectedEmployee(emp)}>
+                    {/* Employee Info */}
+                    <div style={{ marginBottom: "16px", display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{
+                    width: "56px",
+                    height: "56px",
+                    borderRadius: "14px",
+                    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "24px",
+                    fontWeight: "700",
+                    color: "#fff",
+                        boxShadow: "0 4px 12px rgba(102, 126, 234, 0.4)",
+                        flexShrink: 0
+                  }}>
                         {emp.name?.charAt(0)?.toUpperCase() || "?"}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0, paddingRight: "76px" }}>
-                        <h3
-                          style={{
-                            margin: "0 0 4px 0",
-                            fontSize: "1.05rem",
-                            fontWeight: "800",
-                            color: theme.neutral.gray900,
-                            lineHeight: 1.3,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            letterSpacing: "-0.02em",
-                          }}
-                        >
-                          {emp.name || "—"}
-                        </h3>
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            color: theme.neutral.gray500,
-                            fontWeight: "500",
-                            lineHeight: 1.4,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          <span style={{ color: theme.neutral.gray700, fontWeight: "600" }}>{emp.employeeCode || "—"}</span>
-                          <span style={{ margin: "0 6px", color: theme.neutral.gray300 }}>|</span>
-                          <span>{emp.email || "—"}</span>
-                        </div>
-                        <div style={{ marginTop: "10px" }}>
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              padding: "5px 12px",
-                              borderRadius: theme.radius.full,
-                              fontSize: "12px",
-                              fontWeight: "700",
-                              letterSpacing: "0.01em",
-                              backgroundColor:
-                                pres?.lastType === "IN"
-                                  ? theme.success.bg
-                                  : pres?.lastType === "OUT"
-                                    ? theme.neutral.gray100
-                                    : theme.neutral.gray50,
-                              color: presColor,
-                              border: `1px solid ${
-                                pres?.lastType === "IN"
-                                  ? theme.success.border
-                                  : pres?.lastType === "OUT"
-                                    ? theme.neutral.gray200
-                                    : theme.neutral.gray200
-                              }`,
-                            }}
-                          >
-                            {pres?.lastType === "IN" && (
-                              <span
-                                style={{
-                                  width: "7px",
-                                  height: "7px",
-                                  borderRadius: "50%",
-                                  backgroundColor: theme.success.main,
-                                  flexShrink: 0,
-                                }}
-                              />
-                            )}
-                            {presLabel}
-                            {presTime ? (
-                              <span style={{ fontWeight: "600", opacity: 0.85 }}>· {presTime}</span>
-                            ) : null}
-                          </span>
+                  </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <h3 style={{ margin: "0 0 4px 0", fontSize: "18px", fontWeight: "700", color: "#1a1a1a", lineHeight: "1.3" }}>
+                          {emp.name || "N/A"}
+                  </h3>
+                        <div style={{ fontSize: "13px", color: "#667eea", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span>👤</span> {emp.employeeCode || "N/A"}
                         </div>
                       </div>
-                    </div>
+                  </div>
 
-                    <div
+                    {/* Details Box - Leave Management style */}
+                  <div style={{
+                      backgroundColor: "#f8f9fa",
+                      borderRadius: "12px",
+                      padding: "16px",
+                      marginBottom: "16px",
+                      border: "1px solid #e8e8e8"
+                    }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                        <div style={{ padding: "10px", backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "10px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Department</div>
+                          <div style={{ fontSize: "12px", color: "#667eea", fontWeight: "700" }}>{emp.Department?.name || "N/A"}</div>
+                        </div>
+                        <div style={{ padding: "10px", backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "10px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Job Title</div>
+                          <div style={{ fontSize: "12px", color: "#1a1a1a", fontWeight: "700" }}>{emp.JobTitle?.name || "N/A"}</div>
+                        </div>
+                        <div style={{ padding: "10px", backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "10px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Status</div>
+                          <div style={{ fontSize: "12px", color: 
+                            emp.employmentStatus === "active" ? "#28a745" :
+                            emp.employmentStatus === "maternity_leave" ? "#ffc107" :
+                            emp.employmentStatus === "unpaid_leave" ? "#ff9800" :
+                            emp.employmentStatus === "suspended" ? "#ff5722" :
+                            emp.employmentStatus === "terminated" || emp.employmentStatus === "resigned" ? "#dc3545" : "#666",
+                            fontWeight: "700" }}>
+                            {emp.employmentStatus === "active" ? "Active" :
+                             emp.employmentStatus === "maternity_leave" ? "Maternity Leave" :
+                             emp.employmentStatus === "unpaid_leave" ? "Unpaid Leave" :
+                             emp.employmentStatus === "suspended" ? "Suspended" :
+                             emp.employmentStatus === "terminated" ? "Terminated" :
+                             emp.employmentStatus === "resigned" ? "Resigned" : emp.employmentStatus || "Active"}
+                          </div>
+                        </div>
+                        <div style={{ padding: "10px", backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e8e8e8" }}>
+                          <div style={{ fontSize: "10px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Start Date</div>
+                          <div style={{ fontSize: "12px", color: emp.startDate ? "#667eea" : "#999", fontWeight: "700" }}>
+                            {emp.startDate
+                              ? new Date(emp.startDate).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })
+                              : "Not set"}
+                          </div>
+                        </div>
+                  </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                    <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setSelectedEmployee(emp); }}
                       style={{
-                        background: `linear-gradient(180deg, ${theme.neutral.gray50} 0%, ${theme.neutral.white} 100%)`,
-                        borderRadius: "12px",
-                        padding: theme.spacing.md,
-                        marginBottom: theme.spacing.md,
-                        border: `1px solid ${theme.neutral.gray200}`,
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: `${theme.spacing.md} ${theme.spacing.sm}`,
+                        flex: 1,
+                          padding: "12px 20px",
+                          backgroundColor: "#28a745",
+                        color: "#fff",
+                        border: "none",
+                          borderRadius: "10px",
+                        cursor: "pointer",
+                          fontWeight: "600",
+                          fontSize: "13px",
+                          transition: "all 0.3s",
+                          boxShadow: "0 3px 8px rgba(40, 167, 69, 0.3)"
+                      }}
+                      onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#218838";
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                      }}
+                      onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "#28a745";
+                        e.currentTarget.style.transform = "translateY(0)";
                       }}
                     >
-                      <div>
-                        <div style={{ ...fieldLabel, marginBottom: "4px" }}>Phòng ban</div>
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            color: emp.Department?.name ? theme.neutral.gray800 : theme.neutral.gray400,
-                            fontWeight: "600",
-                            lineHeight: 1.35,
-                            fontStyle: emp.Department?.name ? "normal" : "italic",
-                          }}
-                        >
-                          {orgText(emp.Department?.name)}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ ...fieldLabel, marginBottom: "4px" }}>Chức danh</div>
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            color: emp.JobTitle?.name ? theme.neutral.gray800 : theme.neutral.gray400,
-                            fontWeight: "600",
-                            lineHeight: 1.35,
-                            fontStyle: emp.JobTitle?.name ? "normal" : "italic",
-                          }}
-                        >
-                          {orgText(emp.JobTitle?.name)}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ ...fieldLabel, marginBottom: "4px" }}>Hợp đồng</div>
-                        <div style={{ fontSize: "13px", color: workColor, fontWeight: "700" }}>{workLabel}</div>
-                      </div>
-                      <div>
-                        <div style={{ ...fieldLabel, marginBottom: "4px" }}>Vào làm</div>
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            color: emp.startDate ? theme.neutral.gray700 : theme.neutral.gray400,
-                            fontWeight: "600",
-                            fontStyle: emp.startDate ? "normal" : "italic",
-                          }}
-                        >
-                          {emp.startDate ? new Date(emp.startDate).toLocaleDateString("vi-VN") : ORG_EMPTY}
-                        </div>
-                      </div>
-                    </div>
-                    {!emp.Department?.name || !emp.JobTitle?.name || !emp.startDate ? (
-                      <p
-                        style={{
-                          margin: `0 0 ${theme.spacing.md} 0`,
-                          fontSize: "11px",
-                          lineHeight: 1.45,
-                          color: theme.neutral.gray400,
-                          padding: `0 ${theme.spacing.xs}`,
-                        }}
-                      >
-                        Các mục trên lấy từ hồ sơ nhân sự. Nếu trống, mở <strong style={{ color: theme.neutral.gray600 }}>Chi tiết</strong> để
-                        chọn phòng ban, chức danh và ngày vào làm.
-                      </p>
-                    ) : null}
-
-                    <div style={{ display: "flex", gap: theme.spacing.sm }}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedEmployee(emp);
-                        }}
-                        style={{
+                        Details
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); deleteEmployee(emp.id); }}
+                      style={{
                           flex: 1,
-                          padding: "11px 14px",
-                          backgroundColor: theme.primary.main,
-                          color: theme.neutral.white,
-                          border: "none",
+                          padding: "12px 20px",
+                        backgroundColor: "#dc3545",
+                        color: "#fff",
+                        border: "none",
                           borderRadius: "10px",
-                          cursor: "pointer",
-                          fontWeight: "700",
-                          fontSize: "12px",
-                          letterSpacing: "0.02em",
-                          transition: theme.transitions.normal,
+                        cursor: "pointer",
+                          fontWeight: "600",
+                          fontSize: "13px",
+                          transition: "all 0.3s",
+                          boxShadow: "0 3px 8px rgba(220, 53, 69, 0.3)"
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = theme.primary.dark;
+                          e.currentTarget.style.backgroundColor = "#c82333";
+                          e.currentTarget.style.transform = "translateY(-2px)";
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = theme.primary.main;
+                          e.currentTarget.style.backgroundColor = "#dc3545";
+                          e.currentTarget.style.transform = "translateY(0)";
                         }}
                       >
-                        Chi tiết
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteEmployee(emp.id);
-                        }}
-                        style={{
-                          flex: 1,
-                          padding: "11px 14px",
-                          backgroundColor: theme.neutral.white,
-                          color: theme.neutral.gray600,
-                          border: `1px solid ${theme.neutral.gray300}`,
-                          borderRadius: "10px",
-                          cursor: "pointer",
-                          fontWeight: "700",
-                          fontSize: "12px",
-                          transition: theme.transitions.normal,
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = theme.neutral.gray100;
-                          e.currentTarget.style.borderColor = theme.neutral.gray400;
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = theme.neutral.white;
-                          e.currentTarget.style.borderColor = theme.neutral.gray300;
-                        }}
-                      >
-                        Xóa
-                      </button>
+                        Delete
+                    </button>
                     </div>
                   </div>
                 </div>
@@ -1227,7 +826,6 @@ export default function AdminDashboard() {
             }}
           />
         )}
-      </div>
       </div>
     </div>
   );

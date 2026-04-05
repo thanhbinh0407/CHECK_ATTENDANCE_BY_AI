@@ -4,7 +4,7 @@ import AttendanceLog from "../models/pg/AttendanceLog.js";
 import LeaveRequest from "../models/pg/LeaveRequest.js";
 import { Op } from "sequelize";
 import nodemailer from "nodemailer";
-import { emitToRoom } from "../socket.js";
+import { emitToRoom, broadcast } from "../socket.js";
 
 // Email transporter setup (configure in .env)
 const getEmailTransporter = () => {
@@ -19,6 +19,41 @@ const getEmailTransporter = () => {
       pass: process.env.SMTP_PASS
     }
   });
+};
+
+/**
+ * Internal utility — tạo notification trong DB và emit socket.
+ * Dùng cho các controller khác (không cần req/res).
+ */
+export const createNotification = async (userId, type, title, message, metadata = {}) => {
+  try {
+    const notification = await Notification.create({
+      userId: userId || null,
+      type,
+      title,
+      message,
+      metadata,
+    });
+
+    const payload = {
+      id: notification.id,
+      type,
+      title,
+      message,
+      metadata: notification.metadata,
+      createdAt: notification.createdAt,
+    };
+
+    if (userId) {
+      emitToRoom(`user-${userId}`, 'new-notification', payload);
+    } else {
+      broadcast('new-notification', payload);
+    }
+
+    return notification;
+  } catch (err) {
+    console.error("createNotification failed:", err.message);
+  }
 };
 
 // Send notification (creates DB record and optionally sends email)

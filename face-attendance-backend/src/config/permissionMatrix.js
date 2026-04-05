@@ -126,10 +126,11 @@ export const ROLE_PERMISSIONS = {
    * HR - Tập trung quản lý nhân sự
    */
   HR: [
-    // User Management - Most access except delete/role changes
+    // User Management — per UC-07.x: view list, edit info, delete, reset password (no create)
     PERMISSIONS['user:read'],
-    PERMISSIONS['user:create'],
     PERMISSIONS['user:update'],
+    PERMISSIONS['user:delete'],
+    PERMISSIONS['user:role:update'],
 
     // Payroll - Read only
     PERMISSIONS['payroll:read'],

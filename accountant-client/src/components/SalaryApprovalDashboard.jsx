@@ -690,37 +690,37 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                   No awaiting-recalc rows match your search.
                 </div>
               ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead style={{ background: theme.neutral.gray700 }}>
-                    <tr>
-                      <th style={thStyle}>Employee</th>
-                      <th style={thStyle}>Period</th>
-                      <th style={{ ...thStyle, textAlign: "right" }}>Gross</th>
-                      <th style={{ ...thStyle, textAlign: "right" }}>Net pay (current)</th>
-                      <th style={thStyle}>Rejection reason</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredAwaitingRecalc.map((s) => (
-                      <tr key={s.id} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
-                        <td style={cell}>
-                          <strong>{s.User?.name || "—"}</strong>
-                          <div style={{ fontSize: "12px", color: theme.neutral.gray500 }}>{s.User?.employeeCode}</div>
-                        </td>
-                        <td style={cell}>
-                          {formatPayPeriod(s)}
-                        </td>
-                        <td style={{ ...cell, textAlign: "right", fontWeight: "600" }}>{formatCurrency(s.grossSalary)}</td>
-                        <td style={{ ...cell, textAlign: "right", fontWeight: "700" }}>{formatCurrency(displayNetSalary(s))}</td>
-                        <td style={{ ...cell, fontSize: "13px", color: theme.neutral.gray700 }}>
-                          {parseRejectionReason(s.notes) || "—"}
-                        </td>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead style={{ background: theme.neutral.gray700 }}>
+                      <tr>
+                        <th style={thStyle}>Employee</th>
+                        <th style={thStyle}>Period</th>
+                        <th style={{ ...thStyle, textAlign: "right" }}>Gross</th>
+                        <th style={{ ...thStyle, textAlign: "right" }}>Net pay (current)</th>
+                        <th style={thStyle}>Rejection reason</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {filteredAwaitingRecalc.map((s) => (
+                        <tr key={s.id} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
+                          <td style={cell}>
+                            <strong>{s.User?.name || "—"}</strong>
+                            <div style={{ fontSize: "12px", color: theme.neutral.gray500 }}>{s.User?.employeeCode}</div>
+                          </td>
+                          <td style={cell}>
+                            {formatPayPeriod(s)}
+                          </td>
+                          <td style={{ ...cell, textAlign: "right", fontWeight: "600" }}>{formatCurrency(s.grossSalary)}</td>
+                          <td style={{ ...cell, textAlign: "right", fontWeight: "700" }}>{formatCurrency(displayNetSalary(s))}</td>
+                          <td style={{ ...cell, fontSize: "13px", color: theme.neutral.gray700 }}>
+                            {parseRejectionReason(s.notes) || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}

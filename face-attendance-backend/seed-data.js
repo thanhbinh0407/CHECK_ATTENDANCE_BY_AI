@@ -6,45 +6,29 @@ import { QueryTypes, Op } from 'sequelize';
 import {
   User, Department, JobTitle, SalaryGrade, SalaryRule, Salary,
   AttendanceLog, LeaveRequest, Document, OvertimeRequest, BusinessTripRequest,
-  SalaryAdvance, Dependent, Qualification, WorkExperience, ShiftSetting, InsuranceConfig, ApprovalWorkflow, RoleChangeAudit,
-  SalaryHistory, Notification
+  SalaryAdvance, Dependent, Qualification, WorkExperience, ShiftSetting, InsuranceConfig, ApprovalWorkflow, RoleChangeAudit
 } from './src/models/pg/index.js';
 import bcrypt from 'bcryptjs';
 
-// Dữ liệu mẫu kéo dài đến hết tháng 3/2026 (lương, chấm công, đơn từ).
-const REFERENCE_DATE = new Date('2026-03-31T00:00:00.000Z');
+const REFERENCE_DATE = new Date('2026-02-28T00:00:00.000Z');
 const PERIOD_START = new Date('2025-01-01T00:00:00.000Z');
 
-// 96 nhân viên (role employee) + 4 tài khoản hệ thống (manager, hr, accountant, supervisor) = 100 user, đủ 5 role.
 const REQUIRED_COUNTS = {
-  totalEmployees: 96,
-  dependentEmployees: 96,
-  withJobTitle: 58,
-  withoutJobTitle: 38,
+  totalEmployees: 50,
+  dependentEmployees: 10,
+  withJobTitle: 30,
+  withoutJobTitle: 20,
   seniority: {
-    ten_years: 20,
-    five_years: 28,
-    three_years: 28,
-    new_joiner: 20
+    ten_years: 10,
+    five_years: 15,
+    three_years: 15,
+    new_joiner: 10
   }
 };
 
-/** Họ tên tiếng Việt (nam), tránh kiểu đệm + tên quá chung như A/B/C */
-const VIET_FAMILY = [
-  'Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Phan', 'Vũ', 'Đặng', 'Bùi', 'Đỗ', 'Hồ', 'Dương', 'Lý', 'Mai', 'Võ', 'Đinh', 'Cao', 'Đào', 'Lưu', 'Hà', 'Tôn', 'Chu', 'Quách', 'Lâm', 'Tạ'
-];
-const VIET_MIDDLE_MALE = [
-  'Văn', 'Đức', 'Thanh', 'Minh', 'Quang', 'Xuân', 'Hồng', 'Tuấn', 'Công', 'Đình', 'Tuệ', 'Hữu', 'Sỹ', 'Kim', 'Phúc', 'Trung', 'Việt', 'Hải', 'Anh', 'Duy', 'Thế', 'Gia', 'Quốc', 'Hoài', 'Đăng'
-];
-const VIET_GIVEN_MALE = [
-  'Khoa', 'Hưng', 'Kiện', 'Duyên', 'Hiếu', 'Thành', 'Hải', 'Long', 'Tú', 'Khôi', 'Bảo', 'Phúc', 'Huy', 'Nam', 'Đạt', 'Trường', 'Vinh', 'Sơn', 'Lộc', 'Phong', 'Tài', 'Nhật', 'Quân', 'Thịnh', 'Tùng',
-  'Cường', 'Hoàng', 'Dũng', 'Tiến', 'Khang', 'Hào', 'An', 'Đình', 'Lâm', 'Phát', 'Trí', 'Vũ', 'Hùng', 'Tâm', 'Đức', 'Thắng', 'Kiên', 'Luân', 'Mạnh', 'Nghĩa', 'Phước', 'Quyết', 'Sang', 'Thiện', 'Uy', 'Viễn', 'Yên',
-  'Bình', 'Châu', 'Danh', 'Giang', 'Hiển', 'Khiêm', 'Lợi', 'Minh', 'Nguyên', 'Phương', 'Quốc', 'Sỹ', 'Thế', 'Văn', 'Xuân', 'Yến'
-];
-
-const CHILD_GIVEN_MALE = ['Bảo Nam', 'Gia Huy', 'Minh Khang', 'Quốc Huy', 'Tuấn Kiệt', 'An Khang', 'Đức Anh', 'Hữu Phước'];
-const SPOUSE_FAMILY = ['Phạm', 'Võ', 'Đặng', 'Bùi', 'Hoàng', 'Trần', 'Lê', 'Phan', 'Mai', 'Đinh'];
-const SPOUSE_GIVEN_FEMALE = ['Thu Hà', 'Ngọc Lan', 'Thanh Mai', 'Diễm My', 'Khánh Vy', 'Bích Ngọc', 'Quỳnh Chi', 'Hồng Nhung', 'Minh Châu', 'Tú Anh'];
+const FAMILY_NAMES = ['Nguyen', 'Tran', 'Le', 'Pham', 'Hoang', 'Phan', 'Vu', 'Dang', 'Bui', 'Do'];
+const MIDDLE_NAMES = ['Van', 'Thi', 'Ngoc', 'Minh', 'Quoc', 'Thanh', 'Duc', 'Gia', 'Bao', 'Khac'];
+const GIVEN_NAMES = ['An', 'Anh', 'Bao', 'Binh', 'Cuong', 'Dung', 'Giang', 'Ha', 'Hieu', 'Huong', 'Khanh', 'Khoa', 'Lan', 'Linh', 'Long', 'Mai', 'Nam', 'Nga', 'Ngoc', 'Phuong', 'Quan', 'Quynh', 'Son', 'Trang', 'Tuan'];
 
 const STREETS = ['Le Loi', 'Nguyen Hue', 'Tran Hung Dao', 'Vo Van Kiet', 'Pham Van Dong', 'Hoang Van Thu'];
 const DISTRICTS = ['District 1, Ho Chi Minh City', 'District 3, Ho Chi Minh City', 'District 7, Ho Chi Minh City', 'Cau Giay, Ha Noi', 'Hai Chau, Da Nang', 'Ninh Kieu, Can Tho'];
@@ -53,8 +37,15 @@ const BANKS = ['Vietcombank', 'BIDV', 'VietinBank', 'Techcombank', 'ACB', 'MB Ba
 const ID_ISSUE_PLACES = ['Ho Chi Minh City', 'Ha Noi', 'Da Nang', 'Can Tho', 'Hai Phong'];
 const DESTINATIONS = ['Ha Noi', 'Da Nang', 'Can Tho', 'Hai Phong', 'Nha Trang', 'Vung Tau'];
 const TRANSPORT_TYPES = ['plane', 'train', 'bus', 'car'];
-const STATUS_CYCLE = ['approved', 'approved', 'pending', 'rejected', 'pending', 'approved', 'rejected'];
-const LEAVE_TYPES = ['paid', 'personal', 'sick', 'unpaid', 'maternity', 'other'];
+const STATUS_CYCLE = ['approved', 'approved', 'pending', 'rejected'];
+const LEAVE_TYPES = ['paid', 'personal', 'sick', 'unpaid'];
+// Attendance overrides for specific employees (by 1-based index)
+const ATTENDANCE_OVERRIDES = {
+  18: { // EMP018 (Bui Thi Ngoc) — add late & early leave days for Feb 2026
+    lateDates: ['2026-02-03', '2026-02-10'],
+    earlyLeaveDates: ['2026-02-05', '2026-02-19']
+  }
+};
 const EXPERIENCE_COMPANIES_BY_DEPT = [
   ['FPT Software', 'Viettel Solutions', 'CMC Global', 'TMA Solutions', 'NashTech Vietnam'],
   ['Masan Consumer', 'Unilever Vietnam', 'PNJ', 'The Gioi Di Dong', 'VNPT Business'],
@@ -71,19 +62,50 @@ const EXPERIENCE_POSITIONS_BY_DEPT = [
 ];
 
 const PRIMARY_MANAGER_CODES = ['EMP001', 'EMP002', 'EMP003', 'EMP004', 'EMP005'];
+const TITLE_CODES_FOR_FIRST_30 = [
+  'TP', 'PTP', 'TP', 'PTP', 'TP', 'NVC', 'NVC', 'NVC', 'NV', 'NV',
+  'NVC', 'NVC', 'NV', 'NV', 'NVC', 'NV', 'NV', 'NVC', 'NV', 'NV',
+  'NV', 'NV', 'TTS', 'NV', 'NV', 'NV', 'TTS', 'NV', 'NV', 'TTS'
+];
 
-/** Mẫu chức danh cho 58 nhân viên đầu (còn lại không gán job title để test trường hợp trống). */
-function buildTitleCodesForFirst58() {
-  const pattern = ['TP', 'PTP', 'TP', 'PTP', 'TP', 'NVC', 'NVC', 'NVC', 'NV', 'NV'];
-  const out = [];
-  for (let k = 0; k < 58; k += 1) {
-    let code = pattern[k % pattern.length];
-    if (k % 23 === 22 || k % 29 === 27) code = 'TTS';
-    out.push(code);
-  }
-  return out;
-}
-const TITLE_CODES_FOR_FIRST_58 = buildTitleCodesForFirst58();
+const DEPENDENT_INDEX_MAP = {
+  1: [
+    { fullName: 'Nguyen Thu Hien', relationship: 'spouse', gender: 'female', dateOfBirth: '1990-09-11', occupation: 'Office staff' },
+    { fullName: 'Nguyen Gia Han', relationship: 'child', gender: 'female', dateOfBirth: '2018-04-02', occupation: 'Student' }
+  ],
+  3: [
+    { fullName: 'Le Van Binh', relationship: 'parent', gender: 'male', dateOfBirth: '1962-06-15', occupation: 'Retired' }
+  ],
+  6: [
+    { fullName: 'Bui Quynh Nhu', relationship: 'spouse', gender: 'female', dateOfBirth: '1992-01-20', occupation: 'Accountant' },
+    { fullName: 'Bui Bao An', relationship: 'child', gender: 'female', dateOfBirth: '2017-03-11', occupation: 'Student' },
+    { fullName: 'Bui Minh Khang', relationship: 'child', gender: 'male', dateOfBirth: '2021-07-08', occupation: 'Preschooler' }
+  ],
+  10: [
+    { fullName: 'Do Khanh Chi', relationship: 'child', gender: 'female', dateOfBirth: '2019-12-14', occupation: 'Student' }
+  ],
+  12: [
+    { fullName: 'Tran Van Minh', relationship: 'spouse', gender: 'male', dateOfBirth: '1991-08-23', occupation: 'Civil engineer' }
+  ],
+  18: [
+    { fullName: 'Dang Van Kiem', relationship: 'parent', gender: 'male', dateOfBirth: '1960-01-05', occupation: 'Retired' },
+    { fullName: 'Dang Thi Lien', relationship: 'parent', gender: 'female', dateOfBirth: '1963-10-09', occupation: 'Retired' }
+  ],
+  22: [
+    { fullName: 'Tran Gia Bao', relationship: 'spouse', gender: 'male', dateOfBirth: '1990-05-17', occupation: 'Sales manager' },
+    { fullName: 'Tran Ngoc Diep', relationship: 'child', gender: 'female', dateOfBirth: '2016-11-30', occupation: 'Student' }
+  ],
+  27: [
+    { fullName: 'Vo Thanh Nhi', relationship: 'child', gender: 'female', dateOfBirth: '2020-06-22', occupation: 'Preschooler' }
+  ],
+  34: [
+    { fullName: 'Pham Huy Hoang', relationship: 'spouse', gender: 'male', dateOfBirth: '1990-03-12', occupation: 'Small business owner' },
+    { fullName: 'Pham Gia Linh', relationship: 'child', gender: 'female', dateOfBirth: '2015-05-19', occupation: 'Student' }
+  ],
+  45: [
+    { fullName: 'Hoang Thi Minh', relationship: 'parent', gender: 'female', dateOfBirth: '1965-07-04', occupation: 'Retired' }
+  ]
+};
 
 function pad3(value) {
   return String(value).padStart(3, '0');
@@ -93,176 +115,11 @@ function toDateOnly(text) {
   return new Date(`${text}T00:00:00.000Z`);
 }
 
-/** Tên nam Việt Nam, kết hợp băm theo index để đa dạng, không lặp kiểu A/B/C. */
-function realisticVietnameseMaleName(seed) {
-  const i = Number(seed) || 0;
-  const f = VIET_FAMILY[(i * 7919) % VIET_FAMILY.length];
-  const m = VIET_MIDDLE_MALE[(i * 503 + 11) % VIET_MIDDLE_MALE.length];
-  const g = VIET_GIVEN_MALE[(i * 997 + 23) % VIET_GIVEN_MALE.length];
+function deterministicName(index) {
+  const f = FAMILY_NAMES[index % FAMILY_NAMES.length];
+  const m = MIDDLE_NAMES[(index + 3) % MIDDLE_NAMES.length];
+  const g = GIVEN_NAMES[index % GIVEN_NAMES.length];
   return `${f} ${m} ${g}`;
-}
-
-/** Mỗi nhân viên có ít nhất một người thân; một phần có thêm con để test giảm trừ gia cảnh. */
-function buildDependentsForProfile(index1Based, employeeFullName) {
-  const parts = String(employeeFullName || '').trim().split(/\s+/);
-  const empFam = parts[0] || 'Nguyễn';
-  const sf = SPOUSE_FAMILY[(index1Based * 3) % SPOUSE_FAMILY.length];
-  const sg = SPOUSE_GIVEN_FEMALE[(index1Based * 5) % SPOUSE_GIVEN_FEMALE.length];
-  const spouseDobYear = 1988 + (index1Based % 8);
-  const spouseMonth = ((index1Based * 2) % 12) + 1;
-  const spouseDay = (index1Based % 26) + 1;
-  const spouse = {
-    fullName: `${sf} Thị ${sg}`,
-    relationship: 'spouse',
-    gender: 'female',
-    dateOfBirth: `${spouseDobYear}-${String(spouseMonth).padStart(2, '0')}-${String(spouseDay).padStart(2, '0')}`,
-    occupation: ['Kế toán viên', 'Giáo viên', 'Y tá', 'Nhân viên hành chính', 'Kinh doanh tự do'][(index1Based + 1) % 5]
-  };
-  const out = [spouse];
-  if (index1Based % 2 === 0) {
-    const cy = 2014 + (index1Based % 6);
-    const cm = ((index1Based * 3) % 12) + 1;
-    const cd = (index1Based % 25) + 1;
-    out.push({
-      fullName: `${empFam} ${CHILD_GIVEN_MALE[index1Based % CHILD_GIVEN_MALE.length]}`,
-      relationship: 'child',
-      gender: 'male',
-      dateOfBirth: `${cy}-${String(cm).padStart(2, '0')}-${String(cd).padStart(2, '0')}`,
-      occupation: 'Học sinh'
-    });
-  }
-  if (index1Based % 7 === 0) {
-    const pm = 1 + (index1Based % 8);
-    out.push({
-      fullName: `${VIET_FAMILY[(index1Based * 13) % VIET_FAMILY.length]} Văn ${['Thành', 'Hùng', 'Dũng'][index1Based % 3]}`,
-      relationship: 'parent',
-      gender: 'male',
-      dateOfBirth: `${1958 + (index1Based % 6)}-${String(pm).padStart(2, '0')}-15`,
-      occupation: 'Hưu trí'
-    });
-  }
-  return out;
-}
-
-/**
- * Theo thời gian, mỗi nhân viên đều có ngày vắng / trễ / về sớm / tăng ca (kết hợp theo tháng).
- */
-function getAttendanceOutcome(empIndex, serial, monthUtc, profile) {
-  const absentHash = (empIndex * 31 + serial * 17 + monthUtc * 11) % 41;
-  if (absentHash === 5 || absentHash === 18 || absentHash === 29) {
-    return { absent: true, isLate: false, isEarlyLeave: false, hasOvertime: false };
-  }
-  const phase = (monthUtc + empIndex) % 5;
-  let isLate = false;
-  let isEarlyLeave = false;
-  let hasOvertime = false;
-  const mix = (serial + empIndex) % 60;
-  if (phase === 0) {
-    isLate = mix % 6 === 0;
-    isEarlyLeave = !isLate && mix % 13 === 0;
-    hasOvertime = profile.hasOvertime && mix % 11 === 0;
-  } else if (phase === 1) {
-    isEarlyLeave = mix % 5 === 0;
-    isLate = mix % 17 === 0;
-    hasOvertime = profile.hasOvertime && mix % 9 === 0;
-  } else if (phase === 2) {
-    hasOvertime = profile.hasOvertime && mix % 4 === 0;
-    isLate = mix % 15 === 0;
-    isEarlyLeave = mix % 14 === 0;
-  } else if (phase === 3) {
-    isLate = mix % 10 === 0;
-    isEarlyLeave = mix % 10 === 3;
-    hasOvertime = profile.hasOvertime && mix % 8 === 0;
-  } else {
-    isLate = mix % 21 === 0;
-    hasOvertime = profile.hasOvertime && mix % 12 === 0;
-    isEarlyLeave = !isLate && mix % 19 === 0;
-  }
-  return { absent: false, isLate, isEarlyLeave, hasOvertime };
-}
-
-/** Ngày làm việc trong tháng (UTC) để gắn OT — tránh trùng cuối tuần. */
-function pickWeekdayInMonthUtc(year, month, empIndex) {
-  for (let day = 4 + (empIndex % 8); day <= 26; day += 1) {
-    const dt = new Date(Date.UTC(year, month - 1, day));
-    const dow = dt.getUTCDay();
-    if (dow !== 0 && dow !== 6) return dt;
-  }
-  return new Date(Date.UTC(year, month - 1, 15));
-}
-
-/** Thứ tự tháng tạm ứng xoay theo NV; loại trừ tháng dành cho edge-case EMP049. */
-function buildSalaryAdvancePeriodList(empIndex, employeeCode) {
-  const months2025 = Array.from({ length: 12 }, (_, m) => ({ year: 2025, month: m + 1 }));
-  const rot = empIndex % 12;
-  const rotated = [...months2025.slice(rot), ...months2025.slice(0, rot)];
-  const tail = [
-    { year: 2026, month: 1 },
-    { year: 2026, month: 2 },
-    { year: 2026, month: 3 },
-    { year: 2026, month: 4 },
-    { year: 2026, month: 5 },
-    { year: 2026, month: 6 }
-  ];
-  return [...rotated, ...tail].filter((p) => {
-    if (employeeCode === 'EMP049' && p.year === 2026 && (p.month === 3 || p.month === 4)) return false;
-    return true;
-  });
-}
-
-function dateOnlyUtcKey(d) {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-}
-
-/** Gán ngày OT duy nhất cho user (tránh trùng userId+date trong seed). */
-function createOtDateAllocator() {
-  const byUser = new Map();
-  const keysFor = (uid) => {
-    if (!byUser.has(uid)) byUser.set(uid, new Set());
-    return byUser.get(uid);
-  };
-  const alloc = (userId, preferredDate, empStartDate, latestDate) => {
-    for (let bump = 0; bump < 50; bump += 1) {
-      const cand = addDays(preferredDate, bump);
-      if (cand < empStartDate || cand > latestDate) continue;
-      const dow = cand.getUTCDay();
-      if (dow === 0 || dow === 6) continue;
-      const k = dateOnlyUtcKey(cand);
-      const set = keysFor(userId);
-      if (set.has(k)) continue;
-      set.add(k);
-      return cand;
-    }
-    return null;
-  };
-  return { alloc };
-}
-
-function buildOvertimeRow(emp, empIndex, supervisorId, seq, date, status) {
-  const startHour = seq % 2 === 0 ? 17 : 18;
-  const startMin = seq % 2 === 0 ? 30 : 0;
-  const totalHours = Number((2 + (seq % 4) * 0.5).toFixed(2));
-  let endHour = startHour + Math.floor(totalHours);
-  let endMin = startMin + (totalHours % 1 === 0.5 ? 30 : 0);
-  if (endMin >= 60) {
-    endHour += 1;
-    endMin -= 60;
-  }
-  return {
-    userId: emp.id,
-    date,
-    startTime: `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`,
-    endTime: `${String(endHour).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`,
-    totalHours,
-    reason: 'Support project deadline',
-    projectName: `Project-${(empIndex % 8) + 1}`,
-    approvalStatus: status,
-    approvedBy: status === 'approved' ? supervisorId : null,
-    approvedAt: status === 'approved' ? addDays(date, 1) : null,
-    rejectionReason: status === 'rejected' ? 'Not aligned with workload plan' : null,
-    approvalLevel: 1,
-    currentApproverId: status === 'pending' ? supervisorId : null
-  };
 }
 
 function deterministicPhone(index, offset = 0) {
@@ -311,18 +168,17 @@ function getWorkingDaysInMonth(year, month) {
   return workingDays;
 }
 
-// Phải khớp classifySeniority(...) tại REFERENCE_DATE (31/03/2026): >=10 / [5,10) / [3,5) / <1 năm.
 function createStartDateByBand(band, indexInBand) {
   if (band === 'ten_years') {
-    return addDays(new Date('2013-01-10T00:00:00.000Z'), indexInBand * 14);
+    return addDays(new Date('2015-01-15T00:00:00.000Z'), indexInBand * 40);
   }
   if (band === 'five_years') {
-    return addDays(new Date('2019-03-01T00:00:00.000Z'), indexInBand * 12);
+    return addDays(new Date('2020-01-10T00:00:00.000Z'), indexInBand * 26);
   }
   if (band === 'three_years') {
-    return addDays(new Date('2022-04-01T00:00:00.000Z'), indexInBand * 10);
+    return addDays(new Date('2022-01-10T00:00:00.000Z'), indexInBand * 28);
   }
-  return addDays(new Date('2025-07-05T00:00:00.000Z'), indexInBand * 11);
+  return addDays(new Date('2025-06-10T00:00:00.000Z'), indexInBand * 25);
 }
 
 // Salary grade definitions (must match what's seeded into SalaryGrade table)
@@ -359,15 +215,15 @@ function buildEmployeeProfiles() {
   for (let i = 1; i <= REQUIRED_COUNTS.totalEmployees; i += 1) {
     let seniorityBand;
     let indexInBand;
-    if (i <= REQUIRED_COUNTS.seniority.ten_years) {
+    if (i <= 10) {
       seniorityBand = 'ten_years';
       indexInBand = tenIdx;
       tenIdx += 1;
-    } else if (i <= REQUIRED_COUNTS.seniority.ten_years + REQUIRED_COUNTS.seniority.five_years) {
+    } else if (i <= 25) {
       seniorityBand = 'five_years';
       indexInBand = fiveIdx;
       fiveIdx += 1;
-    } else if (i <= REQUIRED_COUNTS.seniority.ten_years + REQUIRED_COUNTS.seniority.five_years + REQUIRED_COUNTS.seniority.three_years) {
+    } else if (i <= 40) {
       seniorityBand = 'three_years';
       indexInBand = threeIdx;
       threeIdx += 1;
@@ -380,38 +236,30 @@ function buildEmployeeProfiles() {
     const startDate = createStartDateByBand(seniorityBand, indexInBand);
     const code = `EMP${pad3(i)}`;
     const dept = (i - 1) % 5;
-    const jobTitleCode = i <= REQUIRED_COUNTS.withJobTitle ? TITLE_CODES_FOR_FIRST_58[i - 1] : null;
+    const jobTitleCode = i <= TITLE_CODES_FOR_FIRST_30.length ? TITLE_CODES_FOR_FIRST_30[i - 1] : null;
 
-    const salaryGradeCode = gradeCodeBySeniority(startDate);
+    let salaryGradeCode = gradeCodeBySeniority(startDate);
 
     let contractType = '1_year';
-    if (seniorityBand === 'ten_years') {
-      const opts = ['indefinite', 'indefinite', 'indefinite', '3_year', 'indefinite', '3_year', '3_year', '1_year', '1_year', '1_year'];
-      contractType = opts[indexInBand % opts.length];
-    }
-    if (seniorityBand === 'five_years') {
-      const opts = ['3_year', '3_year', '3_year', '1_year', '3_year', '1_year', '1_year', '3_year', '1_year', '1_year'];
-      contractType = opts[indexInBand % opts.length];
-    }
+    if (seniorityBand === 'ten_years') contractType = ['indefinite', 'indefinite', 'indefinite', '3_year', 'indefinite', '3_year', '3_year', '1_year', '1_year', '1_year'][indexInBand];
+    if (seniorityBand === 'five_years') contractType = ['3_year', '3_year', '3_year', '1_year', '3_year', '1_year', '1_year', '3_year', '1_year', '1_year', '1_year', '1_year', '1_year', '1_year', '1_year'][indexInBand];
     if (seniorityBand === 'new_joiner') contractType = 'probation';
-
-    const displayName = realisticVietnameseMaleName(i * 17 + 101);
 
     profiles.push({
       index: i,
       employeeCode: code,
-      name: displayName,
-      gender: 'male',
+      name: deterministicName(i),
+      gender: i % 2 === 0 ? 'female' : 'male',
       dept,
       startDate,
       seniorityBand,
       jobTitleCode,
       salaryGradeCode,
       contractType,
-      dependents: buildDependentsForProfile(i, displayName),
-      hasOvertime: true,
-      hasBusinessTrip: true,
-      hasSalaryAdvance: true
+      dependents: DEPENDENT_INDEX_MAP[i] || [],
+      hasOvertime: dept === 0 || dept === 1 || ['TP', 'PTP', 'NVC'].includes(jobTitleCode || ''),
+      hasBusinessTrip: dept === 0 || dept === 1 || ['TP', 'PTP'].includes(jobTitleCode || ''),
+      hasSalaryAdvance: seniorityBand !== 'new_joiner' && (seniorityBand === 'ten_years' || i % 3 === 0)
     });
   }
 
@@ -447,7 +295,7 @@ function validateEmployeeProfiles(profiles) {
     throw new Error(`Job title distribution mismatch: with=${withTitle}, without=${withoutTitle}`);
   }
   if (depEmployees !== REQUIRED_COUNTS.dependentEmployees) {
-    throw new Error(`Dependent employee count mismatch: expected every employee to have dependents, got ${depEmployees}`);
+    throw new Error(`Dependent employee count mismatch: ${depEmployees}`);
   }
   for (const [band, count] of Object.entries(REQUIRED_COUNTS.seniority)) {
     if (seniorityCount[band] !== count) throw new Error(`Seniority ${band} mismatch: ${seniorityCount[band]}`);
@@ -542,7 +390,7 @@ async function seedDB() {
     console.log('Step 3: Loading all models...');
     void User && void Department && void JobTitle && void SalaryGrade && void SalaryRule && void Salary;
     void AttendanceLog && void LeaveRequest && void Document && void OvertimeRequest && void BusinessTripRequest;
-    void SalaryAdvance && void Dependent && void Qualification && void WorkExperience && void ShiftSetting && void InsuranceConfig && void ApprovalWorkflow && void SalaryHistory && void Notification;
+    void SalaryAdvance && void Dependent && void Qualification && void WorkExperience && void ShiftSetting && void InsuranceConfig && void ApprovalWorkflow;
     console.log('Done: all models loaded\n');
     
     // Instead of using sync, let's try a workaround: check if tables exist first
@@ -814,7 +662,7 @@ async function seedDB() {
         transportAllowance,
         phoneAllowance,
         responsibilityAllowance: titleAllowance,
-        emergencyContactName: realisticVietnameseMaleName(i + 733),
+        emergencyContactName: deterministicName(i + 7),
         emergencyContactRelationship: 'Relative',
         emergencyContactPhone: deterministicPhone(i, 5000000)
       });
@@ -832,64 +680,6 @@ async function seedDB() {
       await employee.update({ managerId });
     }
     console.log(`   Created ${employees.length} employees`);
-
-    // Lịch sử thay đổi lương (chi tiết theo thời gian — test HR / hồ sơ lương)
-    console.log('10.1 Creating salary history records...');
-    let salaryHistoryCount = 0;
-    for (let i = 0; i < employees.length; i += 1) {
-      const emp = employees[i];
-      const profile = employeeProfiles[i];
-      const start = new Date(emp.startDate);
-      const base = Number(emp.baseSalary);
-      const allowance = Number(emp.lunchAllowance || 0) + Number(emp.transportAllowance || 0)
-        + Number(emp.phoneAllowance || 0) + Number(emp.responsibilityAllowance || 0);
-      const firstBase = Math.max(8000000, Math.round(base * 0.92));
-      const firstAllow = Math.max(0, Math.round(allowance * 0.9));
-
-      await SalaryHistory.create({
-        userId: emp.id,
-        previousBaseSalary: 0,
-        newBaseSalary: firstBase,
-        previousTotalAllowance: 0,
-        newTotalAllowance: firstAllow,
-        changeType: 'initial_salary',
-        effectiveDate: start.toISOString().slice(0, 10),
-        reason: 'Mức lương khởi tạo khi ký HĐLĐ (dữ liệu mẫu)',
-        changedBy: hrStaff.id
-      });
-      salaryHistoryCount += 1;
-
-      if (profile.seniorityBand !== 'new_joiner') {
-        await SalaryHistory.create({
-          userId: emp.id,
-          previousBaseSalary: firstBase,
-          newBaseSalary: base,
-          previousTotalAllowance: firstAllow,
-          newTotalAllowance: allowance,
-          changeType: 'increase',
-          effectiveDate: '2025-07-01',
-          reason: 'Điều chỉnh lương định kỳ 07/2025 (dữ liệu mẫu)',
-          changedBy: hrStaff.id
-        });
-        salaryHistoryCount += 1;
-      }
-
-      if (i % 12 === 0) {
-        await SalaryHistory.create({
-          userId: emp.id,
-          previousBaseSalary: base,
-          newBaseSalary: base,
-          previousTotalAllowance: allowance,
-          newTotalAllowance: allowance,
-          changeType: 'correction',
-          effectiveDate: '2026-02-01',
-          reason: 'Rà soát hồ sơ lương — cập nhật ghi chú hệ thống sau kiểm tra (dữ liệu mẫu, không đổi số tiền)',
-          changedBy: hrStaff.id
-        });
-        salaryHistoryCount += 1;
-      }
-    }
-    console.log(`   Created ${salaryHistoryCount} salary history records`);
 
     // Create Dependents (deterministic)
     console.log('11. Creating deterministic dependents...');
@@ -931,7 +721,8 @@ async function seedDB() {
       const experienceCount = profile.seniorityBand === 'ten_years' ? 3
         : profile.seniorityBand === 'five_years' ? 2
           : profile.seniorityBand === 'three_years' ? 1
-            : 1;
+            : (i % 2 === 0 ? 1 : 0);
+      if (experienceCount === 0) continue;
 
       let anchorDate = new Date(emp.startDate);
       const latestLevel = profile.seniorityBand === 'ten_years' ? 3
@@ -977,86 +768,54 @@ async function seedDB() {
     }
     console.log(`   Created ${workExpCount} work experience records`);
 
-    // Create Qualifications (deterministic) — mỗi NV: THPT + Đại học + (Thạc sĩ hoặc chứng chỉ hành nghề)
+    // Create Qualifications (deterministic)
     console.log('13. Creating deterministic qualifications...');
     let qualCount = 0;
     const qualificationCountByUserId = new Map();
-    const universityDegreeByDept = [
-      'Cử nhân Công nghệ Thông tin (Đại học Bách khoa TP.HCM)',
-      'Cử nhân Quản trị Kinh doanh (Đại học Kinh tế Quốc dân)',
-      'Cử nhân Quản trị Nhân sự (Đại học Ngoại thương Hà Nội)',
-      'Cử nhân Kế toán (Đại học Kinh tế TP.HCM)',
-      'Cử nhân Hành chính Văn phòng (Đại học Khoa học Xã hội & Nhân văn)'
+    const baseQualificationByDept = [
+      { type: 'degree', name: 'Bachelor of Information Technology' },
+      { type: 'degree', name: 'Bachelor of Business Administration' },
+      { type: 'degree', name: 'Bachelor of Human Resource Management' },
+      { type: 'degree', name: 'Bachelor of Accounting' },
+      { type: 'degree', name: 'Bachelor of Office Administration' }
     ];
-    const thirdQualByDept = [
-      { type: 'degree', name: 'Thạc sĩ Công nghệ Thông tin (Đại học Quốc gia TP.HCM)' },
-      { type: 'certificate', name: 'Chứng chỉ AWS Solutions Architect – Associate' },
-      { type: 'degree', name: 'Thạc sĩ Quản trị Kinh doanh (MBA, Đại học RMIT)' },
-      { type: 'certificate', name: 'Chứng chỉ Kế toán trưởng (Bộ Tài chính)' },
-      { type: 'training', name: 'Chứng chỉ Nhân sự CHRP (Viện HR Việt Nam)' }
+    const advancedQualificationByDept = [
+      [{ type: 'certificate', name: 'AWS Cloud Practitioner' }, { type: 'certificate', name: 'Google Associate Cloud Engineer' }],
+      [{ type: 'training', name: 'Sales Channel Management Training' }, { type: 'certificate', name: 'Digital Marketing Certificate' }],
+      [{ type: 'training', name: 'Compensation and Benefits Training' }, { type: 'certificate', name: 'Basic Labor Law Certificate' }],
+      [{ type: 'certificate', name: 'General Accounting Certificate' }, { type: 'certificate', name: 'Corporate Finance Certificate' }],
+      [{ type: 'training', name: 'Administrative Operations Training' }, { type: 'certificate', name: 'Office Management Certificate' }]
     ];
 
     for (let i = 0; i < employeeProfiles.length; i += 1) {
       const profile = employeeProfiles[i];
       const emp = employees[i];
-      const qualTemplates = [
-        {
-          type: 'degree',
-          name: 'Tốt nghiệp Trung học phổ thông (Bằng tốt nghiệp THPT)',
-          issuedBy: `Sở GD&ĐT ${['TP.HCM', 'Hà Nội', 'Đà Nẵng', 'Cần Thơ', 'Hải Phòng'][profile.dept]}`
-        },
-        {
-          type: 'degree',
-          name: universityDegreeByDept[profile.dept],
-          issuedBy: ['ĐHQG TP.HCM', 'ĐHQG Hà Nội', 'ĐH Đà Nẵng', 'ĐH Cần Thơ', 'ĐH Hải Phòng'][profile.dept]
-        },
-        thirdQualByDept[(i + profile.dept) % thirdQualByDept.length]
-      ];
+      const baseQual = baseQualificationByDept[profile.dept];
+      const advancedQual = advancedQualificationByDept[profile.dept][i % 2];
+      const needsAdvanced = profile.jobTitleCode !== null || profile.seniorityBand === 'ten_years' || profile.seniorityBand === 'five_years';
+      const qualTemplates = needsAdvanced ? [baseQual, advancedQual] : [baseQual];
       qualificationCountByUserId.set(emp.id, qualTemplates.length);
 
       for (let q = 0; q < qualTemplates.length; q += 1) {
         const tpl = qualTemplates[q];
-        const issuedDateBase = q === 0
-          ? addDays(emp.startDate, -(365 * (4 + (i % 4))))
-          : q === 1
-            ? addDays(emp.startDate, -(365 * (1 + (i % 2))))
-            : addDays(emp.startDate, 200 + (i % 120));
-        const issuedDate = clampDate(issuedDateBase, new Date('2008-01-01T00:00:00.000Z'), addDays(REFERENCE_DATE, -7));
+        const issuedDateBase = q === 0 ? addDays(emp.startDate, -(365 * (1 + (i % 3)))) : addDays(emp.startDate, 120 + (i % 90));
+        const issuedDate = clampDate(issuedDateBase, new Date('2010-01-01T00:00:00.000Z'), addDays(REFERENCE_DATE, -7));
         const expiryDate = tpl.type === 'certificate' ? addDays(issuedDate, 365 * 3) : null;
         await Qualification.create({
           name: tpl.name,
           type: tpl.type,
-          issuedBy: tpl.issuedBy || 'Cơ sở đào tạo được công nhận',
+          issuedBy: 'Accredited Training Institute',
           issuedDate,
           expiryDate,
-          certificateNumber: `VB-${emp.employeeCode}-${q + 1}`,
+          certificateNumber: `CERT-${emp.employeeCode}-${q + 1}`,
           documentPath: `/uploads/qualifications/${emp.employeeCode}_${q + 1}.pdf`,
-          description: `Hồ sơ trình độ ${q + 1} — ${emp.name}`,
+          description: `Qualification ${q + 1} for ${emp.employeeCode}`,
           approvalStatus: 'approved',
           approvedBy: hrStaff.id,
           approvedAt: addDays(issuedDate, 10),
           userId: emp.id
         });
         qualCount += 1;
-      }
-
-      if (i % 20 === 0) {
-        await Qualification.create({
-          name: 'Chứng chỉ Tiếng Anh TOEIC 750+ (đang chờ duyệt hồ sơ)',
-          type: 'certificate',
-          issuedBy: 'IIG Việt Nam',
-          issuedDate: clampDate(addDays(emp.startDate, 400 + i), emp.startDate, addDays(REFERENCE_DATE, -3)),
-          expiryDate: null,
-          certificateNumber: `PENDING-${emp.employeeCode}-EN`,
-          documentPath: `/uploads/qualifications/${emp.employeeCode}_pending.pdf`,
-          description: 'Bản scan chứng chỉ — chờ HR xác minh',
-          approvalStatus: 'pending',
-          approvedBy: null,
-          approvedAt: null,
-          userId: emp.id
-        });
-        qualCount += 1;
-        qualificationCountByUserId.set(emp.id, (qualificationCountByUserId.get(emp.id) || 0) + 1);
       }
     }
     console.log(`   Created ${qualCount} qualifications`);
@@ -1105,7 +864,7 @@ async function seedDB() {
       });
       docCount += 1;
 
-      if ((qualificationCountByUserId.get(emp.id) || 0) >= 2) {
+      if ((qualificationCountByUserId.get(emp.id) || 0) > 1) {
         const certUploadDate = clampDate(addDays(emp.startDate, 200 + (i % 60)), emp.startDate, REFERENCE_DATE);
         await Document.create({
           userId: emp.id,
@@ -1118,42 +877,6 @@ async function seedDB() {
           uploadDate: certUploadDate,
           expiryDate: null,
           description: 'Qualification supporting document',
-          isActive: true,
-          uploadedBy: hrStaff.id
-        });
-        docCount += 1;
-      }
-
-      if (i % 7 === 0) {
-        await Document.create({
-          userId: emp.id,
-          documentType: 'appointment_decision',
-          title: 'Quyết định bổ nhiệm / điều động',
-          documentPath: `/uploads/documents/bo_nhiem_${emp.employeeCode}.pdf`,
-          fileName: `QD_BN_${emp.employeeCode}.pdf`,
-          fileSize: 890000,
-          mimeType: 'application/pdf',
-          uploadDate: clampDate(addDays(emp.startDate, 500 + (i % 40)), emp.startDate, REFERENCE_DATE),
-          expiryDate: null,
-          description: 'Quyết định nhân sự (mẫu)',
-          isActive: true,
-          uploadedBy: hrStaff.id
-        });
-        docCount += 1;
-      }
-
-      if (i % 11 === 0) {
-        await Document.create({
-          userId: emp.id,
-          documentType: 'salary_decision',
-          title: 'Quyết định điều chỉnh lương / phụ cấp',
-          documentPath: `/uploads/documents/luong_${emp.employeeCode}.pdf`,
-          fileName: `QD_LUONG_${emp.employeeCode}.pdf`,
-          fileSize: 760000,
-          mimeType: 'application/pdf',
-          uploadDate: clampDate(addDays(emp.startDate, 550 + (i % 35)), emp.startDate, REFERENCE_DATE),
-          expiryDate: null,
-          description: 'Quyết định lương (mẫu)',
           isActive: true,
           uploadedBy: hrStaff.id
         });
@@ -1176,11 +899,14 @@ async function seedDB() {
         if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
         const serial = Math.floor((date - PERIOD_START) / (24 * 60 * 60 * 1000));
-        const monthUtc = date.getUTCMonth();
-        const outcome = getAttendanceOutcome(i, serial, monthUtc, profile);
-        if (outcome.absent) continue;
+        const isAbsent = (i + serial) % 17 === 0 || (profile.seniorityBand === 'new_joiner' && (i + serial) % 23 === 0);
+        if (isAbsent) continue;
 
-        const { isLate, isEarlyLeave, hasOvertime } = outcome;
+        const dateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+        const overrides = ATTENDANCE_OVERRIDES[profile.index];
+        const isLate = overrides?.lateDates?.includes(dateStr) || ((i + serial) % 14 === 0);
+        const hasOvertime = profile.hasOvertime && (i + serial) % 9 === 0;
+        const isEarlyLeave = overrides?.earlyLeaveDates?.includes(dateStr) || (!hasOvertime && (i + serial) % 21 === 0);
 
         const inHour = isLate ? 8 : 7;
         const inMin = isLate ? 10 + ((i + serial) % 30) : 35 + ((i + serial) % 20);
@@ -1243,14 +969,11 @@ async function seedDB() {
     for (let i = 0; i < employees.length; i += 1) {
       const emp = employees[i];
       const profile = employeeProfiles[i];
-      const numLeaves = profile.seniorityBand === 'ten_years' ? 9
-        : profile.seniorityBand === 'five_years' ? 7
-          : profile.seniorityBand === 'three_years' ? 6
-            : 5;
+      const numLeaves = profile.seniorityBand === 'ten_years' || profile.seniorityBand === 'five_years' ? 3 : profile.seniorityBand === 'three_years' ? 2 : 1;
       const baseStart = clampDate(addDays(emp.startDate, 40 + (i % 20)), emp.startDate, addDays(REFERENCE_DATE, -10));
 
       for (let j = 0; j < numLeaves; j += 1) {
-        let start = addDays(baseStart, j * 48 + (i % 11));
+        let start = addDays(baseStart, j * 75 + (i % 11));
         start = clampDate(start, emp.startDate, addDays(REFERENCE_DATE, -6));
         const daysCount = 1 + ((i + j) % 3);
         let end = addDays(start, daysCount - 1);
@@ -1268,26 +991,6 @@ async function seedDB() {
           approvedBy: status === 'approved' ? supervisor.id : null,
           approvedAt: status === 'approved' ? addDays(start, 1) : null,
           rejectionReason: status === 'rejected' ? 'Business workload requirement' : null
-        });
-        leaveCount += 1;
-      }
-
-      for (let q = 0; q < 4; q += 1) {
-        let start = addDays(emp.startDate, 95 + q * 88 + (i % 23) + q * 7);
-        start = clampDate(start, emp.startDate, addDays(REFERENCE_DATE, -4));
-        const end = start;
-        const status = STATUS_CYCLE[(i + q + 3) % STATUS_CYCLE.length];
-        await LeaveRequest.create({
-          userId: emp.id,
-          type: LEAVE_TYPES[(i + q + 2) % LEAVE_TYPES.length],
-          startDate: start,
-          endDate: end,
-          days: 1,
-          reason: `Short leave slot ${q + 1} — ${emp.employeeCode}`,
-          status,
-          approvedBy: status === 'approved' ? supervisor.id : null,
-          approvedAt: status === 'approved' ? addDays(start, 1) : null,
-          rejectionReason: status === 'rejected' ? 'Peak season staffing' : null
         });
         leaveCount += 1;
       }
@@ -1327,49 +1030,47 @@ async function seedDB() {
       });
     }
 
-    // Create Overtime Requests (deterministic + theo tháng, tránh trùng ngày)
+    // Create Overtime Requests (deterministic)
     console.log('17. Creating deterministic overtime requests...');
     let otCount = 0;
-    const otAllocator = createOtDateAllocator();
-    const latestOtDate = addDays(REFERENCE_DATE, -5);
-    const otRows = [];
-
     for (let i = 0; i < employees.length; i += 1) {
       const emp = employees[i];
       const profile = employeeProfiles[i];
       if (!profile.hasOvertime) continue;
-      const numOT = profile.seniorityBand === 'ten_years' ? 7 : profile.seniorityBand === 'five_years' ? 6 : 5;
+      const numOT = profile.seniorityBand === 'ten_years' ? 2 : (i % 2 === 0 ? 2 : 1);
       const baseDate = clampDate(addDays(emp.startDate, 90 + (i % 30)), new Date('2025-03-01T00:00:00.000Z'), addDays(REFERENCE_DATE, -20));
 
       for (let j = 0; j < numOT; j += 1) {
-        const preferred = clampDate(addDays(baseDate, j * 45), emp.startDate, latestOtDate);
-        const date = otAllocator.alloc(emp.id, preferred, emp.startDate, latestOtDate);
-        if (!date) continue;
-        const status = STATUS_CYCLE[(i + j + 1) % STATUS_CYCLE.length];
-        otRows.push(buildOvertimeRow(emp, i, supervisor.id, i + j, date, status));
-      }
-
-      for (let year = 2025; year <= 2026; year += 1) {
-        const maxMonth = year === 2026 ? REFERENCE_DATE.getUTCMonth() + 1 : 12;
-        for (let month = 1; month <= maxMonth; month += 1) {
-          const monthEnd = new Date(Date.UTC(year, month, 0));
-          if (monthEnd < emp.startDate) continue;
-          const seedDay = 4 + ((i + month + year * 3) % 18);
-          const preferred = pickWeekdayInMonthUtc(year, month, i + month + seedDay);
-          const date = otAllocator.alloc(emp.id, preferred, emp.startDate, latestOtDate);
-          if (!date) continue;
-          const seq = year * 12 + month + i * 7;
-          const status = STATUS_CYCLE[(seq + 2) % STATUS_CYCLE.length];
-          otRows.push(buildOvertimeRow(emp, i, supervisor.id, seq, date, status));
+        const date = clampDate(addDays(baseDate, j * 60), emp.startDate, addDays(REFERENCE_DATE, -5));
+        const startHour = (i + j) % 2 === 0 ? 17 : 18;
+        const startMin = (i + j) % 2 === 0 ? 30 : 0;
+        const totalHours = Number((2 + ((i + j) % 4) * 0.5).toFixed(2));
+        let endHour = startHour + Math.floor(totalHours);
+        let endMin = startMin + (totalHours % 1 === 0.5 ? 30 : 0);
+        if (endMin >= 60) {
+          endHour += 1;
+          endMin -= 60;
         }
+        const status = STATUS_CYCLE[(i + j + 1) % STATUS_CYCLE.length];
+
+        await OvertimeRequest.create({
+          userId: emp.id,
+          date,
+          startTime: `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`,
+          endTime: `${String(endHour).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`,
+          totalHours,
+          reason: 'Support project deadline',
+          projectName: `Project-${(i % 8) + 1}`,
+          approvalStatus: status,
+          approvedBy: status === 'approved' ? supervisor.id : null,
+          approvedAt: status === 'approved' ? addDays(date, 1) : null,
+          rejectionReason: status === 'rejected' ? 'Not aligned with workload plan' : null,
+          approvalLevel: 1,
+          currentApproverId: status === 'pending' ? supervisor.id : null
+        });
+        otCount += 1;
       }
     }
-
-    const OT_CHUNK = 400;
-    for (let c = 0; c < otRows.length; c += OT_CHUNK) {
-      await OvertimeRequest.bulkCreate(otRows.slice(c, c + OT_CHUNK));
-    }
-    otCount = await OvertimeRequest.count();
     console.log(`   Created ${otCount} overtime requests`);
 
     // Create Business Trip Requests (deterministic)
@@ -1379,11 +1080,12 @@ async function seedDB() {
       const emp = employees[i];
       const profile = employeeProfiles[i];
       if (!profile.hasBusinessTrip) continue;
-      const numTrips = (profile.dept === 0 || profile.dept === 1) && profile.seniorityBand !== 'new_joiner' ? 6 : 5;
+      const numTrips = (profile.dept === 0 || profile.dept === 1) && profile.seniorityBand !== 'new_joiner' ? 2 : (i % 2 === 0 ? 1 : 0);
+      if (numTrips === 0) continue;
 
       const baseDate = clampDate(addDays(emp.startDate, 120 + (i % 45)), new Date('2025-02-01T00:00:00.000Z'), addDays(REFERENCE_DATE, -30));
       for (let j = 0; j < numTrips; j += 1) {
-        const startDate = clampDate(addDays(baseDate, j * 52), emp.startDate, addDays(REFERENCE_DATE, -8));
+        const startDate = clampDate(addDays(baseDate, j * 70), emp.startDate, addDays(REFERENCE_DATE, -8));
         const duration = 1 + ((i + j) % 4);
         let endDate = addDays(startDate, duration - 1);
         if (endDate > REFERENCE_DATE) endDate = REFERENCE_DATE;
@@ -1415,22 +1117,23 @@ async function seedDB() {
     let advanceCount = 0;
 
     const seedRefYear = REFERENCE_DATE.getUTCFullYear(); // 2026
-    const seedRefMonth = REFERENCE_DATE.getUTCMonth() + 1; // 3 (tháng của REFERENCE_DATE)
+    const seedRefMonth = REFERENCE_DATE.getUTCMonth() + 1; // 2
 
     for (let i = 0; i < employees.length; i += 1) {
       const emp = employees[i];
       const profile = employeeProfiles[i];
+      if (!profile.hasSalaryAdvance) continue;
 
-      const periodCandidates = buildSalaryAdvancePeriodList(i, emp.employeeCode);
-      const advanceSlots = profile.seniorityBand === 'ten_years' ? 6
-        : profile.seniorityBand === 'five_years' ? 5
-          : profile.seniorityBand === 'three_years' ? 4
-            : 3;
+      const periods = [
+        { year: 2025, month: (i % 12) + 1 },
+        { year: 2025, month: ((i + 5) % 12) + 1 },
+        { year: 2026, month: (i % 2) + 1 }
+      ];
+      const count = profile.seniorityBand === 'ten_years' ? 2 : 1;
       const used = new Set();
-      let slotIndex = 0;
 
-      for (const period of periodCandidates) {
-        if (used.size >= advanceSlots) break;
+      for (let j = 0; j < periods.length && used.size < count; j += 1) {
+        const period = periods[j];
         const key = `${period.year}-${period.month}`;
         if (used.has(key)) continue;
         used.add(key);
@@ -1438,23 +1141,30 @@ async function seedDB() {
         const isRefPeriod = period.year === seedRefYear && period.month === seedRefMonth;
         let status;
         if (isRefPeriod) {
-          const salaryPaidGroup = i % 3 === 1;
-          const rejectCase = (i % 13 === 0 && slotIndex === 0);
+          // Salary recalc is blocked when salary.status === "paid".
+          // So: never generate "pending" salary advances for employees whose seeded salary is "paid".
+          const salaryPaidGroup = i % 3 === 1; // matches the seeded Salary status bucket below
+          const rejectCase = (i % 13 === 0 && j === 0);
 
           if (salaryPaidGroup) {
             status = rejectCase ? 'rejected' : 'approved';
-          } else if (rejectCase) {
-            status = 'rejected';
-          } else if (i % 3 === 0) {
-            status = (i % 4 === 0 || i % 4 === 3) ? 'pending' : 'approved';
           } else {
-            status = (i % 4 === 1) ? 'pending' : 'approved';
+            if (rejectCase) {
+              status = 'rejected';
+            } else if (i % 3 === 0) {
+              // Approved salary bucket: create pending for some indexes
+              status = (i % 4 === 0 || i % 4 === 3) ? 'pending' : 'approved';
+            } else {
+              // Pending salary bucket: create pending for some indexes
+              status = (i % 4 === 1) ? 'pending' : 'approved';
+            }
           }
         } else {
-          status = (i + used.size) % 7 === 0 ? 'rejected' : 'approved';
+          // Outside Feb/2026: keep it approved/rejected only, so UI won't try to approve -> recalc blocked by "paid" salary.
+          status = (i + j) % 7 === 0 ? 'rejected' : 'approved';
         }
 
-        const ratio = [0.25, 0.30, 0.35][(i + slotIndex) % 3];
+        const ratio = [0.25, 0.30, 0.35][(i + j) % 3];
         const amount = Math.round(Number(emp.baseSalary) * ratio);
         const requestDate = new Date(Date.UTC(period.year, period.month - 1, 15));
 
@@ -1463,18 +1173,17 @@ async function seedDB() {
           month: period.month,
           year: period.year,
           amount,
-          reason: `Tạm ứng lương tháng ${period.month}/${period.year} — ${emp.employeeCode}`,
+          reason: `Salary advance ${period.month}/${period.year}`,
           requestDate,
           approvalLevel: 1,
           currentApproverId: status === 'pending' ? supervisor.id : null,
           approvalStatus: status,
           approvedBy: status === 'approved' ? accountant.id : null,
           approvedAt: status === 'approved' ? addDays(requestDate, 1) : null,
-          rejectionReason: status === 'rejected' ? 'Vượt định mức tạm ứng theo quy định công ty' : null,
+          rejectionReason: status === 'rejected' ? 'Advance quota exceeded' : null,
           isDeducted: false
         });
         advanceCount += 1;
-        slotIndex += 1;
       }
     }
     console.log(`   Created ${advanceCount} salary advances`);
@@ -1482,8 +1191,6 @@ async function seedDB() {
     // Create edge cases for workflow robustness
     console.log('19.1 Creating edge-case scenarios...');
     let edgeCaseCount = 0;
-    let workflowCount = 0;
-    let notificationCount = 0;
 
     // Edge case 1: employee without manager assignment (org gap)
     const unassignedManagerEmployee = employees.find((emp) => emp.employeeCode === 'EMP050');
@@ -1547,111 +1254,6 @@ async function seedDB() {
       edgeCaseCount += 2;
     }
     console.log(`   Created ${edgeCaseCount} edge-case records`);
-
-    console.log('19.2 Seeding approval workflows (mẫu theo đơn từ)...');
-    const leavesForWf = await LeaveRequest.findAll({ limit: 300, order: [['id', 'ASC']] });
-    const otsForWf = await OvertimeRequest.findAll({ limit: 300, order: [['id', 'ASC']] });
-    const tripsForWf = await BusinessTripRequest.findAll({ limit: 240, order: [['id', 'ASC']] });
-    const advancesForWf = await SalaryAdvance.findAll({ limit: 260, order: [['id', 'ASC']] });
-    const wfRows = [];
-
-    for (const lr of leavesForWf) {
-      const st = lr.status === 'approved' ? 'approved' : lr.status === 'rejected' ? 'rejected' : 'pending';
-      wfRows.push({
-        requestType: 'leave',
-        requestId: lr.id,
-        level: 1,
-        approverId: supervisor.id,
-        status: st,
-        approvedAt: st === 'approved' ? (lr.approvedAt || addDays(lr.startDate, 1))
-          : st === 'rejected' ? addDays(lr.startDate, 2) : null,
-        comments: st === 'rejected' ? 'Không đủ nhân sự thay thế' : null,
-        isRequired: true
-      });
-    }
-    for (const ot of otsForWf) {
-      const st = ot.approvalStatus === 'approved' ? 'approved' : ot.approvalStatus === 'rejected' ? 'rejected' : 'pending';
-      wfRows.push({
-        requestType: 'overtime',
-        requestId: ot.id,
-        level: 1,
-        approverId: supervisor.id,
-        status: st,
-        approvedAt: st === 'approved' ? (ot.approvedAt || addDays(ot.date, 1)) : st === 'rejected' ? addDays(ot.date, 1) : null,
-        comments: st === 'rejected' ? 'Vượt định mức OT theo kế hoạch tháng' : null,
-        isRequired: true
-      });
-    }
-    for (const tr of tripsForWf) {
-      const st = tr.approvalStatus === 'approved' ? 'approved' : tr.approvalStatus === 'rejected' ? 'rejected' : 'pending';
-      wfRows.push({
-        requestType: 'business_trip',
-        requestId: tr.id,
-        level: 1,
-        approverId: supervisor.id,
-        status: st,
-        approvedAt: st === 'approved' ? (tr.approvedAt || addDays(tr.startDate, 1)) : st === 'rejected' ? addDays(tr.startDate, 2) : null,
-        comments: null,
-        isRequired: true
-      });
-    }
-    for (const adv of advancesForWf) {
-      const st = adv.approvalStatus === 'approved' ? 'approved' : adv.approvalStatus === 'rejected' ? 'rejected' : 'pending';
-      wfRows.push({
-        requestType: 'salary_advance',
-        requestId: adv.id,
-        level: 1,
-        approverId: accountant.id,
-        status: st,
-        approvedAt: st === 'approved' ? (adv.approvedAt || addDays(adv.requestDate, 1)) : st === 'rejected' ? addDays(adv.requestDate, 1) : null,
-        comments: st === 'rejected' ? (adv.rejectionReason || 'Không đạt điều kiện tạm ứng') : null,
-        isRequired: true
-      });
-    }
-    const WF_CHUNK = 350;
-    for (let c = 0; c < wfRows.length; c += WF_CHUNK) {
-      await ApprovalWorkflow.bulkCreate(wfRows.slice(c, c + WF_CHUNK));
-    }
-    workflowCount = wfRows.length;
-    console.log(`   Created ${workflowCount} approval workflow rows`);
-
-    console.log('19.3 Seeding in-app notifications...');
-    const NOTIF_TYPES = ['attendance', 'late', 'leave', 'salary', 'salary_advance', 'system', 'alert'];
-    const notifRows = [];
-    for (let i = 0; i < employees.length; i += 1) {
-      const emp = employees[i];
-      for (let n = 0; n < 5; n += 1) {
-        const t = NOTIF_TYPES[(i + n) % NOTIF_TYPES.length];
-        const read = (i + n) % 5 !== 0;
-        notifRows.push({
-          userId: emp.id,
-          type: t,
-          title: t === 'salary_advance' ? 'Đơn tạm ứng cần xử lý'
-            : t === 'leave' ? 'Đơn nghỉ phép'
-              : t === 'salary' ? 'Thông báo lương'
-                : `Thông báo — ${t}`,
-          message: `Hệ thống (seed): ${emp.employeeCode} — loại ${t}, mục ${n + 1}.`,
-          read,
-          readAt: read ? addDays(REFERENCE_DATE, -(n + 1)) : null,
-          metadata: { seed: true, employeeCode: emp.employeeCode, idx: n }
-        });
-      }
-    }
-    notifRows.push({
-      userId: null,
-      type: 'system',
-      title: 'Thông báo chung',
-      message: 'Công ty: Lịch kiểm tra PCCC quý 2/2026 (dữ liệu mẫu).',
-      read: false,
-      readAt: null,
-      metadata: { seedBroadcast: true }
-    });
-    const N_CHUNK = 400;
-    for (let c = 0; c < notifRows.length; c += N_CHUNK) {
-      await Notification.bulkCreate(notifRows.slice(c, c + N_CHUNK));
-    }
-    notificationCount = await Notification.count();
-    console.log(`   Created ${notificationCount} notifications`);
 
     // Create Salary Records (deterministic)
     console.log('20. Creating deterministic salary records...');
@@ -1719,7 +1321,7 @@ async function seedDB() {
           const finalSalary = Math.round(base + totalBonus - totalDeduction);
 
           // Seed salary statuses to cover the full workflow (pending -> approved -> paid)
-          // - Tháng hiện tại (theo REFERENCE_DATE): mix pending/approved/paid
+          // - Feb/2026: mix pending/approved/paid
           // - EMP049 in Apr/2026: keep it pending because we seed a pending salary-advance there (edge case)
           const isRefMonth = year === refYear && month === refMonth;
           const isEmp049Apr = emp.employeeCode === 'EMP049' && year === 2026 && month === 4;
@@ -1852,7 +1454,6 @@ async function seedDB() {
 
     const nonEmployeeTableCounts = {
       roleChangeAudits: await RoleChangeAudit.count(),
-      salaryHistories: await SalaryHistory.count(),
       workExperiences: await WorkExperience.count(),
       qualifications: await Qualification.count(),
       documents: await Document.count(),
@@ -1861,9 +1462,7 @@ async function seedDB() {
       overtimeRequests: await OvertimeRequest.count(),
       businessTripRequests: await BusinessTripRequest.count(),
       salaryAdvances: await SalaryAdvance.count(),
-      salaries: await Salary.count(),
-      approvalWorkflows: await ApprovalWorkflow.count(),
-      notifications: await Notification.count()
+      salaries: await Salary.count()
     };
     for (const [tableName, count] of Object.entries(nonEmployeeTableCounts)) {
       if (count <= 0) {
@@ -1893,12 +1492,11 @@ async function seedDB() {
     // Summary
     console.log('\nSEED DATA GENERATION COMPLETED\n');
     console.log('Summary:');
-    console.log(`   Users: ${employees.length + 4} (${employees.length} employees + manager + hr + accountant + supervisor = 100 accounts, đủ 5 role)`);
+    console.log(`   Users: ${employees.length + 4} (${employees.length} employees + 1 manager + 1 hr + 1 accountant + 1 supervisor)`);
     console.log(`   Departments: ${depts.length}`);
     console.log(`   Job Titles: ${titles.length}`);
     console.log(`   Salary Grades: ${grades.length}`);
     console.log(`   Dependents: ${depCount}`);
-    console.log(`   Salary history: ${salaryHistoryCount}`);
     console.log(`   Work Experiences: ${workExpCount}`);
     console.log(`   Qualifications: ${qualCount}`);
     console.log(`   Documents: ${docCount}`);
@@ -1908,16 +1506,14 @@ async function seedDB() {
     console.log(`   Business Trip Requests: ${tripCount}`);
     console.log(`   Salary Advances: ${advanceCount}`);
     console.log(`   Edge Cases: ${edgeCaseCount}`);
-    console.log(`   Approval Workflows: ${workflowCount}`);
-    console.log(`   Notifications: ${notificationCount}`);
     console.log(`   Salary Records: ${salCount} (from 2025-01 to ${currentYear}-${String(currentMonth).padStart(2, '0')})`);
     console.log('\nLogin Credentials:');
     console.log('   Manager:    manager@company.com / Manager@12345');
     console.log('   HR Staff:   hr@company.com / HR@12345');
     console.log('   Supervisor: supervisor@company.com / Supervisor@12345');
     console.log('   Accountant: accountant@company.com / Accountant@12345');
-    console.log(`   Employees:  emp001@company.com to emp${pad3(REQUIRED_COUNTS.totalEmployees)}@company.com / Password123!`);
-    console.log('\nAll employees have expanded deterministic data (2025–03/2026) for attendance, payroll, and HR workflows.');
+    console.log('   Employees:  emp001@company.com to emp050@company.com / Password123!');
+    console.log('\nAll employees have diverse deterministic data covering key system features.');
 
     process.exit(0);
   } catch (err) {

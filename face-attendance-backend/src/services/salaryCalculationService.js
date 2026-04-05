@@ -310,7 +310,6 @@ export async function calculateSalaryForUser(userId, month, year, { requireExist
   const finalSalary = parseFloat((grossSalary - deduction).toFixed(2));
 
   const statusToSet = statusDecision.nextStatus;
-  const hadRejectionNote = typeof salary.notes === "string" && salary.notes.trim().startsWith("[REJECTED]");
   await salary.update({
     baseSalary,
     bonus,
@@ -320,9 +319,7 @@ export async function calculateSalaryForUser(userId, month, year, { requireExist
     finalSalary,
     calculatedAt: new Date(),
     status: statusToSet,
-    paidAt: statusToSet === "pending" ? null : salary.paidAt,
-    // Sau khi tính lại, bỏ ghi chú từ chối cũ để bản ghi quay về hàng chờ duyệt "sạch"
-    notes: hadRejectionNote ? null : salary.notes,
+    paidAt: statusToSet === "pending" ? null : salary.paidAt
   });
 
   // Bind/deduct salary advance after salary calculation

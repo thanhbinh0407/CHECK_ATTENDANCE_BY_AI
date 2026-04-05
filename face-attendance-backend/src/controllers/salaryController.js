@@ -388,28 +388,12 @@ export const getPendingSalaries = async (req, res) => {
       order: [['year', 'DESC'], ['month', 'DESC'], ['createdAt', 'ASC']]
     });
 
-    // Bản ghi bị từ chối (chờ kế toán tính lại) — tách khỏi hàng chờ duyệt chính
-    const awaitingRecalc = [];
-    const awaitingApproval = [];
-    for (const row of pendingSalaries) {
-      const n = row.notes;
-      if (typeof n === "string" && n.trim().startsWith("[REJECTED]")) {
-        awaitingRecalc.push(row);
-      } else {
-        awaitingApproval.push(row);
-      }
-    }
-
-    console.log(
-      `Found ${pendingSalaries.length} pending salaries (${awaitingApproval.length} chờ duyệt, ${awaitingRecalc.length} bị trả về tính lại)`
-    );
+    console.log(`Found ${pendingSalaries.length} pending salaries`);
 
     return res.json({
       status: "success",
-      count: awaitingApproval.length,
-      salaries: awaitingApproval,
-      awaitingRecalc,
-      awaitingRecalcCount: awaitingRecalc.length,
+      count: pendingSalaries.length,
+      salaries: pendingSalaries
     });
   } catch (err) {
     console.error("Error fetching pending salaries:", err.message);

@@ -16,11 +16,28 @@ import sequelize from "../db/sequelize.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
 import { recalculatePendingSalariesForUsers } from "../services/salaryCalculationService.js";
-import { sendNotification } from "./notificationController.js";
+import { createNotification } from "./notificationController.js";
 
 const toNumber = (value, fallback = 0) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+};
+
+/**
+ * Sinh mật khẩu mặc định ngẫu nhiên theo format: AAA#9999
+ * - 3 chữ cái hoa ngẫu nhiên
+ * - dấu #
+ * - 4 chữ số ngẫu nhiên
+ * Ví dụ: HMA#9940, AMZ#2234, KPX#0571
+ * Mật khẩu được trả về trong response để HR/Manager thông báo cho nhân viên.
+ */
+const generateDefaultPassword = () => {
+  const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const prefix = Array.from({ length: 3 }, () =>
+    LETTERS[Math.floor(Math.random() * LETTERS.length)]
+  ).join('');
+  const digits = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+  return `${prefix}#${digits}`;
 };
 
 const sumAllowances = (obj) => {
@@ -76,51 +93,6 @@ export const getAllEmployees = async (req, res) => {
     return res.status(500).json({
       status: "error",
       message: err.message
-    });
-  }
-};
-
-/** Tổng hợp điểm danh trong ngày theo userId (log cuối trong ngày = trạng thái hiện tại). */
-export const getTodayPresenceSummary = async (req, res) => {
-  try {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(todayStart);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const logs = await AttendanceLog.findAll({
-      where: {
-        userId: { [Op.ne]: null },
-        timestamp: { [Op.gte]: todayStart, [Op.lt]: tomorrow },
-      },
-      attributes: ["userId", "type", "timestamp"],
-      order: [["timestamp", "ASC"]],
-    });
-
-    const byUser = new Map();
-    for (const log of logs) {
-      const uid = log.userId;
-      if (!byUser.has(uid)) {
-        byUser.set(uid, { logCount: 0, lastType: null, lastAt: null });
-      }
-      const p = byUser.get(uid);
-      p.logCount += 1;
-      p.lastType = log.type;
-      p.lastAt = log.timestamp;
-    }
-
-    const presence = Object.fromEntries(byUser.entries());
-
-    return res.json({
-      status: "success",
-      date: todayStart.toISOString().split("T")[0],
-      presence,
-    });
-  } catch (err) {
-    console.error("Error fetching today presence:", err);
-    return res.status(500).json({
-      status: "error",
-      message: err.message,
     });
   }
 };
@@ -453,21 +425,32 @@ export const updateEmployee = async (req, res) => {
 
     console.log(`Employee updated: ${employee.name} (ID: ${id})${salaryFieldsChanged ? ` - ${recalculatedSalaryCount} salary record(s) recalculated` : ''}`);
 
-    // Send broadcast notifications for important changes
+    if (roleAuditPayload) {
+      await createNotification(
+        null, 'system', 'Employee Role Updated',
+        `Employee ${employee.name} (${employee.employeeCode}) role changed: ${roleAuditPayload.oldRole} → ${roleAuditPayload.newRole}.`,
+        { employeeId: employee.id, changeType: 'role', oldRole: roleAuditPayload.oldRole, newRole: roleAuditPayload.newRole }
+      );
+    }
+
     if (jobChanged) {
-      const changeTypeText = getJobChangeType() === 'promotion' ? 'promoted' : 
-                            getJobChangeType() === 'transfer' ? 'transferred' : 'updated';
-      await sendNotification(null, 'system', 'Employee Position Updated', 
-        `Employee ${employee.name} (${employee.employeeCode}) has been ${changeTypeText}.`, 
-        { employeeId: employee.id, changeType: 'job', type: getJobChangeType() });
+      const changeTypeText = getJobChangeType() === 'promotion' ? 'promoted' :
+                             getJobChangeType() === 'transfer'  ? 'transferred' : 'updated';
+      await createNotification(
+        null, 'system', 'Employee Position Updated',
+        `Employee ${employee.name} (${employee.employeeCode}) has been ${changeTypeText}.`,
+        { employeeId: employee.id, changeType: 'job', type: getJobChangeType() }
+      );
     }
 
     if (salaryChanged) {
-      const changeTypeText = getSalaryChangeType() === 'increase' ? 'increased' : 
-                            getSalaryChangeType() === 'decrease' ? 'decreased' : 'updated';
-      await sendNotification(null, 'system', 'Employee Salary Updated', 
-        `Employee ${employee.name} (${employee.employeeCode}) salary has been ${changeTypeText}.`, 
-        { employeeId: employee.id, changeType: 'salary', type: getSalaryChangeType() });
+      const changeTypeText = getSalaryChangeType() === 'increase' ? 'increased' :
+                             getSalaryChangeType() === 'decrease' ? 'decreased' : 'updated';
+      await createNotification(
+        null, 'system', 'Employee Salary Updated',
+        `Employee ${employee.name} (${employee.employeeCode}) salary has been ${changeTypeText}.`,
+        { employeeId: employee.id, changeType: 'salary', type: getSalaryChangeType() }
+      );
     }
 
     return res.json({
@@ -634,18 +617,19 @@ export const resetEmployeePassword = async (req, res) => {
       });
     }
 
-    // Default password if not provided
-    const passwordToUse = newPassword || "Password123!";
+    const passwordToUse = newPassword || generateDefaultPassword();
     const hashedPassword = await bcrypt.hash(passwordToUse, 10);
 
     await employee.update({ password: hashedPassword });
 
-    console.log(`Password reset for employee: ${employee.name} (ID: ${id})`);
+    console.log(`Password reset for employee: ${employee.name} (ID: ${id}) → ${passwordToUse}`);
 
     return res.json({
       status: "success",
       message: "Password reset successfully",
-      newPassword: passwordToUse // Return password so admin can share it
+      newPassword: passwordToUse,
+      employeeName: employee.name,
+      employeeCode: employee.employeeCode,
     });
   } catch (err) {
     console.error("Error resetting password:", err);
@@ -733,8 +717,7 @@ export const createEmployee = async (req, res) => {
       });
     }
 
-    // Generate default password
-    const defaultPassword = "Password123!";
+    const defaultPassword = generateDefaultPassword();
     const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
     const normalizedEffectiveDate = effectiveDate || startDate || new Date().toISOString().slice(0, 10);
@@ -824,6 +807,7 @@ export const createEmployee = async (req, res) => {
     return res.json({
       status: "success",
       message: "Employee created successfully",
+      newPassword: defaultPassword,
       employee: {
         id: employee.id,
         name: employee.name,
