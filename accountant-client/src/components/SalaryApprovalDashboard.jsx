@@ -38,9 +38,9 @@ async function readApiError(res) {
 }
 
 /**
- * Luồng: pending → (Supervisor/Manager duyệt) → approved → (Kế toán mark paid) → paid
- * Trang này nằm trên accountant-client nhưng nút Duyệt/Từ chối chỉ cho supervisor/manager (theo API).
- * Kế toán: theo dõi hàng chờ + bản ghi bị trả về để tính lại lương.
+ * Flow: pending → (Supervisor/Manager approve) → approved → (Accountant mark paid) → paid
+ * Accountant-client UI; Approve/Reject buttons only for supervisor/manager (API).
+ * Accountant: monitor queue + records returned for recalculation.
  */
 export default function SalaryApprovalDashboard({ onNavigate } = {}) {
   const [pendingSalaries, setPendingSalaries] = useState([]);
@@ -191,7 +191,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
   };
 
   const formatCurrency = (amount) =>
-    new Intl.NumberFormat("vi-VN").format(Number(amount) || 0) + " ₫";
+    new Intl.NumberFormat("en-US").format(Number(amount) || 0) + " ₫";
 
   const formatPayPeriod = (s) => {
     const y = Number(s.year);

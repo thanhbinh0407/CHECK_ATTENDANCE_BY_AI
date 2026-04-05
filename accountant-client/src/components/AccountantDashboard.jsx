@@ -13,13 +13,13 @@ function extractList(d, keys) {
 function formatMoneyVND(amount) {
   const n = Number(amount || 0);
   try {
-    return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(n);
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "VND" }).format(n);
   } catch {
-    return `${n.toLocaleString("vi-VN")} VND`;
+    return `${n.toLocaleString("en-US")} VND`;
   }
 }
 
-/** Gọi từ App kế toán — không có router; dùng callback để đổi view sidebar */
+/** Invoked from accountant App (no router); uses callback to switch sidebar views */
 export default function AccountantDashboard({ onNavigate } = {}) {
   const [dash, setDash] = useState({
     loading: true,

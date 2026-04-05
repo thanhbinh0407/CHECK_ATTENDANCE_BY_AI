@@ -19,7 +19,6 @@ const D02LTReport = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Load existing data from backend
     loadD02LTData();
   }, []);
 
@@ -59,14 +58,14 @@ const D02LTReport = () => {
       });
 
       if (response.ok) {
-        alert('Dữ liệu đã được lưu thành công!');
+        alert('Data saved successfully.');
         setIsEditing(false);
       } else {
-        alert('Có lỗi xảy ra khi lưu dữ liệu!');
+        alert('An error occurred while saving.');
       }
     } catch (error) {
       console.error('Error saving D02-LT data:', error);
-      alert('Có lỗi xảy ra khi lưu dữ liệu!');
+      alert('An error occurred while saving.');
     } finally {
       setIsLoading(false);
     }
@@ -75,39 +74,34 @@ const D02LTReport = () => {
   const exportToPDF = () => {
     const doc = new jsPDF();
     
-    // Thiết lập font hỗ trợ tiếng Việt
     doc.setFont('times', 'normal');
     
-    // Tiêu đề chính
     doc.setFontSize(16);
     doc.setFont('times', 'bold');
-    doc.text('BÁO CÁO TÌNH TRẠNG VIỆC LÀM', 105, 20, { align: 'center' });
-    doc.text('& THAM GIA BHXH/BHYT/BHTN', 105, 30, { align: 'center' });
+    doc.text('EMPLOYMENT STATUS & SOCIAL / HEALTH / UNEMPLOYMENT INSURANCE', 105, 20, { align: 'center' });
+    doc.text('PARTICIPATION REPORT', 105, 30, { align: 'center' });
     
-    // Mẫu D02-LT
     doc.setFontSize(12);
     doc.setFont('times', 'normal');
-    doc.text('(Mẫu D02-LT)', 105, 40, { align: 'center' });
+    doc.text('(Form D02-LT)', 105, 40, { align: 'center' });
     
-    // Thông tin đơn vị
     doc.setFontSize(14);
     doc.setFont('times', 'bold');
-    doc.text('THÔNG TIN ĐƠN VỊ BÁO CÁO', 20, 60);
+    doc.text('REPORTING UNIT INFORMATION', 20, 60);
     
     doc.setFontSize(11);
     doc.setFont('times', 'normal');
     
-    // Tạo bảng thông tin đơn vị
     const tableData = [
-      ['Tên đơn vị:', formData.tenDonVi || ''],
-      ['Mã đơn vị:', formData.maDonVi || ''],
-      ['Mã số thuế:', formData.maSoThue || ''],
-      ['Địa chỉ:', formData.diaChi || ''],
-      ['Số điện thoại:', formData.soDienThoai || ''],
+      ['Unit name:', formData.tenDonVi || ''],
+      ['Unit code:', formData.maDonVi || ''],
+      ['Tax ID:', formData.maSoThue || ''],
+      ['Address:', formData.diaChi || ''],
+      ['Phone:', formData.soDienThoai || ''],
       ['Email:', formData.email || ''],
-      ['Ngày:', formData.ngay || ''],
-      ['Tháng:', formData.thang || ''],
-      ['Năm:', formData.nam || '']
+      ['Day:', formData.ngay || ''],
+      ['Month:', formData.thang || ''],
+      ['Year:', formData.nam || '']
     ];
     
     doc.autoTable({
@@ -127,24 +121,21 @@ const D02LTReport = () => {
       margin: { left: 20, right: 20 }
     });
     
-    // Thông tin người báo cáo
     const finalY = doc.lastAutoTable.finalY + 20;
     doc.setFontSize(12);
     doc.setFont('times', 'bold');
-    doc.text('THÔNG TIN NGƯỜI BÁO CÁO', 20, finalY);
+    doc.text('REPORTING PERSON', 20, finalY);
     
     doc.setFontSize(10);
     doc.setFont('times', 'normal');
-    doc.text('Họ và tên: ...................................................... Chức vụ: ......................................................', 20, finalY + 15);
-    doc.text('Điện thoại: ................................................... Email: .........................................................', 20, finalY + 25);
+    doc.text('Full name: ...................................................... Title: ......................................................', 20, finalY + 15);
+    doc.text('Phone: ................................................... Email: .........................................................', 20, finalY + 25);
     
-    // Ngày tháng năm
-    doc.text(`Ngày ${formData.ngay || ''} tháng ${formData.thang || ''} năm ${formData.nam || ''}`, 20, finalY + 40);
-    doc.text('Người báo cáo', 20, finalY + 50);
-    doc.text('(Ký, ghi rõ họ tên)', 20, finalY + 55);
+    doc.text(`Date ${formData.ngay || ''} / month ${formData.thang || ''} / year ${formData.nam || ''}`, 20, finalY + 40);
+    doc.text('Reporter', 20, finalY + 50);
+    doc.text('(Signature, full name)', 20, finalY + 55);
     
-    // Lưu file
-    doc.save(`BaoCao_D02-LT_${formData.nam || '2024'}.pdf`);
+    doc.save(`Report_D02-LT_${formData.nam || '2024'}.pdf`);
   };
 
   const inputStyle = {
@@ -221,14 +212,14 @@ const D02LTReport = () => {
             color: "#1e293b",
             margin: "0 0 4px 0"
           }}>
-            📋 Báo Cáo Tình Trạng Việc Làm & Tham Gia BHXH/BHYT/BHTN
+            📋 Employment & insurance participation report
           </h2>
           <p style={{
             fontSize: "16px",
             color: "#64748b",
             margin: 0
           }}>
-            Mẫu D02-LT - Thông Tin Đơn Vị Báo Cáo
+            Form D02-LT — reporting unit details
           </p>
         </div>
         <div>
@@ -240,7 +231,7 @@ const D02LTReport = () => {
                 onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
                 onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
               >
-                ✏️ Chỉnh sửa
+                ✏️ Edit
               </button>
               <button
                 onClick={exportToPDF}
@@ -252,7 +243,7 @@ const D02LTReport = () => {
                 onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
                 onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
               >
-                📄 Xuất PDF
+                📄 Export PDF
               </button>
             </div>
           ) : (
@@ -264,18 +255,18 @@ const D02LTReport = () => {
                 onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
                 onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
               >
-                {isLoading ? "⏳ Đang lưu..." : "💾 Lưu"}
+                {isLoading ? "⏳ Saving…" : "💾 Save"}
               </button>
               <button
                 onClick={() => {
                   setIsEditing(false);
-                  loadD02LTData(); // Reset to original data
+                  loadD02LTData();
                 }}
                 style={cancelButtonStyle}
                 onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
                 onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
               >
-                ❌ Hủy
+                ❌ Cancel
               </button>
             </div>
           )}
@@ -288,62 +279,62 @@ const D02LTReport = () => {
         gap: "24px"
       }}>
         <div>
-          <label style={labelStyle}>Tên đơn vị</label>
+          <label style={labelStyle}>Unit name</label>
           <input
             type="text"
             value={formData.tenDonVi}
             onChange={(e) => handleInputChange('tenDonVi', e.target.value)}
             disabled={!isEditing}
             style={inputStyle}
-            placeholder="Nhập tên đơn vị..."
+            placeholder="Enter unit name…"
           />
         </div>
 
         <div>
-          <label style={labelStyle}>Mã đơn vị</label>
+          <label style={labelStyle}>Unit code</label>
           <input
             type="text"
             value={formData.maDonVi}
             onChange={(e) => handleInputChange('maDonVi', e.target.value)}
             disabled={!isEditing}
             style={inputStyle}
-            placeholder="Nhập mã đơn vị..."
+            placeholder="Enter unit code…"
           />
         </div>
 
         <div>
-          <label style={labelStyle}>Mã số thuế</label>
+          <label style={labelStyle}>Tax ID</label>
           <input
             type="text"
             value={formData.maSoThue}
             onChange={(e) => handleInputChange('maSoThue', e.target.value)}
             disabled={!isEditing}
             style={inputStyle}
-            placeholder="Nhập mã số thuế..."
+            placeholder="Enter tax ID…"
           />
         </div>
 
         <div style={{ gridColumn: "1 / -1" }}>
-          <label style={labelStyle}>Địa chỉ</label>
+          <label style={labelStyle}>Address</label>
           <input
             type="text"
             value={formData.diaChi}
             onChange={(e) => handleInputChange('diaChi', e.target.value)}
             disabled={!isEditing}
             style={inputStyle}
-            placeholder="Nhập địa chỉ..."
+            placeholder="Enter address…"
           />
         </div>
 
         <div>
-          <label style={labelStyle}>Số điện thoại</label>
+          <label style={labelStyle}>Phone</label>
           <input
             type="tel"
             value={formData.soDienThoai}
             onChange={(e) => handleInputChange('soDienThoai', e.target.value)}
             disabled={!isEditing}
             style={inputStyle}
-            placeholder="Nhập số điện thoại..."
+            placeholder="Enter phone…"
           />
         </div>
 
@@ -355,12 +346,12 @@ const D02LTReport = () => {
             onChange={(e) => handleInputChange('email', e.target.value)}
             disabled={!isEditing}
             style={inputStyle}
-            placeholder="Nhập email..."
+            placeholder="Enter email…"
           />
         </div>
 
         <div>
-          <label style={labelStyle}>Ngày</label>
+          <label style={labelStyle}>Day</label>
           <input
             type="number"
             min="1"
@@ -374,7 +365,7 @@ const D02LTReport = () => {
         </div>
 
         <div>
-          <label style={labelStyle}>Tháng</label>
+          <label style={labelStyle}>Month</label>
           <input
             type="number"
             min="1"
@@ -388,7 +379,7 @@ const D02LTReport = () => {
         </div>
 
         <div>
-          <label style={labelStyle}>Năm</label>
+          <label style={labelStyle}>Year</label>
           <input
             type="number"
             min="2000"
