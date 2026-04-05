@@ -808,8 +808,16 @@ export default function EmployeeManagement() {
                   {selectedEmployee.jobHistory.map((history) => (
                     <div key={history.id} className="emp-detail-card">
                       <div className="emp-detail-card-name">{history.changeType} - {history.effectiveDate}</div>
-                      <div className="emp-detail-card-info">Department: {history.fromDepartmentName || "-"} → {history.toDepartmentName || "-"}</div>
-                      <div className="emp-detail-card-info">Job Title: {history.fromJobTitleName || "-"} → {history.toJobTitleName || "-"}</div>
+                      <div className="emp-detail-card-info">
+                        Department: {history.changeType === "other"
+                          ? `${history.fromDepartmentName || "-"} -> ${history.toDepartmentName || "-"}`
+                          : (history.toDepartmentName || history.fromDepartmentName || "-")}
+                      </div>
+                      <div className="emp-detail-card-info">
+                        Job Title: {history.changeType === "other"
+                          ? `${history.fromJobTitleName || "-"} -> ${history.toJobTitleName || "-"}`
+                          : (history.toJobTitleName || history.fromJobTitleName || "-")}
+                      </div>
                       <div className="emp-detail-card-info">Note: {history.notes || "-"}</div>
                     </div>
                   ))}

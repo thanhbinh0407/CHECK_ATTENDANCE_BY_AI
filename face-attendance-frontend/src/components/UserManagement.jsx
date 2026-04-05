@@ -36,17 +36,6 @@ const CHANGE_TYPE_BADGE_STYLE = {
   default: { background: "#e5e7eb", color: "#374151", borderRadius: 999, padding: "3px 9px", fontSize: 12, fontWeight: 600 },
 };
 
-const SAMPLE_USER_HISTORY = {
-  jobHistory: [
-    { id: 'sample-j1', effectiveDate: new Date().toISOString().slice(0,10), changeType: 'promotion', fromDepartmentName: 'Sales', toDepartmentName: 'Sales', fromJobTitleName: 'Junior Sales', toJobTitleName: 'Senior Sales' },
-    { id: 'sample-j2', effectiveDate: new Date().toISOString().slice(0,10), changeType: 'transfer', fromDepartmentName: 'Support', toDepartmentName: 'Marketing', fromJobTitleName: 'Support Agent', toJobTitleName: 'Marketing Specialist' }
-  ],
-  salaryChangeHistory: [
-    { id: 'sample-s1', effectiveDate: new Date().toISOString().slice(0,10), changeType: 'increase', previousBaseSalary: 8000000, newBaseSalary: 9000000, reason: 'Performance bonus' },
-    { id: 'sample-s2', effectiveDate: new Date().toISOString().slice(0,10), changeType: 'correction', previousBaseSalary: 9000000, newBaseSalary: 9200000, reason: 'Payroll adjustment' }
-  ]
-};
-
 function getHeaders() {
   const token = localStorage.getItem("authToken");
   return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
@@ -369,8 +358,12 @@ export default function UserManagement() {
     border: "1px solid #e2e8f0",
   };
 
-  const jobDisplayRows = detailJobRows.length > 0 ? detailJobRows : SAMPLE_USER_HISTORY.jobHistory;
-  const salaryDisplayRows = detailSalaryRows.length > 0 ? detailSalaryRows : SAMPLE_USER_HISTORY.salaryChangeHistory;
+  const hasJobFilter = Boolean(
+    detailJobFilter.fromDate || detailJobFilter.toDate || detailJobFilter.changeType
+  );
+  const hasSalaryFilter = Boolean(
+    detailSalaryFilter.fromDate || detailSalaryFilter.toDate || detailSalaryFilter.changeType
+  );
 
   return (
     <div>
@@ -748,15 +741,15 @@ export default function UserManagement() {
                   </div>
                   {detailJobRows.length === 0 && (
                     <div style={{ marginTop: 8, color: '#64748b' }}>
-                      No job history for selected filters. Showing sample items:
+                      {hasJobFilter ? "No job history for selected filters." : "No job history available."}
                     </div>
                   )}
-                  {(detailJobRows.length > 0 ? detailJobRows : SAMPLE_USER_HISTORY.jobHistory).length > 0 && (
+                  {detailJobRows.length > 0 && (
                     <div style={{ overflowX: "auto", marginTop: 8 }}>
                       <table style={{ width: "100%", borderCollapse: "collapse" }}>
                         <thead><tr><th style={{ textAlign: "left", padding: 6 }}>Date</th><th style={{ textAlign: "left", padding: 6 }}>Type</th><th style={{ textAlign: "left", padding: 6 }}>Department</th><th style={{ textAlign: "left", padding: 6 }}>Job Title</th></tr></thead>
                         <tbody>
-                          {jobDisplayRows.map((h) => (
+                          {detailJobRows.map((h) => (
                             <tr key={h.id} style={{ borderTop: "1px solid #e2e8f0" }}>
                               <td style={{ padding: 6 }}>{h.effectiveDate || "-"}</td>
                               <td style={{ padding: 6 }}>
@@ -764,8 +757,32 @@ export default function UserManagement() {
                                   {h.changeType || "unknown"}
                                 </span>
                               </td>
-                              <td style={{ padding: 6 }}>{h.fromDepartmentName || "-"} → {h.toDepartmentName || "-"}</td>
-                              <td style={{ padding: 6 }}>{h.fromJobTitleName || "-"} → {h.toJobTitleName || "-"}</td>
+                                <td style={{ padding: 6 }}>
+                                    {h.changeType === "other" ? (
+                                      <>
+                                        <span style={{ color: "#dc2626", fontWeight: 500 }}>{h.fromDepartmentName || "-"}</span>
+                                        <span style={{ color: "#64748b" }}>{" -> "}</span>
+                                        <span style={{ color: "#16a34a", fontWeight: 500 }}>{h.toDepartmentName || "-"}</span>
+                                      </>
+                                    ) : (
+                                      <span style={{ color: "#16a34a", fontWeight: 500 }}>
+                                        {h.toDepartmentName || h.fromDepartmentName || "-"}
+                                      </span>
+                                    )}
+                                </td>
+                                <td style={{ padding: 6 }}>
+                                    {h.changeType === "other" ? (
+                                      <>
+                                        <span style={{ color: "#dc2626", fontWeight: 500 }}>{h.fromJobTitleName || "-"}</span>
+                                        <span style={{ color: "#64748b" }}>{" -> "}</span>
+                                        <span style={{ color: "#16a34a", fontWeight: 500 }}>{h.toJobTitleName || "-"}</span>
+                                      </>
+                                    ) : (
+                                      <span style={{ color: "#dc2626", fontWeight: 500 }}>
+                                        {h.toJobTitleName || h.fromJobTitleName || "-"}
+                                      </span>
+                                    )}
+                                </td>
                             </tr>
                           ))}
                         </tbody>
@@ -803,15 +820,15 @@ export default function UserManagement() {
                   </div>
                   {detailSalaryRows.length === 0 && (
                     <div style={{ marginTop: 8, color: '#64748b' }}>
-                      No salary changes for selected filters. Showing sample items.
+                      {hasSalaryFilter ? "No salary changes for selected filters." : "No salary change history available."}
                     </div>
                   )}
-                  {(detailSalaryRows.length > 0 ? detailSalaryRows : SAMPLE_USER_HISTORY.salaryChangeHistory).length > 0 && (
+                  {detailSalaryRows.length > 0 && (
                     <div style={{ overflowX: "auto", marginTop: 8 }}>
                       <table style={{ width: "100%", borderCollapse: "collapse" }}>
                         <thead><tr><th style={{ textAlign: "left", padding: 6 }}>Date</th><th style={{ textAlign: "left", padding: 6 }}>Type</th><th style={{ textAlign: "left", padding: 6 }}>Old to New Salary</th><th style={{ textAlign: "left", padding: 6 }}>Reason</th></tr></thead>
                         <tbody>
-                          {salaryDisplayRows.map((h) => (
+                          {detailSalaryRows.map((h) => (
                             <tr key={h.id} style={{ borderTop: "1px solid #e2e8f0" }}>
                               <td style={{ padding: 6 }}>{h.effectiveDate || "-"}</td>
                               <td style={{ padding: 6 }}>
