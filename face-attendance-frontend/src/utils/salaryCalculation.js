@@ -309,15 +309,15 @@ export function calculateCompleteSalary({
       pit: Math.round(pit),
     },
     
-    // Final
-    netSalary: Math.round(Math.max(0, netSalary)), // Net salary cannot be negative
-    
+    // Final (có thể âm khi khấu trừ > gross)
+    netSalary: Math.round(netSalary),
+
     // Breakdown for display
     breakdown: {
       gross: Math.round(grossSalary),
       insurance: Math.round(totalInsurance),
       tax: Math.round(pit),
-      net: Math.round(Math.max(0, netSalary)),
+      net: Math.round(netSalary),
     }
   };
 }
