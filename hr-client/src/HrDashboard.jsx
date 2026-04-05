@@ -125,7 +125,7 @@ export default function HrDashboard({ token, onNavigate }) {
 
   const today = useMemo(
     () =>
-      new Intl.DateTimeFormat('vi-VN', {
+      new Intl.DateTimeFormat('en-US', {
         weekday: 'long',
         day: 'numeric',
         month: 'long',
@@ -139,7 +139,7 @@ export default function HrDashboard({ token, onNavigate }) {
   if (dash.loading) {
     return (
       <div className="hr-dash-root">
-        <div className="loading">Đang tải tổng quan…</div>
+        <div className="loading">Loading overview…</div>
       </div>
     );
   }
@@ -148,14 +148,14 @@ export default function HrDashboard({ token, onNavigate }) {
     <div className="hr-dash-root">
       <div className="hr-dash-hero-v2">
         <div className="hr-dash-hero-v2-inner">
-          <h1>Trung tâm HR</h1>
+          <h1>HR Hub</h1>
           <p>
-            Theo dõi quy mô nhân sự, đơn từ chờ xử lý và hoạt động chấm công gần nhất — mọi thao tác chi tiết nằm ở menu trái.
+            Monitor workforce size, pending requests, and recent attendance — use the left menu for detailed actions.
           </p>
           <div className="hr-dash-hero-meta">
             <span className="hr-dash-pill">{today}</span>
-            <span className="hr-dash-pill">{dash.empActive} nhân viên đang làm</span>
-            <span className="hr-dash-pill">{totalPending} đơn chờ xử lý (toàn hệ thống)</span>
+            <span className="hr-dash-pill">{dash.empActive} active employees</span>
+            <span className="hr-dash-pill">{totalPending} pending requests (system-wide)</span>
           </div>
         </div>
       </div>
@@ -163,15 +163,15 @@ export default function HrDashboard({ token, onNavigate }) {
       <div className="hr-kpi-row hr-kpi-row--4">
         <div className="hr-kpi-card">
           <span className="hr-kpi-deco" aria-hidden>👥</span>
-          <div className="hr-kpi-label">Nhân viên</div>
+          <div className="hr-kpi-label">Employees</div>
           <div className="hr-kpi-value">{dash.empTotal}</div>
-          <div className="hr-kpi-hint">Đang hoạt động: {dash.empActive}</div>
+          <div className="hr-kpi-hint">Active: {dash.empActive}</div>
         </div>
         <div className="hr-kpi-card">
           <span className="hr-kpi-deco" aria-hidden>🏢</span>
-          <div className="hr-kpi-label">Phòng ban</div>
+          <div className="hr-kpi-label">Departments</div>
           <div className="hr-kpi-value">{dash.departments}</div>
-          <div className="hr-kpi-hint">Chức danh: {dash.jobTitles}</div>
+          <div className="hr-kpi-hint">Job Titles: {dash.jobTitles}</div>
         </div>
         <button
           type="button"
@@ -180,25 +180,25 @@ export default function HrDashboard({ token, onNavigate }) {
           style={{ cursor: 'pointer', textAlign: 'left', border: '1px solid rgba(148, 163, 184, 0.35)', font: 'inherit' }}
         >
           <span className="hr-kpi-deco" aria-hidden>✅</span>
-          <div className="hr-kpi-label">Nghỉ phép chờ</div>
+          <div className="hr-kpi-label">Pending Leave</div>
           <div className="hr-kpi-value hr-kpi-value--accent">{dash.pendingLeave}</div>
-          <div className="hr-kpi-hint">Mở màn duyệt nghỉ →</div>
+          <div className="hr-kpi-hint">Go to Leave Approvals →</div>
         </button>
         <div className="hr-kpi-card">
           <span className="hr-kpi-deco" aria-hidden>📬</span>
-          <div className="hr-kpi-label">Đơn khác chờ</div>
+          <div className="hr-kpi-label">Other Pending</div>
           <div className="hr-kpi-value" style={{ fontSize: '1.35rem' }}>
-            OT {dash.pendingOt} · CT {dash.pendingTrip} · Ứng {dash.pendingAdvance}
+            OT {dash.pendingOt} · Trip {dash.pendingTrip} · Advance {dash.pendingAdvance}
           </div>
-          <div className="hr-kpi-hint">Tăng ca · Công tác · Tạm ứng</div>
+          <div className="hr-kpi-hint">Overtime · Business Trip · Salary Advance</div>
         </div>
       </div>
 
       <div className="hr-dash-split">
         <div className="hr-dash-panel">
-          <h3>Hoạt động chấm công gần đây</h3>
+          <h3>Recent Attendance Activity</h3>
           {dash.recentLogs.length === 0 ? (
-            <p style={{ color: '#94a3b8', fontSize: 14 }}>Chưa có dữ liệu log hoặc chưa tải được.</p>
+            <p style={{ color: '#94a3b8', fontSize: 14 }}>No attendance logs available.</p>
           ) : (
             dash.recentLogs.map((log) => (
               <div key={log.id} className="hr-dash-log-row">
@@ -206,30 +206,30 @@ export default function HrDashboard({ token, onNavigate }) {
                   <strong>{log.User?.name || '—'}</strong>
                   <div style={{ fontSize: 12, color: '#94a3b8' }}>{log.User?.employeeCode || log.userId}</div>
                 </div>
-                <span>{log.timestamp ? new Date(log.timestamp).toLocaleString('vi-VN') : '—'}</span>
+                <span>{log.timestamp ? new Date(log.timestamp).toLocaleString('en-US') : '—'}</span>
               </div>
             ))
           )}
         </div>
         <div className="hr-dash-panel">
-          <h3>Tóm tắt nhanh</h3>
+          <h3>Quick Summary</h3>
           <div className="hr-mini-kpis">
             <div className="hr-mini-kpi">
-              <div className="lbl">Tỷ lệ đang làm</div>
+              <div className="lbl">Active Rate</div>
               <div className="val">
                 {dash.empTotal ? Math.round((dash.empActive / dash.empTotal) * 100) : 0}%
               </div>
             </div>
             <div className="hr-mini-kpi">
-              <div className="lbl">Chức danh</div>
+              <div className="lbl">Job Titles</div>
               <div className="val">{dash.jobTitles}</div>
             </div>
             <div className="hr-mini-kpi">
-              <div className="lbl">Đơn chờ (tổng)</div>
+              <div className="lbl">Total Pending</div>
               <div className="val">{totalPending}</div>
             </div>
             <div className="hr-mini-kpi">
-              <div className="lbl">Phòng ban</div>
+              <div className="lbl">Departments</div>
               <div className="val">{dash.departments}</div>
             </div>
           </div>
@@ -237,11 +237,11 @@ export default function HrDashboard({ token, onNavigate }) {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <p className="card-title" style={{ marginBottom: 12 }}>Đơn chờ mới nhất</p>
+        <p className="card-title" style={{ marginBottom: 12 }}>Latest Pending Requests</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
           <div className="hr-dash-mini" style={{ padding: 14, borderRadius: 14, background: "#fff", border: "1px solid rgba(148,163,184,0.35)" }}>
-            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Nghỉ phép</div>
-            {dash.pendingLeaveList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Trống</div> : dash.pendingLeaveList.map((l) => (
+            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Leave</div>
+            {dash.pendingLeaveList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Empty</div> : dash.pendingLeaveList.map((l) => (
               <div key={l.id} style={{ marginBottom: 10 }}>
                 <div style={{ fontWeight: 700 }}>{l.User?.name || l.userId || "—"}</div>
                 <div style={{ fontSize: 12, color: "#64748b" }}>{l.startDate} → {l.endDate}</div>
@@ -250,8 +250,8 @@ export default function HrDashboard({ token, onNavigate }) {
           </div>
 
           <div className="hr-dash-mini" style={{ padding: 14, borderRadius: 14, background: "#fff", border: "1px solid rgba(148,163,184,0.35)" }}>
-            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Tăng ca</div>
-            {dash.pendingOtList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Trống</div> : dash.pendingOtList.map((r) => (
+            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Overtime</div>
+            {dash.pendingOtList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Empty</div> : dash.pendingOtList.map((r) => (
               <div key={r.id} style={{ marginBottom: 10 }}>
                 <div style={{ fontWeight: 700 }}>{r.User?.name || r.userId || "—"}</div>
                 <div style={{ fontSize: 12, color: "#64748b" }}>{r.date} • {r.totalHours || 0}h</div>
@@ -260,8 +260,8 @@ export default function HrDashboard({ token, onNavigate }) {
           </div>
 
           <div className="hr-dash-mini" style={{ padding: 14, borderRadius: 14, background: "#fff", border: "1px solid rgba(148,163,184,0.35)" }}>
-            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Công tác</div>
-            {dash.pendingTripList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Trống</div> : dash.pendingTripList.map((r) => (
+            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Business Trip</div>
+            {dash.pendingTripList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Empty</div> : dash.pendingTripList.map((r) => (
               <div key={r.id} style={{ marginBottom: 10 }}>
                 <div style={{ fontWeight: 700 }}>{r.User?.name || r.userId || "—"}</div>
                 <div style={{ fontSize: 12, color: "#64748b" }}>{r.destination || r.location || "—"}</div>
@@ -270,11 +270,11 @@ export default function HrDashboard({ token, onNavigate }) {
           </div>
 
           <div className="hr-dash-mini" style={{ padding: 14, borderRadius: 14, background: "#fff", border: "1px solid rgba(148,163,184,0.35)" }}>
-            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Tạm ứng</div>
-            {dash.pendingAdvanceList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Trống</div> : dash.pendingAdvanceList.map((a) => (
+            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Salary Advance</div>
+            {dash.pendingAdvanceList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Empty</div> : dash.pendingAdvanceList.map((a) => (
               <div key={a.id} style={{ marginBottom: 10 }}>
                 <div style={{ fontWeight: 700 }}>{a.User?.name || a.userId || "—"}</div>
-                <div style={{ fontSize: 12, color: "#64748b" }}>{a.month}/{a.year} • {Number(a.amount || 0).toLocaleString("vi-VN")} VND</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>{a.month}/{a.year} • {Number(a.amount || 0).toLocaleString("en-US")} VND</div>
               </div>
             ))}
           </div>
@@ -282,16 +282,16 @@ export default function HrDashboard({ token, onNavigate }) {
       </div>
 
       <div className="card" style={{ marginBottom: 0 }}>
-        <p className="card-title" style={{ marginBottom: 12 }}>Truy cập nhanh</p>
+        <p className="card-title" style={{ marginBottom: 12 }}>Quick Access</p>
         <div className="hr-bento-actions">
           {[
-            ['employees', '👥', 'Quản lý nhân viên'],
-            ['departments', '🏢', 'Phòng ban'],
-            ['job-titles', '📋', 'Chức danh'],
-            ['attendance', '📅', 'Chấm công'],
-            ['leave', '🏖️', 'Duyệt nghỉ phép'],
-            ['analytics', '📉', 'Phân tích'],
-            ['reports', '📑', 'Báo cáo HR'],
+            ['employees', '👥', 'Employee Management'],
+            ['departments', '🏢', 'Departments'],
+            ['job-titles', '📋', 'Job Titles'],
+            ['attendance', '📅', 'Attendance'],
+            ['leave', '🏖️', 'Leave Approvals'],
+            ['analytics', '📉', 'Analytics'],
+            ['reports', '📑', 'HR Reports'],
           ].map(([tab, icon, label]) => (
             <button
               key={tab}

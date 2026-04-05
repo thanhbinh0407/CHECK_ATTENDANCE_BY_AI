@@ -1,253 +1,39 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import './hrDashboardExtras.css';
+import './index.css';
+import EmployeeManagement from './EmployeeManagement.jsx';
 import HrDashboard from './HrDashboard.jsx';
 import HrLeaveApprovals from './HrLeaveApprovals.jsx';
 import HrAnalytics from './HrAnalytics.jsx';
 import HrReports from './HrReports.jsx';
-import './index.css';
 
 const API = 'http://localhost:5000/api';
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
 function authHeaders(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-}
-
-// ─── EMPLOYEE LIST ─────────────────────────────────────────────────────────────
-function EmployeeManagement({ token }) {
-  const [employees, setEmployees] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [jobTitles, setJobTitles] = useState([]);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({
-    name: '', email: '', employeeCode: '', role: 'employee',
-    departmentId: '', jobTitleId: '', phoneNumber: '', gender: '',
-    dateOfBirth: '', contractType: '', startDate: '', baseSalary: '',
-    effectiveDate: '', historyNote: '', salaryChangeReason: '',
-  });
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [empRes, deptRes, jtRes] = await Promise.all([
-        fetch(`${API}/admin/employees`, { headers: authHeaders(token) }),
-        fetch(`${API}/departments`, { headers: authHeaders(token) }),
-        fetch(`${API}/job-titles`, { headers: authHeaders(token) }),
-      ]);
-      const empData = await empRes.json();
-      const deptData = await deptRes.json();
-      const jtData = await jtRes.json();
-      setEmployees(empData.employees || empData.data || []);
-      setDepartments(deptData.departments || deptData.data || []);
-      setJobTitles(jtData.jobTitles || jtData.data || []);
-    } catch (e) { setError(e.message); }
-    setLoading(false);
-  }, [token]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const openCreate = () => {
-    setEditing(null);
-    setForm({ name: '', email: '', employeeCode: '', role: 'employee', departmentId: '', jobTitleId: '', phoneNumber: '', gender: '', dateOfBirth: '', contractType: '', startDate: '', baseSalary: '', effectiveDate: '', historyNote: '', salaryChangeReason: '' });
-    setShowModal(true);
-  };
-
-  const openEdit = (emp) => {
-    setEditing(emp);
-    setForm({
-      name: emp.name || '', email: emp.email || '', employeeCode: emp.employeeCode || '',
-      role: emp.role || 'employee', departmentId: emp.departmentId || '',
-      jobTitleId: emp.jobTitleId || '', phoneNumber: emp.phoneNumber || '',
-      gender: emp.gender || '', dateOfBirth: emp.dateOfBirth ? emp.dateOfBirth.slice(0, 10) : '',
-      contractType: emp.contractType || '', startDate: emp.startDate ? emp.startDate.slice(0, 10) : '',
-      baseSalary: emp.baseSalary || '',
-      effectiveDate: '', historyNote: '', salaryChangeReason: '',
-    });
-    setShowModal(true);
-  };
-
-  const save = async (e) => {
-    e.preventDefault();
-    const method = editing ? 'PUT' : 'POST';
-    const url = editing
-      ? `${API}/admin/employees/${editing.id}`
-      : `${API}/admin/employees`;
-    const body = editing ? { ...form } : { ...form, password: '12345678' };
-    const res = await fetch(url, { method, headers: authHeaders(token), body: JSON.stringify(body) });
-    const data = await res.json();
-    if (data.status === 'success' || data.employee || data.data) {
-      setShowModal(false);
-      load();
-    } else {
-      alert(data.message || 'Lỗi khi lưu');
-    }
-  };
-
-  const filtered = employees.filter(e =>
-    e.name?.toLowerCase().includes(search.toLowerCase()) ||
-    e.email?.toLowerCase().includes(search.toLowerCase()) ||
-    e.employeeCode?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <div>
-      <div className="search-bar">
-        <input placeholder="Tìm theo tên, email, mã nhân viên..." value={search} onChange={e => setSearch(e.target.value)} />
-        <button className="btn btn-primary" onClick={openCreate}>+ Thêm nhân viên</button>
-      </div>
-      {error && <div className="error-msg">{error}</div>}
-      <div className="card">
-        {loading ? <div className="loading">Đang tải...</div> : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Mã NV</th><th>Họ tên</th><th>Email</th><th>Phòng ban</th>
-                  <th>Chức danh</th><th>Vai trò</th><th>Trạng thái</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(emp => (
-                  <tr key={emp.id}>
-                    <td>{emp.employeeCode}</td>
-                    <td>{emp.name}</td>
-                    <td>{emp.email}</td>
-                    <td>{emp.Department?.name || emp.departmentId || '—'}</td>
-                    <td>{emp.JobTitle?.name || emp.jobTitleId || '—'}</td>
-                    <td><span style={{fontSize:12,background:'#ebf8ff',color:'#2b6cb0',padding:'2px 8px',borderRadius:999}}>{emp.role}</span></td>
-                    <td>
-                      <span className={`badge ${emp.isActive ? 'badge-active' : 'badge-inactive'}`}>
-                        {emp.isActive ? 'Đang làm' : 'Nghỉ việc'}
-                      </span>
-                    </td>
-                    <td>
-                      <button className="btn btn-secondary" style={{fontSize:12,padding:'4px 10px'}} onClick={() => openEdit(emp)}>Sửa</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {filtered.length === 0 && <div className="loading">Không có dữ liệu</div>}
-          </div>
-        )}
-      </div>
-
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>{editing ? 'Cập nhật nhân viên' : 'Thêm nhân viên mới'}</h3>
-              <button className="close-btn" onClick={() => setShowModal(false)}>×</button>
-            </div>
-            <form onSubmit={save}>
-              <div className="form-row">
-                <div className="form-group"><label>Họ tên *</label><input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
-                <div className="form-group"><label>Email *</label><input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
-              </div>
-              <div className="form-row">
-                <div className="form-group"><label>Mã nhân viên</label><input value={form.employeeCode} onChange={e => setForm({ ...form, employeeCode: e.target.value })} /></div>
-                <div className="form-group"><label>Điện thoại</label><input value={form.phoneNumber} onChange={e => setForm({ ...form, phoneNumber: e.target.value })} /></div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Phòng ban</label>
-                  <select value={form.departmentId} onChange={e => setForm({ ...form, departmentId: e.target.value })}>
-                    <option value="">-- Chọn phòng ban --</option>
-                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Chức danh</label>
-                  <select value={form.jobTitleId} onChange={e => setForm({ ...form, jobTitleId: e.target.value })}>
-                    <option value="">-- Chọn chức danh --</option>
-                    {jobTitles.map(j => <option key={j.id} value={j.id}>{j.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Vai trò</label>
-                  <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
-                    <option value="employee">Nhân viên</option>
-                    <option value="hr">Nhân sự (HR)</option>
-                    <option value="accountant">Kế toán</option>
-                    <option value="supervisor">Supervisor</option>
-                    <option value="manager">Manager</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Giới tính</label>
-                  <select value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })}>
-                    <option value="">-- Chọn --</option>
-                    <option value="male">Nam</option>
-                    <option value="female">Nữ</option>
-                    <option value="other">Khác</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group"><label>Ngày sinh</label><input type="date" value={form.dateOfBirth} onChange={e => setForm({ ...form, dateOfBirth: e.target.value })} /></div>
-                <div className="form-group"><label>Ngày vào làm</label><input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} /></div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Loại hợp đồng</label>
-                  <select value={form.contractType} onChange={e => setForm({ ...form, contractType: e.target.value })}>
-                    <option value="">-- Chọn --</option>
-                    <option value="probation">Thử việc</option>
-                    <option value="1_year">1 năm</option>
-                    <option value="3_year">3 năm</option>
-                    <option value="indefinite">Không xác định thời hạn</option>
-                  </select>
-                </div>
-                <div className="form-group"><label>Lương cơ bản</label><input type="number" value={form.baseSalary} onChange={e => setForm({ ...form, baseSalary: e.target.value })} /></div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Ngày hiệu lực thay đổi</label>
-                  <input type="date" value={form.effectiveDate} onChange={e => setForm({ ...form, effectiveDate: e.target.value })} />
-                </div>
-                <div className="form-group">
-                  <label>Lý do thay đổi lương</label>
-                  <input value={form.salaryChangeReason} onChange={e => setForm({ ...form, salaryChangeReason: e.target.value })} placeholder="VD: Điều chỉnh theo kỳ đánh giá" />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group" style={{ width: '100%' }}>
-                  <label>Ghi chú thay đổi</label>
-                  <textarea rows={3} value={form.historyNote} onChange={e => setForm({ ...form, historyNote: e.target.value })} placeholder="Mô tả thay đổi chức danh/phòng ban/lương" style={{ resize: 'vertical' }} />
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Hủy</button>
-                <button type="submit" className="btn btn-primary">Lưu</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── DEPARTMENT MANAGEMENT ─────────────────────────────────────────────────────
 function DepartmentManagement({ token }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '', description: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`${API}/departments`, { headers: authHeaders(token) });
-    const data = await res.json();
-    setItems(data.departments || data.data || []);
-    setLoading(false);
+    setError('');
+    try {
+      const res = await fetch(`${API}/departments`, { headers: authHeaders(token) });
+      const data = await res.json();
+      setItems(data.departments || data.data || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
@@ -262,34 +48,35 @@ function DepartmentManagement({ token }) {
     const res = await fetch(url, { method, headers: authHeaders(token), body: JSON.stringify(form) });
     const data = await res.json();
     if (data.status === 'success' || data.department || data.data) { setShowModal(false); load(); }
-    else alert(data.message || 'Lỗi khi lưu');
+    else alert(data.message || 'Error saving');
   };
 
   const remove = async (id) => {
-    if (!confirm('Xác nhận xóa phòng ban này?')) return;
+    if (!confirm('Confirm delete this department?')) return;
     const res = await fetch(`${API}/departments/${id}`, { method: 'DELETE', headers: authHeaders(token) });
     const data = await res.json();
     if (data.status === 'success') load();
-    else alert(data.message || 'Lỗi khi xóa');
+    else alert(data.message || 'Error deleting');
   };
 
   return (
     <div>
       <div className="search-bar" style={{ justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary" onClick={openCreate}>+ Thêm phòng ban</button>
+        <button className="btn btn-primary" onClick={openCreate}>+ Add Department</button>
       </div>
+      {error && <div className="error-msg">{error}</div>}
       <div className="card">
-        {loading ? <div className="loading">Đang tải...</div> : (
+        {loading ? <div className="loading">Loading...</div> : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>ID</th><th>Tên phòng ban</th><th>Mô tả</th><th></th></tr></thead>
+              <thead><tr><th>ID</th><th>Department Name</th><th>Description</th><th></th></tr></thead>
               <tbody>
                 {items.map(item => (
                   <tr key={item.id}>
                     <td>{item.id}</td><td>{item.name}</td><td>{item.description || '—'}</td>
                     <td style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => openEdit(item)}>Sửa</button>
-                      <button className="btn btn-danger" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => remove(item.id)}>Xóa</button>
+                      <button className="btn btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => openEdit(item)}>Edit</button>
+                      <button className="btn btn-danger" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => remove(item.id)}>Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -302,21 +89,21 @@ function DepartmentManagement({ token }) {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" style={{ width: 420 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{editing ? 'Cập nhật phòng ban' : 'Thêm phòng ban'}</h3>
+              <h3>{editing ? 'Update Department' : 'Add Department'}</h3>
               <button className="close-btn" onClick={() => setShowModal(false)}>×</button>
             </div>
             <form onSubmit={save}>
               <div className="form-group" style={{ marginBottom: 14 }}>
-                <label>Tên phòng ban *</label>
+                <label>Department Name *</label>
                 <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
               </div>
               <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Mô tả</label>
+                <label>Description</label>
                 <textarea rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} style={{ resize: 'vertical' }} />
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Hủy</button>
-                <button type="submit" className="btn btn-primary">Lưu</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save</button>
               </div>
             </form>
           </div>
@@ -330,16 +117,23 @@ function DepartmentManagement({ token }) {
 function JobTitleManagement({ token }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '', description: '', level: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`${API}/job-titles`, { headers: authHeaders(token) });
-    const data = await res.json();
-    setItems(data.jobTitles || data.data || []);
-    setLoading(false);
+    setError('');
+    try {
+      const res = await fetch(`${API}/job-titles`, { headers: authHeaders(token) });
+      const data = await res.json();
+      setItems(data.jobTitles || data.data || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
@@ -354,24 +148,25 @@ function JobTitleManagement({ token }) {
     const res = await fetch(url, { method, headers: authHeaders(token), body: JSON.stringify(form) });
     const data = await res.json();
     if (data.status === 'success' || data.jobTitle || data.data) { setShowModal(false); load(); }
-    else alert(data.message || 'Lỗi khi lưu');
+    else alert(data.message || 'Error saving');
   };
 
   return (
     <div>
       <div className="search-bar" style={{ justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary" onClick={openCreate}>+ Thêm chức danh</button>
+        <button className="btn btn-primary" onClick={openCreate}>+ Add Job Title</button>
       </div>
+      {error && <div className="error-msg">{error}</div>}
       <div className="card">
-        {loading ? <div className="loading">Đang tải...</div> : (
+        {loading ? <div className="loading">Loading...</div> : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>ID</th><th>Chức danh</th><th>Cấp bậc</th><th>Mô tả</th><th></th></tr></thead>
+              <thead><tr><th>ID</th><th>Job Title</th><th>Level</th><th>Description</th><th></th></tr></thead>
               <tbody>
                 {items.map(item => (
                   <tr key={item.id}>
                     <td>{item.id}</td><td>{item.name}</td><td>{item.level || '—'}</td><td>{item.description || '—'}</td>
-                    <td><button className="btn btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => openEdit(item)}>Sửa</button></td>
+                    <td><button className="btn btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => openEdit(item)}>Edit</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -383,25 +178,25 @@ function JobTitleManagement({ token }) {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" style={{ width: 420 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{editing ? 'Cập nhật chức danh' : 'Thêm chức danh'}</h3>
+              <h3>{editing ? 'Update Job Title' : 'Add Job Title'}</h3>
               <button className="close-btn" onClick={() => setShowModal(false)}>×</button>
             </div>
             <form onSubmit={save}>
               <div className="form-group" style={{ marginBottom: 14 }}>
-                <label>Tên chức danh *</label>
+                <label>Job Title Name *</label>
                 <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
               </div>
               <div className="form-group" style={{ marginBottom: 14 }}>
-                <label>Cấp bậc</label>
+                <label>Level</label>
                 <input type="number" value={form.level} onChange={e => setForm({ ...form, level: e.target.value })} />
               </div>
               <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Mô tả</label>
+                <label>Description</label>
                 <textarea rows={2} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} style={{ resize: 'vertical' }} />
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Hủy</button>
-                <button type="submit" className="btn btn-primary">Lưu</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save</button>
               </div>
             </form>
           </div>
@@ -412,52 +207,188 @@ function JobTitleManagement({ token }) {
 }
 
 // ─── ATTENDANCE OVERVIEW ───────────────────────────────────────────────────────
-function AttendanceOverview({ token }) {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
+const TYPE_BADGE = {
+  IN:  { background: '#c6f6d5', color: '#276749' },
+  OUT: { background: '#fed7d7', color: '#9b2c2c' },
+};
 
-  useEffect(() => {
-    fetch(`${API}/admin/logs`, { headers: authHeaders(token) })
-      .then(r => r.json())
-      .then(d => { setLogs(d.logs || []); setLoading(false); })
-      .catch(() => setLoading(false));
+function AttendanceOverview({ token }) {
+  const [logs, setLogs]         = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState('');
+  const [search, setSearch]     = useState('');
+  const [filterType, setFilterType]   = useState('');
+  const [filterDate, setFilterDate]   = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res  = await fetch(`${API}/admin/logs`, { headers: authHeaders(token) });
+      const data = await res.json();
+      setLogs(data.logs || []);
+    } catch (e) {
+      setError('Failed to load attendance logs: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
+  useEffect(() => { load(); }, [load]);
+
+  // unique types from data
+  const logTypes = useMemo(() => {
+    const s = new Set(logs.map(l => (l.type || l.status || '').toUpperCase()).filter(Boolean));
+    return [...s].sort();
+  }, [logs]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return logs.filter(log => {
+      const matchSearch =
+        !q ||
+        (log.User?.name || '').toLowerCase().includes(q) ||
+        (log.User?.employeeCode || '').toLowerCase().includes(q) ||
+        String(log.userId || '').includes(q);
+      const logType = (log.type || log.status || '').toUpperCase();
+      const matchType = !filterType || logType === filterType;
+      const matchDate = !filterDate ||
+        (log.timestamp && log.timestamp.slice(0, 10) === filterDate);
+      return matchSearch && matchType && matchDate;
+    });
+  }, [logs, search, filterType, filterDate]);
+
+  const hasFilter = search || filterType || filterDate;
+  const clearFilters = () => { setSearch(''); setFilterType(''); setFilterDate(''); };
+
   return (
-    <div className="card">
-      <p className="card-title">Nhật ký chấm công gần nhất</p>
-      {loading ? <div className="loading">Đang tải...</div> : (
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Thời gian</th><th>Mã NV</th><th>Họ tên</th><th>Loại</th><th>IP</th></tr></thead>
-            <tbody>
-              {logs.slice(0, 50).map(log => (
-                <tr key={log.id}>
-                  <td>{new Date(log.timestamp).toLocaleString('vi-VN')}</td>
-                  <td>{log.User?.employeeCode || log.userId}</td>
-                  <td>{log.User?.name || '—'}</td>
-                  <td>{log.type || log.status}</td>
-                  <td>{log.ipAddress || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div>
+      {/* Toolbar */}
+      <div className="emp-toolbar">
+        <input
+          className="emp-search"
+          placeholder="Search by name or employee code..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <select
+          className="emp-filter-select"
+          value={filterType}
+          onChange={e => setFilterType(e.target.value)}
+        >
+          <option value="">All Types</option>
+          {logTypes.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <input
+          type="date"
+          className="emp-filter-select"
+          style={{ minWidth: 150 }}
+          value={filterDate}
+          onChange={e => setFilterDate(e.target.value)}
+          title="Filter by date"
+        />
+        <button
+          className="btn btn-secondary"
+          style={{ fontSize: 13, padding: '8px 14px', flexShrink: 0 }}
+          onClick={load}
+          title="Reload"
+        >
+          ↻ Reload
+        </button>
+      </div>
+
+      {error && <div className="error-msg">{error}</div>}
+
+      <div className="card" style={{ padding: 0 }}>
+        {/* Summary bar */}
+        <div className="emp-summary-bar">
+          <span>
+            Showing <strong>{filtered.length}</strong> / {logs.length} logs
+          </span>
+          {hasFilter && (
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: 12, padding: '3px 10px' }}
+              onClick={clearFilters}
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
-      )}
+
+        {loading ? (
+          <div className="loading">Loading attendance logs...</div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Emp. Code</th>
+                  <th>Name</th>
+                  <th>Department</th>
+                  <th>Type</th>
+                  <th>IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(log => {
+                  const logType = (log.type || log.status || '').toUpperCase();
+                  const badge   = TYPE_BADGE[logType];
+                  return (
+                    <tr key={log.id}>
+                      <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>
+                        {log.timestamp ? new Date(log.timestamp).toLocaleString('en-US') : '—'}
+                      </td>
+                      <td>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#2b6cb0', fontSize: 13 }}>
+                          {log.User?.employeeCode || log.userId || '—'}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 500 }}>{log.User?.name || '—'}</td>
+                      <td style={{ color: '#718096', fontSize: 13 }}>{log.User?.Department?.name || '—'}</td>
+                      <td>
+                        {badge ? (
+                          <span style={{
+                            ...badge, padding: '2px 10px', borderRadius: 999,
+                            fontSize: 12, fontWeight: 600,
+                          }}>
+                            {logType}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 13, color: '#4a5568' }}>{logType || '—'}</span>
+                        )}
+                      </td>
+                      <td style={{ color: '#94a3b8', fontSize: 13 }}>{log.ipAddress || '—'}</td>
+                    </tr>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>
+                      {logs.length === 0 ? 'No attendance logs available.' : 'No logs match the current filters.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 // ─── APP ROOT ──────────────────────────────────────────────────────────────────
 const TABS = [
-  { key: 'dashboard',   label: 'Tổng quan',     icon: '📊' },
-  { key: 'employees',   label: 'Nhân viên',     icon: '👥' },
-  { key: 'departments', label: 'Phòng ban',     icon: '🏢' },
-  { key: 'job-titles',  label: 'Chức danh',     icon: '📋' },
-  { key: 'attendance',  label: 'Chấm công',     icon: '📅' },
-  { key: 'leave',       label: 'Duyệt nghỉ phép', icon: '✅' },
-  { key: 'analytics',   label: 'Phân tích',      icon: '📉' },
-  { key: 'reports',     label: 'Báo cáo HR',     icon: '📑' },
+  { key: 'dashboard',   label: 'Overview',       icon: '📊' },
+  { key: 'employees',   label: 'Employees',      icon: '👥' },
+  { key: 'departments', label: 'Departments',    icon: '🏢' },
+  { key: 'job-titles',  label: 'Job Titles',     icon: '📋' },
+  { key: 'attendance',  label: 'Attendance',     icon: '📅' },
+  { key: 'leave',       label: 'Leave Approvals',icon: '✅' },
+  { key: 'analytics',   label: 'Analytics',      icon: '📉' },
+  { key: 'reports',     label: 'HR Reports',     icon: '📑' },
 ];
 
 export default function App() {
@@ -530,30 +461,29 @@ export default function App() {
     window.location.href = 'http://localhost:3000/';
   };
 
-  if (!token) return <div className="loading">Đang xác thực...</div>;
+  if (!token) return <div className="loading">Authenticating...</div>;
 
-  // Kiểm tra quyền HR hoặc Manager
   if (user?.role !== 'hr' && user?.role !== 'manager') {
     return (
       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh' }}>
         <div className="card" style={{ textAlign:'center' }}>
-          <p style={{ fontSize:18, marginBottom:12 }}>⛔ Không có quyền truy cập</p>
-          <p style={{ color:'#718096', marginBottom:20 }}>Trang này chỉ dành cho Nhân sự (HR) hoặc Manager</p>
-          <button className="btn btn-primary" onClick={logout}>Đăng nhập lại</button>
+          <p style={{ fontSize:18, marginBottom:12 }}>⛔ Access Denied</p>
+          <p style={{ color:'#718096', marginBottom:20 }}>This page is only accessible to HR Staff or Managers</p>
+          <button className="btn btn-primary" onClick={logout}>Back to Login</button>
         </div>
       </div>
     );
   }
 
   const tabTitles = {
-    dashboard: 'Tổng quan — HR',
-    employees: 'Quản lý Nhân viên',
-    departments: 'Quản lý Phòng ban',
-    'job-titles': 'Quản lý Chức danh',
-    attendance: 'Theo dõi Chấm công',
-    leave: 'Duyệt đơn nghỉ phép',
-    analytics: 'Phân tích HR',
-    reports: 'Báo cáo HR',
+    dashboard:   'HR Overview',
+    employees:   'Employee Management',
+    departments: 'Department Management',
+    'job-titles':'Job Title Management',
+    attendance:  'Attendance Tracking',
+    leave:       'Leave Approvals',
+    analytics:   'HR Analytics',
+    reports:     'HR Reports',
   };
 
   return (
@@ -581,7 +511,7 @@ export default function App() {
             <strong>{user?.name}</strong><br />
             <span style={{ opacity: 0.65 }}>{user?.role === 'manager' ? 'Manager' : 'HR Staff'}</span>
           </div>
-          <button className="logout-btn" onClick={logout}>Đăng xuất</button>
+          <button className="logout-btn" onClick={logout}>Log Out</button>
         </div>
       </nav>
 
@@ -598,7 +528,7 @@ export default function App() {
         </div>
         <div className="page-content">
           {activeTab === 'dashboard'   && <HrDashboard token={token} onNavigate={setActiveTab} />}
-          {activeTab === 'employees'   && <EmployeeManagement token={token} />}
+          {activeTab === 'employees'   && <EmployeeManagement token={token} user={user} />}
           {activeTab === 'departments' && <DepartmentManagement token={token} />}
           {activeTab === 'job-titles'  && <JobTitleManagement token={token} />}
           {activeTab === 'attendance'  && <AttendanceOverview token={token} />}
