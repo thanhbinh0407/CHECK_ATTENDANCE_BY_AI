@@ -240,7 +240,7 @@ function App() {
 
   const navCore = [
     { id: "dashboard", label: "Tổng quan", icon: "📊" },
-    { id: "salary-calculation", label: "Tính lương", icon: "💰" },
+    { id: "salary-calculation", label: "Salary calculation", icon: "💰" },
     { id: "salary-management", label: "Quản lý lương", icon: "📋" },
     { id: "salary-approval", label: "Duyệt payroll", icon: "✅" },
   ];
@@ -261,7 +261,7 @@ function App() {
 
   const viewTitles = {
     dashboard: "Tổng quan",
-    "salary-calculation": "Tính lương",
+    "salary-calculation": "Salary calculation",
     "salary-management": "Quản lý lương",
     "salary-approval": "Duyệt payroll",
     approvals: "Duyệt hồ sơ",
@@ -340,7 +340,12 @@ function App() {
         <header className="acc-topbar">
           <h1>{viewTitles[currentView] || "Payroll"}</h1>
           <span className="acc-topbar-meta">
-            {new Intl.DateTimeFormat("vi-VN", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(new Date())}
+            {new Intl.DateTimeFormat(currentView === "salary-calculation" ? "en-US" : "vi-VN", {
+              weekday: "short",
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }).format(new Date())}
           </span>
         </header>
         <div className="acc-content" style={{ animation: "fadeInUp 0.45s ease-out 0.05s backwards" }}>

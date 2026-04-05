@@ -133,6 +133,11 @@ export default function SalaryCalculation() {
   })();
   const canApprove = currentRole === "manager" || currentRole === "supervisor";
 
+  const formatVnd = (value) => {
+    const n = Number(value ?? 0);
+    return n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  };
+
   // Auto-hide message after 5 seconds
   useEffect(() => {
     if (message) {
@@ -531,20 +536,20 @@ export default function SalaryCalculation() {
             top: "72px",
             right: "20px",
             padding: "14px 20px",
-            backgroundColor: message.includes("thành công") ? "#ecfdf5" : "#fef2f2",
-            color: message.includes("thành công") ? "#065f46" : "#991b1b",
+            backgroundColor: message.toLowerCase().includes("success") ? "#ecfdf5" : "#fef2f2",
+            color: message.toLowerCase().includes("success") ? "#065f46" : "#991b1b",
             borderRadius: "8px",
             boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             zIndex: 9999,
             minWidth: "280px",
             maxWidth: "360px",
             animation: "slideInRight 0.3s ease-out",
-            border: `1px solid ${message.includes("thành công") ? "#a7f3d0" : "#fecaca"}`,
+            border: `1px solid ${message.toLowerCase().includes("success") ? "#a7f3d0" : "#fecaca"}`,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span aria-hidden style={{ fontSize: "18px" }}>
-              {message.includes("thành công") ? "✅" : "❌"}
+              {message.toLowerCase().includes("success") ? "✅" : "❌"}
             </span>
             <span style={{ flex: 1, fontWeight: "600", fontSize: "14px" }}>{message}</span>
           </div>
@@ -764,7 +769,7 @@ export default function SalaryCalculation() {
                     }}>
                       {rule.amountType === "percentage"
                         ? `${rule.amount}% of base salary`
-                        : `₫${parseFloat(rule.amount).toLocaleString("vi-VN")}`}
+                        : `₫${formatVnd(parseFloat(rule.amount))}`}
                     </div>
                     {rule.description && (
                       <div style={{
@@ -851,7 +856,7 @@ export default function SalaryCalculation() {
                     }}>
                       {rule.amountType === "percentage"
                         ? `${rule.amount}% of base salary`
-                        : `₫${parseFloat(rule.amount).toLocaleString("vi-VN")}`}
+                        : `₫${formatVnd(parseFloat(rule.amount))}`}
                     </div>
                     {rule.description && (
                       <div style={{
@@ -954,13 +959,13 @@ export default function SalaryCalculation() {
                         {employee?.Department?.name || employee?.department || "N/A"}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right", fontWeight: "600" }}>
-                        ₫{salary.baseSalary?.toLocaleString("vi-VN") || "0"}
+                        ₫{formatVnd(salary.baseSalary)}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right", color: theme.accent.dark, fontWeight: "600" }}>
-                        +₫{(salary.bonus || 0).toLocaleString("vi-VN")}
+                        +₫{formatVnd(salary.bonus)}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right", color: "#ef4444", fontWeight: "600" }}>
-                        -₫{(salary.deduction || 0).toLocaleString("vi-VN")}
+                        -₫{formatVnd(salary.deduction)}
                       </td>
                       <td style={{
                         ...tdStyle,
@@ -969,7 +974,7 @@ export default function SalaryCalculation() {
                         fontSize: "15px",
                         color: theme.accent.dark,
                       }}>
-                        ₫{salary.finalSalary?.toLocaleString("vi-VN") || "0"}
+                        ₫{formatVnd(salary.finalSalary)}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "center" }}>
                         <span style={statusBadgeStyle(salary.status)}>

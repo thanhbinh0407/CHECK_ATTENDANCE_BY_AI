@@ -5,6 +5,8 @@ import SalaryRule from "../models/pg/SalaryRule.js";
 import { ShiftSetting } from "../models/pg/index.js";
 import { Op } from "sequelize";
 import { calculateSeniority } from "./senioritySalaryService.js";
+import { calculateInsurance } from "./insuranceService.js";
+import { calculatePersonalIncomeTax } from "./taxService.js";
 
 function getWorkingDaysInMonth(year, month) {
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -94,10 +96,10 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
   const deductionBreakdown = [];
 
   const allowances = [
-    { field: "lunchAllowance", name: "Phụ cấp ăn trưa", reason: "Phụ cấp ăn trưa hàng tháng" },
-    { field: "transportAllowance", name: "Phụ cấp đi lại", reason: "Phụ cấp đi lại hàng tháng" },
-    { field: "phoneAllowance", name: "Phụ cấp điện thoại", reason: "Phụ cấp điện thoại hàng tháng" },
-    { field: "responsibilityAllowance", name: "Phụ cấp trách nhiệm", reason: "Phụ cấp trách nhiệm công việc" }
+    { field: "lunchAllowance", name: "Lunch allowance", reason: "Monthly lunch allowance" },
+    { field: "transportAllowance", name: "Transport allowance", reason: "Monthly transport allowance" },
+    { field: "phoneAllowance", name: "Phone allowance", reason: "Monthly phone allowance" },
+    { field: "responsibilityAllowance", name: "Responsibility allowance", reason: "Job responsibility allowance" }
   ];
   for (const al of allowances) {
     const val = parseFloat(user[al.field]) || 0;
@@ -130,7 +132,7 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
           } else {
             ruleAmount = parseFloat(rule.amount) * (rule.threshold ? Math.floor(lateCount / rule.threshold) : lateCount);
           }
-          reason = `Đi muộn ${lateCount} lần${rule.threshold ? ` (áp dụng khi >= ${rule.threshold} lần)` : ""}`;
+          reason = `Late ${lateCount} time(s)${rule.threshold ? ` (applies when >= ${rule.threshold})` : ""}`;
         }
         break;
       case "early_leave":
@@ -142,7 +144,7 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
           } else {
             ruleAmount = parseFloat(rule.amount) * (rule.threshold ? Math.floor(earlyLeaveCount / rule.threshold) : earlyLeaveCount);
           }
-          reason = `Về sớm ${earlyLeaveCount} lần${rule.threshold ? ` (áp dụng khi >= ${rule.threshold} lần)` : ""}`;
+          reason = `Early leave ${earlyLeaveCount} time(s)${rule.threshold ? ` (applies when >= ${rule.threshold})` : ""}`;
         }
         break;
       case "overtime":
@@ -154,7 +156,7 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
           } else {
             ruleAmount = parseFloat(rule.amount) * totalOvertimeHours;
           }
-          reason = `Làm thêm ${totalOvertimeHours.toFixed(2)} giờ${rule.threshold ? ` (áp dụng khi >= ${rule.threshold} giờ)` : ""}`;
+          reason = `Overtime ${totalOvertimeHours.toFixed(2)} h${rule.threshold ? ` (applies when >= ${rule.threshold} h)` : ""}`;
         }
         break;
       case "absent":
@@ -166,7 +168,7 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
           } else {
             ruleAmount = parseFloat(rule.amount) * absentDays;
           }
-          reason = `Vắng ${absentDays} ngày${rule.threshold ? ` (áp dụng khi >= ${rule.threshold} ngày)` : ""}`;
+          reason = `Absent ${absentDays} day(s)${rule.threshold ? ` (applies when >= ${rule.threshold} day(s))` : ""}`;
         }
         break;
       case "full_attendance": {
@@ -179,7 +181,7 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
             rule.amountType === "percentage"
               ? baseSalary * parseFloat(rule.amount) / 100
               : parseFloat(rule.amount);
-          reason = `Chuyên cần đủ ${totalWorkingDays} ngày (không muộn, không về sớm, không vắng)`;
+          reason = `Full attendance ${totalWorkingDays} working day(s) (no late, no early leave, no absence)`;
         }
         break;
       }
@@ -199,7 +201,7 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
             } else {
               ruleAmount = parseFloat(rule.amount) * tier;
             }
-            reason = `Thâm niên ${seniority} năm (bậc ${tier})`;
+            reason = `Seniority ${seniority} year(s) (tier ${tier})`;
           }
         }
         break;
@@ -230,14 +232,70 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
   const advanceDeduction = parseFloat(salary.advanceDeduction) || 0;
   if (advanceDeduction > 0) {
     deductionBreakdown.push({
-      ruleName: "Khấu trừ ứng lương",
-      ruleDescription: "Khấu trừ khoản ứng lương đã duyệt",
-      reason: `Ứng lương tháng ${month}/${year}`,
+      ruleName: "Salary advance deduction",
+      ruleDescription: "Deduct approved salary advance",
+      reason: `Salary advance ${month}/${year}`,
       amount: parseFloat(advanceDeduction.toFixed(2)),
       quantity: 1,
       amountType: "fixed",
       triggerType: "salary_advance"
     });
+  }
+
+  /** BHXH / BHYT / BHTN / TNCN — cùng logic với bước tính lương (đã cộng vào salaries.deduction) */
+  try {
+    const insurance = await calculateInsurance(userId, parseInt(month, 10), parseInt(year, 10));
+    const grossForTax = parseFloat(salary.grossSalary) || 0;
+    const tax = await calculatePersonalIncomeTax(
+      userId,
+      grossForTax,
+      parseInt(month, 10),
+      parseInt(year, 10)
+    );
+    const baseStr = Number(insurance.insuranceBase || 0).toLocaleString("en-US");
+    deductionBreakdown.push(
+      {
+        ruleName: "Social insurance (employee)",
+        ruleDescription: "Social insurance — employee share",
+        reason: `Insurance salary base: ${baseStr} ₫`,
+        amount: parseFloat(insurance.employee.socialInsurance.toFixed(2)),
+        quantity: 1,
+        amountType: "percentage",
+        triggerType: "insurance_social"
+      },
+      {
+        ruleName: "Health insurance (employee)",
+        ruleDescription: "Health insurance — employee share",
+        reason: `Insurance salary base: ${baseStr} ₫`,
+        amount: parseFloat(insurance.employee.healthInsurance.toFixed(2)),
+        quantity: 1,
+        amountType: "percentage",
+        triggerType: "insurance_health"
+      },
+      {
+        ruleName: "Unemployment insurance (employee)",
+        ruleDescription: "Unemployment insurance — employee share",
+        reason: `Insurance salary base: ${baseStr} ₫`,
+        amount: parseFloat(insurance.employee.unemploymentInsurance.toFixed(2)),
+        quantity: 1,
+        amountType: "percentage",
+        triggerType: "insurance_unemployment"
+      },
+      {
+        ruleName: "Personal income tax (PIT)",
+        ruleDescription: "Progressive tax (monthly estimate)",
+        reason:
+          tax.dependentCount > 0
+            ? `Family deductions: ${tax.dependentCount} dependent(s)`
+            : "Personal deduction (statutory)",
+        amount: parseFloat(tax.taxAmount.toFixed(2)),
+        quantity: 1,
+        amountType: "fixed",
+        triggerType: "personal_income_tax"
+      }
+    );
+  } catch (err) {
+    console.error("[salaryBreakdownDetail] BH/thuế:", err.message);
   }
 
   const totalBonus = bonusBreakdown.reduce((sum, item) => sum + item.amount, 0);

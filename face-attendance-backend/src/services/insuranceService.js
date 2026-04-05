@@ -19,7 +19,7 @@ export const getActiveInsuranceConfig = async () => {
     });
 
     return config || {
-      employeeSocialInsuranceRate: 10.5,
+      employeeSocialInsuranceRate: 8,
       employerSocialInsuranceRate: 21.5,
       employeeHealthInsuranceRate: 1.5,
       employerHealthInsuranceRate: 3.0,
@@ -32,7 +32,7 @@ export const getActiveInsuranceConfig = async () => {
     console.error("[Insurance Service] Error getting active config:", error);
     // Return default rates
     return {
-      employeeSocialInsuranceRate: 10.5,
+      employeeSocialInsuranceRate: 8,
       employerSocialInsuranceRate: 21.5,
       employeeHealthInsuranceRate: 1.5,
       employerHealthInsuranceRate: 3.0,
