@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getAllEmployees,
+  getTodayPresenceSummary,
   getEmployeeById,
   getEmployeeWithPassword,
   updateEmployee,
@@ -62,6 +63,12 @@ router.get(
   "/employees",
   requirePermission(PERMISSIONS["user:read"]),
   getAllEmployees
+);
+
+router.get(
+  "/attendance/today-presence",
+  requirePermission(PERMISSIONS["user:read"]),
+  getTodayPresenceSummary
 );
 
 // GET employee by ID - Với kiểm tra quyền truy cập dữ liệu
