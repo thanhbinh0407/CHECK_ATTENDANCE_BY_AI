@@ -6,71 +6,71 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
 const NAV_GROUPS = [
   {
-    label: 'Tổng quan',
+    label: 'Overview',
     items: [{ to: '/dashboard', label: 'Dashboard', icon: '📊' }],
   },
   {
-    label: 'Nhân sự & tài khoản',
+    label: 'People & Accounts',
     items: [
-      { to: '/employees', label: 'Hồ sơ nhân viên', icon: '👥' },
-      { to: '/users', label: 'Tài khoản & phân quyền', icon: '🔐' },
+      { to: '/employees', label: 'Employee Profiles', icon: '👥' },
+      { to: '/users', label: 'Accounts & Permissions', icon: '🔐' },
     ],
   },
   {
-    label: 'Tổ chức',
+    label: 'Organization',
     items: [
-      { to: '/departments', label: 'Phòng ban', icon: '🏢' },
-      { to: '/job-titles', label: 'Chức danh', icon: '📋' },
-      { to: '/shifts', label: 'Ca làm việc', icon: '🕐' },
+      { to: '/departments', label: 'Departments', icon: '🏢' },
+      { to: '/job-titles', label: 'Job Titles', icon: '📋' },
+      { to: '/shifts', label: 'Work Shifts', icon: '🕐' },
     ],
   },
   {
-    label: 'Chấm công',
+    label: 'Attendance',
     items: [
-      { to: '/camera', label: 'Kiosk nhận diện', icon: '📷' },
-      { to: '/attendance-logs', label: 'Nhật ký chấm công', icon: '📅' },
+      { to: '/camera', label: 'Face Recognition Kiosk', icon: '📷' },
+      { to: '/attendance-logs', label: 'Attendance Logs', icon: '📅' },
     ],
   },
   {
-    label: 'Đơn từ',
+    label: 'Requests',
     items: [
-      { to: '/leave', label: 'Nghỉ phép', icon: '🏖️' },
-      { to: '/overtime', label: 'Tăng ca', icon: '⏱️' },
-      { to: '/business-trips', label: 'Công tác', icon: '✈️' },
-      { to: '/salary-advances', label: 'Tạm ứng lương', icon: '💵' },
-      { to: '/approvals', label: 'Luồng duyệt (HR)', icon: '✅' },
+      { to: '/leave', label: 'Leave Requests', icon: '🏖️' },
+      { to: '/overtime', label: 'Overtime', icon: '⏱️' },
+      { to: '/business-trips', label: 'Business Trips', icon: '✈️' },
+      { to: '/salary-advances', label: 'Salary Advances', icon: '💵' },
+      { to: '/approvals', label: 'Approval Flow (HR)', icon: '✅' },
     ],
   },
   {
-    label: 'Lương & BH',
+    label: 'Payroll & Insurance',
     items: [
-      { to: '/salary', label: 'Quản lý lương', icon: '💰' },
-      { to: '/salary-admin', label: 'Lương (admin)', icon: '📑' },
-      { to: '/salary-calc', label: 'Tính lương', icon: '🧮' },
-      { to: '/salary-grades', label: 'Cấp bậc lương', icon: '📈' },
-      { to: '/insurance-config', label: 'Cấu hình BH', icon: '🏥' },
+      { to: '/salary', label: 'Payroll Management', icon: '💰' },
+      { to: '/salary-admin', label: 'Payroll (Admin)', icon: '📑' },
+      { to: '/salary-calc', label: 'Payroll Calculation', icon: '🧮' },
+      { to: '/salary-grades', label: 'Salary Grades', icon: '📈' },
+      { to: '/insurance-config', label: 'Insurance Settings', icon: '🏥' },
       { to: '/insurance-d02', label: 'D02-LT', icon: '📄' },
       { to: '/insurance-tk1', label: 'TK1-TS', icon: '📝' },
     ],
   },
   {
-    label: 'Báo cáo',
+    label: 'Reports',
     items: [
-      { to: '/reports', label: 'Báo cáo', icon: '📊' },
-      { to: '/analytics', label: 'Phân tích', icon: '📉' },
+      { to: '/reports', label: 'Reports', icon: '📊' },
+      { to: '/analytics', label: 'Analytics', icon: '📉' },
     ],
   },
   {
-    label: 'Hồ sơ & tài liệu',
+    label: 'Profiles & Documents',
     items: [
-      { to: '/documents', label: 'Tài liệu', icon: '📎' },
-      { to: '/dependents', label: 'Người phụ thuộc', icon: '👨‍👩‍👧' },
-      { to: '/qualifications', label: 'Bằng cấp / CC', icon: '🎓' },
+      { to: '/documents', label: 'Documents', icon: '📎' },
+      { to: '/dependents', label: 'Dependents', icon: '👨‍👩‍👧' },
+      { to: '/qualifications', label: 'Qualifications / Certificates', icon: '🎓' },
     ],
   },
   {
-    label: 'Khác',
-    items: [{ to: '/enrollment', label: 'Đăng ký khuôn mặt', icon: '🪪' }],
+    label: 'Other',
+    items: [{ to: '/enrollment', label: 'Face Enrollment', icon: '🪪' }],
   },
 ];
 
@@ -133,15 +133,15 @@ export default function ManagerLayout() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
 
   if (!ready || !token) {
-    return <div className="mgr-loading">Đang kiểm tra phiên đăng nhập…</div>;
+    return <div className="mgr-loading">Checking your sign-in session...</div>;
   }
 
   if (!user) {
-    return <div className="mgr-loading">Đang tải thông tin tài khoản…</div>;
+    return <div className="mgr-loading">Loading account information...</div>;
   }
 
   if (user.role !== 'manager') {
-    return <div className="mgr-loading">Đang chuyển hướng…</div>;
+    return <div className="mgr-loading">Redirecting...</div>;
   }
 
   const pageTitle = titleFromPath(location.pathname);
@@ -180,7 +180,7 @@ export default function ManagerLayout() {
           {!collapsed && (
             <>
               <strong style={{ color: '#cbd5e1' }}>{user?.name}</strong>
-              <div>Giám đốc / Manager</div>
+              <div>Director / Manager</div>
             </>
           )}
         </div>
@@ -196,7 +196,7 @@ export default function ManagerLayout() {
           <div className="mgr-topbar-actions">
             <span style={{ fontSize: 13, color: '#64748b' }}>{user?.email}</span>
             <button type="button" className="mgr-btn-logout" onClick={logout}>
-              Đăng xuất
+              Sign out
             </button>
           </div>
         </header>

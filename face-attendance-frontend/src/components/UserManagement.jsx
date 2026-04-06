@@ -470,7 +470,7 @@ export default function UserManagement() {
                           background: user.isActive ? "#c6f6d5" : "#fed7d7",
                           color: user.isActive ? "#276749" : "#9b2c2c",
                         }}>
-                          {user.isActive ? "Đang hoạt động" : "Vô hiệu hóa"}
+                          {user.isActive ? "Active" : "Inactive"}
                         </span>
                       </td>
                       <td style={{ padding: "10px 12px", borderBottom: "1px solid #f0f4f8", color: "#64748b" }}>
@@ -682,7 +682,7 @@ export default function UserManagement() {
                     onChange={e => setForm({ ...form, isActive: e.target.checked })}
                     style={{ width: 16, height: 16 }}
                   />
-                  <span style={{ fontSize: 14 }}>Tài khoản đang hoạt động</span>
+                  <span style={{ fontSize: 14 }}>Account is active</span>
                 </label>
               </div>
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>

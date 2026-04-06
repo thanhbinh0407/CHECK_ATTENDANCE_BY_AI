@@ -1,12 +1,12 @@
 function toDate(s) {
   if (!s) return "—";
-  return new Date(s).toLocaleDateString("vi-VN");
+  return new Date(s).toLocaleDateString("en-US");
 }
 
 function typeLabel(type) {
-  if (type === "job") return "Công việc";
-  if (type === "role") return "Vai trò";
-  return "Lương";
+  if (type === "job") return "Job";
+  if (type === "role") return "Role";
+  return "Salary";
 }
 
 function typePillClass(type) {
@@ -31,10 +31,10 @@ export default function ManagerOverview({
   return (
     <div className="mgr-dash__lower">
       <div className="mgr-dash__panel">
-        <h3 className="mgr-dash__panel-title">Hoạt động gần đây</h3>
-        {loading && <div className="mgr-dash__loading">Đang tải luồng nghiệp vụ…</div>}
+        <h3 className="mgr-dash__panel-title">Recent Activity</h3>
+        {loading && <div className="mgr-dash__loading">Loading activity feed...</div>}
         {!loading && recentChanges.length === 0 && (
-          <div className="mgr-dash__loading">Chưa có sự kiện. Dữ liệu mẫu có thể hiển thị khi hệ thống trống.</div>
+          <div className="mgr-dash__loading">No events yet. Sample data may appear when the system is empty.</div>
         )}
         {!loading && recentChanges.length > 0 && (
           <div className="mgr-dash__feed">
@@ -53,21 +53,21 @@ export default function ManagerOverview({
       </div>
 
       <div className="mgr-dash__panel">
-        <h3 className="mgr-dash__panel-title">Cơ cấu hệ thống</h3>
+        <h3 className="mgr-dash__panel-title">System Distribution</h3>
         <div className="mgr-dash__stat-rows">
           <div className="mgr-dash__stat-row">
-            <span>Phòng ban</span>
+            <span>Departments</span>
             <strong>{departments.length}</strong>
           </div>
           <div className="mgr-dash__stat-row">
-            <span>Chức danh</span>
+            <span>Job Titles</span>
             <strong>{jobTitles.length}</strong>
           </div>
         </div>
         {roleEntries.length > 0 && (
           <>
             <p className="mgr-dash__group-title" style={{ marginTop: 16, marginBottom: 8 }}>
-              Theo vai trò đăng nhập
+              By login role
             </p>
             {roleEntries.map(([role, count]) => (
               <div key={role} className="mgr-dash__role-block">
