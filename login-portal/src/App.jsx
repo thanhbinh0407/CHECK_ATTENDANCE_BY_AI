@@ -29,11 +29,11 @@ const ROLE_CLIENT_CONFIG = {
 }
 
 const ROLE_DESCRIPTIONS = {
-  manager:    'Quản lý tài khoản người dùng, phân quyền và cấu hình hệ thống',
-  hr:         'Quản lý hồ sơ nhân viên, phòng ban, chức danh và chấm công',
-  accountant: 'Tính lương, bảng lương, thuế và bảo hiểm xã hội',
-  supervisor: 'Duyệt đơn từ, phê duyệt lương và xem báo cáo',
-  employee:   'Xem thông tin cá nhân, lịch sử chấm công và gửi đơn từ',
+  manager:    'Manage user accounts, permissions, and system settings',
+  hr:         'Manage employee profiles, departments, job titles, and attendance',
+  accountant: 'Handle payroll, payslips, taxes, and social insurance',
+  supervisor: 'Approve requests, review payroll, and view reports',
+  employee:   'View personal information, attendance history, and submit requests',
 }
 
 function App() {
@@ -48,12 +48,12 @@ function App() {
     setError('')
 
     if (!selectedRole) {
-      setError('Vui lòng chọn vai trò đăng nhập')
+      setError('Please select a login role')
       return
     }
 
     if (!email || !password) {
-      setError('Vui lòng nhập email và mật khẩu')
+      setError('Please enter your email and password')
       return
     }
 
@@ -71,7 +71,7 @@ function App() {
       if (data.status === 'success') {
         const cfg = ROLE_CLIENT_CONFIG[selectedRole]
         if (!cfg) {
-          setError('Cấu hình client cho vai trò này chưa có.')
+          setError('Client configuration for this role is not available yet.')
           setLoading(false)
           return
         }
@@ -79,11 +79,11 @@ function App() {
         const dest = `${cfg.origin}${cfg.path}?token=${tokenParam}`
         window.location.href = dest
       } else {
-        setError(data.message || 'Đăng nhập thất bại')
+        setError(data.message || 'Login failed')
       }
     } catch (err) {
       console.error('Login error:', err)
-      setError('Không thể kết nối đến máy chủ. Vui lòng thử lại.')
+      setError('Unable to connect to the server. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -93,15 +93,15 @@ function App() {
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          <h1>Hệ thống Quản lý Nhân sự</h1>
+          <h1>Human Resource Management System</h1>
           <p style={{ fontSize: '13px', color: '#718096', marginTop: '4px' }}>
-            Human Resource Management System
+            Unified access portal for role-based HR operations
           </p>
         </div>
 
         <form onSubmit={handleLogin} className="login-form">
           <div className="form-group">
-            <label htmlFor="role">Vai trò đăng nhập</label>
+            <label htmlFor="role">Login role</label>
             <select
               id="role"
               value={selectedRole}
@@ -109,12 +109,12 @@ function App() {
               className="form-select"
               required
             >
-              <option value="">-- Chọn vai trò --</option>
-              <option value="manager">🏢 Giám đốc (Manager)</option>
-              <option value="hr">👥 Nhân sự (HR Staff)</option>
-              <option value="accountant">💰 Kế toán (Accountant)</option>
-              <option value="supervisor">✅ Quản lý (Supervisor)</option>
-              <option value="employee">👤 Nhân viên (Employee)</option>
+              <option value="">-- Select a role --</option>
+              <option value="manager">🏢 Director (Manager)</option>
+              <option value="hr">👥 HR Staff</option>
+              <option value="accountant">💰 Accountant</option>
+              <option value="supervisor">✅ Supervisor</option>
+              <option value="employee">👤 Employee</option>
             </select>
             {selectedRole && (
               <p className="role-description">
@@ -131,20 +131,20 @@ function App() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="form-input"
-              placeholder="Nhập email của bạn"
+              placeholder="Enter your email"
               required
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Mật khẩu</label>
+            <label htmlFor="password">Password</label>
             <input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="form-input"
-              placeholder="Nhập mật khẩu"
+              placeholder="Enter your password"
               required
             />
           </div>
@@ -160,14 +160,14 @@ function App() {
             className="login-button"
             disabled={loading}
           >
-            {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+            {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
 
         <div className="login-footer">
-          <p>Chọn đúng vai trò để truy cập ứng dụng tương ứng</p>
+          <p>Select the correct role to access the corresponding app</p>
           <p style={{ fontSize: '11px', color: '#a0aec0', marginTop: '8px' }}>
-            💡 Tài khoản Manager có thể truy cập tất cả portal
+            💡 Manager accounts can access all portals
           </p>
         </div>
       </div>
