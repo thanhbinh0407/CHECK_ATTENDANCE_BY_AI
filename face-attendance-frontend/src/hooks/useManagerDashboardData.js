@@ -8,7 +8,7 @@ function authHeaders() {
 }
 
 function currency(v) {
-  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(Number(v || 0));
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "VND" }).format(Number(v || 0));
 }
 
 function extractList(data, keys) {
@@ -87,7 +87,7 @@ export function useManagerDashboardData() {
         if (!byUser.has(uid)) {
           byUser.set(uid, {
             userId: log.userId,
-            name: userNameMap.get(uid) || log.detectedName || `Nhân viên #${log.userId}`,
+            name: userNameMap.get(uid) || log.detectedName || `Employee #${log.userId}`,
             firstIn: null,
             lastOut: null,
             lastType: null,
@@ -113,28 +113,28 @@ export function useManagerDashboardData() {
         .map((u) => {
           const endTime = u.lastType === "IN" ? now : u.lastOut ? u.lastOut.getTime() : now;
           const durationMs = Math.max(0, endTime - u.firstIn.getTime());
-          const status = u.lastType === "IN" ? "Đang làm việc" : "Đã checkout";
+          const status = u.lastType === "IN" ? "Working" : "Checked Out";
           return {
             userId: u.userId,
             name: u.name,
             status,
             durationMs,
             durationText: formatDuration(durationMs),
-            firstInText: u.firstIn.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+            firstInText: u.firstIn.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
             lastActionText: u.lastAt
-              ? u.lastAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+              ? u.lastAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
               : "—",
           };
         })
         .sort((a, b) => {
-          if (a.status !== b.status) return a.status === "Đang làm việc" ? -1 : 1;
+          if (a.status !== b.status) return a.status === "Working" ? -1 : 1;
           return b.durationMs - a.durationMs;
         });
 
       setWorkDurations(workRows);
       setWorkSummary({
-        active: workRows.filter((r) => r.status === "Đang làm việc").length,
-        finished: workRows.filter((r) => r.status === "Đã checkout").length,
+        active: workRows.filter((r) => r.status === "Working").length,
+        finished: workRows.filter((r) => r.status === "Checked Out").length,
       });
 
       const leaveJson = await leaveRes.json();
@@ -175,7 +175,7 @@ export function useManagerDashboardData() {
           employeeName: target.name || `User #${log.userId}`,
           type: "role",
           effectiveDate: when,
-          title: `Vai trò: ${log.oldRole} → ${log.newRole}${log.reason ? ` — ${log.reason}` : ""}`,
+          title: `Role: ${log.oldRole} -> ${log.newRole}${log.reason ? ` - ${log.reason}` : ""}`,
         });
       });
       detailResponses.filter(Boolean).forEach((d) => {
@@ -205,24 +205,24 @@ export function useManagerDashboardData() {
         setRecentChanges([
           {
             id: "sample-1",
-            employeeName: "Nguyễn Văn A",
+            employeeName: "Nguyen Van A",
             type: "job",
             effectiveDate: new Date().toISOString(),
-            title: "Thăng chức: Junior Dev → Senior Dev",
+            title: "Promotion: Junior Dev -> Senior Dev",
           },
           {
             id: "sample-2",
-            employeeName: "Trần Thị B",
+            employeeName: "Tran Thi B",
             type: "salary",
             effectiveDate: new Date().toISOString(),
-            title: "Điều chỉnh lương cơ bản",
+            title: "Base salary adjustment",
           },
         ]);
       } else {
         setRecentChanges(finalFeed);
       }
     } catch (e) {
-      setError(e.message || "Không tải được dữ liệu dashboard");
+      setError(e.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
