@@ -271,7 +271,7 @@ export default function D02LTReport() {
             const formatNumber = (value) => {
               if (!value || value === 0) return "";
               try {
-                return parseFloat(value).toLocaleString('vi-VN');
+                return parseFloat(value).toLocaleString("en-US");
               } catch (e) {
                 return String(value);
               }
@@ -290,7 +290,7 @@ export default function D02LTReport() {
                 if (!isNaN(start.getTime()) && start <= refDate) {
                   const years = (refDate - start) / (1000 * 60 * 60 * 24 * 365.25);
                   const fullYears = Math.floor(years);
-                  if (fullYears >= 0) seniorityJobStr = fullYears === 0 ? "< 1 năm" : `${fullYears} năm`;
+                  if (fullYears >= 0) seniorityJobStr = fullYears === 0 ? "< 1 year" : `${fullYears} yr`;
                 }
               } catch (e) {
                 console.warn("Error parsing startDate for seniority:", emp.id, e);
@@ -989,18 +989,18 @@ export default function D02LTReport() {
   return (
     <div style={containerStyle}>
       <h2 style={{ marginBottom: theme.spacing.lg, color: theme.neutral.gray900 }}>
-        📊 Báo cáo tình trạng việc làm & tham gia BHXH/BHYT/BHTN (Form D02-LT)
+        📊 Employment &amp; social/health/unemployment insurance participation (Form D02-LT)
       </h2>
 
       {/* Company Information */}
       <div style={formSectionStyle}>
         <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
-          Thông tin đơn vị báo cáo
+          Reporting unit
         </h3>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
           <div>
-            <label style={labelStyle}>Tên đơn vị: *</label>
+            <label style={labelStyle}>Unit name: *</label>
             <input
               type="text"
               style={inputStyle}
@@ -1010,30 +1010,30 @@ export default function D02LTReport() {
             />
           </div>
           <div>
-            <label style={labelStyle}>Mã đơn vị:</label>
+            <label style={labelStyle}>Unit code:</label>
             <input
               type="text"
               style={inputStyle}
               value={companyInfo.code}
               onChange={(e) => handleCompanyInfoChange("code", e.target.value)}
-              placeholder="Mã đơn vị theo VSS"
+              placeholder="Unit code (per VSS)"
             />
           </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
           <div>
-            <label style={labelStyle}>Mã số thuế:</label>
+            <label style={labelStyle}>Tax code:</label>
             <input
               type="text"
               style={inputStyle}
               value={companyInfo.taxCode}
               onChange={(e) => handleCompanyInfoChange("taxCode", e.target.value)}
-              placeholder="Mã số thuế"
+              placeholder="Tax identification number"
             />
           </div>
           <div>
-            <label style={labelStyle}>Số báo cáo:</label>
+            <label style={labelStyle}>Report number:</label>
             <input
               type="text"
               style={inputStyle}

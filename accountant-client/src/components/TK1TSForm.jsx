@@ -507,9 +507,9 @@ export default function TK1TSForm() {
             <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.2].</strong> Hamlet: ${formData.addressWard || "_____"}</div>
             <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.3].</strong> Commune: ${formData.addressDistrict || "_____"}</div>
             <div style="margin-left: 20px; margin-bottom: 8px;"><strong>[07.4].</strong> Province/City: ${formData.addressProvince || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[08].</strong> CCCD/CMND/Hộ chiếu: ${formData.idNumber || "_____"} </div>
-            <div style="margin-bottom: 8px; margin-left: 20px;"><strong>[08.1].</strong> Ngày cấp: ${formData.idIssueDate ? formatDateDDMMYYYY(formData.idIssueDate) : "_____/_____/_____"} <strong>[08.2].</strong> Nơi cấp: ${formData.idIssuePlace || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[09].</strong> Số điện thoại: ${formData.phoneNumber || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[08].</strong> ID card / passport: ${formData.idNumber || "_____"} </div>
+            <div style="margin-bottom: 8px; margin-left: 20px;"><strong>[08.1].</strong> Date issued: ${formData.idIssueDate ? formatDateDDMMYYYY(formData.idIssueDate) : "_____/_____/_____"} <strong>[08.2].</strong> Place issued: ${formData.idIssuePlace || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[09].</strong> Phone number: ${formData.phoneNumber || "_____"}</div>
             <div style="margin-bottom: 8px;"><strong>[10].</strong> Parent/guardian name (for children under 6): ${formData.parentGuardianName || "_____"}</div>
             <div style="margin-bottom: 8px;"><strong>[11].</strong> Contribution amount: ${formData.contributionAmount || "_____"} <strong>[12].</strong> Contribution method: ${formData.contributionMethod || "_____"}</div>
             <div style="margin-bottom: 8px;"><strong>[13].</strong> Initial health care provider: ${formData.healthInsuranceProvider || "_____"}</div>
@@ -524,7 +524,7 @@ export default function TK1TSForm() {
             <div style="margin-bottom: 8px;"><strong>[02].</strong> Date of birth: ${formData.dateOfBirth || "___/___/_____"} <strong>[03].</strong> Social Insurance number: ${formData.socialInsuranceNumber || "_____"}</div>
             <div style="margin-bottom: 8px;"><strong>[04].</strong> Requested changes:</div>
             <div style="margin-left: 20px; margin-bottom: 8px; white-space: pre-wrap;">${formData.changeContent || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[05].</strong> Giấy tờ kèm theo (nếu có):</div>
+            <div style="margin-bottom: 8px;"><strong>[05].</strong> Supporting documents (if any):</div>
             <div style="margin-left: 20px; margin-bottom: 8px; white-space: pre-wrap;">${formData.attachedDocuments || "_____"}</div>
           </div>
         `;
@@ -534,9 +534,9 @@ export default function TK1TSForm() {
         <div style="margin-top: 30px; margin-bottom: 20px;">
           <div style="margin-bottom: 15px;">I hereby declare that the above information is true and I take full legal responsibility for this declaration.</div>
           <div style="text-align: right; margin-top: 20px;">
-            <div>${formData.declarationPlace || ".........." }, ngày ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}</div>
-            <div style="margin-top: 15px; font-weight: bold;">Người kê khai</div>
-            <div style="margin-top: 5px;">(Ký, ghi rõ họ tên)</div>
+            <div>${formData.declarationPlace || ".........." }, ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}</div>
+            <div style="margin-top: 15px; font-weight: bold;">Declarant</div>
+            <div style="margin-top: 5px;">(Sign, print full name)</div>
           </div>
         </div>
       `;
@@ -587,9 +587,9 @@ export default function TK1TSForm() {
             <div style="margin-top: 30px;">
               <div style="margin-bottom: 15px;">I hereby declare that the above information is true and I take full legal responsibility for this declaration.</div>
               <div style="text-align: right; margin-top: 20px;">
-                <div>${formData.declarationPlace || ".........." }, ngày ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}</div>
-                <div style="margin-top: 15px; font-weight: bold;">Người kê khai</div>
-                <div style="margin-top: 5px;">(Ký, ghi rõ họ tên)</div>
+                <div>${formData.declarationPlace || ".........." }, ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}</div>
+                <div style="margin-top: 15px; font-weight: bold;">Declarant</div>
+                <div style="margin-top: 5px;">(Sign, print full name)</div>
               </div>
             </div>
           </div>
@@ -963,21 +963,21 @@ export default function TK1TSForm() {
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: `${formData.declarationPlace || ".........." }, ngày ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}` })
+            new TextRun({ text: `${formData.declarationPlace || ".........." }, ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}` })
           ],
           alignment: AlignmentType.RIGHT,
           spacing: { after: 300 }
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: "Người kê khai", bold: true })
+            new TextRun({ text: "Declarant", bold: true })
           ],
           alignment: AlignmentType.RIGHT,
           spacing: { after: 150 }
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: "(Ký, ghi rõ họ tên)" })
+            new TextRun({ text: "(Sign, print full name)" })
           ],
           alignment: AlignmentType.RIGHT,
           spacing: { after: 400 }
@@ -1085,21 +1085,21 @@ export default function TK1TSForm() {
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: `${formData.declarationPlace || ".........." }, ngày ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}` })
+              new TextRun({ text: `${formData.declarationPlace || ".........." }, ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}` })
             ],
             alignment: AlignmentType.RIGHT,
             spacing: { after: 300 }
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: "Người kê khai", bold: true })
+              new TextRun({ text: "Declarant", bold: true })
             ],
             alignment: AlignmentType.RIGHT,
             spacing: { after: 150 }
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: "(Ký, ghi rõ họ tên)" })
+              new TextRun({ text: "(Sign, print full name)" })
             ],
             alignment: AlignmentType.RIGHT
           })
@@ -1186,12 +1186,12 @@ export default function TK1TSForm() {
   return (
     <div style={containerStyle}>
       <h2 style={{ marginBottom: theme.spacing.lg, color: theme.neutral.gray900 }}>
-        📋 Tờ khai tham gia Bảo hiểm Xã hội/Bảo hiểm Y tế (Mẫu TK1-TS)
+        📋 Social &amp; health insurance participation declaration (Form TK1-TS)
       </h2>
 
       {/* Employee Selection */}
       <div style={formSectionStyle}>
-        <label style={labelStyle}>Chọn nhân viên:</label>
+        <label style={labelStyle}>Employee:</label>
         <select
           style={inputStyle}
           value={selectedEmployee?.id || ""}
@@ -1211,7 +1211,7 @@ export default function TK1TSForm() {
 
       {/* Form Type Selection */}
       <div style={formSectionStyle}>
-        <label style={labelStyle}>Loại tờ khai:</label>
+        <label style={labelStyle}>Declaration type:</label>
         <div style={{ display: "flex", gap: theme.spacing.md }}>
           <button
             style={{
@@ -1497,7 +1497,7 @@ export default function TK1TSForm() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
               <div>
-                <label style={labelStyle}>[08] CCCD/CMND/Hộ chiếu:</label>
+                <label style={labelStyle}>[08] ID card / passport (CCCD / national ID / passport):</label>
                 <input
                   type="text"
                   style={selectedEmployee ? readOnlyInputStyle : inputStyle}
@@ -1520,7 +1520,7 @@ export default function TK1TSForm() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
               <div>
-                <label style={labelStyle}>[08.1] Ngày cấp:</label>
+                <label style={labelStyle}>[08.1] Date issued:</label>
                 <input
                   type="date"
                   style={selectedEmployee ? readOnlyInputStyle : inputStyle}
@@ -1530,7 +1530,7 @@ export default function TK1TSForm() {
                 />
               </div>
               <div>
-                <label style={labelStyle}>[08.2] Nơi cấp:</label>
+                <label style={labelStyle}>[08.2] Place issued:</label>
                 <input
                   type="text"
                   style={selectedEmployee ? readOnlyInputStyle : inputStyle}
@@ -1650,7 +1650,7 @@ export default function TK1TSForm() {
             </div>
 
             <div style={{ marginBottom: theme.spacing.md }}>
-              <label style={labelStyle}>[05] Giấy tờ kèm theo (nếu có):</label>
+              <label style={labelStyle}>[05] Supporting documents (if any):</label>
               <textarea
                 style={{ ...inputStyle, minHeight: "80px" }}
                 value={formData.attachedDocuments}
@@ -1665,21 +1665,21 @@ export default function TK1TSForm() {
       {/* Ngày tháng địa điểm kê khai */}
       <div style={formSectionStyle}>
         <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
-          Thông tin kê khai
+          Declaration details
         </h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
           <div>
-            <label style={labelStyle}>Địa điểm kê khai:</label>
+            <label style={labelStyle}>Declaration place:</label>
             <input
               type="text"
               style={inputStyle}
               value={formData.declarationPlace}
               onChange={(e) => handleInputChange("declarationPlace", e.target.value)}
-              placeholder="Ví dụ: TP. Hồ Chí Minh"
+              placeholder="e.g. Ho Chi Minh City"
             />
           </div>
           <div>
-            <label style={labelStyle}>Ngày kê khai:</label>
+            <label style={labelStyle}>Declaration date:</label>
             <input
               type="date"
               style={inputStyle}

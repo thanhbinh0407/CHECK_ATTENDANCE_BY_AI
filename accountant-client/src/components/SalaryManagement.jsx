@@ -45,6 +45,16 @@ if (!document.head.querySelector('style[data-salary-mgmt-animation]')) {
   document.head.appendChild(styleSheet);
 }
 
+/** Secondary line under base salary: job title · salary grade (from API User includes). */
+function baseSalaryContextLine(user) {
+  if (!user) return null;
+  const job = user.JobTitle?.name?.trim();
+  const g = user.SalaryGrade;
+  const grade = g ? [g.code, g.name].filter(Boolean).join(" — ") : "";
+  const parts = [job, grade].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
+
 export default function SalaryManagement() {
   const [salaries, setSalaries] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -155,7 +165,20 @@ export default function SalaryManagement() {
       list = list.filter((s) => {
         const name = (s.User?.name || "").toLowerCase();
         const code = (s.User?.employeeCode || "").toLowerCase();
-        return name.includes(q) || code.includes(q);
+        const dept = (s.User?.Department?.name || "").toLowerCase();
+        const job = (s.User?.JobTitle?.name || "").toLowerCase();
+        const grade = (
+          s.User?.SalaryGrade?.name ||
+          s.User?.SalaryGrade?.code ||
+          ""
+        ).toLowerCase();
+        return (
+          name.includes(q) ||
+          code.includes(q) ||
+          dept.includes(q) ||
+          job.includes(q) ||
+          grade.includes(q)
+        );
       });
     }
     const from = parseFilterInputDate(filterDateFrom);
@@ -691,7 +714,7 @@ export default function SalaryManagement() {
             <input
               id="salary-mgmt-search"
               type="search"
-              placeholder="Name or employee ID…"
+              placeholder="Name, ID, department, job title, or grade…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -832,7 +855,12 @@ export default function SalaryManagement() {
                 <th style={{ ...thStyle }} title="Payroll month and year (same period as Month/Year filter above)">
                   Pay period
                 </th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Base Salary</th>
+                <th
+                  style={{ ...thStyle, textAlign: "right" }}
+                  title="Recorded monthly base pay; job title and salary grade from employee profile"
+                >
+                  Base salary
+                </th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Bonus</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Deduction</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Net Salary</th>
@@ -843,6 +871,7 @@ export default function SalaryManagement() {
           <tbody>
               {filteredSalaries.map((salary, index) => {
               const statusBadge = getStatusBadge(salary.status);
+              const baseCtx = baseSalaryContextLine(salary.User);
               return (
                   <tr
                     key={salary.id}
@@ -862,7 +891,24 @@ export default function SalaryManagement() {
                     <td style={{ ...tdStyle, fontWeight: "600" }}>{salary.User?.name || "N/A"}</td>
                     <td style={{ ...tdStyle, fontWeight: "600", color: theme.accent.dark }}>{salary.User?.employeeCode || "N/A"}</td>
                     <td style={{ ...tdStyle, color: "#64748b", fontSize: "13px" }}>{formatPayPeriodLabel(salary)}</td>
-                    <td style={{ ...tdStyle, textAlign: "right", fontWeight: "600" }}>{formatCurrency(salary.baseSalary)}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", verticalAlign: "top" }}>
+                      <div style={{ fontWeight: "600" }}>{formatCurrency(salary.baseSalary)}</div>
+                      {baseCtx ? (
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            color: "#64748b",
+                            marginTop: "4px",
+                            lineHeight: 1.35,
+                            maxWidth: "260px",
+                            marginLeft: "auto",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {baseCtx}
+                        </div>
+                      ) : null}
+                    </td>
                     <td style={{ ...tdStyle, textAlign: "right", color: theme.accent.dark, fontWeight: "600" }}>+{formatCurrency(salary.bonus)}</td>
                     <td style={{ ...tdStyle, textAlign: "right", color: "#ef4444", fontWeight: "600" }}>-{formatCurrency(salary.deduction)}</td>
                     <td

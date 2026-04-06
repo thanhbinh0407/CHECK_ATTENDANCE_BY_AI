@@ -253,6 +253,7 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
       parseInt(year, 10)
     );
     const baseStr = Number(insurance.insuranceBase || 0).toLocaleString("en-US");
+    const rp = insurance.employeeRatesPercent || {};
     deductionBreakdown.push(
       {
         ruleName: "Social insurance (employee)",
@@ -261,7 +262,8 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
         amount: parseFloat(insurance.employee.socialInsurance.toFixed(2)),
         quantity: 1,
         amountType: "percentage",
-        triggerType: "insurance_social"
+        triggerType: "insurance_social",
+        appliedRatePercent: Number.isFinite(rp.social) ? rp.social : null,
       },
       {
         ruleName: "Health insurance (employee)",
@@ -270,7 +272,8 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
         amount: parseFloat(insurance.employee.healthInsurance.toFixed(2)),
         quantity: 1,
         amountType: "percentage",
-        triggerType: "insurance_health"
+        triggerType: "insurance_health",
+        appliedRatePercent: Number.isFinite(rp.health) ? rp.health : null,
       },
       {
         ruleName: "Unemployment insurance (employee)",
@@ -279,7 +282,8 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
         amount: parseFloat(insurance.employee.unemploymentInsurance.toFixed(2)),
         quantity: 1,
         amountType: "percentage",
-        triggerType: "insurance_unemployment"
+        triggerType: "insurance_unemployment",
+        appliedRatePercent: Number.isFinite(rp.unemployment) ? rp.unemployment : null,
       },
       {
         ruleName: "Personal income tax (PIT)",
@@ -291,7 +295,13 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
         amount: parseFloat(tax.taxAmount.toFixed(2)),
         quantity: 1,
         amountType: "fixed",
-        triggerType: "personal_income_tax"
+        triggerType: "personal_income_tax",
+        /** Same as tax.taxRate: effective average % on taxable income after reliefs (progressive 5%–35%) */
+        appliedRatePercent: tax.taxAmount > 0 && tax.taxRate != null ? tax.taxRate : null,
+        rateCaption:
+          tax.taxAmount <= 0
+            ? "Progressive brackets (5%–35%); no tax after reliefs"
+            : "Effective rate on taxable income after reliefs (progressive brackets)"
       }
     );
   } catch (err) {

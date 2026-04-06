@@ -280,7 +280,7 @@ function App() {
           <div className="acc-brand-mark" aria-hidden>
             💼
           </div>
-          <div className="acc-brand-title">Payroll &amp; BHXH</div>
+          <div className="acc-brand-title">Payroll &amp; statutory insurance</div>
           <div className="acc-brand-sub">Accountant · Dashboard</div>
         </div>
         <nav className="acc-nav">

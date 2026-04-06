@@ -21,6 +21,9 @@ function effectiveNetFromRecord(rec) {
 /** Map API User (Department, JobTitle, SalaryGrade) to modal fields */
 function mapUserToEmployeeView(user) {
   if (!user) return null;
+  const sg = user.SalaryGrade;
+  const gradeCombined =
+    sg && (sg.code || sg.name) ? [sg.code, sg.name].filter(Boolean).join(" — ") : undefined;
   return {
     id: user.id,
     name: user.name,
@@ -28,7 +31,9 @@ function mapUserToEmployeeView(user) {
     employeeId: user.employeeCode,
     department: user.Department?.name,
     jobTitle: user.JobTitle?.name,
-    salaryGrade: user.SalaryGrade?.name || user.SalaryGrade?.code
+    salaryGrade: gradeCombined || sg?.name || sg?.code,
+    salaryGradeLevel: sg?.level,
+    gradeScaleBase: sg?.baseSalary,
   };
 }
 
@@ -501,38 +506,91 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
     borderBottom: "1px solid rgba(0,0,0,0.06)"
   };
 
-  const renderDeductionLine = (row, idx, borderBottom) => (
-    <div
-      key={`${row.triggerType || "row"}-${idx}`}
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        gap: "12px",
-        padding: "8px 0",
-        borderBottom: borderBottom ? "1px solid rgba(0,0,0,0.08)" : "none",
-        alignItems: "flex-start"
-      }}
-    >
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ fontWeight: "600", color: "#c62828" }}>{labelForDeductionRule(row.ruleName)}</span>
-        {(row.reason || row.ruleDescription) && (
-          <span
-            style={{
-              display: "block",
-              fontSize: "11px",
-              color: "#666",
-              fontWeight: "400",
-              marginTop: "4px",
-              lineHeight: 1.35
-            }}
-          >
-            {row.reason || row.ruleDescription}
-          </span>
-        )}
-      </span>
-      <span style={{ fontWeight: "600", color: "#b71c1c", whiteSpace: "nowrap" }}>−₫{formatCurrency(row.amount)}</span>
-    </div>
-  );
+  const formatPct = (v) => {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  };
+
+  const renderDeductionLine = (row, idx, borderBottom) => {
+    const pctStr = formatPct(row.appliedRatePercent);
+    const isPit = row.triggerType === "personal_income_tax";
+    return (
+      <div
+        key={`${row.triggerType || "row"}-${idx}`}
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: "12px",
+          padding: "8px 0",
+          borderBottom: borderBottom ? "1px solid rgba(0,0,0,0.08)" : "none",
+          alignItems: "flex-start"
+        }}
+      >
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ fontWeight: "600", color: "#c62828" }}>{labelForDeductionRule(row.ruleName)}</span>
+          {pctStr != null && (
+            <span
+              style={{
+                fontWeight: "700",
+                color: "#6a1b9a",
+                marginLeft: "8px",
+                whiteSpace: "nowrap"
+              }}
+              title={
+                isPit
+                  ? "Effective average rate on taxable income after reliefs (progressive 5%–35%)"
+                  : "Statutory employee rate × insurance salary base (min/max caps may apply)"
+              }
+            >
+              {pctStr}%
+            </span>
+          )}
+          {!pctStr && isPit && !row.rateCaption && (
+            <span
+              style={{
+                display: "inline-block",
+                marginLeft: "8px",
+                fontSize: "11px",
+                fontWeight: "600",
+                color: "#6a1b9a"
+              }}
+            >
+              (progressive 5%–35%)
+            </span>
+          )}
+          {(row.reason || row.ruleDescription) && (
+            <span
+              style={{
+                display: "block",
+                fontSize: "11px",
+                color: "#666",
+                fontWeight: "400",
+                marginTop: "4px",
+                lineHeight: 1.35
+              }}
+            >
+              {row.reason || row.ruleDescription}
+            </span>
+          )}
+          {row.rateCaption && isPit && (
+            <span
+              style={{
+                display: "block",
+                fontSize: "11px",
+                color: "#7e57c2",
+                marginTop: "4px",
+                lineHeight: 1.35
+              }}
+            >
+              {row.rateCaption}
+            </span>
+          )}
+        </span>
+        <span style={{ fontWeight: "600", color: "#b71c1c", whiteSpace: "nowrap" }}>−₫{formatCurrency(row.amount)}</span>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -628,9 +686,61 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
             >
               <div>
                 <div style={{ fontSize: "14px", fontWeight: "600", color: "#1976d2", marginBottom: "4px" }}>Base salary</div>
-                <div style={{ fontSize: "12px", color: "#666" }}>Monthly base pay — click to expand</div>
+                <div style={{ fontSize: "12px", color: "#666" }}>
+                  Monthly base pay, job title &amp; grade — click to expand
+                </div>
                 {showBaseDetails && (
                   <div style={{ marginTop: "10px", fontSize: "12px", color: "#555" }}>
+                    {(emp?.jobTitle ||
+                      emp?.salaryGrade ||
+                      emp?.salaryGradeLevel != null ||
+                      num(emp?.gradeScaleBase) > 0) && (
+                      <div
+                        style={{
+                          marginBottom: "10px",
+                          paddingBottom: "8px",
+                          borderBottom: "1px solid rgba(0,0,0,0.08)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: "600",
+                            color: "#1976d2",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          Employee profile (position &amp; grade)
+                        </div>
+                        {emp?.jobTitle && (
+                          <div style={detailLineStyle}>
+                            <span>Job title</span>
+                            <span style={{ textAlign: "right" }}>{emp.jobTitle}</span>
+                          </div>
+                        )}
+                        {emp?.salaryGrade && (
+                          <div style={detailLineStyle}>
+                            <span>Salary grade</span>
+                            <span style={{ textAlign: "right" }}>{emp.salaryGrade}</span>
+                          </div>
+                        )}
+                        {emp?.salaryGradeLevel != null && emp.salaryGradeLevel !== "" && (
+                          <div style={detailLineStyle}>
+                            <span>Grade level</span>
+                            <span>{emp.salaryGradeLevel}</span>
+                          </div>
+                        )}
+                        {num(emp?.gradeScaleBase) > 0 && (
+                          <div style={detailLineStyle}>
+                            <span>Grade scale base (monthly)</span>
+                            <span>₫{formatCurrency(emp.gradeScaleBase)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <div style={{ fontSize: "11px", fontWeight: "600", color: "#444", marginBottom: "4px" }}>
+                      Payroll record
+                    </div>
                     <div style={detailLineStyle}>
                       <span>Recorded base salary</span>
                       <span>₫{formatCurrency(num(record?.baseSalary))}</span>
@@ -770,7 +880,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                 <div style={{ fontSize: "14px", fontWeight: "600", color: "#d32f2f", marginBottom: "4px" }}>Deductions</div>
                 <div style={{ fontSize: "12px", color: "#666" }}>
                   Attendance penalties, salary advance,{" "}
-                  <strong>PIT (TNCN)</strong> and <strong>SI/HI/UI (BHXH·BHYT·BHTN — employee)</strong> — click for lines
+                  <strong>PIT (personal income tax)</strong> and <strong>SI / HI / UI (employee share)</strong> — click for lines
                 </div>
                 {showDeductionDetails && (
                   <div style={{ marginTop: "12px", fontSize: "12px", color: "#555" }}>
@@ -972,7 +1082,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
                       <span>−₫{formatCurrency(totalDeductionApplied)}</span>
                     </div>
                     <div style={{ ...detailLineStyle, fontWeight: "700", borderBottom: "none" }}>
-                      <span>= Net (record / adjustment / detail)</span>
+                      <span>= Total</span>
                       <span>
                         {netPayShown < 0 ? "−" : ""}₫{formatCurrency(Math.abs(netPayShown))}
                       </span>
