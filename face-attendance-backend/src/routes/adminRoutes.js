@@ -6,6 +6,7 @@ import {
   updateEmployee,
   deleteEmployee,
   permanentlyDeleteEmployee,
+  restoreEmployee,
   resetEmployeePassword,
   getEmployeeAttendanceStats,
   getEmployeeDetailedInfo,
@@ -139,10 +140,18 @@ router.delete(
   deleteEmployee
 );
 
+// PATCH restore employee (reactivate) - HR or Manager
+router.patch(
+  "/employees/:id/restore",
+  hrOrManager,
+  requirePermission(PERMISSIONS["user:update"]),
+  restoreEmployee
+);
+
 // DELETE employee permanently - Manager only
 router.delete(
   "/employees/:id/permanent",
-  managerOnly,
+  hrOrManager,
   requirePermission(PERMISSIONS["user:delete"]),
   permanentlyDeleteEmployee
 );

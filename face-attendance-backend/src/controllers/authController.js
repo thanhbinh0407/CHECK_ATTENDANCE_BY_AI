@@ -41,12 +41,13 @@ export const register = async (req, res) => {
       password: hashedPassword,
       employeeCode: employeeCode || `EMP${Date.now()}`,
       role: assignedRole,
-      isActive: true
+      isActive: true,
+      tokenVersion: 0,
     });
 
     // Generate JWT
     const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion || 0 },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRE }
     );
@@ -132,7 +133,7 @@ export const login = async (req, res) => {
 
     // Generate JWT
     const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion || 0 },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRE }
     );
@@ -151,6 +152,7 @@ export const login = async (req, res) => {
         email: user.email,
         role: user.role,
         employeeCode: user.employeeCode,
+        avatarUrl: user.avatarUrl || null,
         permissions,
       },
       permissions,
@@ -186,6 +188,22 @@ export const getCurrentUser = async (req, res) => {
       });
     }
 
+    if (!user.isActive) {
+      return res.status(403).json({
+        status: "error",
+        message: "User account is inactive"
+      });
+    }
+
+    const tokenVer = Number(decoded.tokenVersion || 0);
+    const dbVer = Number(user.tokenVersion || 0);
+    if (tokenVer !== dbVer || decoded.role !== user.role) {
+      return res.status(401).json({
+        status: "error",
+        message: "Session has been invalidated. Please login again."
+      });
+    }
+
     const permissions = getPermissionsByRole(user.role);
 
     return res.json({
@@ -196,6 +214,7 @@ export const getCurrentUser = async (req, res) => {
         email: user.email,
         role: user.role,
         employeeCode: user.employeeCode,
+        avatarUrl: user.avatarUrl || null,
         permissions,
       },
       permissions,

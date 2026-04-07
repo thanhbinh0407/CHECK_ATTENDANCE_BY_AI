@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import { getPermissionsByRole } from "../config/permissionMatrix.js";
+import User from "../models/pg/User.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 
@@ -24,9 +25,43 @@ export const authMiddleware = (req, res, next) => {
 
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET);
+    // Attach permissions from token role first (fast path).
     decoded.permissions = getPermissionsByRole(decoded.role);
-    req.user = decoded;
-    next();
+
+    // Validate session against current DB state (force-logout on role changes, deactivation, etc.)
+    Promise.resolve()
+      .then(async () => {
+        const dbUser = await User.findByPk(decoded.userId, {
+          attributes: ["id", "role", "isActive", "tokenVersion"],
+        });
+
+        if (!dbUser) {
+          return res.status(401).json({ status: "error", message: "Invalid session" });
+        }
+
+        if (!dbUser.isActive) {
+          return res.status(403).json({ status: "error", message: "User account is inactive" });
+        }
+
+        const tokenVer = Number(decoded.tokenVersion || 0);
+        const dbVer = Number(dbUser.tokenVersion || 0);
+        if (tokenVer !== dbVer) {
+          return res.status(401).json({ status: "error", message: "Session has been invalidated. Please login again." });
+        }
+
+        if (decoded.role !== dbUser.role) {
+          return res.status(401).json({ status: "error", message: "Role changed. Please login again." });
+        }
+
+        // Use authoritative role/permissions from DB (optional safety).
+        decoded.role = dbUser.role;
+        decoded.permissions = getPermissionsByRole(dbUser.role);
+        req.user = decoded;
+        return next();
+      })
+      .catch(() => {
+        return res.status(401).json({ status: "error", message: "Invalid token" });
+      });
   } catch (err) {
     return res.status(401).json({
       status: "error",

@@ -37,6 +37,46 @@ body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #2d3748;
 
 /* ─── Main area ───────────────────────────────────────────────── */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.portal-avatar-btn {
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.portal-avatar-img {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  border: 2px solid #e2e8f0;
+  box-sizing: border-box;
+}
+.portal-avatar-fallback {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  border: 2px solid #e2e8f0;
+  box-sizing: border-box;
+}
+.portal-topbar-email {
+  font-size: 13px;
+  color: #64748b;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .topbar {
   background: #fff; padding: 14px 24px; border-bottom: 1px solid #e2e8f0;
   display: flex; justify-content: space-between; align-items: center;
@@ -132,6 +172,7 @@ tr:hover td { background: #f7faff; }
 .btn-tbl-edit    { background: #e2e8f0; color: #2d3748; }
 .btn-tbl-reset   { background: #fefcbf; color: #744210; }
 .btn-tbl-delete  { background: #fed7d7; color: #9b2c2c; }
+.btn-tbl-restore { background: #c6f6d5; color: #276749; }
 
 /* ─── Detail Modal ─────────────────────────────────────────────── */
 .detail-modal { background: #fff; border-radius: 12px; padding: 24px; width: 900px; max-width: 96vw; max-height: 90vh; overflow-y: auto; }

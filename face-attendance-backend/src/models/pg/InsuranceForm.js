@@ -24,8 +24,7 @@ const InsuranceForm = sequelize.define('InsuranceForm', {
   },
   formType: {
     type: DataTypes.ENUM('TK1_TS', 'D02_LT'),
-    allowNull: false,
-    comment: 'Loại form: TK1-TS hoặc D02-LT'
+    allowNull: false
   },
   formData: {
     type: DataTypes.JSONB,

@@ -7,11 +7,21 @@ import Department from "../models/pg/Department.js";
 import JobTitle from "../models/pg/JobTitle.js";
 import SalaryGrade from "../models/pg/SalaryGrade.js";
 import Dependent from "../models/pg/Dependent.js";
+import DependentDocument from "../models/pg/DependentDocument.js";
 import Qualification from "../models/pg/Qualification.js";
 import WorkExperience from "../models/pg/WorkExperience.js";
 import JobHistory from "../models/pg/JobHistory.js";
 import SalaryHistory from "../models/pg/SalaryHistory.js";
 import RoleChangeAudit from "../models/pg/RoleChangeAudit.js";
+import Document from "../models/pg/Document.js";
+import Notification from "../models/pg/Notification.js";
+import Payroll from "../models/pg/Payroll.js";
+import PayrollDetail from "../models/pg/PayrollDetail.js";
+import OvertimeRequest from "../models/pg/OvertimeRequest.js";
+import BusinessTripRequest from "../models/pg/BusinessTripRequest.js";
+import SalaryAdvance from "../models/pg/SalaryAdvance.js";
+import ApprovalWorkflow from "../models/pg/ApprovalWorkflow.js";
+import InsuranceForm from "../models/pg/InsuranceForm.js";
 import sequelize from "../db/sequelize.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
@@ -48,6 +58,131 @@ const sumAllowances = (obj) => {
     toNumber(obj?.responsibilityAllowance)
   );
 };
+
+/**
+ * Xóa dữ liệu phụ thuộc user trước khi xóa bản ghi users (tránh lỗi FK như salaries_userId_fkey).
+ */
+async function purgeEmployeeRelatedRows(userId, transaction) {
+  const t = { transaction };
+  const uid = Number(userId);
+  if (!Number.isFinite(uid)) return;
+
+  await User.update({ managerId: null }, { where: { managerId: uid }, ...t });
+  await Department.update({ managerId: null }, { where: { managerId: uid }, ...t });
+  await Document.update({ uploadedBy: null }, { where: { uploadedBy: uid }, ...t });
+  await Payroll.update({ approvedBy: null }, { where: { approvedBy: uid }, ...t });
+
+  const leaves = await LeaveRequest.findAll({ where: { userId: uid }, attributes: ["id"], ...t });
+  const leaveIds = leaves.map((r) => r.id);
+  if (leaveIds.length) {
+    await ApprovalWorkflow.destroy({
+      where: { requestType: "leave", requestId: { [Op.in]: leaveIds } },
+      ...t,
+    });
+  }
+
+  const otRows = await OvertimeRequest.findAll({ where: { userId: uid }, attributes: ["id"], ...t });
+  const otIds = otRows.map((r) => r.id);
+  if (otIds.length) {
+    await ApprovalWorkflow.destroy({
+      where: { requestType: "overtime", requestId: { [Op.in]: otIds } },
+      ...t,
+    });
+  }
+
+  const trips = await BusinessTripRequest.findAll({ where: { userId: uid }, attributes: ["id"], ...t });
+  const tripIds = trips.map((r) => r.id);
+  if (tripIds.length) {
+    await ApprovalWorkflow.destroy({
+      where: { requestType: "business_trip", requestId: { [Op.in]: tripIds } },
+      ...t,
+    });
+  }
+
+  const advances = await SalaryAdvance.findAll({ where: { userId: uid }, attributes: ["id"], ...t });
+  const advIds = advances.map((r) => r.id);
+  if (advIds.length) {
+    await ApprovalWorkflow.destroy({
+      where: { requestType: "salary_advance", requestId: { [Op.in]: advIds } },
+      ...t,
+    });
+  }
+
+  await ApprovalWorkflow.destroy({ where: { approverId: uid }, ...t });
+
+  await LeaveRequest.destroy({ where: { userId: uid }, ...t });
+  await OvertimeRequest.destroy({ where: { userId: uid }, ...t });
+  await BusinessTripRequest.destroy({ where: { userId: uid }, ...t });
+  await SalaryAdvance.destroy({ where: { userId: uid }, ...t });
+
+  const payrolls = await Payroll.findAll({ where: { userId: uid }, attributes: ["id"], ...t });
+  for (const p of payrolls) {
+    await PayrollDetail.destroy({ where: { payrollId: p.id }, ...t });
+  }
+  await Payroll.destroy({ where: { userId: uid }, ...t });
+
+  await Salary.destroy({ where: { userId: uid }, ...t });
+  await Notification.destroy({ where: { userId: uid }, ...t });
+  await Qualification.destroy({ where: { userId: uid }, ...t });
+  const dependents = await Dependent.findAll({ where: { userId: uid }, attributes: ["id"], ...t });
+  const depIds = dependents.map((d) => d.id);
+  if (depIds.length) {
+    await DependentDocument.destroy({
+      where: { dependentId: { [Op.in]: depIds } },
+      ...t,
+    });
+  }
+  await Dependent.destroy({ where: { userId: uid }, ...t });
+  await WorkExperience.destroy({ where: { userId: uid }, ...t });
+  await Document.destroy({ where: { userId: uid }, ...t });
+  await InsuranceForm.destroy({ where: { userId: uid }, ...t });
+  await JobHistory.destroy({ where: { userId: uid }, ...t });
+  await SalaryHistory.destroy({ where: { userId: uid }, ...t });
+  await RoleChangeAudit.destroy({
+    where: { [Op.or]: [{ userId: uid }, { changedBy: uid }] },
+    ...t,
+  });
+  await AttendanceLog.destroy({ where: { userId: uid }, ...t });
+  await FaceProfile.destroy({ where: { userId: uid }, ...t });
+}
+
+async function verifyActorPasswordOrThrow(req, transaction) {
+  const actorId = req.user?.userId ?? req.user?.id;
+  if (!actorId) {
+    const err = new Error("Unauthorized");
+    err.statusCode = 401;
+    throw err;
+  }
+
+  const actor = await User.findByPk(actorId, { transaction });
+  if (!actor) {
+    const err = new Error("Unauthorized");
+    err.statusCode = 401;
+    throw err;
+  }
+
+  const password = req.body?.password;
+  if (!password || typeof password !== "string") {
+    const err = new Error("Password is required for permanent delete");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (!actor.password) {
+    const err = new Error("Actor has no password set");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const ok = await bcrypt.compare(password, actor.password);
+  if (!ok) {
+    const err = new Error("Incorrect password");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  return actor;
+}
 
 // Get all employees
 export const getAllEmployees = async (req, res) => {
@@ -361,6 +496,8 @@ export const updateEmployee = async (req, res) => {
       await employee.update(updateData, { transaction });
 
       if (roleAuditPayload) {
+        // Force logout for the target user if role changed
+        await employee.update({ tokenVersion: Number(employee.tokenVersion || 0) + 1 }, { transaction });
         await RoleChangeAudit.create(
           {
             userId: employee.id,
@@ -516,13 +653,13 @@ export const updateEmployee = async (req, res) => {
   }
 };
 
-// Delete employee (hard delete - remove completely)
+// Delete employee (soft delete / deactivate)
 export const deleteEmployee = async (req, res) => {
   try {
     const { id } = req.params;
 
     const employee = await User.findOne({
-      where: { id, role: "employee" }
+      where: { id }
     });
 
     if (!employee) {
@@ -532,27 +669,34 @@ export const deleteEmployee = async (req, res) => {
       });
     }
 
-    const employeeName = employee.name;
+    const actorId = req.user?.userId ?? req.user?.id ?? null;
+    if (actorId && Number(actorId) === Number(employee.id)) {
+      return res.status(400).json({ status: "error", message: "Cannot deactivate your own account" });
+    }
 
-    // Delete attendance logs first (foreign key dependency)
-    await AttendanceLog.destroy({ where: { userId: id } });
-    console.log(`Deleted attendance logs for employee ${id}`);
+    if (employee.role === "manager") {
+      return res.status(403).json({ status: "error", message: "Cannot deactivate manager account" });
+    }
 
-    // Delete face profiles
-    await FaceProfile.destroy({ where: { userId: id } });
-    console.log(`Deleted face profiles for employee ${id}`);
+    if (employee.isActive === false) {
+      return res.json({
+        status: "success",
+        message: "User already inactive",
+        user: { id: employee.id, name: employee.name, isActive: false },
+      });
+    }
 
-    // Delete user
-    await employee.destroy();
-    console.log(`Employee permanently deleted: ${employeeName} (ID: ${id})`);
+    await employee.update({
+      isActive: false,
+      deactivatedAt: new Date(),
+      employmentStatus: "terminated",
+    });
+    console.log(`User deactivated: ${employee.name} (ID: ${id})`);
 
     return res.json({
       status: "success",
-      message: "Employee deleted successfully",
-      deletedEmployee: {
-        id: id,
-        name: employeeName
-      }
+      message: "User deactivated successfully",
+      user: { id: employee.id, name: employee.name, isActive: employee.isActive },
     });
   } catch (err) {
     console.error("Error deleting employee:", err);
@@ -563,13 +707,53 @@ export const deleteEmployee = async (req, res) => {
   }
 };
 
+// Restore employee (reactivate)
+export const restoreEmployee = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const employee = await User.findByPk(id);
+    if (!employee) {
+      return res.status(404).json({ status: "error", message: "Employee not found" });
+    }
+
+    if (employee.role === "manager") {
+      return res.status(403).json({ status: "error", message: "Cannot restore manager account via this endpoint" });
+    }
+
+    if (employee.isActive === true) {
+      return res.json({
+        status: "success",
+        message: "User already active",
+        user: { id: employee.id, name: employee.name, isActive: true },
+      });
+    }
+
+    await employee.update({
+      isActive: true,
+      deactivatedAt: null,
+      employmentStatus: employee.employmentStatus === "terminated" ? "active" : employee.employmentStatus,
+    });
+    console.log(`User restored: ${employee.name} (ID: ${id})`);
+
+    return res.json({
+      status: "success",
+      message: "User restored successfully",
+      user: { id: employee.id, name: employee.name, isActive: employee.isActive },
+    });
+  } catch (err) {
+    console.error("Error restoring employee:", err);
+    return res.status(500).json({ status: "error", message: err.message });
+  }
+};
+
 // Permanently delete employee (hard delete)
 export const permanentlyDeleteEmployee = async (req, res) => {
   try {
     const { id } = req.params;
 
     const employee = await User.findOne({
-      where: { id, role: "employee" }
+      where: { id }
     });
 
     if (!employee) {
@@ -579,11 +763,27 @@ export const permanentlyDeleteEmployee = async (req, res) => {
       });
     }
 
-    // Delete face profiles first
-    await FaceProfile.destroy({ where: { userId: id } });
+    if (employee.role === "manager") {
+      return res.status(403).json({ status: "error", message: "Cannot delete manager account" });
+    }
 
-    // Delete user
-    await employee.destroy();
+    if (employee.isActive !== false) {
+      return res.status(400).json({
+        status: "error",
+        message: "User must be inactive (deactivated) before permanent delete"
+      });
+    }
+
+    const actorId = req.user?.userId ?? req.user?.id ?? null;
+    if (actorId && Number(actorId) === Number(employee.id)) {
+      return res.status(400).json({ status: "error", message: "Cannot permanently delete your own account" });
+    }
+
+    await sequelize.transaction(async (transaction) => {
+      await verifyActorPasswordOrThrow(req, transaction);
+      await purgeEmployeeRelatedRows(id, transaction);
+      await employee.destroy({ transaction });
+    });
 
     console.log(`Employee permanently deleted: ${employee.name} (ID: ${id})`);
 
@@ -593,7 +793,8 @@ export const permanentlyDeleteEmployee = async (req, res) => {
     });
   } catch (err) {
     console.error("Error permanently deleting employee:", err);
-    return res.status(500).json({
+    const statusCode = err.statusCode || 500;
+    return res.status(statusCode).json({
       status: "error",
       message: err.message
     });
@@ -1632,6 +1833,19 @@ export const getEmployeeHistory = async (req, res) => {
   }
 };
 
+const ELEVATED_ROLES = new Set(["manager", "hr", "accountant", "supervisor"]);
+
+function profileGapsForElevatedRole(user) {
+  if (!user) return ["user"];
+  const missing = [];
+  if (!user.phoneNumber || !String(user.phoneNumber).trim()) missing.push("phoneNumber");
+  if (!user.departmentId) missing.push("departmentId");
+  if (!user.jobTitleId) missing.push("jobTitleId");
+  if (!user.dateOfBirth) missing.push("dateOfBirth");
+  if (!user.idNumber || !String(user.idNumber).trim()) missing.push("idNumber");
+  return missing;
+}
+
 export const updateUserRole = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1644,7 +1858,19 @@ export const updateUserRole = async (req, res) => {
     }
 
     const targetUser = await User.findByPk(id, {
-      attributes: ["id", "name", "email", "employeeCode", "role", "isActive"],
+      attributes: [
+        "id",
+        "name",
+        "email",
+        "employeeCode",
+        "role",
+        "isActive",
+        "phoneNumber",
+        "departmentId",
+        "jobTitleId",
+        "dateOfBirth",
+        "idNumber",
+      ],
     });
 
     if (!targetUser) {
@@ -1655,17 +1881,39 @@ export const updateUserRole = async (req, res) => {
       return res.status(400).json({ status: "error", message: "Cannot change your own role" });
     }
 
+    if (ELEVATED_ROLES.has(role)) {
+      const missing = profileGapsForElevatedRole(targetUser);
+      if (missing.length) {
+        return res.status(400).json({
+          status: "error",
+          message:
+            "Hồ sơ nhân viên chưa đủ để gán vai trò có quyền. Cập nhật đầy đủ: số điện thoại, phòng ban, chức danh, ngày sinh, CMND/CCCD — giống hồ sơ nhân viên thông thường — rồi thử lại.",
+          missingFields: missing,
+        });
+      }
+    }
+
     if (targetUser.role === role) {
       return res.json({
         status: "success",
         message: "Role unchanged",
-        user: targetUser,
+        user: {
+          id: targetUser.id,
+          name: targetUser.name,
+          email: targetUser.email,
+          employeeCode: targetUser.employeeCode,
+          role: targetUser.role,
+          isActive: targetUser.isActive,
+        },
       });
     }
 
     const oldRole = targetUser.role;
     await sequelize.transaction(async (transaction) => {
-      await targetUser.update({ role }, { transaction });
+      await targetUser.update(
+        { role, tokenVersion: Number(targetUser.tokenVersion || 0) + 1 },
+        { transaction }
+      );
       await RoleChangeAudit.create(
         {
           userId: targetUser.id,

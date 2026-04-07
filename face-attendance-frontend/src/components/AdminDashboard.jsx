@@ -1,26 +1,99 @@
-import React, { useEffect, useState } from "react";
-import { exportEmployeesToExcel, exportEmployeesToPDF, importEmployeesFromExcel, downloadEmployeeTemplate } from "../utils/exportUtils.js";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  exportEmployeesToExcel,
+  exportEmployeesToPDF,
+  importEmployeesFromExcel,
+  downloadEmployeeTemplate,
+} from "../utils/exportUtils.js";
 import EmployeeProfileModal from "./EmployeeProfileModal.jsx";
+import socket from "../socket.js";
+import "./adminEmployeeProfiles.css";
+
+function buildPresenceMap(logs) {
+  const byUser = {};
+  for (const log of logs || []) {
+    const uid = log.userId;
+    if (uid == null) continue;
+    if (!byUser[uid]) byUser[uid] = [];
+    byUser[uid].push(log);
+  }
+  const map = {};
+  for (const uid of Object.keys(byUser)) {
+    const sorted = byUser[uid].sort(
+      (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+    );
+    const last = sorted[sorted.length - 1];
+    const checkedIn = last.type === "IN";
+    const lastIn = [...sorted].reverse().find((l) => l.type === "IN");
+    map[Number(uid)] = {
+      checkedIn,
+      lastType: last.type,
+      lastAt: last.timestamp,
+      lastInAt: lastIn?.timestamp || null,
+    };
+  }
+  return map;
+}
+
+function formatHm(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function contractLabelVi(status) {
+  switch (status) {
+    case "active":
+      return "Đang làm việc";
+    case "maternity_leave":
+      return "Nghỉ thai sản";
+    case "unpaid_leave":
+      return "Nghỉ không lương";
+    case "suspended":
+      return "Tạm ngưng";
+    case "terminated":
+      return "Đã chấm dứt";
+    case "resigned":
+      return "Đã nghỉ việc";
+    default:
+      return status ? String(status) : "Đang làm việc";
+  }
+}
+
+function truncateMiddle(str, max = 22) {
+  if (!str || str.length <= max) return str || "";
+  const keep = max - 3;
+  const head = Math.ceil(keep / 2);
+  const tail = Math.floor(keep / 2);
+  return `${str.slice(0, head)}…${str.slice(-tail)}`;
+}
 
 export default function AdminDashboard() {
   const [employees, setEmployees] = useState([]);
-  const [filteredEmployees, setFilteredEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [attendanceStats, setAttendanceStats] = useState(null);
-  const [loadingStats, setLoadingStats] = useState(false);
-  const [resetPasswordSuccess, setResetPasswordSuccess] = useState(null);
+  const [presenceByUserId, setPresenceByUserId] = useState({});
+
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all"); // all, withFace, withoutFace
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [listMode, setListMode] = useState("active"); // active | inactive
+  const [filterDepartmentId, setFilterDepartmentId] = useState("");
+  const [filterJobTitleId, setFilterJobTitleId] = useState("");
+  const [filterEmployment, setFilterEmployment] = useState("all");
+  const [filterPresence, setFilterPresence] = useState("all");
   const [startDateFrom, setStartDateFrom] = useState("");
   const [startDateTo, setStartDateTo] = useState("");
-  const [savedFilters, setSavedFilters] = useState([]);
+
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
   const toLocalDateOnly = (value) => {
     if (!value) return null;
-
     if (typeof value === "string") {
       const datePart = value.slice(0, 10);
       const parts = datePart.split("-");
@@ -33,62 +106,160 @@ export default function AdminDashboard() {
         }
       }
     }
-
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return null;
     return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
   };
 
-  useEffect(() => {
-    fetchEmployees();
-    // Load saved filters from localStorage
-    const saved = localStorage.getItem("adminDashboardFilters");
-    if (saved) {
-      try {
-        setSavedFilters(JSON.parse(saved));
-      } catch (e) {
-        console.error("Error loading saved filters:", e);
+  const fetchTodayPresence = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiBase}/api/attendance/today`);
+      const data = await res.json();
+      if (res.ok && data.status === "success" && Array.isArray(data.logs)) {
+        setPresenceByUserId(buildPresenceMap(data.logs));
       }
+    } catch (e) {
+      console.warn("fetchTodayPresence:", e);
     }
-  }, []);
+  }, [apiBase]);
 
-  // Apply search and filters
   useEffect(() => {
+    fetchTodayPresence();
+    const t = setInterval(fetchTodayPresence, 45000);
+    return () => clearInterval(t);
+  }, [fetchTodayPresence]);
+
+  useEffect(() => {
+    socket.connect();
+    socket.emit("join-room", { room: "admin" });
+    const onUpdate = () => fetchTodayPresence();
+    socket.on("attendance-update", onUpdate);
+    return () => {
+      socket.off("attendance-update", onUpdate);
+    };
+  }, [fetchTodayPresence]);
+
+  const departmentOptions = useMemo(() => {
+    const m = new Map();
+    employees.forEach((e) => {
+      if (e.Department?.id != null) m.set(e.Department.id, e.Department.name);
+    });
+    return [...m.entries()].sort((a, b) =>
+      String(a[1]).localeCompare(String(b[1]), "vi")
+    );
+  }, [employees]);
+
+  const jobTitleOptions = useMemo(() => {
+    const m = new Map();
+    employees.forEach((e) => {
+      if (e.JobTitle?.id != null) m.set(e.JobTitle.id, e.JobTitle.name);
+    });
+    return [...m.entries()].sort((a, b) =>
+      String(a[1]).localeCompare(String(b[1]), "vi")
+    );
+  }, [employees]);
+
+  const activeAdvancedCount = useMemo(() => {
+    let n = 0;
+    if (filterStatus !== "all") n++;
+    if (filterDepartmentId) n++;
+    if (filterJobTitleId) n++;
+    if (filterEmployment !== "all") n++;
+    if (filterPresence !== "all") n++;
+    if (startDateFrom || startDateTo) n++;
+    return n;
+  }, [
+    filterStatus,
+    filterDepartmentId,
+    filterJobTitleId,
+    filterEmployment,
+    filterPresence,
+    startDateFrom,
+    startDateTo,
+  ]);
+
+  const filteredEmployees = useMemo(() => {
     let filtered = [...employees];
 
-    // Apply search query (full-text search)
+    // List mode: active list shows only active; disabled list shows only inactive
+    filtered =
+      listMode === "active"
+        ? filtered.filter((e) => e.isActive !== false)
+        : filtered.filter((e) => e.isActive === false);
+
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(emp => 
-        emp.name?.toLowerCase().includes(query) ||
-        emp.email?.toLowerCase().includes(query) ||
-        emp.employeeCode?.toLowerCase().includes(query)
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (emp) =>
+          emp.name?.toLowerCase().includes(q) ||
+          emp.email?.toLowerCase().includes(q) ||
+          emp.employeeCode?.toLowerCase().includes(q)
       );
     }
 
-    // Apply status filter
     if (filterStatus === "withFace") {
-      filtered = filtered.filter(emp => emp.FaceProfiles && emp.FaceProfiles.length > 0);
+      filtered = filtered.filter((e) => e.FaceProfiles && e.FaceProfiles.length > 0);
     } else if (filterStatus === "withoutFace") {
-      filtered = filtered.filter(emp => !emp.FaceProfiles || emp.FaceProfiles.length === 0);
+      filtered = filtered.filter((e) => !e.FaceProfiles || e.FaceProfiles.length === 0);
     }
 
-    // Apply start date range filter
+    if (filterDepartmentId) {
+      const id = Number(filterDepartmentId);
+      filtered = filtered.filter((e) => e.Department?.id === id);
+    }
+
+    if (filterJobTitleId) {
+      const id = Number(filterJobTitleId);
+      filtered = filtered.filter((e) => e.JobTitle?.id === id);
+    }
+
+    if (filterEmployment !== "all") {
+      filtered = filtered.filter((e) => (e.employmentStatus || "active") === filterEmployment);
+    }
+
+    if (filterPresence === "checkedIn") {
+      filtered = filtered.filter((e) => presenceByUserId[e.id]?.checkedIn);
+    } else if (filterPresence === "checkedOut") {
+      filtered = filtered.filter(
+        (e) => presenceByUserId[e.id] && !presenceByUserId[e.id].checkedIn
+      );
+    } else if (filterPresence === "absent") {
+      filtered = filtered.filter((e) => !presenceByUserId[e.id]);
+    }
+
     if (startDateFrom || startDateTo) {
       const from = startDateFrom ? toLocalDateOnly(startDateFrom) : null;
       const to = startDateTo ? toLocalDateOnly(startDateTo) : null;
-
       filtered = filtered.filter((emp) => {
-        const employeeStartDate = toLocalDateOnly(emp.startDate);
-        if (!employeeStartDate) return false;
-        if (from && employeeStartDate < from) return false;
-        if (to && employeeStartDate > to) return false;
+        const sd = toLocalDateOnly(emp.startDate);
+        if (!sd) return false;
+        if (from && sd < from) return false;
+        if (to && sd > to) return false;
         return true;
       });
     }
 
-    setFilteredEmployees(filtered);
-  }, [searchQuery, filterStatus, startDateFrom, startDateTo, employees]);
+    filtered.sort((a, b) => {
+      const aIn = presenceByUserId[a.id]?.checkedIn ? 1 : 0;
+      const bIn = presenceByUserId[b.id]?.checkedIn ? 1 : 0;
+      if (bIn !== aIn) return bIn - aIn;
+      return (a.name || "").localeCompare(b.name || "", "vi");
+    });
+
+    return filtered;
+  }, [
+    employees,
+    listMode,
+    searchQuery,
+    filterStatus,
+    filterDepartmentId,
+    filterJobTitleId,
+    filterEmployment,
+    filterPresence,
+    startDateFrom,
+    startDateTo,
+    presenceByUserId,
+  ]);
 
   const fetchEmployees = async () => {
     try {
@@ -97,7 +268,6 @@ export default function AdminDashboard() {
 
       if (!token || !token.trim()) {
         setMessage("Lỗi: Không tìm thấy token xác thực. Vui lòng đăng nhập lại.");
-        // Redirect to login after 2 seconds
         setTimeout(() => {
           localStorage.removeItem("authToken");
           localStorage.removeItem("user");
@@ -107,22 +277,21 @@ export default function AdminDashboard() {
       }
 
       const res = await fetch(`${apiBase}/api/admin/employees`, {
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       });
 
       const data = await res.json();
       if (res.ok) {
         const empList = data.employees || [];
         setEmployees(empList);
-        setFilteredEmployees(empList);
-        setMessage(""); // Clear any previous error messages
+        setMessage("");
+        fetchTodayPresence();
       } else {
         if (res.status === 401) {
-          setMessage("Authentication error: Invalid or expired token. Please log in again.");
-          // Clear invalid token and reload
+          setMessage("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
           setTimeout(() => {
             localStorage.removeItem("authToken");
             localStorage.removeItem("user");
@@ -133,15 +302,19 @@ export default function AdminDashboard() {
         }
       }
     } catch (error) {
-      setMessage("Error: " + error.message);
+      setMessage("Lỗi: " + error.message);
       console.error("Fetch employees error:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const deleteEmployee = async (employeeId) => {
-    if (!window.confirm("Are you sure you want to delete this employee?")) return;
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
+  const deactivateEmployee = async (employeeId) => {
+    if (!window.confirm("Bạn có chắc muốn vô hiệu hóa (Deactivate) nhân viên này?")) return;
 
     try {
       const token = localStorage.getItem("authToken");
@@ -158,664 +331,543 @@ export default function AdminDashboard() {
 
       const res = await fetch(`${apiBase}/api/admin/employees/${employeeId}`, {
         method: "DELETE",
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        setMessage("Xóa nhân viên thành công: " + data.deletedEmployee?.name);
-        // Remove from UI immediately
-        setEmployees(prev => prev.filter(e => e.id !== employeeId));
+        setMessage("Đã vô hiệu hóa nhân viên: " + (data.user?.name || data.deletedEmployee?.name || ""));
+        fetchEmployees();
       } else {
         if (res.status === 401) {
-          setMessage("Authentication error: Invalid or expired token. Please log in again.");
+          setMessage("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
           setTimeout(() => {
             localStorage.removeItem("authToken");
             localStorage.removeItem("user");
             window.location.reload();
           }, 2000);
         } else {
-          setMessage("Error deleting employee: " + (data.message || "Unknown error"));
+          setMessage("Lỗi: " + (data.message || "Unknown error"));
           console.error("Delete error:", data);
         }
       }
     } catch (error) {
-      setMessage("Error: " + error.message);
+      setMessage("Lỗi: " + error.message);
       console.error("Delete exception:", error);
     }
   };
 
-  const containerStyle = {
-    maxWidth: "1400px",
-    margin: "0 auto",
-    padding: "0"
+  const restoreEmployee = async (employeeId) => {
+    if (!window.confirm("Khôi phục (Activate) nhân viên này?")) return;
+    try {
+      const token = localStorage.getItem("authToken");
+
+      if (!token || !token.trim()) {
+        setMessage("Lỗi: Không tìm thấy token xác thực. Vui lòng đăng nhập lại.");
+        setTimeout(() => {
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("user");
+          window.location.reload();
+        }, 2000);
+        return;
+      }
+
+      const res = await fetch(`${apiBase}/api/admin/employees/${employeeId}/restore`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.status === "success") {
+        setMessage("Đã khôi phục nhân viên: " + (data.user?.name || ""));
+        fetchEmployees();
+      } else {
+        if (res.status === 401) {
+          setMessage("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+          setTimeout(() => {
+            localStorage.removeItem("authToken");
+            localStorage.removeItem("user");
+            window.location.reload();
+          }, 2000);
+        } else {
+          setMessage("Lỗi: " + (data.message || "Unknown error"));
+        }
+      }
+    } catch (error) {
+      setMessage("Lỗi: " + error.message);
+    }
   };
 
-  const contentCardStyle = {
-    backgroundColor: "#ffffff",
-    borderRadius: "0 0 16px 16px",
-    padding: "40px",
-    boxShadow: "0 4px 24px rgba(0,0,0,0.1)"
+  const permanentlyDeleteEmployee = async (employeeId, employeeName) => {
+    if (!window.confirm(`Xóa vĩnh viễn "${employeeName}"?\n\nThao tác không thể hoàn tác.`)) return;
+    const password = window.prompt("Nhập mật khẩu Manager để xác nhận xóa vĩnh viễn:");
+    if (!password) return;
+    try {
+      const token = localStorage.getItem("authToken");
+
+      if (!token || !token.trim()) {
+        setMessage("Lỗi: Không tìm thấy token xác thực. Vui lòng đăng nhập lại.");
+        setTimeout(() => {
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("user");
+          window.location.reload();
+        }, 2000);
+        return;
+      }
+
+      const res = await fetch(`${apiBase}/api/admin/employees/${employeeId}/permanent`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.status === "success") {
+        setMessage("✅ Đã xóa vĩnh viễn: " + employeeName);
+        fetchEmployees();
+      } else {
+        if (res.status === 401) {
+          setMessage("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+          setTimeout(() => {
+            localStorage.removeItem("authToken");
+            localStorage.removeItem("user");
+            window.location.reload();
+          }, 2000);
+        } else {
+          setMessage("Lỗi: " + (data.message || "Unknown error"));
+        }
+      }
+    } catch (error) {
+      setMessage("Lỗi: " + error.message);
+    }
   };
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setFilterStatus("all");
+    setFilterDepartmentId("");
+    setFilterJobTitleId("");
+    setFilterEmployment("all");
+    setFilterPresence("all");
+    setStartDateFrom("");
+    setStartDateTo("");
+  };
+
+  const msgOk =
+    message &&
+    (message.includes("successfully") ||
+      message.includes("thành công") ||
+      message.startsWith("✅"));
 
   return (
-    <div style={containerStyle}>
-      {/* Welcome Header */}
-      <div style={{
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        color: "#fff",
-        padding: "48px 40px",
-        borderRadius: "16px 16px 0 0",
-        boxShadow: "0 4px 20px rgba(102, 126, 234, 0.3)"
-      }}>
-        <h1 style={{ margin: "0 0 12px 0", fontSize: "36px", fontWeight: "700" }}>
-          👥 Employee Management
-        </h1>
-        <p style={{ margin: 0, fontSize: "16px", opacity: 0.95 }}>
-          View, manage, and update information for all employees. Search, filter, and export employee data.
+    <div className="aep-page">
+      <div className="aep-hero">
+        <h1>👥 Hồ sơ nhân viên</h1>
+        <p>
+          Xem và quản lý thông tin nhân viên. Tìm nhanh bằng ô tìm kiếm; mở bộ lọc nâng cao khi cần lọc theo tổ chức,
+          hợp đồng hoặc điểm danh hôm nay.
         </p>
       </div>
 
-      {/* Main Content */}
-      <div style={contentCardStyle}>
-          {message && (
-          <div style={{
-            padding: "16px 20px",
-            backgroundColor: message.includes("successfully") || message.includes("thành công") ? "#d4edda" : "#f8d7da",
-            border: `2px solid ${message.includes("successfully") || message.includes("thành công") ? "#c3e6cb" : "#f5c6cb"}`,
-            borderRadius: "12px",
-            color: message.includes("successfully") || message.includes("thành công") ? "#155724" : "#721c24",
-            marginBottom: "24px",
-            fontSize: "14px",
-            fontWeight: "500",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
-          }}>
-            {(message.includes("successfully") || message.includes("thành công")) ? "✅" : "❌"} {message}
+      <div className="aep-main">
+        {message && (
+          <div className={`aep-msg ${msgOk ? "aep-msg--ok" : "aep-msg--err"}`}>
+            {msgOk ? "✓ " : "✕ "}
+            {message}
           </div>
         )}
 
-        {/* Filters - Leave Management style */}
-        <div style={{
-          backgroundColor: "#fff",
-          borderRadius: "16px",
-          padding: "20px 24px",
-          marginBottom: "32px",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-          border: "1px solid #e8e8e8",
-          display: "inline-block",
-          width: "100%"
-        }}>
-          <div style={{ 
-            display: "flex", 
-            gap: "20px", 
-            alignItems: "center",
-            flexWrap: "wrap"
-          }}>
-            <div style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              gap: "12px",
-              flex: "1",
-              minWidth: "200px"
-            }}>
-              <label style={{ 
-                fontWeight: "700", 
-                fontSize: "15px", 
-                color: "#495057",
-                whiteSpace: "nowrap"
-              }}>
-                Search:
-              </label>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name, email, employee code..."
-                style={{
-                  flex: 1,
-                  padding: "12px 20px",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "10px",
-                  fontSize: "15px",
-                  fontWeight: "500",
-                  transition: "all 0.2s",
-                  outline: "none",
-                  minWidth: "200px"
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "#667eea";
-                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(102, 126, 234, 0.1)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "#e0e0e0";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              />
-            </div>
-            <div style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              gap: "12px"
-            }}>
-              <label style={{ 
-                fontWeight: "700", 
-                fontSize: "15px", 
-                color: "#495057",
-                whiteSpace: "nowrap"
-              }}>
-                Filter by Status:
-              </label>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                style={{
-                  padding: "12px 20px",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "10px",
-                  fontSize: "15px",
-                  fontWeight: "500",
-                  cursor: "pointer",
-                  backgroundColor: "#fff",
-                  transition: "all 0.2s",
-                  outline: "none",
-                  width: "auto",
-                  minWidth: "180px"
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "#667eea";
-                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(102, 126, 234, 0.1)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "#e0e0e0";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              >
-                <option value="all">All ({employees.length})</option>
-                <option value="withFace">Face Registered ({employees.filter(e => e.FaceProfiles && e.FaceProfiles.length > 0).length})</option>
-                <option value="withoutFace">Not Registered ({employees.filter(e => !e.FaceProfiles || e.FaceProfiles.length === 0).length})</option>
-              </select>
-            </div>
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              flexWrap: "wrap"
-            }}>
-              <label style={{
-                fontWeight: "700",
-                fontSize: "15px",
-                color: "#495057",
-                whiteSpace: "nowrap"
-              }}>
-                Start Date:
-              </label>
-              <input
-                type="date"
-                value={startDateFrom}
-                onChange={(e) => setStartDateFrom(e.target.value)}
-                style={{
-                  padding: "12px 14px",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "10px",
-                  fontSize: "14px",
-                  fontWeight: "500",
-                  backgroundColor: "#fff",
-                  outline: "none"
-                }}
-              />
-              <span style={{ color: "#6c757d", fontWeight: "600" }}>to</span>
-              <input
-                type="date"
-                value={startDateTo}
-                onChange={(e) => setStartDateTo(e.target.value)}
-                style={{
-                  padding: "12px 14px",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "10px",
-                  fontSize: "14px",
-                  fontWeight: "500",
-                  backgroundColor: "#fff",
-                  outline: "none"
-                }}
-              />
-            </div>
-              <button
-              onClick={() => {
-                setSearchQuery("");
-                setFilterStatus("all");
-                setStartDateFrom("");
-                setStartDateTo("");
-              }}
-                style={{
-                  padding: "12px 20px",
-                  backgroundColor: "#6c757d",
-                  color: "#fff",
-                  border: "none",
-                borderRadius: "10px",
-                  cursor: "pointer",
-                fontWeight: "700",
-                  fontSize: "14px",
-                  transition: "all 0.2s"
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#5a6268"}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#6c757d"}
-              >
-                Reset
-              </button>
-          </div>
-
-          {/* Export/Import Buttons */}
-          <div style={{ marginTop: "20px", paddingTop: "20px", borderTop: "1px solid #e8e8e8", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+        <div className="aep-toolbar">
+          <div style={{ display: "flex", gap: 8 }}>
             <button
-              onClick={() => exportEmployeesToExcel(filteredEmployees, `employees-${new Date().toISOString().split('T')[0]}`)}
-              style={{
-                padding: "10px 20px",
-                backgroundColor: "#28a745",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontWeight: "600",
-                fontSize: "14px",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                transition: "all 0.2s"
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#218838"}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#28a745"}
+              type="button"
+              className={`aep-btn ${listMode === "active" ? "aep-btn--primary" : "aep-btn--ghost"}`}
+              onClick={() => setListMode("active")}
+              style={{ padding: "9px 14px" }}
             >
-              Export Excel
+              Danh sách nhân viên
             </button>
             <button
-              onClick={() => exportEmployeesToPDF(filteredEmployees, `employees-${new Date().toISOString().split('T')[0]}`)}
-              style={{
-                padding: "10px 20px",
-                backgroundColor: "#dc3545",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontWeight: "600",
-                fontSize: "14px",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                transition: "all 0.2s"
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#c82333"}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#dc3545"}
+              type="button"
+              className={`aep-btn ${listMode === "inactive" ? "aep-btn--primary" : "aep-btn--ghost"}`}
+              onClick={() => setListMode("inactive")}
+              style={{ padding: "9px 14px" }}
             >
-              Export PDF
+              Danh sách vô hiệu hóa
             </button>
-            <button
-              onClick={downloadEmployeeTemplate}
-              style={{
-                padding: "10px 20px",
-                backgroundColor: "#17a2b8",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontWeight: "600",
-                fontSize: "14px",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                transition: "all 0.2s"
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#138496"}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#17a2b8"}
-            >
-              Download Template
-            </button>
-            <label
-              style={{
-                padding: "10px 20px",
-                backgroundColor: "#ffc107",
-                color: "#000",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontWeight: "600",
-                fontSize: "14px",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                transition: "all 0.2s"
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#e0a800"}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#ffc107"}
-            >
-              Import from Excel
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={async (e) => {
-                  const file = e.target.files[0];
-                  if (!file) return;
-                  try {
-                    setLoading(true);
-                    const employees = await importEmployeesFromExcel(file);
-                    const token = localStorage.getItem("authToken");
-                    
-                    if (!token) {
-                      throw new Error("Không có token xác thực");
-                    }
-
-                    // Use bulk endpoint
-                        const res = await fetch(`${apiBase}/api/admin/employees/bulk`, {
-                          method: "POST",
-                          headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                          },
-                      body: JSON.stringify({ employees })
-                    });
-
-                    const data = await res.json();
-                    
-                    if (res.ok && data.status === "success") {
-                      const { results } = data;
-                      const successCount = results.success.length;
-                      const failCount = results.failed.length;
-                      
-                      if (failCount > 0) {
-                        const failedDetails = results.failed.slice(0, 5).map(f => 
-                          `- ${f.name} (${f.employeeCode}): ${f.reason}`
-                        ).join('\n');
-                        const moreFailed = failCount > 5 ? `\n... và ${failCount - 5} lỗi khác` : '';
-                        alert(`Import hoàn tất!\n\n✅ Thành công: ${successCount} nhân viên\n❌ Thất bại: ${failCount} nhân viên\n\nChi tiết lỗi:\n${failedDetails}${moreFailed}`);
-                      } else {
-                        setMessage(`✅ Import thành công: ${successCount} nhân viên`);
-                      }
-                      
-                      fetchEmployees();
-                    } else {
-                      throw new Error(data.message || "Lỗi khi import nhân viên");
-                    }
-                    
-                    e.target.value = "";
-                  } catch (error) {
-                    console.error("Import error:", error);
-                    setMessage(`❌ Lỗi import: ${error.message}`);
-                    alert(`Lỗi khi import: ${error.message}`);
-                  } finally {
-                    setLoading(false);
-                    e.target.value = "";
-                  }
-                }}
-                style={{ display: "none" }}
-              />
-            </label>
           </div>
-
-          {/* Results Count */}
-          <div style={{ marginTop: "16px", fontSize: "14px", color: "#666" }}>
-            Showing <strong>{filteredEmployees.length}</strong> / {employees.length} employees
-          </div>
+          <input
+            type="text"
+            className="aep-search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tìm theo tên, email, mã nhân viên…"
+            aria-label="Tìm kiếm nhân viên"
+          />
+          <button
+            type="button"
+            className="aep-btn aep-btn--ghost"
+            onClick={() => setShowAdvancedFilters((v) => !v)}
+          >
+            Bộ lọc nâng cao
+            {activeAdvancedCount > 0 ? ` (${activeAdvancedCount})` : ""}
+            {showAdvancedFilters ? " ▲" : " ▼"}
+          </button>
         </div>
 
+        {showAdvancedFilters && (
+          <div className="aep-advanced">
+            <div className="aep-advanced-grid">
+              <div className="aep-field">
+                <label>Đăng ký khuôn mặt</label>
+                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                  <option value="all">Tất cả ({employees.length})</option>
+                  <option value="withFace">
+                    Đã đăng ký (
+                    {employees.filter((e) => e.FaceProfiles && e.FaceProfiles.length > 0).length})
+                  </option>
+                  <option value="withoutFace">
+                    Chưa đăng ký (
+                    {employees.filter((e) => !e.FaceProfiles || e.FaceProfiles.length === 0).length})
+                  </option>
+                </select>
+              </div>
+              <div className="aep-field">
+                <label>Phòng ban</label>
+                <select
+                  value={filterDepartmentId}
+                  onChange={(e) => setFilterDepartmentId(e.target.value)}
+                >
+                  <option value="">Tất cả phòng ban</option>
+                  {departmentOptions.map(([id, name]) => (
+                    <option key={id} value={String(id)}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="aep-field">
+                <label>Chức danh</label>
+                <select value={filterJobTitleId} onChange={(e) => setFilterJobTitleId(e.target.value)}>
+                  <option value="">Tất cả chức danh</option>
+                  {jobTitleOptions.map(([id, name]) => (
+                    <option key={id} value={String(id)}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="aep-field">
+                <label>Hợp đồng / trạng thái</label>
+                <select
+                  value={filterEmployment}
+                  onChange={(e) => setFilterEmployment(e.target.value)}
+                >
+                  <option value="all">Tất cả</option>
+                  <option value="active">Đang làm việc</option>
+                  <option value="maternity_leave">Nghỉ thai sản</option>
+                  <option value="unpaid_leave">Nghỉ không lương</option>
+                  <option value="suspended">Tạm ngưng</option>
+                  <option value="terminated">Đã chấm dứt</option>
+                  <option value="resigned">Đã nghỉ việc</option>
+                </select>
+              </div>
+              <div className="aep-field">
+                <label>Điểm danh hôm nay</label>
+                <select
+                  value={filterPresence}
+                  onChange={(e) => setFilterPresence(e.target.value)}
+                >
+                  <option value="all">Tất cả</option>
+                  <option value="checkedIn">Đang trong ca (đã vào, chưa ra)</option>
+                  <option value="checkedOut">Đã check-out hôm nay</option>
+                  <option value="absent">Chưa điểm danh hôm nay</option>
+                </select>
+              </div>
+              <div className="aep-field">
+                <label>Ngày vào làm (từ)</label>
+                <input
+                  type="date"
+                  value={startDateFrom}
+                  onChange={(e) => setStartDateFrom(e.target.value)}
+                />
+              </div>
+              <div className="aep-field">
+                <label>Ngày vào làm (đến)</label>
+                <input
+                  type="date"
+                  value={startDateTo}
+                  onChange={(e) => setStartDateTo(e.target.value)}
+                />
+              </div>
+            </div>
+            <button type="button" className="aep-btn aep-btn--ghost aep-btn--sm" onClick={resetFilters}>
+              Xóa bộ lọc
+            </button>
+          </div>
+        )}
+
+        <div className="aep-actions-row">
+          <button
+            type="button"
+            className="aep-btn aep-btn--outline"
+            onClick={() =>
+              exportEmployeesToExcel(
+                filteredEmployees,
+                `employees-${new Date().toISOString().split("T")[0]}`
+              )
+            }
+          >
+            Xuất Excel
+          </button>
+          <button
+            type="button"
+            className="aep-btn aep-btn--outline"
+            onClick={() =>
+              exportEmployeesToPDF(
+                filteredEmployees,
+                `employees-${new Date().toISOString().split("T")[0]}`
+              )
+            }
+          >
+            Xuất PDF
+          </button>
+          <button type="button" className="aep-btn aep-btn--outline" onClick={downloadEmployeeTemplate}>
+            Tải mẫu Excel
+          </button>
+          <label className="aep-btn aep-btn--outline" style={{ cursor: "pointer" }}>
+            Nhập từ Excel
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              style={{ display: "none" }}
+              onChange={async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                try {
+                  setLoading(true);
+                  const imported = await importEmployeesFromExcel(file);
+                  const token = localStorage.getItem("authToken");
+                  if (!token) throw new Error("Không có token xác thực");
+                  const res = await fetch(`${apiBase}/api/admin/employees/bulk`, {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Bearer ${token}`,
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ employees: imported }),
+                  });
+                  const data = await res.json();
+                  if (res.ok && data.status === "success") {
+                    const { results } = data;
+                    const successCount = results.success.length;
+                    const failCount = results.failed.length;
+                    if (failCount > 0) {
+                      const failedDetails = results.failed
+                        .slice(0, 5)
+                        .map((f) => `- ${f.name} (${f.employeeCode}): ${f.reason}`)
+                        .join("\n");
+                      const moreFailed = failCount > 5 ? `\n... và ${failCount - 5} lỗi khác` : "";
+                      alert(
+                        `Import hoàn tất!\n\n✅ Thành công: ${successCount}\n❌ Thất bại: ${failCount}\n\n${failedDetails}${moreFailed}`
+                      );
+                    } else {
+                      setMessage(`✅ Import thành công: ${successCount} nhân viên`);
+                    }
+                    fetchEmployees();
+                  } else {
+                    throw new Error(data.message || "Lỗi khi import nhân viên");
+                  }
+                } catch (err) {
+                  console.error("Import error:", err);
+                  setMessage(`❌ Lỗi import: ${err.message}`);
+                  alert(`Lỗi khi import: ${err.message}`);
+                } finally {
+                  setLoading(false);
+                  e.target.value = "";
+                }
+              }}
+            />
+          </label>
+        </div>
+
+        <p className="aep-meta">
+          Hiển thị <strong>{filteredEmployees.length}</strong> / {employees.length} nhân viên · Đang trong ca được ưu
+          tiên đầu danh sách
+        </p>
+
         {loading ? (
-          <div style={{ textAlign: "center", padding: "60px", color: "#666" }}>
-            <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏳</div>
-            <div style={{ fontSize: "16px", fontWeight: "500" }}>Loading employees...</div>
+          <div className="aep-loading">
+            <div style={{ fontSize: 36, marginBottom: 12 }}>⏳</div>
+            <div>Đang tải danh sách…</div>
           </div>
         ) : filteredEmployees.length === 0 ? (
-          <div style={{
-            textAlign: "center",
-            padding: "60px 40px",
-            backgroundColor: "#f8f9fa",
-            borderRadius: "16px",
-            border: "2px dashed #dee2e6"
-          }}>
-            <div style={{ fontSize: "64px", marginBottom: "16px" }}>📭</div>
-            <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#333", marginBottom: "8px" }}>
-              {employees.length === 0 ? "No Employees" : "No Results"}
+          <div className="aep-empty">
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
+            <h3 style={{ margin: "0 0 8px", color: "#262626" }}>
+              {employees.length === 0 ? "Chưa có nhân viên" : "Không khớp bộ lọc"}
             </h3>
-            <p style={{ fontSize: "14px", color: "#666" }}>
-              {employees.length === 0 
-                ? "No employees found. Start by registering new employees."
-                : `No employees match the current filters. Try adjusting your search or filters.`
-              }
+            <p style={{ margin: 0, fontSize: 14 }}>
+              {employees.length === 0
+                ? "Thêm nhân viên hoặc nhập từ Excel."
+                : "Thử điều chỉnh tìm kiếm hoặc bộ lọc nâng cao."}
             </p>
             {employees.length > 0 && (
               <button
-                onClick={() => {
-                  setSearchQuery("");
-                  setFilterStatus("all");
-                  setStartDateFrom("");
-                  setStartDateTo("");
-                }}
-                style={{
-                  marginTop: "16px",
-                  padding: "12px 24px",
-                  backgroundColor: "#667eea",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "12px",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                  fontSize: "14px",
-                  transition: "all 0.2s"
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#5a67d8"}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#667eea"}
+                type="button"
+                className="aep-btn aep-btn--primary"
+                style={{ marginTop: 16 }}
+                onClick={resetFilters}
               >
-                Clear Filters
+                Xóa bộ lọc
               </button>
             )}
           </div>
         ) : (
-        <>
-          {/* Employee Cards Grid - Leave Management style */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
-            gap: "20px"
-          }}>
-            {filteredEmployees.map((emp, index) => {
+          <div className="aep-grid">
+            {filteredEmployees.map((emp) => {
               const hasFace = emp.FaceProfiles && emp.FaceProfiles.length > 0;
-              const statusStyle = hasFace
-                ? { bg: "#d4edda", color: "#155724", text: "✅ Registered" }
-                : { bg: "#fff3cd", color: "#856404", text: "⏳ Not Registered" };
+              const presence = presenceByUserId[emp.id];
+              const deptName = emp.Department?.name;
+              const jobName = emp.JobTitle?.name;
+              const empStatus = emp.employmentStatus || "active";
+              const contractVi = contractLabelVi(empStatus);
+              const isActiveContract = empStatus === "active";
+
+              let presenceClass = "aep-presence--none";
+              let presenceText = "Chưa điểm danh hôm nay";
+              if (presence) {
+                if (presence.checkedIn) {
+                  presenceClass = "aep-presence--in";
+                  presenceText = `Hoạt động · vào ${formatHm(presence.lastInAt || presence.lastAt)}`;
+                } else {
+                  presenceClass = "aep-presence--out";
+                  presenceText = `Đã check-out · ${formatHm(presence.lastAt)}`;
+                }
+              }
+
               return (
-                <div
-                  key={emp.id}
-                  style={{
-                    backgroundColor: "#fff",
-                    borderRadius: "16px",
-                    padding: "0",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                    border: "1px solid #e8e8e8",
-                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                    position: "relative",
-                    overflow: "hidden"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-4px)";
-                    e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
-                    e.currentTarget.style.borderColor = "#667eea";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
-                    e.currentTarget.style.borderColor = "#e8e8e8";
-                  }}
-                >
-                  <style>{`
-                    @keyframes fadeInUp {
-                      from { opacity: 0; transform: translateY(20px); }
-                      to { opacity: 1; transform: translateY(0); }
-                    }
-                  `}</style>
+                <div key={emp.id} className="aep-card">
+                  <div className="aep-card-inner">
+                    <div className="aep-card-head">
+                      <div className="aep-avatar">{emp.name?.charAt(0)?.toUpperCase() || "?"}</div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <h3 className="aep-name">{emp.name || "—"}</h3>
+                        <div className="aep-sub">
+                          {emp.employeeCode || "—"} | {truncateMiddle(emp.email || "", 26)}
+                        </div>
+                        <div className={`aep-presence ${presenceClass}`}>{presenceText}</div>
+                      </div>
+                      <div
+                        className={`aep-badge-reg ${hasFace ? "aep-badge-reg--ok" : "aep-badge-reg--no"}`}
+                      >
+                        {hasFace ? "Đã đăng ký" : "Chưa đăng ký"}
+                      </div>
+                    </div>
 
-                  {/* Status Badge */}
-                  <div style={{
-                    position: "absolute",
-                    top: "16px",
-                    right: "16px",
-                    padding: "5px 10px",
-                    borderRadius: "8px",
-                    fontSize: "10px",
-                    fontWeight: "600",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.3px",
-                    backgroundColor: statusStyle.bg,
-                    color: statusStyle.color,
-                    border: `1px solid ${statusStyle.color}20`,
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-                    zIndex: 10
-                  }}>
-                    {statusStyle.text}
-                  </div>
-
-                  {/* Card Content */}
-                  <div style={{ padding: "20px" }} onClick={() => setSelectedEmployee(emp)}>
-                    {/* Employee Info */}
-                    <div style={{ marginBottom: "16px", display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div style={{
-                    width: "56px",
-                    height: "56px",
-                    borderRadius: "14px",
-                    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "24px",
-                    fontWeight: "700",
-                    color: "#fff",
-                        boxShadow: "0 4px 12px rgba(102, 126, 234, 0.4)",
-                        flexShrink: 0
-                  }}>
-                        {emp.name?.charAt(0)?.toUpperCase() || "?"}
-                  </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <h3 style={{ margin: "0 0 4px 0", fontSize: "18px", fontWeight: "700", color: "#1a1a1a", lineHeight: "1.3" }}>
-                          {emp.name || "N/A"}
-                  </h3>
-                        <div style={{ fontSize: "13px", color: "#667eea", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
-                          <span>👤</span> {emp.employeeCode || "N/A"}
+                    <div className="aep-info-panel">
+                      <div className="aep-info-grid">
+                        <div>
+                          <div className="aep-info-label">Phòng ban</div>
+                          <div className={deptName ? "aep-info-value" : "aep-info-value aep-info-value--muted"}>
+                            {deptName || "Chưa cập nhật"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="aep-info-label">Chức danh</div>
+                          <div className={jobName ? "aep-info-value" : "aep-info-value aep-info-value--muted"}>
+                            {jobName || "Chưa cập nhật"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="aep-info-label">Hợp đồng</div>
+                          <div
+                            className={
+                              isActiveContract ? "aep-info-value aep-info-value--ok" : "aep-info-value"
+                            }
+                          >
+                            {contractVi}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="aep-info-label">Vào làm</div>
+                          <div
+                            className={
+                              emp.startDate ? "aep-info-value" : "aep-info-value aep-info-value--muted"
+                            }
+                          >
+                            {emp.startDate
+                              ? new Date(emp.startDate).toLocaleDateString("vi-VN")
+                              : "Chưa cập nhật"}
+                          </div>
                         </div>
                       </div>
-                  </div>
+                    </div>
 
-                    {/* Details Box - Leave Management style */}
-                  <div style={{
-                      backgroundColor: "#f8f9fa",
-                      borderRadius: "12px",
-                      padding: "16px",
-                      marginBottom: "16px",
-                      border: "1px solid #e8e8e8"
-                    }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                        <div style={{ padding: "10px", backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e8e8e8" }}>
-                          <div style={{ fontSize: "10px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Department</div>
-                          <div style={{ fontSize: "12px", color: "#667eea", fontWeight: "700" }}>{emp.Department?.name || "N/A"}</div>
-                        </div>
-                        <div style={{ padding: "10px", backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e8e8e8" }}>
-                          <div style={{ fontSize: "10px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Job Title</div>
-                          <div style={{ fontSize: "12px", color: "#1a1a1a", fontWeight: "700" }}>{emp.JobTitle?.name || "N/A"}</div>
-                        </div>
-                        <div style={{ padding: "10px", backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e8e8e8" }}>
-                          <div style={{ fontSize: "10px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Status</div>
-                          <div style={{ fontSize: "12px", color: 
-                            emp.employmentStatus === "active" ? "#28a745" :
-                            emp.employmentStatus === "maternity_leave" ? "#ffc107" :
-                            emp.employmentStatus === "unpaid_leave" ? "#ff9800" :
-                            emp.employmentStatus === "suspended" ? "#ff5722" :
-                            emp.employmentStatus === "terminated" || emp.employmentStatus === "resigned" ? "#dc3545" : "#666",
-                            fontWeight: "700" }}>
-                            {emp.employmentStatus === "active" ? "Active" :
-                             emp.employmentStatus === "maternity_leave" ? "Maternity Leave" :
-                             emp.employmentStatus === "unpaid_leave" ? "Unpaid Leave" :
-                             emp.employmentStatus === "suspended" ? "Suspended" :
-                             emp.employmentStatus === "terminated" ? "Terminated" :
-                             emp.employmentStatus === "resigned" ? "Resigned" : emp.employmentStatus || "Active"}
-                          </div>
-                        </div>
-                        <div style={{ padding: "10px", backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e8e8e8" }}>
-                          <div style={{ fontSize: "10px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Start Date</div>
-                          <div style={{ fontSize: "12px", color: emp.startDate ? "#667eea" : "#999", fontWeight: "700" }}>
-                            {emp.startDate
-                              ? new Date(emp.startDate).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })
-                              : "Not set"}
-                          </div>
-                        </div>
-                  </div>
-                  </div>
+                    <p className="aep-footnote">
+                      *Các mục trên lấy từ hồ sơ nhân sự. Nếu trống, mở <strong>Chi tiết</strong> để chọn phòng ban,
+                      chức danh và ngày vào làm.
+                    </p>
 
-                  {/* Action Buttons */}
-                    <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setSelectedEmployee(emp); }}
-                      style={{
-                        flex: 1,
-                          padding: "12px 20px",
-                          backgroundColor: "#28a745",
-                        color: "#fff",
-                        border: "none",
-                          borderRadius: "10px",
-                        cursor: "pointer",
-                          fontWeight: "600",
-                          fontSize: "13px",
-                          transition: "all 0.3s",
-                          boxShadow: "0 3px 8px rgba(40, 167, 69, 0.3)"
-                      }}
-                      onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = "#218838";
-                        e.currentTarget.style.transform = "translateY(-2px)";
-                      }}
-                      onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = "#28a745";
-                        e.currentTarget.style.transform = "translateY(0)";
-                      }}
-                    >
-                        Details
-                    </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); deleteEmployee(emp.id); }}
-                      style={{
-                          flex: 1,
-                          padding: "12px 20px",
-                        backgroundColor: "#dc3545",
-                        color: "#fff",
-                        border: "none",
-                          borderRadius: "10px",
-                        cursor: "pointer",
-                          fontWeight: "600",
-                          fontSize: "13px",
-                          transition: "all 0.3s",
-                          boxShadow: "0 3px 8px rgba(220, 53, 69, 0.3)"
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = "#c82333";
-                          e.currentTarget.style.transform = "translateY(-2px)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = "#dc3545";
-                          e.currentTarget.style.transform = "translateY(0)";
-                        }}
+                    <div className="aep-card-actions">
+                      <button
+                        type="button"
+                        className="aep-btn aep-btn--primary"
+                        onClick={() => setSelectedEmployee(emp)}
                       >
-                        Delete
-                    </button>
+                        Chi tiết
+                      </button>
+                      {emp.isActive !== false ? (
+                        <button
+                          type="button"
+                          className="aep-btn aep-btn--ghost"
+                          onClick={() => deactivateEmployee(emp.id)}
+                        >
+                          Vô hiệu hóa
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className="aep-btn aep-btn--ghost"
+                            onClick={() => restoreEmployee(emp.id)}
+                          >
+                            Khôi phục
+                          </button>
+                          <button
+                            type="button"
+                            className="aep-btn"
+                            style={{
+                              background: "#7f1d1d",
+                              color: "#fff",
+                              border: "1px solid #450a0a",
+                              fontWeight: 700,
+                            }}
+                            onClick={() => permanentlyDeleteEmployee(emp.id, emp.name)}
+                          >
+                            Delete Forever
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
               );
             })}
           </div>
-        </>
-      )}
+        )}
 
-        {/* Employee Profile Modal */}
         {selectedEmployee && (
           <EmployeeProfileModal
             employee={selectedEmployee}

@@ -37,6 +37,21 @@ const User = sequelize.define('User', {
     type: DataTypes.BOOLEAN,
     defaultValue: true,
   },
+  /** Timestamp when the account was deactivated (soft-deleted). */
+  deactivatedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+
+  /**
+   * Increment this value to invalidate all existing JWTs for the user.
+   * Used to force logout when role changes or security-sensitive updates occur.
+   */
+  tokenVersion: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+  },
 
   // ORGANIZATIONAL STRUCTURE
   departmentId: {
@@ -259,6 +274,12 @@ const User = sequelize.define('User', {
   },
 
   emergencyContactPhone: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
+  /** Public path under /uploads/avatars/ — served as static file */
+  avatarUrl: {
     type: DataTypes.STRING,
     allowNull: true
   }

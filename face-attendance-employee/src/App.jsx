@@ -82,31 +82,56 @@ function App() {
   const headerStyle = {
     backgroundColor: "#1a1a1a",
     color: "#ffffff",
-    padding: "20px",
+    padding: "18px 24px",
     boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-    textAlign: "center"
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "18px",
+    flexWrap: "wrap",
+  };
+
+  const kioskMarkStyle = {
+    width: 56,
+    height: 56,
+    borderRadius: "50%",
+    background: "linear-gradient(145deg, #2563eb, #7c3aed)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 28,
+    border: "3px solid rgba(255,255,255,0.22)",
+    flexShrink: 0,
+    boxShadow: "0 4px 18px rgba(0,0,0,0.35)",
   };
 
   const titleStyle = {
     fontSize: "24px",
     fontWeight: "700",
     margin: "0 0 4px 0",
-    color: "#ffffff"
+    color: "#ffffff",
+    textAlign: "left",
   };
 
   const subtitleStyle = {
     fontSize: "13px",
     opacity: 0.8,
     margin: 0,
-    color: "#ffffff"
+    color: "#ffffff",
+    textAlign: "left",
   };
 
   return (
     <div style={{ width: "100%", minHeight: "100vh", backgroundColor: "#f5f5f5" }}>
       {/* Header */}
       <div style={headerStyle}>
-        <h1 style={titleStyle}>Employee Attendance Kiosk</h1>
-        <p style={subtitleStyle}>Scan your face to check attendance</p>
+        <div style={kioskMarkStyle} title="Kiosk điểm danh" aria-hidden>
+          📷
+        </div>
+        <div>
+          <h1 style={titleStyle}>Employee Attendance Kiosk</h1>
+          <p style={subtitleStyle}>Scan your face — your profile photo appears when you are recognized</p>
+        </div>
       </div>
 
       {/* Content */}
