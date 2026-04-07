@@ -9,6 +9,27 @@ import Department from "../models/pg/Department.js";
 import JobTitle from "../models/pg/JobTitle.js";
 import { Op } from "sequelize";
 import { getSalaryBreakdownDetail } from "../services/salaryBreakdownDetailService.js";
+import { uploadAvatar, removeAvatarFileIfLocal } from "../utils/fileUpload.js";
+
+const SELF_PROFILE_FIELDS = new Set([
+  "name",
+  "phoneNumber",
+  "address",
+  "permanentAddress",
+  "temporaryAddress",
+  "personalEmail",
+  "companyEmail",
+  "dateOfBirth",
+  "gender",
+  "emergencyContactName",
+  "emergencyContactRelationship",
+  "emergencyContactPhone",
+  "educationLevel",
+  "major",
+  "idNumber",
+  "idIssueDate",
+  "idIssuePlace",
+]);
 
 const router = express.Router();
 
@@ -111,13 +132,17 @@ router.get("/salary/breakdown", async (req, res) => {
   }
 });
 
-// Get current user profile
+// Get current user profile (full HR fields; org fields read-only on client)
 router.get("/profile", async (req, res) => {
   try {
     const userId = req.user.userId;
 
     const user = await User.findByPk(userId, {
-      attributes: { exclude: ['password'] }
+      attributes: { exclude: ["password"] },
+      include: [
+        { model: Department, attributes: ["id", "name"] },
+        { model: JobTitle, attributes: ["id", "name"] },
+      ],
     });
 
     if (!user) {
@@ -138,6 +163,102 @@ router.get("/profile", async (req, res) => {
       message: err.message
     });
   }
+});
+
+// Self-service: cập nhật các trường cá nhân (không đổi email đăng nhập, role, lương, phòng ban…)
+router.patch("/profile", async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const body = req.body || {};
+    const payload = {};
+
+    for (const key of Object.keys(body)) {
+      if (!SELF_PROFILE_FIELDS.has(key)) continue;
+      let val = body[key];
+      if (key === "dateOfBirth" || key === "idIssueDate") {
+        if (val === "" || val === null || val === undefined) {
+          payload[key] = null;
+        } else {
+          const d = new Date(val);
+          payload[key] = Number.isNaN(d.getTime()) ? null : d;
+        }
+        continue;
+      }
+      if (key === "gender" || key === "educationLevel") {
+        payload[key] = val === "" || val == null ? null : val;
+        continue;
+      }
+      if (key === "name" && (val === "" || val == null)) {
+        return res.status(400).json({ status: "error", message: "Tên không được để trống" });
+      }
+      payload[key] = val;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      return res.status(400).json({ status: "error", message: "Không có trường hợp lệ để cập nhật" });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ status: "error", message: "User not found" });
+    }
+
+    await user.update(payload);
+
+    const fresh = await User.findByPk(userId, {
+      attributes: { exclude: ["password"] },
+      include: [
+        { model: Department, attributes: ["id", "name"] },
+        { model: JobTitle, attributes: ["id", "name"] },
+      ],
+    });
+
+    return res.json({ status: "success", message: "Đã cập nhật hồ sơ", user: fresh });
+  } catch (err) {
+    console.error("Error updating employee profile:", err);
+    return res.status(500).json({ status: "error", message: err.message });
+  }
+});
+
+// Ảnh đại diện (JPEG/PNG/WebP, tối đa 2MB)
+router.post("/profile/avatar", (req, res) => {
+  uploadAvatar.single("avatar")(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ status: "error", message: err.message || "Tải ảnh thất bại" });
+    }
+    try {
+      const userId = req.user.userId;
+      if (!req.file) {
+        return res.status(400).json({ status: "error", message: "Chưa chọn file ảnh" });
+      }
+
+      const user = await User.findByPk(userId);
+      if (!user) {
+        return res.status(404).json({ status: "error", message: "User not found" });
+      }
+
+      const newUrl = `/uploads/avatars/${req.file.filename}`;
+      const prev = user.avatarUrl;
+      if (prev && prev !== newUrl) {
+        removeAvatarFileIfLocal(prev);
+      }
+
+      await user.update({ avatarUrl: newUrl });
+
+      const fresh = await User.findByPk(userId, {
+        attributes: { exclude: ["password"] },
+        include: [
+          { model: Department, attributes: ["id", "name"] },
+          { model: JobTitle, attributes: ["id", "name"] },
+        ],
+      });
+
+      return res.json({ status: "success", message: "Đã cập nhật ảnh đại diện", user: fresh, avatarUrl: newUrl });
+    } catch (e) {
+      console.error("Avatar upload error:", e);
+      return res.status(500).json({ status: "error", message: e.message });
+    }
+  });
 });
 
 // Get current user's job/salary change history

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import PersonalProfileModal from '../components/PersonalProfileModal.jsx';
 import './managerShell.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
@@ -83,11 +84,37 @@ function titleFromPath(pathname) {
   return 'HRMS Manager';
 }
 
+const ROLE_LABEL_VI = {
+  manager: 'Giám đốc / Quản trị',
+  hr: 'Nhân sự',
+  accountant: 'Kế toán',
+  supervisor: 'Quản lý',
+  employee: 'Nhân viên',
+};
+
+function resolveAvatarUrl(apiBase, avatarUrl) {
+  if (!avatarUrl) return null;
+  if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
+  const base = (apiBase || '').replace(/\/$/, '');
+  const path = avatarUrl.startsWith('/') ? avatarUrl : `/${avatarUrl}`;
+  return `${base}${path}`;
+}
+
 export default function ManagerLayout() {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const location = useLocation();
+
+  const patchSessionUser = useCallback((patch) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
@@ -99,13 +126,18 @@ export default function ManagerLayout() {
         setUser(null);
       }
     }
-    if (token && !raw) {
+    if (token) {
       fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
         .then((data) => {
           if (data.status === 'success' && data.user) {
             localStorage.setItem('user', JSON.stringify(data.user));
             setUser(data.user);
+          } else {
+            // Token invalidated (e.g. role changed) => force logout
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            window.location.href = 'http://localhost:3000/';
           }
         })
         .catch(() => {});
@@ -180,7 +212,7 @@ export default function ManagerLayout() {
           {!collapsed && (
             <>
               <strong style={{ color: '#cbd5e1' }}>{user?.name}</strong>
-              <div>Director / Manager</div>
+              <div>{ROLE_LABEL_VI[user?.role] || 'Tài khoản'}</div>
             </>
           )}
         </div>
@@ -194,6 +226,25 @@ export default function ManagerLayout() {
             <span className="mgr-topbar-title">{pageTitle}</span>
           </div>
           <div className="mgr-topbar-actions">
+            <button
+              type="button"
+              className="mgr-topbar-avatar-btn"
+              onClick={() => setProfileOpen(true)}
+              title="Hồ sơ cá nhân"
+              aria-label="Mở hồ sơ cá nhân"
+            >
+              {resolveAvatarUrl(API_BASE, user?.avatarUrl) ? (
+                <img
+                  className="mgr-topbar-avatar"
+                  src={resolveAvatarUrl(API_BASE, user?.avatarUrl)}
+                  alt=""
+                />
+              ) : (
+                <span className="mgr-topbar-avatar mgr-topbar-avatar--fallback" aria-hidden>
+                  {(user?.name || '?').charAt(0).toUpperCase()}
+                </span>
+              )}
+            </button>
             <span style={{ fontSize: 13, color: '#64748b' }}>{user?.email}</span>
             <button type="button" className="mgr-btn-logout" onClick={logout}>
               Sign out
@@ -204,6 +255,12 @@ export default function ManagerLayout() {
           <Outlet />
         </main>
       </div>
+      <PersonalProfileModal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        apiBase={API_BASE}
+        onSessionUserPatch={patchSessionUser}
+      />
     </div>
   );
 }

@@ -49,8 +49,7 @@ const SalaryAdvance = sequelize.define('SalaryAdvance', {
   },
   approvalStatus: {
     type: DataTypes.ENUM('pending', 'approved', 'rejected'),
-    defaultValue: 'pending',
-    comment: 'Trạng thái duyệt'
+    defaultValue: 'pending'
   },
   approvalLevel: {
     type: DataTypes.INTEGER,

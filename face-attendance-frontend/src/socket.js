@@ -1,7 +1,10 @@
-import { io } from 'socket.io-client';
+import { io } from "socket.io-client";
 
-const socket = io('http://localhost:5000', {
-  transports: ['websocket', 'polling'],
+const url = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+const socket = io(url, {
+  autoConnect: false,
+  transports: ["websocket", "polling"],
 });
 
 export default socket;

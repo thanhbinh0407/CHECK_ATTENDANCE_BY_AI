@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AccountantDashboard from "./components/AccountantDashboard.jsx";
 import SalaryManagement from "./components/SalaryManagement.jsx";
 import SalaryCalculation from "./components/SalaryCalculation.jsx";
@@ -12,6 +12,17 @@ import { theme } from "./theme.js";
 import socket from "./socket.js";
 import "./App.css";
 import "./accountantShell.css";
+import PersonalProfileModal from "./components/PersonalProfileModal.jsx";
+
+const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:5000").replace(/\/$/, "");
+
+function portalAvatarSrc(apiBase, avatarUrl) {
+  if (!avatarUrl) return null;
+  if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
+  const base = (apiBase || "").replace(/\/$/, "");
+  const path = avatarUrl.startsWith("/") ? avatarUrl : `/${avatarUrl}`;
+  return `${base}${path}`;
+}
 
 function App() {
   const [authToken, setAuthToken] = useState(() => {
@@ -28,10 +39,18 @@ function App() {
   });
   const [currentView, setCurrentView] = useState("dashboard");
   const [isChecking, setIsChecking] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const patchSessionUser = useCallback((patch) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      localStorage.setItem("user", JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
-
     (async () => {
       try {
         const urlParams = new URLSearchParams(window.location.search);
@@ -57,7 +76,7 @@ function App() {
           try {
             const decodedToken = decodeURIComponent(tokenFromUrl);
             localStorage.setItem("authToken", decodedToken);
-            const res = await fetch(`${apiBase}/api/auth/me`, {
+            const res = await fetch(`${API_BASE}/api/auth/me`, {
               headers: { Authorization: `Bearer ${decodedToken}` },
             });
             const data = await res.json();
@@ -88,6 +107,19 @@ function App() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!authToken) return;
+    fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${authToken}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.status === "success" && data.user) {
+          setUser(data.user);
+          localStorage.setItem("user", JSON.stringify(data.user));
+        }
+      })
+      .catch(() => {});
+  }, [authToken]);
 
   useEffect(() => {
     // Socket connection for real-time updates
@@ -340,14 +372,31 @@ function App() {
       <div className="acc-main">
         <header className="acc-topbar">
           <h1>{viewTitles[currentView] || "Payroll"}</h1>
-          <span className="acc-topbar-meta">
-            {new Intl.DateTimeFormat("en-US", {
-              weekday: "short",
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            }).format(new Date())}
-          </span>
+          <div className="acc-topbar-actions">
+            <button
+              type="button"
+              className="portal-avatar-btn"
+              onClick={() => setProfileOpen(true)}
+              title="Hồ sơ cá nhân"
+              aria-label="Mở hồ sơ cá nhân"
+            >
+              {portalAvatarSrc(API_BASE, user?.avatarUrl) ? (
+                <img className="portal-avatar-img" src={portalAvatarSrc(API_BASE, user?.avatarUrl)} alt="" />
+              ) : (
+                <span className="portal-avatar-fallback" aria-hidden>
+                  {(user?.name || "?").charAt(0).toUpperCase()}
+                </span>
+              )}
+            </button>
+            <span className="acc-topbar-meta">
+              {new Intl.DateTimeFormat("en-US", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              }).format(new Date())}
+            </span>
+          </div>
         </header>
         <div className="acc-content" style={{ animation: "fadeInUp 0.45s ease-out 0.05s backwards" }}>
           {currentView === "dashboard" && <AccountantDashboard onNavigate={setCurrentView} />}
@@ -361,6 +410,12 @@ function App() {
           {currentView === "employee-management" && <EmployeeManagement />}
         </div>
       </div>
+      <PersonalProfileModal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        apiBase={API_BASE}
+        onSessionUserPatch={patchSessionUser}
+      />
     </div>
   );
 }

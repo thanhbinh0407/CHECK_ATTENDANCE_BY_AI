@@ -4,6 +4,46 @@ import { calculateAntiSpoofingScore, checkLiveness } from "../utils/antiSpoofing
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 const MODELS_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@latest/model/";
 
+function resolveKioskAvatarSrc(avatarUrl) {
+  if (!avatarUrl) return null;
+  if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
+  const base = (API_BASE || "").replace(/\/$/, "");
+  const path = avatarUrl.startsWith("/") ? avatarUrl : `/${avatarUrl}`;
+  return `${base}${path}`;
+}
+
+/** Ảnh đại diện nhân viên — khung tròn (kiosk) */
+function KioskRoundAvatar({ avatarUrl, name, size = 80, borderColor = "rgba(255,255,255,0.95)", ringColor }) {
+  const src = resolveKioskAvatarSrc(avatarUrl);
+  const initial = (name || "?").charAt(0).toUpperCase();
+  const ring = ringColor || "rgba(24, 144, 255, 0.35)";
+  const wrap = {
+    width: size,
+    height: size,
+    borderRadius: "50%",
+    overflow: "hidden",
+    border: `3px solid ${borderColor}`,
+    boxSizing: "border-box",
+    flexShrink: 0,
+    boxShadow: `0 0 0 4px ${ring}, 0 8px 24px rgba(0,0,0,0.15)`,
+    background: src ? "#0f172a" : "linear-gradient(145deg, #6366f1, #8b5cf6)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#fff",
+    fontSize: Math.round(size * 0.38),
+    fontWeight: 800,
+  };
+  if (src) {
+    return (
+      <div style={wrap} aria-hidden={!name}>
+        <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      </div>
+    );
+  }
+  return <div style={wrap}>{initial}</div>;
+}
+
 function AttendanceScanner() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -18,6 +58,7 @@ function AttendanceScanner() {
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
+  const [successAvatar, setSuccessAvatar] = useState(null);
   const [noFaceWarning, setNoFaceWarning] = useState(false);
   const [multiFaceWarning, setMultiFaceWarning] = useState(false);
   const [spoofWarning, setSpoofWarning] = useState(false);
@@ -113,7 +154,8 @@ function AttendanceScanner() {
           name: log.detectedName || "Unknown",
           status: "✓",
           type: log.type || "IN",
-          logsCount: 0
+          logsCount: 0,
+          avatarUrl: log.avatarUrl || null,
         }));
         setAttendanceLogs(mapped);
       }
@@ -662,7 +704,15 @@ function AttendanceScanner() {
           } else {
             setSuccessMsg(`Điểm danh thành công: ${result.detectedName}`);
           }
-          setTimeout(() => setSuccessMsg(""), 3000);
+          setSuccessAvatar(
+            result.avatarUrl
+              ? { url: result.avatarUrl, name: result.detectedName || "" }
+              : null
+          );
+          setTimeout(() => {
+            setSuccessMsg("");
+            setSuccessAvatar(null);
+          }, 3000);
           
           // Keep camera visible but stopped - user can click to scan again
         } else {
@@ -897,18 +947,32 @@ function AttendanceScanner() {
           right: "24px",
           backgroundColor: "#f6ffed",
           color: "#389e0d",
-          padding: "18px 28px",
+          padding: "16px 20px",
           borderRadius: "12px",
           border: "2px solid #b7eb8f",
           boxShadow: "0 8px 24px rgba(56, 158, 13, 0.15)",
           zIndex: 2000,
           fontSize: "15px",
           fontWeight: "600",
-          maxWidth: "420px"
+          maxWidth: "420px",
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
         }}>
-          <div style={{ fontWeight: "700", marginBottom: "4px" }}>SUCCESS</div>
-          <div style={{ fontSize: "14px", fontWeight: "400" }}>
-            {successMsg}
+          {successAvatar ? (
+            <KioskRoundAvatar
+              avatarUrl={successAvatar.url}
+              name={successAvatar.name}
+              size={56}
+              borderColor="#b7eb8f"
+              ringColor="rgba(82, 196, 26, 0.25)"
+            />
+          ) : null}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: "700", marginBottom: "4px" }}>SUCCESS</div>
+            <div style={{ fontSize: "14px", fontWeight: "400" }}>
+              {successMsg}
+            </div>
           </div>
         </div>
       )}
@@ -1060,11 +1124,20 @@ function AttendanceScanner() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    margin: "0 auto 20px",
+                    margin: "0 auto 12px",
                     fontSize: "36px",
                     color: "#ffffff"
                   }}>
                     ✓
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                    <KioskRoundAvatar
+                      avatarUrl={confirmDialog.matchData.avatarUrl}
+                      name={confirmDialog.matchData.detectedName}
+                      size={96}
+                      borderColor="#ffffff"
+                      ringColor="rgba(82, 196, 26, 0.35)"
+                    />
                   </div>
                   <h2 style={{ 
                     margin: 0,
@@ -1200,12 +1273,25 @@ function AttendanceScanner() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    margin: "0 auto 20px",
+                    margin: "0 auto 12px",
                     fontSize: "36px",
                     color: "#ffffff",
                     fontWeight: "700"
                   }}>
                     {confirmDialog.matchData.logsToday?.length === 0 ? "IN" : "OUT"}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                    <KioskRoundAvatar
+                      avatarUrl={confirmDialog.matchData.avatarUrl}
+                      name={confirmDialog.matchData.detectedName}
+                      size={96}
+                      borderColor="#ffffff"
+                      ringColor={
+                        confirmDialog.matchData.logsToday?.length === 0
+                          ? "rgba(24, 144, 255, 0.35)"
+                          : "rgba(250, 140, 22, 0.35)"
+                      }
+                    />
                   </div>
                   <h2 style={{ 
                     margin: 0,
@@ -1856,7 +1942,15 @@ function AttendanceScanner() {
                         e.currentTarget.style.boxShadow = "none";
                       }}
                     >
-                      <div style={{ flex: 1 }}>
+                      <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+                        <KioskRoundAvatar
+                          avatarUrl={log.avatarUrl}
+                          name={log.name}
+                          size={52}
+                          borderColor={borderColor}
+                          ringColor={isIn ? "rgba(82, 196, 26, 0.2)" : "rgba(250, 140, 22, 0.2)"}
+                        />
+                        <div style={{ minWidth: 0 }}>
                         <div style={{ 
                           fontWeight: "700",
                           fontSize: "17px",
@@ -1872,6 +1966,7 @@ function AttendanceScanner() {
                           fontWeight: "500"
                         }}>
                           {log.time}
+                        </div>
                         </div>
                       </div>
                       <div style={{ 

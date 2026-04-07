@@ -10,71 +10,58 @@ const InsuranceConfig = sequelize.define('InsuranceConfig', {
   name: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true,
-    comment: 'Tên cấu hình (ví dụ: "BHXH 2024")'
+    unique: true
   },
   effectiveDate: {
     type: DataTypes.DATEONLY,
-    allowNull: false,
-    comment: 'Ngày có hiệu lực'
+    allowNull: false
   },
   expiryDate: {
     type: DataTypes.DATEONLY,
-    allowNull: true,
-    comment: 'Ngày hết hiệu lực'
+    allowNull: true
   },
   // Tỷ lệ đóng bảo hiểm (theo quy định hiện hành)
   employeeSocialInsuranceRate: {
     type: DataTypes.DECIMAL(5, 2),
-    defaultValue: 8,
-    comment: 'Tỷ lệ đóng BHXH phần NLĐ (%) — chỉ BHXH; BHYT/BHTN khai báo riêng (vd. 8 + 1,5 + 1 = 10,5 tổng)'
+    defaultValue: 8
   },
   employerSocialInsuranceRate: {
     type: DataTypes.DECIMAL(5, 2),
-    defaultValue: 21.5,
-    comment: 'Tỷ lệ đóng BHXH doanh nghiệp (%)'
+    defaultValue: 21.5
   },
   employeeHealthInsuranceRate: {
     type: DataTypes.DECIMAL(5, 2),
-    defaultValue: 1.5,
-    comment: 'Tỷ lệ đóng BHYT nhân viên (%)'
+    defaultValue: 1.5
   },
   employerHealthInsuranceRate: {
     type: DataTypes.DECIMAL(5, 2),
-    defaultValue: 3.0,
-    comment: 'Tỷ lệ đóng BHYT doanh nghiệp (%)'
+    defaultValue: 3.0
   },
   employeeUnemploymentInsuranceRate: {
     type: DataTypes.DECIMAL(5, 2),
-    defaultValue: 1.0,
-    comment: 'Tỷ lệ đóng BHTN nhân viên (%)'
+    defaultValue: 1.0
   },
   employerUnemploymentInsuranceRate: {
     type: DataTypes.DECIMAL(5, 2),
-    defaultValue: 1.0,
-    comment: 'Tỷ lệ đóng BHTN doanh nghiệp (%)'
+    defaultValue: 1.0
   },
   // Mức lương tối đa đóng bảo hiểm
   maxInsuranceSalary: {
     type: DataTypes.DECIMAL(12, 2),
-    allowNull: true,
-    comment: 'Mức lương tối đa đóng BHXH (theo quy định)'
+    allowNull: true
   },
   // Mức lương tối thiểu đóng bảo hiểm
   minInsuranceSalary: {
     type: DataTypes.DECIMAL(12, 2),
-    allowNull: true,
-    comment: 'Mức lương tối thiểu đóng BHXH (theo quy định)'
+    allowNull: true
   },
   isActive: {
     type: DataTypes.BOOLEAN,
-    defaultValue: true,
-    comment: 'Cấu hình đang áp dụng'
+    defaultValue: true
   },
   description: {
     type: DataTypes.TEXT,
-    allowNull: true,
-    comment: 'Mô tả cấu hình'
+    allowNull: true
   }
 }, {
   timestamps: true,

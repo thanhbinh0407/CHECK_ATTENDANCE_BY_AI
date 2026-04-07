@@ -5,6 +5,12 @@ import { ShiftSetting } from "../models/pg/index.js";
 import Notification from "../models/pg/Notification.js";
 import { emitToRoom } from "../socket.js";
 
+async function userAvatarUrl(userId) {
+  if (!userId) return null;
+  const u = await User.findByPk(userId, { attributes: ["avatarUrl"] });
+  return u?.avatarUrl || null;
+}
+
 export const logAttendance = async (req, res) => {
   try {
     const { descriptor, confidence, imageBase64, timestamp, deviceId } = req.body;
@@ -65,6 +71,7 @@ export const logAttendance = async (req, res) => {
       if (todayLogs.length >= 2) {
         // User already checked in and out for the day
         console.log(`User ${match.userId} already has ${todayLogs.length} logs today`);
+        const avatarUrl = await userAvatarUrl(match.userId);
         return res.json({
           status: 'success',
           message: 'Bạn đã kết thúc 1 ngày công',
@@ -73,6 +80,7 @@ export const logAttendance = async (req, res) => {
           detectedName: match.detectedName || 'Unknown',
           distance: match.distance,
           threshold: THRESHOLD,
+          avatarUrl,
           logsToday: todayLogs.map(l => ({ id: l.id, timestamp: l.timestamp, type: l.type }))
         });
       }
@@ -141,6 +149,7 @@ export const logAttendance = async (req, res) => {
       });
 
       const finished = type === 'OUT';
+      const avatarUrl = await userAvatarUrl(match.userId);
 
       return res.json({
         status: "success",
@@ -155,7 +164,8 @@ export const logAttendance = async (req, res) => {
         type: type,
         finished,
         flags: { isLate, isEarlyLeave, isOvertime },
-        shiftId: linkedShiftId
+        shiftId: linkedShiftId,
+        avatarUrl
       });
     } else {
       // Unmatched: create an anonymous log (type IN) so admins can review
@@ -206,7 +216,7 @@ export const getTodayAttendance = async (req, res) => {
           [Op.lt]: tomorrow
         }
       },
-      include: [{ model: User, as: "User", attributes: ['name', 'email', 'employeeCode'] }],
+      include: [{ model: User, as: "User", attributes: ['name', 'email', 'employeeCode', 'avatarUrl'] }],
       order: [['timestamp', 'DESC']]
     });
 
@@ -221,7 +231,8 @@ export const getTodayAttendance = async (req, res) => {
         timestamp: log.timestamp,
         type: log.type || 'IN',
         confidence: log.confidence,
-        matchDistance: log.matchDistance
+        matchDistance: log.matchDistance,
+        avatarUrl: log.User?.avatarUrl || null
       }))
     });
   } catch (err) {
@@ -260,7 +271,9 @@ export const matchFace = async (req, res) => {
     // If matched, fetch today's logs to determine IN/OUT status and finished flag
     let logsToday = [];
     let finished = false;
+    let avatarUrl = null;
     if (match.matched && match.userId) {
+      avatarUrl = await userAvatarUrl(match.userId);
       const now = new Date();
       const todayStart = new Date(now);
       todayStart.setHours(0,0,0,0);
@@ -291,7 +304,8 @@ export const matchFace = async (req, res) => {
       topMatch: match.topMatch || null,
       meanVariance: match.meanVariance || null,
       logsToday: logsToday.map(l => ({ id: l.id, type: l.type, timestamp: l.timestamp })),
-      finished: finished
+      finished: finished,
+      avatarUrl
     });
   } catch (err) {
     console.error("Match error:", err);

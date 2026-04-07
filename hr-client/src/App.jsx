@@ -6,11 +6,21 @@ import HrDashboard from './HrDashboard.jsx';
 import HrLeaveApprovals from './HrLeaveApprovals.jsx';
 import HrAnalytics from './HrAnalytics.jsx';
 import HrReports from './HrReports.jsx';
+import PersonalProfileModal from './PersonalProfileModal.jsx';
 
-const API = 'http://localhost:5000/api';
+const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:5000').replace(/\/$/, '');
+const API = `${API_BASE}/api`;
 
 function authHeaders(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+}
+
+function portalAvatarSrc(apiBase, avatarUrl) {
+  if (!avatarUrl) return null;
+  if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
+  const base = (apiBase || '').replace(/\/$/, '');
+  const path = avatarUrl.startsWith('/') ? avatarUrl : `/${avatarUrl}`;
+  return `${base}${path}`;
 }
 
 // ─── DEPARTMENT MANAGEMENT ─────────────────────────────────────────────────────
@@ -396,6 +406,16 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const patchSessionUser = useCallback((patch) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -454,6 +474,24 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.status === 'success' && data.user) {
+          setUser(data.user);
+          localStorage.setItem('user', JSON.stringify(data.user));
+        } else {
+          // Token invalidated (e.g. role changed) => force logout
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('user');
+          window.location.href = 'http://localhost:3000/';
+        }
+      })
+      .catch(() => {});
+  }, [token]);
 
   const logout = () => {
     localStorage.removeItem('authToken');
@@ -518,13 +556,32 @@ export default function App() {
       {/* Main */}
       <div className="main-content">
         <div className="topbar">
-          <h1>{tabTitles[activeTab]}</h1>
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}
-          >
-            {collapsed ? '→' : '←'}
-          </button>
+          <h1 style={{ margin: 0 }}>{tabTitles[activeTab]}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button
+              type="button"
+              className="portal-avatar-btn"
+              onClick={() => setProfileOpen(true)}
+              title="Hồ sơ cá nhân"
+              aria-label="Mở hồ sơ cá nhân"
+            >
+              {portalAvatarSrc(API_BASE, user?.avatarUrl) ? (
+                <img className="portal-avatar-img" src={portalAvatarSrc(API_BASE, user?.avatarUrl)} alt="" />
+              ) : (
+                <span className="portal-avatar-fallback" aria-hidden>
+                  {(user?.name || '?').charAt(0).toUpperCase()}
+                </span>
+              )}
+            </button>
+            <span className="portal-topbar-email">{user?.email}</span>
+            <button
+              type="button"
+              onClick={() => setCollapsed(!collapsed)}
+              style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}
+            >
+              {collapsed ? '→' : '←'}
+            </button>
+          </div>
         </div>
         <div className="page-content">
           {activeTab === 'dashboard'   && <HrDashboard token={token} onNavigate={setActiveTab} />}
@@ -537,6 +594,12 @@ export default function App() {
           {activeTab === 'reports'     && <HrReports token={token} />}
         </div>
       </div>
+      <PersonalProfileModal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        apiBase={API_BASE}
+        onSessionUserPatch={patchSessionUser}
+      />
     </div>
   );
 }

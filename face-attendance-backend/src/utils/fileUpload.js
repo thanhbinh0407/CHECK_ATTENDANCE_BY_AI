@@ -22,6 +22,11 @@ if (!fs.existsSync(dependentsDir)) {
   fs.mkdirSync(dependentsDir, { recursive: true });
 }
 
+const avatarsDir = path.join(uploadsDir, 'avatars');
+if (!fs.existsSync(avatarsDir)) {
+  fs.mkdirSync(avatarsDir, { recursive: true });
+}
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -78,6 +83,30 @@ export const uploadDependentDocuments = multer({
   fileFilter: dependentsFileFilter
 });
 
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, avatarsDir);
+  },
+  filename: (req, file, cb) => {
+    const uid = req.user?.userId ?? req.user?.id ?? "unknown";
+    const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
+    cb(null, `user-${uid}-${Date.now()}${ext}`);
+  }
+});
+
+const avatarFileFilter = (req, file, cb) => {
+  const allowed = /\.(jpe?g|png|webp)$/i;
+  const okMime = /^image\/(jpeg|png|webp)$/i.test(file.mimetype || "");
+  if (allowed.test(file.originalname || "") && okMime) cb(null, true);
+  else cb(new Error("Chỉ chấp nhận ảnh JPEG, PNG hoặc WebP"));
+};
+
+export const uploadAvatar = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: avatarFileFilter
+});
+
 // Helper to get file URL
 export const getFileUrl = (filename) => {
   if (!filename) return null;
@@ -101,6 +130,17 @@ export const deleteFile = (filename) => {
 export const deleteDependentFile = (filename) => {
   if (!filename) return;
   const filePath = path.join(dependentsDir, filename);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+};
+
+/** Xóa file avatar cũ trên đĩa nếu là đường dẫn local /uploads/avatars/... */
+export const removeAvatarFileIfLocal = (avatarUrl) => {
+  if (!avatarUrl || typeof avatarUrl !== "string") return;
+  if (!avatarUrl.startsWith("/uploads/avatars/")) return;
+  const name = path.basename(avatarUrl);
+  const filePath = path.join(avatarsDir, name);
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
   }

@@ -41,8 +41,7 @@ const JobHistory = sequelize.define('JobHistory', {
   changeType: {
     type: DataTypes.ENUM('hire', 'initial_assignment', 'transfer', 'promotion', 'demotion', 'correction', 'other'),
     allowNull: false,
-    defaultValue: 'other',
-    comment: 'Loai thay doi cong viec'
+    defaultValue: 'other'
   },
   effectiveDate: {
     type: DataTypes.DATEONLY,

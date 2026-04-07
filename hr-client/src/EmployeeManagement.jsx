@@ -264,7 +264,7 @@ export default function EmployeeManagement({ token, user }) {
   const [error, setError]           = useState('');
   const [search, setSearch]         = useState('');
   const [filterDept, setFilterDept] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  const [listMode, setListMode] = useState('active'); // active | inactive
 
   // ── modal ──
   const [editing, setEditing]       = useState(null);
@@ -345,13 +345,11 @@ export default function EmployeeManagement({ token, user }) {
         emp.employeeCode?.toLowerCase().includes(q);
       const matchDept =
         !filterDept || String(emp.departmentId) === filterDept;
-      const matchStatus =
-        filterStatus === ''     ? true :
-        filterStatus === 'active'   ? emp.isActive :
-        /* inactive */              !emp.isActive;
-      return matchSearch && matchDept && matchStatus;
+      const matchList =
+        listMode === 'active' ? emp.isActive !== false : emp.isActive === false;
+      return matchSearch && matchDept && matchList;
     });
-  }, [employees, search, filterDept, filterStatus]);
+  }, [employees, search, filterDept, listMode]);
 
   // ── actions ──
   const openEdit = (emp) => {
@@ -406,15 +404,50 @@ export default function EmployeeManagement({ token, user }) {
   };
 
   const deleteEmployee = async (emp) => {
-    if (!confirm(`Confirm delete employee "${emp.name}" (${emp.employeeCode})?`)) return;
+    if (!confirm(`Deactivate "${emp.name}" (${emp.employeeCode})?`)) return;
     try {
       const res  = await fetch(`${API}/admin/employees/${emp.id}`, { method: 'DELETE', headers: authHeaders(token) });
       const data = await res.json();
       if (data.status === 'success') {
         load();
       } else {
-        alert(data.message || 'Error deleting employee');
+        alert(data.message || 'Error deactivating employee');
       }
+    } catch (err) {
+      alert('Cannot connect to server: ' + err.message);
+    }
+  };
+
+  const restoreEmployee = async (emp) => {
+    if (!confirm(`Restore "${emp.name}" (${emp.employeeCode})?`)) return;
+    try {
+      const res = await fetch(`${API}/admin/employees/${emp.id}/restore`, {
+        method: 'PATCH',
+        headers: authHeaders(token),
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.status === 'success') load();
+      else alert(data.message || 'Error restoring employee');
+    } catch (err) {
+      alert('Cannot connect to server: ' + err.message);
+    }
+  };
+
+  const permanentlyDeleteEmployee = async (emp) => {
+    if (!confirm(`Permanently delete "${emp.name}" (${emp.employeeCode})?\n\nThis cannot be undone.`)) return;
+    const roleLabel = user?.role === 'manager' ? 'Manager' : 'HR';
+    const password = prompt(`Enter ${roleLabel} password to confirm permanent delete:`);
+    if (!password) return;
+    try {
+      const res = await fetch(`${API}/admin/employees/${emp.id}/permanent`, {
+        method: 'DELETE',
+        headers: authHeaders(token),
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (res.ok && data.status === 'success') load();
+      else alert(data.message || 'Error permanently deleting employee');
     } catch (err) {
       alert('Cannot connect to server: ' + err.message);
     }
@@ -504,6 +537,24 @@ export default function EmployeeManagement({ token, user }) {
     <div>
       {/* Toolbar */}
       <div className="emp-toolbar">
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <button
+            className={`btn ${listMode === 'active' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ fontSize: 13, padding: '8px 14px' }}
+            onClick={() => setListMode('active')}
+            type="button"
+          >
+            Danh sách nhân viên
+          </button>
+          <button
+            className={`btn ${listMode === 'inactive' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ fontSize: 13, padding: '8px 14px' }}
+            onClick={() => setListMode('inactive')}
+            type="button"
+          >
+            Danh sách vô hiệu hóa
+          </button>
+        </div>
         <input
           className="emp-search"
           placeholder="Search by name, email, employee code..."
@@ -513,11 +564,6 @@ export default function EmployeeManagement({ token, user }) {
         <select className="emp-filter-select" value={filterDept} onChange={e => setFilterDept(e.target.value)}>
           <option value="">All Departments</option>
           {departments.map(d => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
-        </select>
-        <select className="emp-filter-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
         </select>
         <button className="btn btn-secondary" style={{ fontSize: 13, padding: '8px 14px', flexShrink: 0 }} onClick={load} title="Reload">
           ↻ Reload
@@ -530,13 +576,15 @@ export default function EmployeeManagement({ token, user }) {
         {/* Summary bar */}
         <div className="emp-summary-bar">
           <span>
-            Showing <strong>{filtered.length}</strong> / {employees.length} employees
+            {listMode === 'active' ? 'Đang hoạt động' : 'Vô hiệu hóa'}: <strong>{filtered.length}</strong> /
+            {' '}
+            {employees.length} nhân viên
           </span>
-          {(search || filterDept || filterStatus) && (
+          {(search || filterDept) && (
             <button
               className="btn btn-secondary"
               style={{ fontSize: 12, padding: '3px 10px' }}
-              onClick={() => { setSearch(''); setFilterDept(''); setFilterStatus(''); }}
+              onClick={() => { setSearch(''); setFilterDept(''); }}
             >
               Clear Filters
             </button>
@@ -601,13 +649,33 @@ export default function EmployeeManagement({ token, user }) {
                         >
                           Reset<br />Password
                         </button>
-                        <button
-                          className="btn-tbl btn-tbl-delete"
-                          onClick={() => deleteEmployee(emp)}
-                          title="Xóa nhân viên (UC-07.3)"
-                        >
-                          Delete
-                        </button>
+                        {emp.isActive ? (
+                          <button
+                            className="btn-tbl btn-tbl-delete"
+                            onClick={() => deleteEmployee(emp)}
+                            title="Deactivate (soft delete)"
+                          >
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button
+                            className="btn-tbl btn-tbl-restore"
+                            onClick={() => restoreEmployee(emp)}
+                            title="Restore account"
+                          >
+                            Restore
+                          </button>
+                        )}
+                        {!emp.isActive && (
+                          <button
+                            className="btn-tbl btn-tbl-delete"
+                            onClick={() => permanentlyDeleteEmployee(emp)}
+                            title="Permanent delete (requires password)"
+                            style={{ background: "#7f1d1d" }}
+                          >
+                            Delete<br />Forever
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

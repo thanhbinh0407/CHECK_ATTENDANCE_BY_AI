@@ -47,6 +47,7 @@ export default function UserManagement() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [listMode, setListMode] = useState("active"); // active | inactive
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -158,17 +159,49 @@ export default function UserManagement() {
     }
   };
 
-  const toggleActive = async (user) => {
-    const action = user.isActive ? "Deactivate" : "Activate";
-    if (!confirm(`Confirm ${action} account "${user.name}"?`)) return;
+  const deactivate = async (user) => {
+    if (!confirm(`Deactivate account "${user.name}"?`)) return;
     const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}`, {
-      method: "PUT",
+      method: "DELETE",
       headers: getHeaders(),
-      body: JSON.stringify({ isActive: !user.isActive }),
     });
     const data = await res.json();
-    if (data.status === "success" || data.employee) load();
+    if (res.ok && data.status === "success") load();
     else alert(data.message || "Lỗi");
+  };
+
+  const restore = async (user) => {
+    if (!confirm(`Restore account "${user.name}"?`)) return;
+    const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}/restore`, {
+      method: "PATCH",
+      headers: getHeaders(),
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (res.ok && data.status === "success") load();
+    else alert(data.message || "Lỗi");
+  };
+
+  const permanentlyDeleteUser = async (user) => {
+    if (!confirm(`Permanently delete "${user.name}"?\n\nThis cannot be undone.`)) return;
+    const password = window.prompt("Nhập mật khẩu Manager để xác nhận xóa vĩnh viễn:");
+    if (!password) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}/permanent`, {
+        method: "DELETE",
+        headers: getHeaders(),
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (res.ok && data.status === "success") {
+        load();
+        window.dispatchEvent(new CustomEvent("hrms-admin-refresh"));
+      } else {
+        alert(data.message || "Lỗi xóa vĩnh viễn");
+      }
+    } catch (e) {
+      alert(e.message || "Lỗi kết nối");
+    }
   };
 
   const filtered = users.filter(u => {
@@ -177,7 +210,8 @@ export default function UserManagement() {
       u.email?.toLowerCase().includes(search.toLowerCase()) ||
       u.employeeCode?.toLowerCase().includes(search.toLowerCase());
     const matchRole = roleFilter ? u.role === roleFilter : true;
-    return matchSearch && matchRole;
+    const matchList = listMode === "active" ? u.isActive !== false : u.isActive === false;
+    return matchSearch && matchRole && matchList;
   });
 
   const exportCsv = () => {
@@ -226,7 +260,11 @@ export default function UserManagement() {
       });
       const data = await res.json();
       if (!res.ok || data.status !== "success") {
-        alert(data.message || "Đổi role thất bại");
+        let msg = data.message || "Đổi role thất bại";
+        if (Array.isArray(data.missingFields) && data.missingFields.length) {
+          msg += `\nThiếu trường: ${data.missingFields.join(", ")}`;
+        }
+        alert(msg);
         return;
       }
       setShowRoleModal(false);
@@ -398,6 +436,40 @@ export default function UserManagement() {
 
       {/* Search & Create */}
       <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setListMode("active")}
+            style={{
+              padding: "9px 14px",
+              background: listMode === "active" ? "#667eea" : "#e2e8f0",
+              color: listMode === "active" ? "#fff" : "#111827",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: 13,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Danh sách tài khoản
+          </button>
+          <button
+            onClick={() => setListMode("inactive")}
+            style={{
+              padding: "9px 14px",
+              background: listMode === "inactive" ? "#667eea" : "#e2e8f0",
+              color: listMode === "inactive" ? "#fff" : "#111827",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: 13,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Danh sách vô hiệu hóa
+          </button>
+        </div>
         <input
           style={{ flex: 1, padding: "9px 14px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 14 }}
           placeholder="Search by name, email, employee code..."
@@ -437,7 +509,7 @@ export default function UserManagement() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr>
-                  {['Employee Code', 'Name', 'Email', 'Role', 'Status', 'Created At', 'Actions'].map(h => (
+                  {['Employee Code', 'Name', 'Email', 'Role', 'Status', 'Deactivated At', 'Created At', 'Actions'].map(h => (
                     <th key={h} style={{ background: "#f0f9ff", padding: "10px 12px", textAlign: "left", fontWeight: 600 }}>{h}</th>
                   ))}
                 </tr>
@@ -474,6 +546,9 @@ export default function UserManagement() {
                         </span>
                       </td>
                       <td style={{ padding: "10px 12px", borderBottom: "1px solid #f0f4f8", color: "#64748b" }}>
+                        {user.deactivatedAt ? new Date(user.deactivatedAt).toLocaleString("vi-VN") : "-"}
+                      </td>
+                      <td style={{ padding: "10px 12px", borderBottom: "1px solid #f0f4f8", color: "#64748b" }}>
                         {user.createdAt ? new Date(user.createdAt).toLocaleDateString("vi-VN") : "-"}
                       </td>
                       <td style={{ padding: "10px 12px", borderBottom: "1px solid #f0f4f8" }}>
@@ -502,16 +577,44 @@ export default function UserManagement() {
                           >
                             Reset Password
                           </button>
-                          <button
-                            onClick={() => toggleActive(user)}
-                            style={{
-                              padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
-                              background: user.isActive ? "#fed7d7" : "#c6f6d5",
-                              color: user.isActive ? "#9b2c2c" : "#276749",
-                            }}
-                          >
-                            {user.isActive ? "Deactivate" : "Activate"}
-                          </button>
+                          {listMode === "active" ? (
+                            <button
+                              onClick={() => deactivate(user)}
+                              style={{
+                                padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
+                                background: "#fed7d7",
+                                color: "#9b2c2c",
+                              }}
+                            >
+                              Deactivate
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => restore(user)}
+                                style={{
+                                  padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
+                                  background: "#c6f6d5",
+                                  color: "#276749",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                Restore
+                              </button>
+                              <button
+                                onClick={() => permanentlyDeleteUser(user)}
+                                style={{
+                                  padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
+                                  background: "#7f1d1d",
+                                  color: "#fff",
+                                  fontWeight: 700,
+                                }}
+                                title="Permanent delete (requires Manager password)"
+                              >
+                                Delete Forever
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -519,7 +622,7 @@ export default function UserManagement() {
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: 20, color: "#718096" }}>
+                    <td colSpan={8} style={{ textAlign: "center", padding: 20, color: "#718096" }}>
                       No records found. The user management section is ready for data.
                     </td>
                   </tr>
