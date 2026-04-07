@@ -1,408 +1,1306 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
-import jsPDF from 'jspdf';
+import jsPDF from "jspdf";
 import 'jspdf-autotable';
+import html2canvas from "html2canvas";
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, PageOrientation, UnderlineType, BorderStyle } from "docx";
+import { saveAs } from "file-saver";
 
-const D02LTReport = () => {
-  const [formData, setFormData] = useState({
-    tenDonVi: "",
-    maDonVi: "",
-    maSoThue: "",
-    diaChi: "",
-    soDienThoai: "",
+export default function D02LTReport() {
+  const [employees, setEmployees] = useState([]);
+  const [selectedEmployees, setSelectedEmployees] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingWord, setLoadingWord] = useState(false);
+  const [message, setMessage] = useState("");
+  const [companyInfo, setCompanyInfo] = useState({
+    name: "",
+    code: "",
+    taxCode: "",
+    address: "",
+    phone: "",
     email: "",
-    ngay: "",
-    thang: "",
-    nam: ""
+    reportNumber: "",
+    reportDate: new Date().toLocaleDateString('vi-VN')
   });
-  const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [employeeList, setEmployeeList] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
   useEffect(() => {
-    // Load existing data from backend
-    loadD02LTData();
+    fetchEmployees();
+    // Load company info from localStorage if available
+    const saved = localStorage.getItem("companyInfo");
+    if (saved) {
+      try {
+        setCompanyInfo({ ...companyInfo, ...JSON.parse(saved) });
+      } catch (e) {
+        console.error("Error loading company info:", e);
+      }
+    }
   }, []);
 
-  const loadD02LTData = async () => {
+  // Load báo cáo D02-LT đã lưu (theo user admin hiện tại)
+  useEffect(() => {
+    const loadSavedReport = async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        const userStr = localStorage.getItem("user");
+        if (!token || !userStr) return;
+
+        const currentUser = JSON.parse(userStr);
+        if (!currentUser?.id) return;
+
+        const res = await fetch(`${apiBase}/api/insurance-forms/${currentUser.id}/D02_LT`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        if (data.status === "success" && data.data) {
+          const saved = data.data;
+          // companyInfo ưu tiên dữ liệu đã lưu trên server
+          if (saved.companyInfo || saved.formData?.companyInfo) {
+            setCompanyInfo(prev => ({
+              ...prev,
+              ...(saved.companyInfo || {}),
+              ...(saved.formData?.companyInfo || {})
+            }));
+          }
+
+          // employeeList: danh sách đã xử lý để preview/xuất file
+          if (Array.isArray(saved.employeeList)) {
+            setEmployeeList(saved.employeeList);
+            // Đồng bộ lại danh sách id nhân viên được chọn (nếu có)
+            const ids = saved.employeeList
+              .map(e => e.id)
+              .filter(id => id !== undefined && id !== null);
+            if (ids.length > 0) {
+              setSelectedEmployees(ids);
+            }
+          }
+
+          setMessage("Loaded saved D02-LT report.");
+        }
+      } catch (err) {
+        console.error("Error loading saved D02-LT report:", err);
+        // Không show lỗi nếu chưa có dữ liệu
+      }
+    };
+
+    loadSavedReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // Save company info to localStorage when changed
+    localStorage.setItem("companyInfo", JSON.stringify(companyInfo));
+  }, [companyInfo]);
+
+  const fetchEmployees = async () => {
     try {
-      const response = await fetch('/api/d02-lt', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      setLoading(true);
+      setMessage("");
+      const token = localStorage.getItem("authToken");
+      
+      if (!token) {
+        setMessage("Error: Auth token not found. Please sign in again.");
+        return;
+      }
+
+      const res = await fetch(`${apiBase}/api/admin/employees`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
         }
       });
-      if (response.ok) {
-        const data = await response.json();
-        setFormData(data);
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          setMessage("Authentication error: Invalid token. Please sign in again.");
+          setTimeout(() => {
+            window.location.href = "/";
+          }, 2000);
+          return;
+        }
+        const errorData = await res.json().catch(() => ({ message: "Unknown error" }));
+        setMessage(`Failed to load employee list: ${errorData.message || res.statusText}`);
+        return;
       }
-    } catch (error) {
-      console.error('Error loading D02-LT data:', error);
+
+      const data = await res.json();
+      
+      if (data.status === "success" && Array.isArray(data.employees)) {
+        setEmployees(data.employees);
+        // Auto-select all active employees
+        const activeEmployees = data.employees.filter(emp => emp && emp.isActive !== false);
+        setSelectedEmployees(activeEmployees.map(emp => emp.id));
+        console.log("Active employees count:", activeEmployees.length);
+        generateEmployeeList(activeEmployees);
+        setMessage("");
+      } else {
+        setMessage("Error: Invalid employee data.");
+        setEmployees([]);
+        setEmployeeList([]);
+      }
+    } catch (err) {
+      console.error("Error fetching employees:", err);
+      setMessage(`Failed to load employee list: ${err.message || "Connection error"}`);
+      setEmployees([]);
+      setEmployeeList([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({
+  const generateEmployeeList = (empList) => {
+    if (!empList || !Array.isArray(empList) || empList.length === 0) {
+      setEmployeeList([]);
+      return;
+    }
+
+    try {
+      const list = empList
+        .filter(emp => emp && emp.id) // Filter out invalid employees
+        .map((emp, idx) => {
+          try {
+            // Parse date of birth
+            let dobStr = "";
+            if (emp.dateOfBirth) {
+              try {
+                const dob = new Date(emp.dateOfBirth);
+                if (!isNaN(dob.getTime())) {
+                  dobStr = `${String(dob.getDate()).padStart(2, '0')}/${String(dob.getMonth() + 1).padStart(2, '0')}/${dob.getFullYear()}`;
+                }
+              } catch (e) {
+                console.warn("Error parsing dateOfBirth for employee:", emp.id, e);
+              }
+            }
+            
+            // Determine position category (8-11)
+            let positionCategory = { manager: false, highTech: false, midTech: false, other: true };
+            const jobTitle = (emp.JobTitle?.name || emp.jobTitle || "").toLowerCase();
+            if (jobTitle.includes("trưởng") || jobTitle.includes("phó") || jobTitle.includes("giám đốc") || jobTitle.includes("quản lý")) {
+              positionCategory = { manager: true, highTech: false, midTech: false, other: false };
+            } else if (jobTitle.includes("chuyên viên chính") || jobTitle.includes("kỹ sư") || jobTitle.includes("thạc sĩ") || jobTitle.includes("tiến sĩ")) {
+              positionCategory = { manager: false, highTech: true, midTech: false, other: false };
+            } else if (jobTitle.includes("chuyên viên") || jobTitle.includes("cử nhân")) {
+              positionCategory = { manager: false, highTech: false, midTech: true, other: false };
+            }
+
+            // Contract type - Tách riêng cho từng loại hợp đồng
+            const contractType = emp.contractType || "";
+            let indefiniteContractStart = "";
+            let fixedTermContractStart = "";
+            let fixedTermContractEnd = "";
+            let otherContractStart = "";
+            let otherContractEnd = "";
+            
+            try {
+              if (contractType === "indefinite") {
+                // Hợp đồng không xác định thời hạn
+                if (emp.startDate) {
+                  const date = new Date(emp.startDate);
+                  if (!isNaN(date.getTime())) {
+                    indefiniteContractStart = date.toLocaleDateString('vi-VN');
+                  }
+                }
+              } else if (contractType === "1_year" || contractType === "3_year") {
+                // Hợp đồng xác định thời hạn
+                if (emp.startDate) {
+                  const start = new Date(emp.startDate);
+                  if (!isNaN(start.getTime())) {
+                    fixedTermContractStart = start.toLocaleDateString('vi-VN');
+                    const end = new Date(start);
+                    if (contractType === "1_year") {
+                      end.setFullYear(end.getFullYear() + 1);
+                    } else {
+                      end.setFullYear(end.getFullYear() + 3);
+                    }
+                    fixedTermContractEnd = end.toLocaleDateString('vi-VN');
+                  }
+                }
+              } else if (contractType === "probation" || contractType === "other") {
+                // Hợp đồng thử việc hoặc loại khác
+                if (emp.probationStartDate) {
+                  const date = new Date(emp.probationStartDate);
+                  if (!isNaN(date.getTime())) {
+                    otherContractStart = date.toLocaleDateString('vi-VN');
+                  }
+                } else if (emp.startDate) {
+                  const date = new Date(emp.startDate);
+                  if (!isNaN(date.getTime())) {
+                    otherContractStart = date.toLocaleDateString('vi-VN');
+                  }
+                }
+                if (emp.probationEndDate) {
+                  const date = new Date(emp.probationEndDate);
+                  if (!isNaN(date.getTime())) {
+                    otherContractEnd = date.toLocaleDateString('vi-VN');
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn("Error parsing contract dates for employee:", emp.id, e);
+            }
+
+            // Insurance start/end dates
+            let insuranceStartDate = "";
+            let insuranceEndDate = "";
+            try {
+              if (emp.startDate) {
+                const date = new Date(emp.startDate);
+                if (!isNaN(date.getTime())) {
+                  insuranceStartDate = date.toLocaleDateString('vi-VN');
+                }
+              }
+              if (emp.employmentStatus === "terminated" || emp.employmentStatus === "resigned") {
+                if (emp.updatedAt) {
+                  const date = new Date(emp.updatedAt);
+                  if (!isNaN(date.getTime())) {
+                    insuranceEndDate = date.toLocaleDateString('vi-VN');
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn("Error parsing insurance dates for employee:", emp.id, e);
+            }
+
+            // Format salary and allowances
+            const formatNumber = (value) => {
+              if (!value || value === 0) return "";
+              try {
+                return parseFloat(value).toLocaleString("en-US");
+              } catch (e) {
+                return String(value);
+              }
+            };
+
+            // Thâm niên công tác (số năm từ ngày vào làm) và thâm niên vượt khung (%)
+            let seniorityJobStr = ""; // Thâm niên công tác (năm)
+            let seniorityVKStr = "";  // Thâm niên vượt khung (%)
+            const refDate = emp.employmentStatus === "terminated" || emp.employmentStatus === "resigned"
+              ? (emp.updatedAt ? new Date(emp.updatedAt) : new Date())
+              : new Date();
+            const startDateRaw = emp.startDate || emp.hireDate;
+            if (startDateRaw) {
+              try {
+                const start = new Date(startDateRaw);
+                if (!isNaN(start.getTime()) && start <= refDate) {
+                  const years = (refDate - start) / (1000 * 60 * 60 * 24 * 365.25);
+                  const fullYears = Math.floor(years);
+                  if (fullYears >= 0) seniorityJobStr = fullYears === 0 ? "< 1 year" : `${fullYears} yr`;
+                }
+              } catch (e) {
+                console.warn("Error parsing startDate for seniority:", emp.id, e);
+              }
+            }
+            // Thâm niên vượt khung: nếu có trường từ backend thì dùng, không thì để trống hoặc "-"
+            if (emp.seniorityVK != null && emp.seniorityVK !== "") {
+              seniorityVKStr = String(emp.seniorityVK);
+            }
+
+            return {
+              id: emp.id,
+              stt: idx + 1,
+              name: emp.name || "",
+              socialInsuranceNumber: emp.socialInsuranceNumber || "",
+              dateOfBirth: dobStr,
+              gender: emp.gender === "male" ? "Male" : emp.gender === "female" ? "Female" : "",
+              idNumber: emp.idNumber || "",
+              position: `${emp.JobTitle?.name || emp.jobTitle || ""} ${emp.Department?.name || emp.department || ""}`.trim() || "-",
+              positionCategory,
+              salary: formatNumber(emp.baseSalary),
+              salaryCoefficient: "", // Can be calculated if needed
+              positionAllowance: formatNumber(emp.responsibilityAllowance),
+              seniorityVK: seniorityVKStr,
+              seniorityJob: seniorityJobStr,
+              salaryAllowance: "", // Phụ cấp lương
+              otherAllowances: [
+                emp.lunchAllowance ? `Lunch: ${formatNumber(emp.lunchAllowance)}` : "",
+                emp.transportAllowance ? `Transport: ${formatNumber(emp.transportAllowance)}` : "",
+                emp.phoneAllowance ? `Phone: ${formatNumber(emp.phoneAllowance)}` : ""
+              ].filter(Boolean).join(", "),
+              hazardousStartDate: "",
+              hazardousEndDate: "",
+              indefiniteContractStart,
+              fixedTermContractStart,
+              fixedTermContractEnd,
+              otherContractStart,
+              otherContractEnd,
+              insuranceStartDate,
+              insuranceEndDate,
+              note: [
+                emp.contractType ? `Contract: ${contractType}` : "",
+                emp.healthInsuranceProvider ? `Clinic: ${emp.healthInsuranceProvider}` : ""
+              ].filter(Boolean).join(" ") || ""
+            };
+          } catch (error) {
+            console.error("Error processing employee:", emp.id, error);
+            // Return a minimal valid entry to prevent breaking the list
+            return {
+              id: emp.id || idx,
+              stt: idx + 1,
+              name: emp.name || "N/A",
+              socialInsuranceNumber: "",
+              dateOfBirth: "",
+              gender: "",
+              idNumber: "",
+              position: "-",
+              positionCategory: { manager: false, highTech: false, midTech: false, other: true },
+              salary: "",
+              salaryCoefficient: "",
+              positionAllowance: "",
+              seniorityVK: "",
+              seniorityJob: "",
+              salaryAllowance: "",
+              otherAllowances: "",
+              hazardousStartDate: "",
+              hazardousEndDate: "",
+              indefiniteContractStart: "",
+              fixedTermContractStart: "",
+              fixedTermContractEnd: "",
+              otherContractStart: "",
+              otherContractEnd: "",
+              insuranceStartDate: "",
+              insuranceEndDate: "",
+              note: "Data processing error"
+            };
+          }
+        });
+      
+      console.log("Generated employee list:", list.length, "items");
+      setEmployeeList(list);
+    } catch (error) {
+      console.error("Error generating employee list:", error);
+      setMessage(`Failed to process employee list: ${error.message}`);
+      setEmployeeList([]);
+    }
+  };
+
+  const handleCompanyInfoChange = (field, value) => {
+    setCompanyInfo(prev => ({
       ...prev,
       [field]: value
     }));
   };
 
-  const handleSave = async () => {
-    setIsLoading(true);
+  const handleEmployeeSelection = (employeeId) => {
+    setSelectedEmployees(prev => {
+      if (prev.includes(employeeId)) {
+        const newList = prev.filter(id => id !== employeeId);
+        const selected = employees.filter(emp => newList.includes(emp.id));
+        generateEmployeeList(selected);
+        return newList;
+      } else {
+        const newList = [...prev, employeeId];
+        const selected = employees.filter(emp => newList.includes(emp.id));
+        generateEmployeeList(selected);
+        return newList;
+      }
+    });
+  };
+
+  // Search employees by code or name
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const filteredEmployees = employees.filter((emp) => {
+    if (!employeeSearch.trim()) return true;
+    const term = employeeSearch.trim().toLowerCase();
+    const code = (emp.employeeCode || emp.code || "").toLowerCase();
+    const name = (emp.name || "").toLowerCase();
+    return code.includes(term) || name.includes(term);
+  });
+
+  const selectAllEmployees = () => {
+    const allIds = employees.map(emp => emp.id);
+    setSelectedEmployees(allIds);
+    generateEmployeeList(employees);
+  };
+
+  const deselectAllEmployees = () => {
+    setSelectedEmployees([]);
+    setEmployeeList([]);
+  };
+
+  // Lưu báo cáo D02-LT vào database
+  const saveReport = async () => {
     try {
-      const response = await fetch('/api/d02-lt', {
-        method: 'POST',
+      const token = localStorage.getItem("authToken");
+      const userStr = localStorage.getItem("user");
+
+      if (!token || !userStr) {
+        setMessage("Error: Login information not found. Please sign in again.");
+        return;
+      }
+
+      const currentUser = JSON.parse(userStr);
+      if (!currentUser?.id) {
+        setMessage("Error: Unable to determine current user.");
+        return;
+      }
+
+      if (employeeList.length === 0) {
+        setMessage("Error: No employee data to save the report.");
+        return;
+      }
+
+      setIsSaving(true);
+      setMessage("Saving D02-LT report...");
+
+      const res = await fetch(`${apiBase}/api/insurance-forms/save`, {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          userId: currentUser.id,
+          formType: "D02_LT",
+          formData: {
+            companyInfo,
+            selectedEmployeeIds: selectedEmployees
+          },
+          companyInfo,
+          employeeList
+        })
       });
 
-      if (response.ok) {
-        alert('Dữ liệu đã được lưu thành công!');
-        setIsEditing(false);
+      const data = await res.json();
+      if (res.ok && data.status === "success") {
+        setMessage("✅ D02-LT report saved successfully!");
       } else {
-        alert('Có lỗi xảy ra khi lưu dữ liệu!');
+        setMessage("❌ Failed to save D02-LT report: " + (data.message || "Unknown error"));
       }
-    } catch (error) {
-      console.error('Error saving D02-LT data:', error);
-      alert('Có lỗi xảy ra khi lưu dữ liệu!');
+    } catch (err) {
+      console.error("Error saving D02-LT report:", err);
+      setMessage("❌ Failed to save D02-LT report: " + err.message);
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
-  const exportToPDF = () => {
-    const doc = new jsPDF();
-    
-    // Thiết lập font hỗ trợ tiếng Việt
-    doc.setFont('times', 'normal');
-    
-    // Tiêu đề chính
-    doc.setFontSize(16);
-    doc.setFont('times', 'bold');
-    doc.text('BÁO CÁO TÌNH TRẠNG VIỆC LÀM', 105, 20, { align: 'center' });
-    doc.text('& THAM GIA BHXH/BHYT/BHTN', 105, 30, { align: 'center' });
-    
-    // Mẫu D02-LT
-    doc.setFontSize(12);
-    doc.setFont('times', 'normal');
-    doc.text('(Mẫu D02-LT)', 105, 40, { align: 'center' });
-    
-    // Thông tin đơn vị
-    doc.setFontSize(14);
-    doc.setFont('times', 'bold');
-    doc.text('THÔNG TIN ĐƠN VỊ BÁO CÁO', 20, 60);
-    
-    doc.setFontSize(11);
-    doc.setFont('times', 'normal');
-    
-    // Tạo bảng thông tin đơn vị
-    const tableData = [
-      ['Tên đơn vị:', formData.tenDonVi || ''],
-      ['Mã đơn vị:', formData.maDonVi || ''],
-      ['Mã số thuế:', formData.maSoThue || ''],
-      ['Địa chỉ:', formData.diaChi || ''],
-      ['Số điện thoại:', formData.soDienThoai || ''],
-      ['Email:', formData.email || ''],
-      ['Ngày:', formData.ngay || ''],
-      ['Tháng:', formData.thang || ''],
-      ['Năm:', formData.nam || '']
-    ];
-    
-    doc.autoTable({
-      startY: 70,
-      head: [],
-      body: tableData,
-      theme: 'plain',
-      styles: {
-        font: 'times',
-        fontSize: 10,
-        cellPadding: 3,
-      },
-      columnStyles: {
-        0: { fontStyle: 'bold', cellWidth: 40 },
-        1: { cellWidth: 120 }
-      },
-      margin: { left: 20, right: 20 }
-    });
-    
-    // Thông tin người báo cáo
-    const finalY = doc.lastAutoTable.finalY + 20;
-    doc.setFontSize(12);
-    doc.setFont('times', 'bold');
-    doc.text('THÔNG TIN NGƯỜI BÁO CÁO', 20, finalY);
-    
-    doc.setFontSize(10);
-    doc.setFont('times', 'normal');
-    doc.text('Họ và tên: ...................................................... Chức vụ: ......................................................', 20, finalY + 15);
-    doc.text('Điện thoại: ................................................... Email: .........................................................', 20, finalY + 25);
-    
-    // Ngày tháng năm
-    doc.text(`Ngày ${formData.ngay || ''} tháng ${formData.thang || ''} năm ${formData.nam || ''}`, 20, finalY + 40);
-    doc.text('Người báo cáo', 20, finalY + 50);
-    doc.text('(Ký, ghi rõ họ tên)', 20, finalY + 55);
-    
-    // Lưu file
-    doc.save(`BaoCao_D02-LT_${formData.nam || '2024'}.pdf`);
+  const exportToPDF = async () => {
+    try {
+      console.log("exportToPDF called, employeeList length:", employeeList.length);
+      setLoading(true);
+      setMessage("Generating PDF...");
+
+      // Create temporary container
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.width = '1400px'; // Wider for more columns
+      container.style.padding = '20px';
+      container.style.backgroundColor = '#ffffff';
+      container.style.fontFamily = 'Arial, sans-serif';
+      
+      // Build HTML content
+      container.innerHTML = `
+        <div style="margin-bottom: 20px;">
+          <div style="text-align: center; font-size: 11px; font-weight: bold; margin-bottom: 10px;">Form D02-LT</div>
+          <div style="text-align: center; font-size: 8px; margin-bottom: 15px; font-style: italic;">
+            (Issued with Decision No. 1040/QĐ-BHXH dated 18/08/2020 of Vietnam Social Security)
+          </div>
+          
+          <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+            <div style="flex: 1; font-size: 9px;">
+              <div style="margin-bottom: 3px;"><strong>EMPLOYER NAME:</strong> ${companyInfo.name || "_________________"}</div>
+              <div style="margin-bottom: 3px;">No.: ${companyInfo.reportNumber || "_____"} /………</div>
+              <div style="margin-bottom: 3px;">Unit code: ${companyInfo.code || "_____"}; Tax code: ${companyInfo.taxCode || "_____"}</div>
+              <div style="margin-bottom: 3px;">Address: ${companyInfo.address || "_____"}</div>
+              <div>Phone: ${companyInfo.phone || "_____"}; Email: ${companyInfo.email || "_____"}</div>
+            </div>
+            
+            <div style="flex: 0 0 250px; text-align: center; font-size: 9px;">
+              <div style="font-weight: bold; margin-bottom: 3px;">SOCIALIST REPUBLIC OF VIETNAM</div>
+              <div style="font-weight: bold; margin-bottom: 8px;">Independence - Freedom - Happiness</div>
+              <div>…., … / … / …</div>
+            </div>
+          </div>
+          
+          <div style="text-align: center; font-size: 11px; font-weight: bold; margin: 20px 0;">
+            EMPLOYMENT STATUS REPORT AND LIST OF PARTICIPATION IN SI, HI, UI
+          </div>
+        </div>
+        
+        <table style="width: 100%; border-collapse: collapse; font-size: 7px;">
+          <thead>
+            <tr style="background-color: #dbeafe; color: #1e40af; font-weight: 600;">
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 25px;">No.</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 80px;">Full name</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 60px;">SI No.</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">DoB</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">Gender</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 60px;">ID</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 100px;">Position</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">Mgr</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">High</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">Mid</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">Oth</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 60px;">Salary</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 40px;">Pos Allow</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 35px;">Sen VK</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 35px;">Sen Job</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 40px;">Sal Allow</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 80px;">Other Allow</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 45px;">Haz Start</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 45px;">Haz End</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Indef Start</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Fixed Start</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Fixed End</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Other Start</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Other End</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">SI Start</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">SI End</th>
+              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 80px;">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${employeeList.map((emp, idx) => `
+              <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f0f9ff'};">
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.stt}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px;">${emp.name}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.socialInsuranceNumber || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.dateOfBirth}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.gender === 'Male' ? 'M' : emp.gender === 'Female' ? 'F' : ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.idNumber || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px;">${emp.position}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionCategory.manager ? 'X' : ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionCategory.highTech ? 'X' : ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionCategory.midTech ? 'X' : ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionCategory.other ? 'X' : ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: right;">${emp.salary}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionAllowance || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.seniorityVK || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.seniorityJob || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.salaryAllowance || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; font-size: 6px;">${emp.otherAllowances || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.hazardousStartDate || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.hazardousEndDate || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.indefiniteContractStart || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.fixedTermContractStart || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.fixedTermContractEnd || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.otherContractStart || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.otherContractEnd || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.insuranceStartDate || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.insuranceEndDate || ''}</td>
+                <td style="border: 1px solid #e0e7ff; padding: 3px; font-size: 6px;">${emp.note || ''}</td>
+              </tr>
+            `).join('')}
+            <tr style="background-color: #dbeafe;">
+              <td colspan="27" style="border: 1px solid #93c5fd; padding: 5px; text-align: center; font-weight: bold; color: #1e40af;">
+                Total: ${employeeList.length} employees
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div style="margin-top: 30px; text-align: right; font-size: 9px;">
+          <div style="font-weight: bold; margin-bottom: 5px;">EMPLOYER REPRESENTATIVE</div>
+          <div style="font-size: 8px;">(Signature, full name, and seal)</div>
+        </div>
+      `;
+      
+      document.body.appendChild(container);
+      
+      // Capture with html2canvas
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        width: 1400,
+        windowWidth: 1400
+      });
+      
+      document.body.removeChild(container);
+      
+      // Create PDF
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('landscape', 'mm', 'a4');
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+      
+      // Add additional pages if needed
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+      
+      const filename = `D02-LT-${companyInfo.name.replace(/\s+/g, "-")}-${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(filename);
+      
+      setMessage("✅ PDF exported successfully with all columns!");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      setMessage("❌ Failed to export PDF: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const exportToWord = async () => {
+    try {
+      setLoadingWord(true);
+      setMessage("Generating Word file...");
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10);
+      const timeStr = now.toTimeString().slice(0, 5).replace(":", "-");
+
+      const children = [];
+
+      // Header 2 cột giống mẫu, không có khung (no visible borders)
+      const noBorder = { style: BorderStyle.NONE };
+      const headerTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: {
+          top: noBorder,
+          left: noBorder,
+          right: noBorder,
+          bottom: noBorder,
+          insideH: noBorder,
+          insideV: noBorder
+        },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+                children: [
+                  new Paragraph({
+                    children: [new TextRun({ text: "NAME OF THE LABOR-USING UNIT / EMPLOYER:", bold: true })],
+                    spacing: { after: 80 }
+                  }),
+                  new Paragraph({
+                    children: [new TextRun({ text: companyInfo.name || "................................................................................." })],
+                    spacing: { after: 120 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "No.: ", bold: true }),
+                      new TextRun({ text: companyInfo.reportNumber || "............" }),
+                      new TextRun({ text: " / ............." })
+                    ],
+                    spacing: { after: 100 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "Unit code: ", bold: true }),
+                      new TextRun({ text: (companyInfo.code || "........................").padEnd(24) }),
+                      new TextRun({ text: " ; Tax code: ", bold: true }),
+                      new TextRun({ text: companyInfo.taxCode || "................." })
+                    ],
+                    spacing: { after: 100 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "Address: ", bold: true }),
+                      new TextRun({ text: (companyInfo.address || "...................................................................").slice(0, 65) })
+                    ],
+                    spacing: { after: 100 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "Phone: ", bold: true }),
+                      new TextRun({ text: (companyInfo.phone || ".................................").slice(0, 33) }),
+                      new TextRun({ text: "; Email: ", bold: true }),
+                      new TextRun({ text: (companyInfo.email || ".................................").slice(0, 33) })
+                    ],
+                    spacing: { after: 0 }
+                  })
+                ]
+              }),
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+                children: [
+                  new Paragraph({
+                    children: [new TextRun({ text: "Form D02-LT", bold: true })],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 80 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: "(Issued together with Decision No. 1040/QĐ-BHXH dated 18/8/2020 of Vietnam Social Security)",
+                        italics: true
+                      })
+                    ],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 200 }
+                  }),
+                  new Paragraph({
+                    children: [new TextRun({ text: "SOCIALIST REPUBLIC OF VIETNAM", bold: true })],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 100 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: "Independence - Freedom - Happiness",
+                        bold: true,
+                        underline: { type: UnderlineType.SINGLE }
+                      })
+                    ],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 120 }
+                  }),
+                  new Paragraph({
+                    children: [new TextRun({ text: "... day ... month ... year ...", italics: true })],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 0 }
+                  })
+                ]
+              })
+            ]
+          })
+        ]
+      });
+      children.push(headerTable);
+
+      // Main title (centered)
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: "EMPLOYMENT STATUS REPORT AND LIST OF PARTICIPANTS IN SOCIAL INSURANCE, HEALTH INSURANCE, UNEMPLOYMENT INSURANCE",
+              bold: true
+            })
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 280, after: 320 }
+        })
+      );
+
+      // Helper: ô tiêu đề căn giữa
+      const th = (text) => new TableCell({
+        children: [new Paragraph({ children: [new TextRun({ text, bold: true })], alignment: AlignmentType.CENTER })]
+      });
+      // Helper: ô dữ liệu căn giữa
+      const td = (text) => new TableCell({
+        children: [new Paragraph({ children: [new TextRun({ text: text || "" })], alignment: AlignmentType.CENTER })]
+      });
+
+      // Table — header và dữ liệu đều căn giữa
+      const tableRows = [
+        new TableRow({
+          children: [
+            th("No."),
+            th("Full name"),
+            th("Social Insurance No."),
+            th("Date of birth"),
+            th("Gender"),
+            th("Citizen ID/ID"),
+            th("Position/Title"),
+            th("Manager"),
+            th("High-skilled"),
+            th("Mid-skilled"),
+            th("Other"),
+            th("Salary"),
+            th("Position allowance"),
+            th("Seniority VK"),
+            th("Job seniority"),
+            th("Salary allowance"),
+            th("Other allowances"),
+            th("Hazard start"),
+            th("Hazard end"),
+            th("Indefinite contract start"),
+            th("Fixed-term contract start"),
+            th("Fixed-term contract end"),
+            th("Other contract start"),
+            th("Other contract end"),
+            th("SI start"),
+            th("SI end"),
+            th("Notes")
+          ]
+        })
+      ];
+
+      employeeList.forEach(emp => {
+        tableRows.push(
+          new TableRow({
+            children: [
+              td(String(emp.stt)),
+              td(emp.name),
+              td(emp.socialInsuranceNumber),
+              td(emp.dateOfBirth),
+              td(emp.gender),
+              td(emp.idNumber),
+              td(emp.position),
+              td(emp.positionCategory?.manager ? "X" : ""),
+              td(emp.positionCategory?.highTech ? "X" : ""),
+              td(emp.positionCategory?.midTech ? "X" : ""),
+              td(emp.positionCategory?.other ? "X" : ""),
+              td(emp.salary),
+              td(emp.positionAllowance),
+              td(emp.seniorityVK),
+              td(emp.seniorityJob),
+              td(emp.salaryAllowance),
+              td(emp.otherAllowances),
+              td(emp.hazardousStartDate),
+              td(emp.hazardousEndDate),
+              td(emp.indefiniteContractStart),
+              td(emp.fixedTermContractStart),
+              td(emp.fixedTermContractEnd),
+              td(emp.otherContractStart),
+              td(emp.otherContractEnd),
+              td(emp.insuranceStartDate),
+              td(emp.insuranceEndDate),
+              td(emp.note)
+            ]
+          })
+        );
+      });
+
+      // Total row — căn giữa
+      tableRows.push(
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun({ text: `Total: ${employeeList.length}`, bold: true })], alignment: AlignmentType.CENTER })],
+              columnSpan: 27
+            })
+          ]
+        })
+      );
+
+      children.push(
+        new Table({
+          rows: tableRows,
+          width: { size: 100, type: WidthType.PERCENTAGE }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: "REPRESENTATIVE OF THE LABOR-USING UNIT", bold: true })
+          ],
+          alignment: AlignmentType.RIGHT,
+          spacing: { before: 600, after: 120 }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: "(Signature, full name, and seal)" })
+          ],
+          alignment: AlignmentType.RIGHT
+        })
+      );
+
+      // A4 landscape, kích thước và lề gần giống mẫu chuẩn D02-LT
+      const doc = new Document({
+        sections: [{
+          properties: {
+            page: {
+              size: {
+                // Theo docx: truyền kích thước A4 dọc (21cm x 29.7cm),
+                // orientation = LANDSCAPE sẽ tự xoay ngang (swap width/height).
+                width: "21cm",
+                height: "29.7cm",
+                orientation: PageOrientation.LANDSCAPE
+              },
+              margin: {
+                // Lề gần giống mẫu: khoảng 2cm trên/dưới, 1.5cm trái/phải
+                top: "2cm",
+                right: "1.5cm",
+                bottom: "2cm",
+                left: "1.5cm"
+              }
+            }
+          },
+          children: children
+        }]
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const safeName = (companyInfo.name || "Report").replace(/\s+/g, "-");
+      const filename = `D02-LT-${safeName}-${dateStr}-${timeStr}.docx`;
+      saveAs(blob, filename);
+      setMessage("Word file exported successfully! Open the new file (check time in filename).");
+    } catch (error) {
+      console.error("Error generating Word document:", error);
+      setMessage("Failed to export Word file: " + error.message);
+    } finally {
+      setLoadingWord(false);
+    }
+  };
+
+  const containerStyle = {
+    padding: theme.spacing.xl,
+    backgroundColor: theme.neutral.white,
+    borderRadius: theme.radius.lg,
+    boxShadow: theme.shadows.md,
+    maxWidth: "1400px",
+    margin: "0 auto"
+  };
+
+  const formSectionStyle = {
+    marginBottom: theme.spacing.xl,
+    padding: theme.spacing.lg,
+    backgroundColor: theme.neutral.gray50,
+    borderRadius: theme.radius.md,
+    border: `1px solid ${theme.neutral.gray200}`
   };
 
   const inputStyle = {
     width: "100%",
-    padding: "12px 16px",
-    border: "2px solid #e2e8f0",
-    borderRadius: "8px",
-    fontSize: "16px",
-    fontFamily: "inherit",
-    transition: "border-color 0.2s ease, box-shadow 0.2s ease",
-    backgroundColor: isEditing ? "#fff" : "#f8fafc",
-    color: isEditing ? "#1e293b" : "#64748b",
-    cursor: isEditing ? "text" : "default"
+    padding: theme.spacing.sm,
+    border: `1px solid ${theme.neutral.gray300}`,
+    borderRadius: theme.radius.sm,
+    fontSize: theme.typography.body.fontSize,
+    fontFamily: theme.typography.fontFamily
   };
 
   const labelStyle = {
     display: "block",
-    fontSize: "14px",
+    marginBottom: theme.spacing.xs,
     fontWeight: "600",
-    color: "#374151",
-    marginBottom: "8px",
-    marginTop: "16px"
+    color: theme.neutral.gray700,
+    fontSize: theme.typography.small.fontSize
   };
 
   const buttonStyle = {
-    padding: "12px 24px",
+    padding: `${theme.spacing.md} ${theme.spacing.xl}`,
+    backgroundColor: theme.primary.main,
+    color: theme.neutral.white,
     border: "none",
-    borderRadius: "8px",
-    fontSize: "16px",
-    fontWeight: "600",
+    borderRadius: theme.radius.md,
     cursor: "pointer",
-    transition: "all 0.2s ease",
-    marginRight: "12px"
+    fontWeight: "600",
+    fontSize: theme.typography.body.fontSize,
+    marginRight: theme.spacing.md
   };
 
-  const editButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: theme.accent.main,
-    color: "#fff"
-  };
-
-  const saveButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: "#10b981",
-    color: "#fff"
-  };
-
-  const cancelButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: "#6b7280",
-    color: "#fff"
-  };
+  const isSuccessMessage =
+    typeof message === "string" &&
+    (message.trim().startsWith("✅") || /successfully/i.test(message));
 
   return (
-    <div style={{
-      backgroundColor: "#fff",
-      borderRadius: "12px",
-      padding: "32px",
-      boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-      border: "1px solid #e2e8f0"
-    }}>
-      <div style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: "32px",
-        borderBottom: "2px solid #f1f5f9",
-        paddingBottom: "16px"
-      }}>
-        <div>
-          <h2 style={{
-            fontSize: "24px",
-            fontWeight: "700",
-            color: "#1e293b",
-            margin: "0 0 4px 0"
-          }}>
-            📋 Báo Cáo Tình Trạng Việc Làm & Tham Gia BHXH/BHYT/BHTN
-          </h2>
-          <p style={{
-            fontSize: "16px",
-            color: "#64748b",
-            margin: 0
-          }}>
-            Mẫu D02-LT - Thông Tin Đơn Vị Báo Cáo
-          </p>
+    <div style={containerStyle}>
+      <h2 style={{ marginBottom: theme.spacing.lg, color: theme.neutral.gray900 }}>
+        📊 Employment &amp; social/health/unemployment insurance participation (Form D02-LT)
+      </h2>
+
+      {/* Company Information */}
+      <div style={formSectionStyle}>
+        <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
+          Reporting unit
+        </h3>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+          <div>
+            <label style={labelStyle}>Unit name: *</label>
+            <input
+              type="text"
+              style={inputStyle}
+              value={companyInfo.name}
+              onChange={(e) => handleCompanyInfoChange("name", e.target.value)}
+              placeholder="Company/organization name"
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Unit code:</label>
+            <input
+              type="text"
+              style={inputStyle}
+              value={companyInfo.code}
+              onChange={(e) => handleCompanyInfoChange("code", e.target.value)}
+              placeholder="Unit code (per VSS)"
+            />
+          </div>
         </div>
-        <div>
-          {!isEditing ? (
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={() => setIsEditing(true)}
-                style={editButtonStyle}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
-              >
-                ✏️ Chỉnh sửa
-              </button>
-              <button
-                onClick={exportToPDF}
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+          <div>
+            <label style={labelStyle}>Tax code:</label>
+            <input
+              type="text"
+              style={inputStyle}
+              value={companyInfo.taxCode}
+              onChange={(e) => handleCompanyInfoChange("taxCode", e.target.value)}
+              placeholder="Tax identification number"
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Report number:</label>
+            <input
+              type="text"
+              style={inputStyle}
+              value={companyInfo.reportNumber}
+              onChange={(e) => handleCompanyInfoChange("reportNumber", e.target.value)}
+              placeholder="Report number"
+            />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: theme.spacing.md }}>
+          <label style={labelStyle}>Address:</label>
+          <input
+            type="text"
+            style={inputStyle}
+            value={companyInfo.address}
+            onChange={(e) => handleCompanyInfoChange("address", e.target.value)}
+            placeholder="Head office address"
+          />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
+          <div>
+            <label style={labelStyle}>Phone:</label>
+            <input
+              type="text"
+              style={inputStyle}
+              value={companyInfo.phone}
+              onChange={(e) => handleCompanyInfoChange("phone", e.target.value)}
+              placeholder="Phone number"
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Email:</label>
+            <input
+              type="email"
+              style={inputStyle}
+              value={companyInfo.email}
+              onChange={(e) => handleCompanyInfoChange("email", e.target.value)}
+              placeholder="Company email"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Employee Selection */}
+      <div style={formSectionStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing.md }}>
+          <h3 style={{ margin: 0, color: theme.primary.main }}>
+            Employees ({selectedEmployees.length}/{employees.length})
+            {loading && <span style={{ marginLeft: theme.spacing.sm, fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500 }}>⏳ Loading...</span>}
+          </h3>
+          <div style={{ display: "flex", gap: theme.spacing.sm, alignItems: "center" }}>
+            <input
+              type="text"
+              placeholder="Search by code or name..."
+              value={employeeSearch}
+              onChange={(e) => setEmployeeSearch(e.target.value)}
+              style={{
+                padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+                borderRadius: theme.radius.sm,
+                border: `1px solid ${theme.neutral.gray300}`,
+                fontSize: theme.typography.small.fontSize,
+                minWidth: "220px"
+              }}
+            />
+            <button
+              style={{
+                ...buttonStyle,
+                backgroundColor: theme.success.main,
+                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                fontSize: theme.typography.small.fontSize
+              }}
+              onClick={selectAllEmployees}
+              disabled={loading || employees.length === 0}
+            >
+              Select all
+            </button>
+            <button
+              style={{
+                ...buttonStyle,
+                backgroundColor: theme.error.main,
+                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                fontSize: theme.typography.small.fontSize
+              }}
+              onClick={deselectAllEmployees}
+              disabled={loading}
+            >
+              Deselect all
+            </button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: "center", padding: theme.spacing.xl, color: theme.neutral.gray600 }}>
+            ⏳ Loading employees...
+          </div>
+        ) : employees.length === 0 ? (
+          <div style={{ textAlign: "center", padding: theme.spacing.xl, color: theme.error.main }}>
+            ❌ No employees found
+          </div>
+        ) : (
+          <div style={{
+            maxHeight: "400px",
+            overflowY: "auto",
+            border: `1px solid ${theme.neutral.gray300}`,
+            borderRadius: theme.radius.sm,
+            padding: theme.spacing.sm
+          }}>
+            {filteredEmployees.map(emp => (
+              <label
+                key={emp.id}
                 style={{
-                  ...buttonStyle,
-                  backgroundColor: "#dc2626",
-                  color: "#fff"
+                  display: "flex",
+                  alignItems: "center",
+                  padding: theme.spacing.sm,
+                  cursor: "pointer",
+                  borderRadius: theme.radius.sm,
+                  marginBottom: theme.spacing.xs,
+                  backgroundColor: selectedEmployees.includes(emp.id) ? "#e0f2fe" : "transparent",
+                  border: selectedEmployees.includes(emp.id) ? "1px solid #bae6fd" : "1px solid transparent"
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
-              >
-                📄 Xuất PDF
-              </button>
-            </div>
-          ) : (
-            <div>
-              <button
-                onClick={handleSave}
-                disabled={isLoading}
-                style={saveButtonStyle}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
-              >
-                {isLoading ? "⏳ Đang lưu..." : "💾 Lưu"}
-              </button>
-              <button
-                onClick={() => {
-                  setIsEditing(false);
-                  loadD02LTData(); // Reset to original data
+                onMouseEnter={(e) => {
+                  if (!selectedEmployees.includes(emp.id)) {
+                    e.currentTarget.style.backgroundColor = "#f0f9ff";
+                  }
                 }}
-                style={cancelButtonStyle}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
+                onMouseLeave={(e) => {
+                  if (!selectedEmployees.includes(emp.id)) {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                  }
+                }}
               >
-                ❌ Hủy
-              </button>
-            </div>
-          )}
-        </div>
+                <input
+                  type="checkbox"
+                  checked={selectedEmployees.includes(emp.id)}
+                  onChange={() => handleEmployeeSelection(emp.id)}
+                  style={{ marginRight: theme.spacing.sm }}
+                  disabled={loading}
+                />
+                <span>
+                  <strong>{emp.employeeCode || "N/A"}</strong> - {emp.name || "N/A"} {emp.isActive === false ? "(Inactive)" : ""}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-        gap: "24px"
-      }}>
-        <div>
-          <label style={labelStyle}>Tên đơn vị</label>
-          <input
-            type="text"
-            value={formData.tenDonVi}
-            onChange={(e) => handleInputChange('tenDonVi', e.target.value)}
-            disabled={!isEditing}
-            style={inputStyle}
-            placeholder="Nhập tên đơn vị..."
-          />
+      {/* Preview Table */}
+      {employeeList.length > 0 && (
+        <div style={formSectionStyle}>
+          <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
+            Report preview ({employeeList.length} employees)
+          </h3>
+          <div style={{
+            overflowX: "auto",
+            border: `1px solid ${theme.neutral.gray300}`,
+            borderRadius: theme.radius.sm
+          }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: theme.typography.tiny.fontSize }}>
+              <thead>
+                <tr style={{ backgroundColor: "#dbeafe", color: "#1e40af", fontWeight: "600" }}>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>No.</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "left" }}>Full name</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>Social Insurance No.</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>Date of birth</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>Gender</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>Citizen ID/ID</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "left" }}>Position/Title</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>Salary</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "center" }}>SI start</th>
+                  <th style={{ padding: theme.spacing.xs, border: "1px solid #93c5fd", textAlign: "left" }}>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employeeList.slice(0, 10).map((emp, idx) => (
+                  <tr key={emp.id} style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f0f9ff" }}>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "center" }}>{emp.stt}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff" }}>{emp.name}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "center" }}>{emp.socialInsuranceNumber || "-"}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "center" }}>{emp.dateOfBirth}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "center" }}>{emp.gender}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "center" }}>{emp.idNumber || "-"}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff" }}>{emp.position || "-"}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "right" }}>{emp.salary || "-"}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff", textAlign: "center" }}>{emp.insuranceStartDate || "-"}</td>
+                    <td style={{ padding: theme.spacing.xs, border: "1px solid #e0e7ff" }}>{emp.note || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {employeeList.length > 10 && (
+              <div style={{ padding: theme.spacing.sm, textAlign: "center", color: theme.neutral.gray600 }}>
+                ... and {employeeList.length - 10} more employees (will be included in the exported file)
+              </div>
+            )}
+          </div>
         </div>
+      )}
 
-        <div>
-          <label style={labelStyle}>Mã đơn vị</label>
-          <input
-            type="text"
-            value={formData.maDonVi}
-            onChange={(e) => handleInputChange('maDonVi', e.target.value)}
-            disabled={!isEditing}
-            style={inputStyle}
-            placeholder="Nhập mã đơn vị..."
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Mã số thuế</label>
-          <input
-            type="text"
-            value={formData.maSoThue}
-            onChange={(e) => handleInputChange('maSoThue', e.target.value)}
-            disabled={!isEditing}
-            style={inputStyle}
-            placeholder="Nhập mã số thuế..."
-          />
-        </div>
-
-        <div style={{ gridColumn: "1 / -1" }}>
-          <label style={labelStyle}>Địa chỉ</label>
-          <input
-            type="text"
-            value={formData.diaChi}
-            onChange={(e) => handleInputChange('diaChi', e.target.value)}
-            disabled={!isEditing}
-            style={inputStyle}
-            placeholder="Nhập địa chỉ..."
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Số điện thoại</label>
-          <input
-            type="tel"
-            value={formData.soDienThoai}
-            onChange={(e) => handleInputChange('soDienThoai', e.target.value)}
-            disabled={!isEditing}
-            style={inputStyle}
-            placeholder="Nhập số điện thoại..."
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Email</label>
-          <input
-            type="email"
-            value={formData.email}
-            onChange={(e) => handleInputChange('email', e.target.value)}
-            disabled={!isEditing}
-            style={inputStyle}
-            placeholder="Nhập email..."
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Ngày</label>
-          <input
-            type="number"
-            min="1"
-            max="31"
-            value={formData.ngay}
-            onChange={(e) => handleInputChange('ngay', e.target.value)}
-            disabled={!isEditing}
-            style={inputStyle}
-            placeholder="DD"
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Tháng</label>
-          <input
-            type="number"
-            min="1"
-            max="12"
-            value={formData.thang}
-            onChange={(e) => handleInputChange('thang', e.target.value)}
-            disabled={!isEditing}
-            style={inputStyle}
-            placeholder="MM"
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Năm</label>
-          <input
-            type="number"
-            min="2000"
-            max="2100"
-            value={formData.nam}
-            onChange={(e) => handleInputChange('nam', e.target.value)}
-            disabled={!isEditing}
-            style={inputStyle}
-            placeholder="YYYY"
-          />
-        </div>
+      {/* Action Buttons */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: theme.spacing.md, marginTop: theme.spacing.xl }}>
+        <button
+          style={{
+            ...buttonStyle,
+            backgroundColor: isSaving ? theme.neutral.gray400 : theme.primary.main,
+            cursor: isSaving ? "not-allowed" : "pointer",
+            opacity: isSaving ? 0.7 : 1
+          }}
+          onClick={saveReport}
+          disabled={isSaving || loading || employeeList.length === 0}
+        >
+          {isSaving ? "⏳ Saving..." : "💾 Save"}
+        </button>
+        <button
+          style={{
+            ...buttonStyle,
+            backgroundColor: loadingWord ? theme.neutral.gray400 : theme.primary.main,
+            cursor: loadingWord ? "not-allowed" : "pointer",
+            opacity: loadingWord ? 0.7 : 1
+          }}
+          onClick={exportToWord}
+          disabled={loadingWord || loading || employeeList.length === 0}
+        >
+          {loadingWord ? "⏳ Generating Word..." : "📝 Export Word"}
+        </button>
+        <button
+          style={{
+            ...buttonStyle,
+            backgroundColor: loading ? theme.neutral.gray400 : theme.primary.main,
+            cursor: loading ? "not-allowed" : "pointer",
+            opacity: loading ? 0.7 : 1
+          }}
+          onClick={exportToPDF}
+          disabled={loading || loadingWord || employeeList.length === 0}
+        >
+          {loading ? "⏳ Generating PDF..." : "📄 Export PDF"}
+        </button>
       </div>
+
+      {/* Debug info */}
+      {employeeList.length === 0 && selectedEmployees.length > 0 && (
+        <div style={{
+          marginTop: theme.spacing.md,
+          padding: theme.spacing.sm,
+          backgroundColor: theme.warning.bg,
+          color: theme.warning.text,
+          borderRadius: theme.radius.md,
+          fontSize: theme.typography.small.fontSize
+        }}>
+          ℹ️ Processing {selectedEmployees.length} employees... If this persists, try refreshing the page.
+        </div>
+      )}
+
+      {message && (
+        <div style={{
+          marginTop: theme.spacing.md,
+          padding: theme.spacing.md,
+          backgroundColor: isSuccessMessage ? theme.success.light : theme.error.light,
+          color: isSuccessMessage ? theme.success.dark : theme.error.dark,
+          borderRadius: theme.radius.md
+        }}>
+          {message}
+        </div>
+      )}
     </div>
   );
-};
+}
 
-export default D02LTReport;

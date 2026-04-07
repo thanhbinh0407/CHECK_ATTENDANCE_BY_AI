@@ -19,7 +19,7 @@ export const getActiveInsuranceConfig = async () => {
     });
 
     return config || {
-      employeeSocialInsuranceRate: 10.5,
+      employeeSocialInsuranceRate: 8,
       employerSocialInsuranceRate: 21.5,
       employeeHealthInsuranceRate: 1.5,
       employerHealthInsuranceRate: 3.0,
@@ -32,7 +32,7 @@ export const getActiveInsuranceConfig = async () => {
     console.error("[Insurance Service] Error getting active config:", error);
     // Return default rates
     return {
-      employeeSocialInsuranceRate: 10.5,
+      employeeSocialInsuranceRate: 8,
       employerSocialInsuranceRate: 21.5,
       employeeHealthInsuranceRate: 1.5,
       employerHealthInsuranceRate: 3.0,
@@ -80,6 +80,12 @@ export const calculateInsurance = async (userId, month, year) => {
 
     return {
       insuranceBase: adjustedBase,
+      /** Employee contribution rates (%) — for payslip / breakdown UI */
+      employeeRatesPercent: {
+        social: parseFloat(config.employeeSocialInsuranceRate),
+        health: parseFloat(config.employeeHealthInsuranceRate),
+        unemployment: parseFloat(config.employeeUnemploymentInsuranceRate),
+      },
       employee: {
         socialInsurance: parseFloat(employeeSocialInsurance.toFixed(2)),
         healthInsurance: parseFloat(employeeHealthInsurance.toFixed(2)),

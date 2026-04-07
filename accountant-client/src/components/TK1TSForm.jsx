@@ -1,114 +1,427 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import jsPDF from "jspdf";
+import "jspdf-autotable";
+import html2canvas from "html2canvas";
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel } from "docx";
+import { saveAs } from "file-saver";
+import { countries, vietnamProvinces } from "../data/countries.js";
 
-const TK1TSForm = () => {
-  const [selectedEmployee, setSelectedEmployee] = useState("");
+// Trạng thái form mặc định dùng chung cho load lần đầu và khi đổi nhân viên
+const initialFormData = {
+  // Phần I: Người chưa có mã số BHXH
+  name: "",
+  dateOfBirth: "",
+  gender: "",
+  nationality: "VN",
+  nationalityName: "Vietnam",
+  ethnicity: "",
+  birthPlaceCountry: "VN",
+  birthPlaceCountryName: "Vietnam",
+  birthPlaceWard: "",
+  birthPlaceDistrict: "",
+  birthPlaceProvince: "",
+  birthPlaceProvinceCode: "",
+  addressCountry: "VN",
+  addressCountryName: "Vietnam",
+  addressStreet: "",
+  addressWard: "",
+  addressDistrict: "",
+  addressProvince: "",
+  addressProvinceCode: "",
+  idNumber: "",
+  idIssueDate: "",
+  idIssuePlace: "",
+  phoneNumber: "",
+  parentGuardianName: "",
+  contributionAmount: "",
+  contributionMethod: "",
+  healthInsuranceProvider: "",
+  // Phần II: Người đã có mã số BHXH
+  socialInsuranceNumber: "",
+  changeContent: "",
+  attachedDocuments: "",
+  // Phụ lục: Thành viên hộ gia đình
+  householdHeadName: "",
+  householdHeadPhone: "",
+  householdAddressCountry: "VN",
+  householdAddressCountryName: "Vietnam",
+  householdAddressWard: "",
+  householdAddressDistrict: "",
+  householdAddressProvince: "",
+  householdAddressProvinceCode: "",
+  householdMembers: [],
+  declarationPlace: "",
+  declarationDate: new Date().toISOString().split("T")[0]
+};
+
+export default function TK1TSForm() {
   const [employees, setEmployees] = useState([]);
-  const [formData, setFormData] = useState({
-    // Thông tin người lao động
-    hoVaTen: "",
-    ngaySinh: "",
-    gioiTinh: "",
-    soCCCD: "",
-    ngayCapCCCD: "",
-    noiCapCCCD: "",
-    diaChiThuongTru: "",
-    diaChiTamTru: "",
-    soDienThoai: "",
-    email: "",
-
-    // Thông tin công việc
-    chucVu: "",
-    phongBan: "",
-    ngayBatDauLamViec: "",
-    loaiHopDong: "",
-    thoiHanHopDong: "",
-    luongCoBan: "",
-    phuCap: "",
-
-    // Thông tin BHXH/BHYT
-    soSoBHXH: "",
-    noiDangKyKCB: "",
-    thamGiaBHXH: true,
-    thamGiaBHYT: true,
-    thamGiaBHTN: false,
-    tyLeDongBHXH: "",
-    tyLeDongBHYT: "",
-    tyLeDongBHTN: "",
-
-    // Thông tin người liên hệ khẩn cấp
-    nguoiLienHeKhanCap: "",
-    quanHeVoiNguoiLD: "",
-    soDienThoaiNguoiLienHe: "",
-
-    // Thông tin bổ sung
-    trinhDoHocVan: "",
-    chuyenNganh: "",
-    ngoaiNgu: "",
-    tinHoc: "",
-    kinhNghiem: ""
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingWord, setLoadingWord] = useState(false);
+  const [formType, setFormType] = useState("new"); // "new" or "update"
+  const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [formData, setFormData] = useState(initialFormData);
+  const [householdMember, setHouseholdMember] = useState({
+    name: "",
+    socialInsuranceNumber: "",
+    dateOfBirth: "",
+    gender: "",
+    birthPlace: "",
+    relationship: "",
+    idNumber: "",
+    note: ""
   });
-  const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+
+  const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+  const formatDateDDMMYYYY = (date) => {
+    if (!date) return "";
+    const d = new Date(date);
+    if (Number.isNaN(d.getTime())) return "";
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
 
   useEffect(() => {
-    loadEmployees();
+    fetchEmployees();
   }, []);
 
   useEffect(() => {
-    if (selectedEmployee) {
-      loadEmployeeData(selectedEmployee);
-    }
-  }, [selectedEmployee]);
+    if (!selectedEmployee) return;
 
-  const loadEmployees = async () => {
-    try {
-      const response = await fetch('/api/admin/employees', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setEmployees(data.employees || []);
+    // Đảm bảo: luôn load thông tin nhân viên trước,
+    // sau đó mới áp dữ liệu form đã lưu để không bị ghi đè
+    const loadAll = async () => {
+      try {
+        await loadEmployeeData();
+        await loadSavedFormData();
+      } catch (err) {
+        console.error("Error loading employee + saved form data:", err);
       }
-    } catch (error) {
-      console.error('Lỗi khi tải danh sách nhân viên:', error);
+    };
+
+    loadAll();
+  }, [selectedEmployee, formType]);
+
+  // Load saved form data
+  const loadSavedFormData = async () => {
+    if (!selectedEmployee) return;
+    
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/insurance-forms/${selectedEmployee.id}/TK1_TS`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'success' && data.data && data.data.formData) {
+          const saved = data.data.formData || {};
+
+          // Không ghi đè auto-fill Appendix address nếu giá trị lưu trong DB trống
+          const {
+            householdAddressWard,
+            householdAddressDistrict,
+            householdAddressProvince,
+            householdAddressProvinceCode,
+            ...restSaved
+          } = saved;
+
+          const overrideHouseholdAddress = {
+            ...(householdAddressWard && householdAddressWard.trim()
+              ? { householdAddressWard }
+              : {}),
+            ...(householdAddressDistrict && householdAddressDistrict.trim()
+              ? { householdAddressDistrict }
+              : {}),
+            ...(householdAddressProvince && householdAddressProvince.trim()
+              ? { householdAddressProvince }
+              : {}),
+            ...(householdAddressProvinceCode && householdAddressProvinceCode.trim()
+              ? { householdAddressProvinceCode }
+              : {})
+          };
+
+          setFormData(prev => ({
+            ...prev,
+            ...restSaved,
+            ...overrideHouseholdAddress
+          }));
+          setMessage("Loaded saved form data.");
+        }
+      }
+    } catch (err) {
+      console.error("Error loading saved form:", err);
+      // Không hiển thị lỗi nếu chưa có dữ liệu
     }
   };
 
-  const loadEmployeeData = async (employeeId) => {
-    try {
-      // Load existing TK1-TS data for this employee
-      const response = await fetch(`/api/insurance-forms/${employeeId}/TK1_TS`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setFormData(data.formData);
-      } else {
-        // Load basic employee info if no TK1-TS form exists
-        const empResponse = await fetch(`/api/admin/employees/${employeeId}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-          }
-        });
-        if (empResponse.ok) {
-          const empData = await empResponse.json();
-          setFormData(prev => ({
-            ...prev,
-            hoVaTen: empData.employee.name || "",
-            email: empData.employee.email || "",
-            // Add other basic fields that can be populated from employee data
-          }));
-        }
+  // Basic form validation following TK1-TS required fields
+  const validateForm = () => {
+    if (!selectedEmployee) {
+      setMessage("Please select an employee first.");
+      return false;
+    }
+
+    const missing = [];
+    const errors = {};
+
+    if (formType === "new") {
+      if (!formData.name.trim()) {
+        missing.push("[01] Full name");
+        errors.name = true;
       }
-    } catch (error) {
-      console.error('Lỗi khi tải dữ liệu nhân viên:', error);
+      if (!formData.dateOfBirth.trim()) {
+        missing.push("[02] Date of birth");
+        errors.dateOfBirth = true;
+      }
+      if (!formData.gender) {
+        missing.push("[03] Gender");
+        errors.gender = true;
+      }
+      const missingAddressParts = [];
+      if (!formData.addressStreet.trim()) {
+        missingAddressParts.push("[07.1] Street/hamlet");
+        errors.addressStreet = true;
+      }
+      if (!formData.addressWard.trim()) {
+        missingAddressParts.push("[07.2] Hamlet");
+        errors.addressWard = true;
+      }
+      if (!formData.addressDistrict.trim()) {
+        missingAddressParts.push("[07.3] Commune/ward");
+        errors.addressDistrict = true;
+      }
+      if (!formData.addressProvince.trim()) {
+        missingAddressParts.push("[07.4] Province/City");
+        errors.addressProvince = true;
+      }
+      if (missingAddressParts.length > 0) {
+        missing.push(...missingAddressParts);
+      }
+    } else {
+      // update mode (has SI number)
+      if (!formData.name.trim()) {
+        missing.push("[01] Full name");
+        errors.name = true;
+      }
+      if (!formData.dateOfBirth) {
+        missing.push("[02] Date of birth");
+        errors.dateOfBirth = true;
+      }
+      if (!formData.socialInsuranceNumber.trim()) {
+        missing.push("[03] Social Insurance number");
+        errors.socialInsuranceNumber = true;
+      }
+      if (!formData.changeContent.trim()) {
+        missing.push("[04] Requested changes");
+        errors.changeContent = true;
+      }
+    }
+
+    if (missing.length > 0) {
+      setMessage("Please fill all required fields: " + missing.join(", "));
+      setFieldErrors(errors);
+      return false;
+    }
+
+    setFieldErrors({});
+    return true;
+  };
+
+  // Save form data
+  const saveFormData = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("Saving...");
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/insurance-forms/save`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: selectedEmployee.id,
+          formType: 'TK1_TS',
+          formData: formData
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.status === 'success') {
+        setMessage("✅ Form saved successfully!");
+      } else {
+        setMessage("❌ Failed to save form: " + (data.message || "Unknown error"));
+      }
+    } catch (err) {
+      console.error("Error saving form:", err);
+      setMessage("❌ Failed to save form: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/admin/employees`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEmployees(data.employees || []);
+      }
+    } catch (err) {
+      console.error("Error fetching employees:", err);
+      setMessage("Failed to load employee list.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadEmployeeData = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/admin/employees/${selectedEmployee.id}/details`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const emp = data.employee;
+        // Family / Dependents from backend (can be 'Dependents' or 'dependents')
+        const dependents = emp?.Dependents || emp?.dependents || [];
+        const householdHeadFromFamily = dependents && dependents.length > 0
+          ? (dependents[0].fullName || dependents[0].name || "")
+          : "";
+        const householdHeadPhoneFromFamily = dependents && dependents.length > 0
+          ? (dependents[0].phoneNumber || "")
+          : "";
+
+        // Parse main address for section [07]
+        const parseAddress = (address) => {
+          if (!address) return { street: "", ward: "", district: "", province: "" };
+          const parts = address.split(",").map(s => s.trim());
+          return {
+            street: parts[0] || "",
+            ward: parts[1] || "",
+            district: parts[2] || "",
+            province: parts[3] || ""
+          };
+        };
+
+        const tempAddr = parseAddress(emp.temporaryAddress || emp.address);
+
+        // Parse province from address
+        const provinceCode = vietnamProvinces.find(p =>
+          tempAddr.province && tempAddr.province.includes(p.name)
+        )?.code || "";
+
+        // Household address (Appendix)
+        // 1) Ưu tiên dùng 3 trường backend đã tách sẵn: addressHamlet / addressCommune / addressProvince
+        // 2) Nếu backend chưa có (rỗng), fallback tách trực tiếp từ Address giống frontend cũ
+        const parseHouseholdAddressFallback = (address) => {
+          if (!address) return { hamlet: "", commune: "", province: "" };
+          let parts = address.split("-").map(s => s.trim()).filter(Boolean);
+          if (parts.length < 3) {
+            parts = address.split(",").map(s => s.trim()).filter(Boolean);
+          }
+          const hamlet = parts[0] || "";
+          const commune = parts[1] || "";
+          const province = parts[2] || "";
+          return { hamlet, commune, province };
+        };
+
+        let householdAddr = {
+          hamlet: emp.addressHamlet || "",
+          commune: emp.addressCommune || "",
+          province: emp.addressProvince || ""
+        };
+
+        if (!householdAddr.hamlet && !householdAddr.commune && !householdAddr.province) {
+          // Ưu tiên dùng địa chỉ của người phụ thuộc (nếu có), ví dụ: "Ấp 1 - Cái Bè - Tiền Giang"
+          const primaryDependent = dependents && dependents.length > 0 ? dependents[0] : null;
+          const dependentAddressSource = primaryDependent?.address || "";
+
+          const employeeAddressSource =
+            emp.address || emp.permanentAddress || emp.temporaryAddress || "";
+
+          const source = dependentAddressSource || employeeAddressSource || "";
+          householdAddr = parseHouseholdAddressFallback(source);
+        }
+
+        const householdProvinceCode = vietnamProvinces.find(p =>
+          householdAddr.province && householdAddr.province.includes(p.name)
+        )?.code || "";
+
+        // Khi đổi nhân viên, luôn reset form về mặc định rồi mới fill dữ liệu nhân viên.
+        // Những field không có dữ liệu sẽ tự động để trống.
+        setFormData(() => ({
+          ...initialFormData,
+          name: (emp.name || "").toUpperCase(),
+          // Hiển thị theo format YYYY-MM-DD cho input type="date"
+          dateOfBirth: emp.dateOfBirth
+            ? new Date(emp.dateOfBirth).toISOString().split("T")[0]
+            : "",
+          gender: emp.gender === "male" ? "Male" : emp.gender === "female" ? "Female" : "",
+          nationality: "VN",
+          nationalityName: "Vietnam",
+          ethnicity: "",
+          birthPlaceCountry: "VN",
+          birthPlaceCountryName: "Vietnam",
+          birthPlaceWard: "",
+          birthPlaceDistrict: "",
+          birthPlaceProvince: "",
+          birthPlaceProvinceCode: "",
+          addressCountry: "VN",
+          addressCountryName: "Vietnam",
+          addressStreet: tempAddr.street,
+          addressWard: tempAddr.ward,
+          addressDistrict: tempAddr.district,
+          addressProvince: tempAddr.province,
+          addressProvinceCode: provinceCode,
+          idNumber: emp.idNumber || "",
+          idIssueDate: emp.idIssueDate
+            ? new Date(emp.idIssueDate).toISOString().split("T")[0]
+            : "",
+          idIssuePlace: emp.idIssuePlace || "",
+          phoneNumber: emp.phoneNumber || "",
+          parentGuardianName: "",
+          contributionAmount: "",
+          contributionMethod: "",
+          healthInsuranceProvider: emp.healthInsuranceProvider || "",
+          socialInsuranceNumber: emp.socialInsuranceNumber || "",
+          changeContent: "",
+          attachedDocuments: "",
+          // Household head info pre-filled from first Dependent (Family tab)
+          householdHeadName: householdHeadFromFamily,
+          householdHeadPhone: householdHeadPhoneFromFamily,
+          householdAddressCountry: "VN",
+          householdAddressCountryName: "Vietnam",
+          // Pre-fill from free-form Address, e.g. "Ấp 1 - Cái Bè - Tiền Giang"
+          householdAddressWard: householdAddr.hamlet,
+          householdAddressDistrict: householdAddr.commune,
+          householdAddressProvince: householdAddr.province,
+          householdAddressProvinceCode: householdProvinceCode,
+          householdMembers: []
+        }));
+      }
+    } catch (err) {
+      console.error("Error loading employee data:", err);
+      setMessage("Failed to load employee details.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -119,403 +432,775 @@ const TK1TSForm = () => {
     }));
   };
 
-  const handleSave = async () => {
-    if (!selectedEmployee) {
-      alert('Vui lòng chọn nhân viên!');
+  const addHouseholdMember = () => {
+    if (!householdMember.name) {
+      setMessage("Please enter the member's name.");
       return;
     }
+    setFormData(prev => ({
+      ...prev,
+      householdMembers: [...prev.householdMembers, { ...householdMember }]
+    }));
+    setHouseholdMember({
+      name: "",
+      socialInsuranceNumber: "",
+      dateOfBirth: "",
+      gender: "",
+      birthPlace: "",
+      relationship: "",
+      idNumber: "",
+      note: ""
+    });
+  };
 
-    setIsLoading(true);
+  const removeHouseholdMember = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      householdMembers: prev.householdMembers.filter((_, i) => i !== index)
+    }));
+  };
+
+  const exportToPDF = async () => {
+    if (!validateForm()) return;
     try {
-      const response = await fetch('/api/insurance-forms/save', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        },
-        body: JSON.stringify({
-          userId: selectedEmployee,
-          formType: 'TK1_TS',
-          formData: formData
-        })
-      });
-
-      if (response.ok) {
-        alert('Dữ liệu đã được lưu thành công!');
-        setIsEditing(false);
+      setLoading(true);
+      setMessage("Generating PDF...");
+      
+      // Tạo hidden div để render
+      const printDiv = document.createElement('div');
+      printDiv.style.position = 'absolute';
+      printDiv.style.left = '-9999px';
+      printDiv.style.width = '210mm'; // A4 width
+      printDiv.style.padding = '20mm';
+      printDiv.style.fontFamily = 'Arial, sans-serif';
+      printDiv.style.fontSize = '11pt';
+      printDiv.style.backgroundColor = 'white';
+      printDiv.style.color = 'black';
+      
+      // Build HTML content
+      let htmlContent = `
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div style="font-size: 14pt; font-weight: bold; margin-bottom: 5px;">VIETNAM SOCIAL SECURITY</div>
+          <div style="font-size: 11pt; margin-bottom: 3px;">SOCIALIST REPUBLIC OF VIETNAM</div>
+          <div style="font-size: 10pt;">Independence - Freedom - Happiness</div>
+        </div>
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div style="font-size: 12pt; font-weight: bold; margin-bottom: 5px;">DECLARATION</div>
+          <div style="font-size: 10pt; margin-bottom: 3px;">SOCIAL INSURANCE &amp; HEALTH INSURANCE PARTICIPATION / INFORMATION UPDATE</div>
+          <div style="font-size: 9pt;">(For participants who have not been issued a social insurance number and for information changes)</div>
+        </div>
+      `;
+      
+      if (formType === "new") {
+        htmlContent += `
+          <div style="margin-bottom: 15px;">
+            <div style="font-weight: bold; margin-bottom: 10px;">I. For participants without a Social Insurance number</div>
+            <div style="margin-bottom: 8px;"><strong>[01].</strong> Full name (UPPERCASE): <strong>${formData.name || "_________________"}</strong></div>
+            <div style="margin-bottom: 8px;"><strong>[02].</strong> Date of birth: ${formData.dateOfBirth || "___/___/_____"} <strong>[03].</strong> Gender: ${formData.gender || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[04].</strong> Nationality: ${formData.nationality || "_____"} <strong>[05].</strong> Ethnicity: ${formData.ethnicity || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[06].</strong> Birth certificate registration place:</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[06.1].</strong> Hamlet: ${formData.birthPlaceWard || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[06.2].</strong> Commune: ${formData.birthPlaceDistrict || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 8px;"><strong>[06.3].</strong> Province/City: ${formData.birthPlaceProvince || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[07].</strong> Address to receive results:</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.1].</strong> House no./Street/Hamlet: ${formData.addressStreet || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.2].</strong> Hamlet: ${formData.addressWard || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.3].</strong> Commune: ${formData.addressDistrict || "_____"}</div>
+            <div style="margin-left: 20px; margin-bottom: 8px;"><strong>[07.4].</strong> Province/City: ${formData.addressProvince || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[08].</strong> ID card / passport: ${formData.idNumber || "_____"} </div>
+            <div style="margin-bottom: 8px; margin-left: 20px;"><strong>[08.1].</strong> Date issued: ${formData.idIssueDate ? formatDateDDMMYYYY(formData.idIssueDate) : "_____/_____/_____"} <strong>[08.2].</strong> Place issued: ${formData.idIssuePlace || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[09].</strong> Phone number: ${formData.phoneNumber || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[10].</strong> Parent/guardian name (for children under 6): ${formData.parentGuardianName || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[11].</strong> Contribution amount: ${formData.contributionAmount || "_____"} <strong>[12].</strong> Contribution method: ${formData.contributionMethod || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[13].</strong> Initial health care provider: ${formData.healthInsuranceProvider || "_____"}</div>
+            ${formData.householdMembers.length > 0 ? '<div style="margin-bottom: 8px;"><strong>[14].</strong> Appendix: household members (see next page)</div>' : ''}
+          </div>
+        `;
       } else {
-        alert('Có lỗi xảy ra khi lưu dữ liệu!');
+        htmlContent += `
+          <div style="margin-bottom: 15px;">
+            <div style="font-weight: bold; margin-bottom: 10px;">II. For participants with a Social Insurance number (information change)</div>
+            <div style="margin-bottom: 8px;"><strong>[01].</strong> Full name (UPPERCASE): <strong>${formData.name || "_________________"}</strong></div>
+            <div style="margin-bottom: 8px;"><strong>[02].</strong> Date of birth: ${formData.dateOfBirth || "___/___/_____"} <strong>[03].</strong> Social Insurance number: ${formData.socialInsuranceNumber || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[04].</strong> Requested changes:</div>
+            <div style="margin-left: 20px; margin-bottom: 8px; white-space: pre-wrap;">${formData.changeContent || "_____"}</div>
+            <div style="margin-bottom: 8px;"><strong>[05].</strong> Supporting documents (if any):</div>
+            <div style="margin-left: 20px; margin-bottom: 8px; white-space: pre-wrap;">${formData.attachedDocuments || "_____"}</div>
+          </div>
+        `;
       }
+      
+      htmlContent += `
+        <div style="margin-top: 30px; margin-bottom: 20px;">
+          <div style="margin-bottom: 15px;">I hereby declare that the above information is true and I take full legal responsibility for this declaration.</div>
+          <div style="text-align: right; margin-top: 20px;">
+            <div>${formData.declarationPlace || ".........." }, ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}</div>
+            <div style="margin-top: 15px; font-weight: bold;">Declarant</div>
+            <div style="margin-top: 5px;">(Sign, print full name)</div>
+          </div>
+        </div>
+      `;
+      
+      // Phụ lục thành viên hộ gia đình
+      if (formData.householdMembers.length > 0) {
+        htmlContent += `
+          <div style="page-break-before: always; margin-top: 30px;">
+            <div style="text-align: center; font-size: 12pt; font-weight: bold; margin-bottom: 20px;">APPENDIX: HOUSEHOLD MEMBERS</div>
+            <div style="margin-bottom: 15px;">
+              <div><strong>Household head full name:</strong> ${formData.householdHeadName || "_____"} <strong>Phone (optional):</strong> ${formData.householdHeadPhone || "_____"}</div>
+              <div style="margin-top: 10px;"><strong>Address:</strong></div>
+              <div style="margin-left: 20px;">
+                <div><strong>Hamlet/Residential group:</strong> ${formData.householdAddressWard || "_____"} <strong>Hamlet:</strong> ${formData.householdAddressWard || "_____"}</div>
+                <div><strong>Commune:</strong> ${formData.householdAddressDistrict || "_____"} <strong>Province/City:</strong> ${formData.householdAddressProvince || "_____"}</div>
+              </div>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 9pt;">
+              <thead>
+                <tr style="background-color: #667eea; color: white;">
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">No.</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Full name</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Social Insurance No.</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Date of birth</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Gender</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Birth certificate place</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Relationship to head</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">ID/Passport/Citizen ID</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${formData.householdMembers.map((member, idx) => `
+                  <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${idx + 1}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${member.name || ""}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${member.socialInsuranceNumber || ""}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${member.dateOfBirth || ""}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${member.gender || ""}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${member.birthPlace || ""}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${member.relationship || ""}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${member.idNumber || ""}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${member.note || ""}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div style="margin-top: 30px;">
+              <div style="margin-bottom: 15px;">I hereby declare that the above information is true and I take full legal responsibility for this declaration.</div>
+              <div style="text-align: right; margin-top: 20px;">
+                <div>${formData.declarationPlace || ".........." }, ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}</div>
+                <div style="margin-top: 15px; font-weight: bold;">Declarant</div>
+                <div style="margin-top: 5px;">(Sign, print full name)</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      
+      printDiv.innerHTML = htmlContent;
+      document.body.appendChild(printDiv);
+      
+      // Render to canvas
+      const canvas = await html2canvas(printDiv, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+      
+      // Remove temporary div
+      document.body.removeChild(printDiv);
+      
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      
+      const doc = new jsPDF('p', 'mm', 'a4');
+      let position = 0;
+      
+      // Add first page
+      doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      
+      // Add additional pages if needed
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        doc.addPage();
+        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+      
+      // Save PDF
+      const filename = `TK1-TS-${formData.name.replace(/\s+/g, "-")}-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+      setMessage("PDF exported successfully!");
     } catch (error) {
-      console.error('Lỗi khi lưu dữ liệu TK1-TS:', error);
-      alert('Có lỗi xảy ra khi lưu dữ liệu!');
+      console.error("Error generating PDF:", error);
+      setMessage("Failed to export PDF: " + error.message);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const exportToPDF = () => {
-    if (!selectedEmployee) {
-      alert('Vui lòng chọn nhân viên trước khi xuất PDF!');
-      return;
-    }
+  const exportToWord = async () => {
+    try {
+      setLoadingWord(true);
+      setMessage("Generating Word file...");
 
-    const doc = new jsPDF();
-    
-    // Thiết lập font hỗ trợ tiếng Việt
-    doc.setFont('times', 'normal');
-    
-    // Tiêu đề chính
-    doc.setFontSize(16);
-    doc.setFont('times', 'bold');
-    doc.text('TỜ KHAI', 105, 20, { align: 'center' });
-    doc.text('THAM GIA BẢO HIỂM XÃ HỘI, BẢO HIỂM Y TẾ', 105, 30, { align: 'center' });
-    
-    // Mẫu TK1-TS
-    doc.setFontSize(12);
-    doc.setFont('times', 'normal');
-    doc.text('(Mẫu TK1-TS)', 105, 40, { align: 'center' });
-    
-    // Thông tin người lao động
-    doc.setFontSize(14);
-    doc.setFont('times', 'bold');
-    doc.text('I. THÔNG TIN NGƯỜI LAO ĐỘNG', 20, 60);
-    
-    doc.setFontSize(11);
-    doc.setFont('times', 'normal');
-    
-    // Tạo bảng thông tin cá nhân
-    const personalInfo = [
-      ['1. Họ và tên:', formData.hoVaTen || ''],
-      ['2. Ngày sinh:', formData.ngaySinh ? new Date(formData.ngaySinh).toLocaleDateString('vi-VN') : ''],
-      ['3. Giới tính:', formData.gioiTinh === 'Nam' ? 'Nam' : formData.gioiTinh === 'Nữ' ? 'Nữ' : ''],
-      ['4. Số CCCD/CMND:', formData.soCCCD || ''],
-      ['5. Ngày cấp:', formData.ngayCapCCCD ? new Date(formData.ngayCapCCCD).toLocaleDateString('vi-VN') : ''],
-      ['6. Nơi cấp:', formData.noiCapCCCD || ''],
-      ['7. Địa chỉ thường trú:', formData.diaChiThuongTru || ''],
-      ['8. Địa chỉ tạm trú:', formData.diaChiTamTru || ''],
-      ['9. Số điện thoại:', formData.soDienThoai || ''],
-      ['10. Email:', formData.email || '']
-    ];
-    
-    doc.autoTable({
-      startY: 70,
-      head: [],
-      body: personalInfo,
-      theme: 'plain',
-      styles: {
-        font: 'times',
-        fontSize: 9,
-        cellPadding: 2,
-      },
-      columnStyles: {
-        0: { fontStyle: 'bold', cellWidth: 50 },
-        1: { cellWidth: 120 }
-      },
-      margin: { left: 20, right: 20 }
-    });
-    
-    // Thông tin công việc
-    const workInfoY = doc.lastAutoTable.finalY + 15;
-    doc.setFontSize(14);
-    doc.setFont('times', 'bold');
-    doc.text('II. THÔNG TIN CÔNG VIỆC', 20, workInfoY);
-    
-    doc.setFontSize(11);
-    doc.setFont('times', 'normal');
-    
-    const workInfo = [
-      ['1. Chức vụ:', formData.chucVu || ''],
-      ['2. Phòng ban:', formData.phongBan || ''],
-      ['3. Ngày bắt đầu làm việc:', formData.ngayBatDauLamViec ? new Date(formData.ngayBatDauLamViec).toLocaleDateString('vi-VN') : ''],
-      ['4. Loại hợp đồng:', formData.loaiHopDong || ''],
-      ['5. Thời hạn hợp đồng:', formData.thoiHanHopDong || ''],
-      ['6. Lương cơ bản:', formData.luongCoBan ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(formData.luongCoBan) : '']
-    ];
-    
-    doc.autoTable({
-      startY: workInfoY + 10,
-      head: [],
-      body: workInfo,
-      theme: 'plain',
-      styles: {
-        font: 'times',
-        fontSize: 9,
-        cellPadding: 2,
-      },
-      columnStyles: {
-        0: { fontStyle: 'bold', cellWidth: 50 },
-        1: { cellWidth: 120 }
-      },
-      margin: { left: 20, right: 20 }
-    });
-    
-    // Thông tin BHXH/BHYT
-    const insuranceY = doc.lastAutoTable.finalY + 15;
-    doc.setFontSize(14);
-    doc.setFont('times', 'bold');
-    doc.text('III. THÔNG TIN BẢO HIỂM XÃ HỘI, BẢO HIỂM Y TẾ', 20, insuranceY);
-    
-    doc.setFontSize(11);
-    doc.setFont('times', 'normal');
-    
-    const insuranceInfo = [
-      ['1. Số sổ BHXH:', formData.soSoBHXH || ''],
-      ['2. Nơi đăng ký KCB:', formData.noiDangKyKCB || ''],
-      ['3. Tham gia BHXH:', formData.thamGiaBHXH ? 'Có' : 'Không'],
-      ['4. Tham gia BHYT:', formData.thamGiaBHYT ? 'Có' : 'Không'],
-      ['5. Tham gia BHTN:', formData.thamGiaBHTN ? 'Có' : 'Không']
-    ];
-    
-    doc.autoTable({
-      startY: insuranceY + 10,
-      head: [],
-      body: insuranceInfo,
-      theme: 'plain',
-      styles: {
-        font: 'times',
-        fontSize: 9,
-        cellPadding: 2,
-      },
-      columnStyles: {
-        0: { fontStyle: 'bold', cellWidth: 50 },
-        1: { cellWidth: 120 }
-      },
-      margin: { left: 20, right: 20 }
-    });
-    
-    // Người liên hệ khẩn cấp
-    const contactY = doc.lastAutoTable.finalY + 15;
-    doc.setFontSize(14);
-    doc.setFont('times', 'bold');
-    doc.text('IV. NGƯỜI LIÊN HỆ KHẨN CẤP', 20, contactY);
-    
-    doc.setFontSize(11);
-    doc.setFont('times', 'normal');
-    
-    const contactInfo = [
-      ['1. Họ tên:', formData.nguoiLienHeKhanCap || ''],
-      ['2. Quan hệ với người lao động:', formData.quanHeVoiNguoiLD || ''],
-      ['3. Số điện thoại:', formData.soDienThoaiNguoiLienHe || '']
-    ];
-    
-    doc.autoTable({
-      startY: contactY + 10,
-      head: [],
-      body: contactInfo,
-      theme: 'plain',
-      styles: {
-        font: 'times',
-        fontSize: 9,
-        cellPadding: 2,
-      },
-      columnStyles: {
-        0: { fontStyle: 'bold', cellWidth: 50 },
-        1: { cellWidth: 120 }
-      },
-      margin: { left: 20, right: 20 }
-    });
-    
-    // Thông tin bổ sung
-    const additionalY = doc.lastAutoTable.finalY + 15;
-    doc.setFontSize(14);
-    doc.setFont('times', 'bold');
-    doc.text('V. THÔNG TIN BỔ SUNG', 20, additionalY);
-    
-    doc.setFontSize(11);
-    doc.setFont('times', 'normal');
-    
-    const additionalInfo = [
-      ['1. Trình độ học vấn:', formData.trinhDoHocVan || ''],
-      ['2. Chuyên ngành:', formData.chuyenNganh || ''],
-      ['3. Ngoại ngữ:', formData.ngoaiNgu || ''],
-      ['4. Tin học:', formData.tinHoc || '']
-    ];
-    
-    doc.autoTable({
-      startY: additionalY + 10,
-      head: [],
-      body: additionalInfo,
-      theme: 'plain',
-      styles: {
-        font: 'times',
-        fontSize: 9,
-        cellPadding: 2,
-      },
-      columnStyles: {
-        0: { fontStyle: 'bold', cellWidth: 50 },
-        1: { cellWidth: 120 }
-      },
-      margin: { left: 20, right: 20 }
-    });
-    
-    // Chữ ký
-    const signatureY = doc.lastAutoTable.finalY + 30;
-    doc.setFontSize(11);
-    doc.setFont('times', 'normal');
-    doc.text('Tôi cam kết những thông tin trên là đúng sự thật.', 20, signatureY);
-    doc.text('Ngày ...... tháng ...... năm ......', 20, signatureY + 15);
-    doc.text('Người khai', 20, signatureY + 30);
-    doc.text('(Ký, ghi rõ họ tên)', 20, signatureY + 35);
-    
-    // Lưu file
-    const employeeName = formData.hoVaTen || 'NhanVien';
-    doc.save(`ToKhai_TK1-TS_${employeeName.replace(/\s+/g, '_')}.pdf`);
+      const children = [];
+
+      // Header
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: "VIETNAM SOCIAL SECURITY",
+              bold: true,
+              size: 28
+            })
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: "SOCIALIST REPUBLIC OF VIETNAM",
+              size: 22
+            })
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: "Independence - Freedom - Happiness",
+              size: 20
+            })
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: "DECLARATION",
+              bold: true,
+              size: 24
+            })
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: "SOCIAL INSURANCE & HEALTH INSURANCE PARTICIPATION / INFORMATION UPDATE",
+              size: 20
+            })
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: "(For participants who have not been issued a social insurance number and for information changes)",
+              size: 18,
+              italics: true
+            })
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 }
+        })
+      );
+
+      if (formType === "new") {
+        // Phần I: Người chưa có mã số BHXH
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "I. For participants without a Social Insurance number",
+                bold: true,
+                size: 22
+              })
+            ],
+            spacing: { after: 300 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[01]. ", bold: true }),
+              new TextRun({ text: "Full name (UPPERCASE): " }),
+              new TextRun({ text: formData.name || "_________________", bold: true })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[02]. ", bold: true }),
+              new TextRun({ text: "Date of birth: " }),
+              new TextRun({ text: formData.dateOfBirth || "___/___/_____" }),
+              new TextRun({ text: "  [03]. ", bold: true }),
+              new TextRun({ text: "Gender: " }),
+              new TextRun({ text: formData.gender || "_____" })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[04]. ", bold: true }),
+              new TextRun({ text: "Nationality: " }),
+              new TextRun({ text: formData.nationality || "_____" }),
+              new TextRun({ text: "  [05]. ", bold: true }),
+              new TextRun({ text: "Ethnicity: " }),
+              new TextRun({ text: formData.ethnicity || "_____" })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[06]. ", bold: true }),
+              new TextRun({ text: "Birth certificate registration place:" })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[06.1]. ", bold: true }),
+              new TextRun({ text: "Hamlet: " }),
+              new TextRun({ text: formData.birthPlaceWard || "_____" })
+            ],
+            indent: { left: 400 },
+            spacing: { after: 150 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[06.2]. ", bold: true }),
+              new TextRun({ text: "District: " }),
+              new TextRun({ text: formData.birthPlaceDistrict || "_____" })
+            ],
+            indent: { left: 400 },
+            spacing: { after: 150 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[06.3]. ", bold: true }),
+              new TextRun({ text: "Province/City: " }),
+              new TextRun({ text: formData.birthPlaceProvince || "_____" })
+            ],
+            indent: { left: 400 },
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[07]. ", bold: true }),
+              new TextRun({ text: "Address to receive results:" })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[07.1]. ", bold: true }),
+              new TextRun({ text: "House no./Street/Hamlet: " }),
+              new TextRun({ text: formData.addressStreet || "_____" })
+            ],
+            indent: { left: 400 },
+            spacing: { after: 150 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[07.2]. ", bold: true }),
+              new TextRun({ text: "Hamlet: " }),
+              new TextRun({ text: formData.addressWard || "_____" })
+            ],
+            indent: { left: 400 },
+            spacing: { after: 150 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[07.3]. ", bold: true }),
+              new TextRun({ text: "District: " }),
+              new TextRun({ text: formData.addressDistrict || "_____" })
+            ],
+            indent: { left: 400 },
+            spacing: { after: 150 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[07.4]. ", bold: true }),
+              new TextRun({ text: "Province/City: " }),
+              new TextRun({ text: formData.addressProvince || "_____" })
+            ],
+            indent: { left: 400 },
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[08]. ", bold: true }),
+              new TextRun({ text: "ID/Passport/Citizen ID: " }),
+              new TextRun({ text: formData.idNumber || "_____" }),
+              new TextRun({ text: "  [09]. ", bold: true }),
+              new TextRun({ text: "Phone number: " }),
+              new TextRun({ text: formData.phoneNumber || "_____" })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[10]. ", bold: true }),
+              new TextRun({ text: "Parent/guardian name (for children under 6): " }),
+              new TextRun({ text: formData.parentGuardianName || "_____" })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[11]. ", bold: true }),
+              new TextRun({ text: "Contribution amount: " }),
+              new TextRun({ text: formData.contributionAmount || "_____" }),
+              new TextRun({ text: "  [12]. ", bold: true }),
+              new TextRun({ text: "Contribution method: " }),
+              new TextRun({ text: formData.contributionMethod || "_____" })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[13]. ", bold: true }),
+              new TextRun({ text: "Initial health care provider: " }),
+              new TextRun({ text: formData.healthInsuranceProvider || "_____" })
+            ],
+            spacing: { after: 200 }
+          })
+        );
+
+        if (formData.householdMembers.length > 0) {
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: "[14]. ", bold: true }),
+                new TextRun({ text: "Appendix: household members (see next page)" })
+              ],
+              spacing: { after: 200 }
+            })
+          );
+        }
+      } else {
+        // Phần II: Người đã có mã số BHXH
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "II. For participants with a Social Insurance number (information change)",
+                bold: true,
+                size: 22
+              })
+            ],
+            spacing: { after: 300 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[01]. ", bold: true }),
+              new TextRun({ text: "Full name (UPPERCASE): " }),
+              new TextRun({ text: formData.name || "_________________", bold: true })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[02]. ", bold: true }),
+              new TextRun({ text: "Date of birth: " }),
+              new TextRun({ text: formData.dateOfBirth || "___/___/_____" }),
+              new TextRun({ text: "  [03]. ", bold: true }),
+              new TextRun({ text: "Social Insurance number: " }),
+              new TextRun({ text: formData.socialInsuranceNumber || "_____" })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[04]. ", bold: true }),
+              new TextRun({ text: "Requested changes:" })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: formData.changeContent || "_____" })
+            ],
+            indent: { left: 400 },
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[05]. ", bold: true }),
+              new TextRun({ text: "Attached documents (if any):" })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: formData.attachedDocuments || "_____" })
+            ],
+            indent: { left: 400 },
+            spacing: { after: 200 }
+          })
+        );
+      }
+
+      // Signature section
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: "I hereby declare that the above information is true and I take full legal responsibility for this declaration."
+            })
+          ],
+          spacing: { before: 600, after: 400 }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${formData.declarationPlace || ".........." }, ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}` })
+          ],
+          alignment: AlignmentType.RIGHT,
+          spacing: { after: 300 }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Declarant", bold: true })
+          ],
+          alignment: AlignmentType.RIGHT,
+          spacing: { after: 150 }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: "(Sign, print full name)" })
+          ],
+          alignment: AlignmentType.RIGHT,
+          spacing: { after: 400 }
+        })
+      );
+
+      // Phụ lục thành viên hộ gia đình
+      if (formData.householdMembers.length > 0) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "APPENDIX: HOUSEHOLD MEMBERS",
+                bold: true,
+                size: 24
+              })
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 800, after: 400 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Household head full name: ", bold: true }),
+              new TextRun({ text: formData.householdHeadName || "_____" }),
+              new TextRun({ text: "  Phone (optional): ", bold: true }),
+              new TextRun({ text: formData.householdHeadPhone || "_____" })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Address:", bold: true })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Hamlet/Residential group: ", bold: true }),
+              new TextRun({ text: formData.householdAddressWard || "_____" }),
+              new TextRun({ text: "  Hamlet: ", bold: true }),
+              new TextRun({ text: formData.householdAddressWard || "_____" })
+            ],
+            indent: { left: 400 },
+            spacing: { after: 150 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Commune: ", bold: true }),
+              new TextRun({ text: formData.householdAddressDistrict || "_____" }),
+              new TextRun({ text: "  Province/City: ", bold: true }),
+              new TextRun({ text: formData.householdAddressProvince || "_____" })
+            ],
+            indent: { left: 400 },
+            spacing: { after: 400 }
+          })
+        );
+
+        // Table for household members
+        const tableRows = [
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "No.", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Full name", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Social Insurance No.", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Date of birth", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Gender", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Birth certificate place", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Relationship to head", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "ID/Passport/Citizen ID", bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Notes", bold: true })] })] })
+            ]
+          })
+        ];
+
+        formData.householdMembers.forEach((member, idx) => {
+          tableRows.push(
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(idx + 1) })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.name || "" })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.socialInsuranceNumber || "" })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.dateOfBirth || "" })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.gender || "" })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.birthPlace || "" })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.relationship || "" })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.idNumber || "" })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.note || "" })] })] })
+              ]
+            })
+          );
+        });
+
+        children.push(
+          new Table({
+            rows: tableRows,
+            width: { size: 100, type: WidthType.PERCENTAGE }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "I hereby declare that the above information is true and I take full legal responsibility for this declaration."
+              })
+            ],
+            spacing: { before: 600, after: 400 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: `${formData.declarationPlace || ".........." }, ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}` })
+            ],
+            alignment: AlignmentType.RIGHT,
+            spacing: { after: 300 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Declarant", bold: true })
+            ],
+            alignment: AlignmentType.RIGHT,
+            spacing: { after: 150 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "(Sign, print full name)" })
+            ],
+            alignment: AlignmentType.RIGHT
+          })
+        );
+      }
+
+      // Create document
+      const doc = new Document({
+        sections: [{
+          children: children
+        }]
+      });
+
+      // Generate and save
+      const blob = await Packer.toBlob(doc);
+      const filename = `TK1-TS-${formData.name.replace(/\s+/g, "-")}-${new Date().toISOString().split('T')[0]}.docx`;
+      saveAs(blob, filename);
+      setMessage("Word file exported successfully!");
+    } catch (error) {
+      console.error("Error generating Word document:", error);
+      setMessage("Failed to export Word file: " + error.message);
+    } finally {
+      setLoadingWord(false);
+    }
+  };
+
+  const containerStyle = {
+    padding: theme.spacing.xl,
+    backgroundColor: theme.neutral.white,
+    borderRadius: theme.radius.lg,
+    boxShadow: theme.shadows.md,
+    maxWidth: "1200px",
+    margin: "0 auto"
+  };
+
+  const formSectionStyle = {
+    marginBottom: theme.spacing.xl,
+    padding: theme.spacing.lg,
+    backgroundColor: theme.neutral.gray50,
+    borderRadius: theme.radius.md,
+    border: `1px solid ${theme.neutral.gray200}`
   };
 
   const inputStyle = {
     width: "100%",
-    padding: "12px 16px",
-    border: "2px solid #e2e8f0",
-    borderRadius: "8px",
-    fontSize: "16px",
-    fontFamily: "inherit",
-    transition: "border-color 0.2s ease, box-shadow 0.2s ease",
-    backgroundColor: isEditing ? "#fff" : "#f8fafc",
-    color: isEditing ? "#1e293b" : "#64748b",
-    cursor: isEditing ? "text" : "default"
+    padding: theme.spacing.sm,
+    border: `1px solid ${theme.neutral.gray300}`,
+    borderRadius: theme.radius.sm,
+    fontSize: theme.typography.body.fontSize,
+    fontFamily: theme.typography.fontFamily
   };
 
   const labelStyle = {
     display: "block",
-    fontSize: "14px",
+    marginBottom: theme.spacing.xs,
     fontWeight: "600",
-    color: "#374151",
-    marginBottom: "8px",
-    marginTop: "16px"
-  };
-
-  const sectionTitleStyle = {
-    fontSize: "18px",
-    fontWeight: "700",
-    color: "#1e293b",
-    margin: "32px 0 16px 0",
-    paddingBottom: "8px",
-    borderBottom: "2px solid #e2e8f0"
+    color: theme.neutral.gray700,
+    fontSize: theme.typography.small.fontSize
   };
 
   const buttonStyle = {
-    padding: "12px 24px",
+    padding: `${theme.spacing.md} ${theme.spacing.xl}`,
+    backgroundColor: theme.primary.main,
+    color: theme.neutral.white,
     border: "none",
-    borderRadius: "8px",
-    fontSize: "16px",
-    fontWeight: "600",
+    borderRadius: theme.radius.md,
     cursor: "pointer",
-    transition: "all 0.2s ease",
-    marginRight: "12px"
+    fontWeight: "600",
+    fontSize: theme.typography.body.fontSize,
+    marginRight: theme.spacing.md
   };
 
-  const editButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: theme.accent.main,
-    color: "#fff"
+  const readOnlyInputStyle = {
+    ...inputStyle,
+    backgroundColor: theme.neutral.gray100,
+    cursor: "not-allowed",
+    color: theme.neutral.gray600
   };
 
-  const saveButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: "#10b981",
-    color: "#fff"
-  };
-
-  const cancelButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: "#6b7280",
-    color: "#fff"
-  };
+  const isSuccessMessage =
+    typeof message === "string" &&
+    (message.trim().startsWith("✅") || /successfully/i.test(message));
 
   return (
-    <div style={{
-      backgroundColor: "#fff",
-      borderRadius: "12px",
-      padding: "32px",
-      boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-      border: "1px solid #e2e8f0"
-    }}>
-      <div style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: "32px",
-        borderBottom: "2px solid #f1f5f9",
-        paddingBottom: "16px"
-      }}>
-        <div>
-          <h2 style={{
-            fontSize: "24px",
-            fontWeight: "700",
-            color: "#1e293b",
-            margin: "0 0 4px 0"
-          }}>
-            🏥 Mẫu Tờ Khai Tham Gia BHXH/BHYT
-          </h2>
-          <p style={{
-            fontSize: "16px",
-            color: "#64748b",
-            margin: 0
-          }}>
-            Mẫu TK1-TS - Thông Tin Người Lao Động
-          </p>
-        </div>
-        <div>
-          {!isEditing ? (
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={() => setIsEditing(true)}
-                style={editButtonStyle}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
-              >
-                ✏️ Chỉnh sửa
-              </button>
-              <button
-                onClick={exportToPDF}
-                style={{
-                  ...buttonStyle,
-                  backgroundColor: "#dc2626",
-                  color: "#fff"
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
-              >
-                📄 Xuất PDF
-              </button>
-            </div>
-          ) : (
-            <div>
-              <button
-                onClick={handleSave}
-                disabled={isLoading}
-                style={saveButtonStyle}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
-              >
-                {isLoading ? "⏳ Đang lưu..." : "💾 Lưu"}
-              </button>
-              <button
-                onClick={() => {
-                  setIsEditing(false);
-                  if (selectedEmployee) loadEmployeeData(selectedEmployee);
-                }}
-                style={cancelButtonStyle}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
-              >
-                ❌ Hủy
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+    <div style={containerStyle}>
+      <h2 style={{ marginBottom: theme.spacing.lg, color: theme.neutral.gray900 }}>
+        📋 Social &amp; health insurance participation declaration (Form TK1-TS)
+      </h2>
 
-      {/* Chọn nhân viên */}
-      <div style={{ marginBottom: "32px" }}>
-        <label style={labelStyle}>Chọn Nhân Viên</label>
+      {/* Employee Selection */}
+      <div style={formSectionStyle}>
+        <label style={labelStyle}>Employee:</label>
         <select
-          value={selectedEmployee}
-          onChange={(e) => setSelectedEmployee(e.target.value)}
           style={inputStyle}
+          value={selectedEmployee?.id || ""}
+          onChange={(e) => {
+            const emp = employees.find(em => em.id === parseInt(e.target.value));
+            setSelectedEmployee(emp || null);
+          }}
         >
-          <option value="">-- Chọn nhân viên --</option>
+          <option value="">-- Select employee --</option>
           {employees.map(emp => (
             <option key={emp.id} value={emp.id}>
               {emp.employeeCode} - {emp.name}
@@ -524,424 +1209,794 @@ const TK1TSForm = () => {
         </select>
       </div>
 
-      {selectedEmployee && (
-        <div>
-          {/* Thông tin cá nhân */}
-          <h3 style={sectionTitleStyle}>👤 Thông Tin Cá Nhân</h3>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: "24px"
-          }}>
-            <div>
-              <label style={labelStyle}>Họ và Tên</label>
+      {/* Form Type Selection */}
+      <div style={formSectionStyle}>
+        <label style={labelStyle}>Declaration type:</label>
+        <div style={{ display: "flex", gap: theme.spacing.md }}>
+          <button
+            style={{
+              ...buttonStyle,
+              backgroundColor: formType === "new" ? theme.primary.main : theme.neutral.gray300,
+              color: formType === "new" ? theme.neutral.white : theme.neutral.gray700
+            }}
+            onClick={() => setFormType("new")}
+          >
+            I. No Social Insurance number yet
+          </button>
+          <button
+            style={{
+              ...buttonStyle,
+              backgroundColor: formType === "update" ? theme.primary.main : theme.neutral.gray300,
+              color: formType === "update" ? theme.neutral.white : theme.neutral.gray700
+            }}
+            onClick={() => setFormType("update")}
+          >
+            II. Has Social Insurance number (information change)
+          </button>
+        </div>
+      </div>
+
+      {formType === "new" ? (
+        <>
+          {/* Phần I: Người chưa có mã số BHXH */}
+          <div style={formSectionStyle}>
+            <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
+              I. For participants without a Social Insurance number
+            </h3>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+              <div>
+                <label style={labelStyle}>[01] Full name (UPPERCASE): *</label>
+                <input
+                  type="text"
+                  style={selectedEmployee
+                    ? { ...readOnlyInputStyle, ...(fieldErrors.name && { borderColor: "#dc2626" }) }
+                    : { ...inputStyle, ...(fieldErrors.name && { borderColor: "#dc2626" }) }
+                  }
+                  value={formData.name}
+                  onChange={(e) => handleInputChange("name", e.target.value.toUpperCase())}
+                  placeholder="NGUYEN VAN A"
+                  readOnly={!!selectedEmployee}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>[02] Date of birth: *</label>
+                <input
+                  type="date"
+                  style={selectedEmployee
+                    ? { ...readOnlyInputStyle, ...(fieldErrors.dateOfBirth && { borderColor: "#dc2626" }) }
+                    : { ...inputStyle, ...(fieldErrors.dateOfBirth && { borderColor: "#dc2626" }) }
+                  }
+                  value={formData.dateOfBirth}
+                  onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
+                  readOnly={!!selectedEmployee}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+              <div>
+                <label style={labelStyle}>[03] Gender: *</label>
+                <select
+                  style={selectedEmployee
+                    ? { ...readOnlyInputStyle, ...(fieldErrors.gender && { borderColor: "#dc2626" }) }
+                    : { ...inputStyle, ...(fieldErrors.gender && { borderColor: "#dc2626" }) }
+                  }
+                  value={formData.gender}
+                  onChange={(e) => handleInputChange("gender", e.target.value)}
+                  disabled={!!selectedEmployee}
+                >
+                  <option value="">-- Select --</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>[04] Nationality:</label>
+                <select
+                  style={inputStyle}
+                  value={formData.nationality}
+                  onChange={(e) => {
+                    const country = countries.find(c => c.code === e.target.value);
+                    handleInputChange("nationality", e.target.value);
+                    handleInputChange("nationalityName", country?.name || "");
+                  }}
+                >
+                  <option value="">-- Select country --</option>
+                  {countries.map(country => (
+                    <option key={country.code} value={country.code}>
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: theme.spacing.md }}>
+              <label style={labelStyle}>[05] Ethnicity:</label>
               <input
                 type="text"
-                value={formData.hoVaTen}
-                onChange={(e) => handleInputChange('hoVaTen', e.target.value)}
-                disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập họ và tên đầy đủ..."
+                value={formData.ethnicity}
+                onChange={(e) => handleInputChange("ethnicity", e.target.value)}
               />
             </div>
 
-            <div>
-              <label style={labelStyle}>Ngày Sinh</label>
-              <input
-                type="date"
-                value={formData.ngaySinh}
-                onChange={(e) => handleInputChange('ngaySinh', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-              />
+            <div style={{ marginBottom: theme.spacing.md }}>
+              <label style={labelStyle}>[06] Birth certificate registration place:</label>
+              <div style={{ marginBottom: theme.spacing.sm }}>
+                <label style={{ ...labelStyle, fontSize: "11px" }}>Country:</label>
+                <select
+                  style={inputStyle}
+                  value={formData.birthPlaceCountry}
+                  onChange={(e) => {
+                    const country = countries.find(c => c.code === e.target.value);
+                    handleInputChange("birthPlaceCountry", e.target.value);
+                    handleInputChange("birthPlaceCountryName", country?.name || "");
+                    if (e.target.value !== "VN") {
+                      handleInputChange("birthPlaceProvince", "");
+                      handleInputChange("birthPlaceProvinceCode", "");
+                    }
+                  }}
+                >
+                  <option value="">-- Select country --</option>
+                  {countries.map(country => (
+                    <option key={country.code} value={country.code}>
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {formData.birthPlaceCountry === "VN" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: theme.spacing.md }}>
+                  <div>
+                    <label style={{ ...labelStyle, fontSize: "11px" }}>[06.1] Hamlet:</label>
+                    <input
+                      type="text"
+                      style={inputStyle}
+                      value={formData.birthPlaceWard}
+                      onChange={(e) => handleInputChange("birthPlaceWard", e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ ...labelStyle, fontSize: "11px" }}>[06.2] Commune:</label>
+                    <input
+                      type="text"
+                      style={inputStyle}
+                      value={formData.birthPlaceDistrict}
+                      onChange={(e) => handleInputChange("birthPlaceDistrict", e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ ...labelStyle, fontSize: "11px" }}>[06.3] Province/City:</label>
+                    <select
+                      style={inputStyle}
+                      value={formData.birthPlaceProvinceCode}
+                      onChange={(e) => {
+                        const province = vietnamProvinces.find(p => p.code === e.target.value);
+                        handleInputChange("birthPlaceProvinceCode", e.target.value);
+                        handleInputChange("birthPlaceProvince", province?.name || "");
+                      }}
+                    >
+                      <option value="">-- Select province/city --</option>
+                      {vietnamProvinces.map(province => (
+                        <option key={province.code} value={province.code}>
+                          {province.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+              {formData.birthPlaceCountry !== "VN" && formData.birthPlaceCountry && (
+                <div>
+                  <label style={{ ...labelStyle, fontSize: "11px" }}>Province/City:</label>
+                  <input
+                    type="text"
+                    style={inputStyle}
+                    value={formData.birthPlaceProvince}
+                    onChange={(e) => handleInputChange("birthPlaceProvince", e.target.value)}
+                    placeholder="Enter province/city"
+                  />
+                </div>
+              )}
             </div>
 
-            <div>
-              <label style={labelStyle}>Giới Tính</label>
-              <select
-                value={formData.gioiTinh}
-                onChange={(e) => handleInputChange('gioiTinh', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-              >
-                <option value="">-- Chọn giới tính --</option>
-                <option value="Nam">Nam</option>
-                <option value="Nữ">Nữ</option>
-                <option value="Khác">Khác</option>
-              </select>
+            <div style={{ marginBottom: theme.spacing.md }}>
+              <label style={labelStyle}>[07] Address to receive results:</label>
+              <div style={{ marginBottom: theme.spacing.sm }}>
+                <label style={{ ...labelStyle, fontSize: "11px" }}>Country:</label>
+                <select
+                  style={inputStyle}
+                  value={formData.addressCountry}
+                  onChange={(e) => {
+                    const country = countries.find(c => c.code === e.target.value);
+                    handleInputChange("addressCountry", e.target.value);
+                    handleInputChange("addressCountryName", country?.name || "");
+                    if (e.target.value !== "VN") {
+                      handleInputChange("addressProvince", "");
+                      handleInputChange("addressProvinceCode", "");
+                    }
+                  }}
+                >
+                  <option value="">-- Select country --</option>
+                  {countries.map(country => (
+                    <option key={country.code} value={country.code}>
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {formData.addressCountry === "VN" && (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.sm }}>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.1] House no./Street/Hamlet:</label>
+                      <input
+                        type="text"
+                      style={{ ...inputStyle, ...(fieldErrors.addressStreet && { borderColor: "#dc2626" }) }}
+                        value={formData.addressStreet}
+                        onChange={(e) => handleInputChange("addressStreet", e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.2] Hamlet:</label>
+                      <input
+                        type="text"
+                      style={{ ...inputStyle, ...(fieldErrors.addressWard && { borderColor: "#dc2626" }) }}
+                        value={formData.addressWard}
+                        onChange={(e) => handleInputChange("addressWard", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
+                  <div>
+                    <label style={{ ...labelStyle, fontSize: "11px" }}>[07.3] Commune:</label>
+                      <input
+                        type="text"
+                      style={{ ...inputStyle, ...(fieldErrors.addressDistrict && { borderColor: "#dc2626" }) }}
+                        value={formData.addressDistrict}
+                        onChange={(e) => handleInputChange("addressDistrict", e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: "11px" }}>[07.4] Province/City:</label>
+                      <select
+                      style={{ ...inputStyle, ...(fieldErrors.addressProvince && { borderColor: "#dc2626" }) }}
+                        value={formData.addressProvinceCode}
+                        onChange={(e) => {
+                          const province = vietnamProvinces.find(p => p.code === e.target.value);
+                          handleInputChange("addressProvinceCode", e.target.value);
+                          handleInputChange("addressProvince", province?.name || "");
+                      }}
+                      >
+                        <option value="">-- Select province/city --</option>
+                        {vietnamProvinces.map(province => (
+                          <option key={province.code} value={province.code}>
+                            {province.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+              {formData.addressCountry !== "VN" && formData.addressCountry && (
+                <div>
+                  <label style={{ ...labelStyle, fontSize: "11px" }}>Address:</label>
+                  <input
+                    type="text"
+                    style={inputStyle}
+                    value={formData.addressStreet}
+                    onChange={(e) => handleInputChange("addressStreet", e.target.value)}
+                    placeholder="Enter full address"
+                  />
+                </div>
+              )}
             </div>
 
-            <div>
-              <label style={labelStyle}>Số CCCD/CMND</label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+              <div>
+                <label style={labelStyle}>[08] ID card / passport (CCCD / national ID / passport):</label>
+                <input
+                  type="text"
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                  value={formData.idNumber}
+                  onChange={(e) => handleInputChange("idNumber", e.target.value)}
+                  readOnly={!!selectedEmployee}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>[09] Phone number:</label>
+                <input
+                  type="text"
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                  value={formData.phoneNumber}
+                  onChange={(e) => handleInputChange("phoneNumber", e.target.value)}
+                  readOnly={!!selectedEmployee}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+              <div>
+                <label style={labelStyle}>[08.1] Date issued:</label>
+                <input
+                  type="date"
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                  value={formData.idIssueDate}
+                  onChange={(e) => handleInputChange("idIssueDate", e.target.value)}
+                  readOnly={!!selectedEmployee}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>[08.2] Place issued:</label>
+                <input
+                  type="text"
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                  value={formData.idIssuePlace}
+                  onChange={(e) => handleInputChange("idIssuePlace", e.target.value)}
+                  readOnly={!!selectedEmployee}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: theme.spacing.md }}>
+              <label style={labelStyle}>[10] Parent/guardian name (for children under 6):</label>
               <input
                 type="text"
-                value={formData.soCCCD}
-                onChange={(e) => handleInputChange('soCCCD', e.target.value)}
-                disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập số CCCD/CMND..."
+                value={formData.parentGuardianName}
+                onChange={(e) => handleInputChange("parentGuardianName", e.target.value)}
               />
             </div>
 
-            <div>
-              <label style={labelStyle}>Ngày Cấp CCCD</label>
-              <input
-                type="date"
-                value={formData.ngayCapCCCD}
-                onChange={(e) => handleInputChange('ngayCapCCCD', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-              />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+              <div>
+                <label style={labelStyle}>[11] Contribution amount (voluntary SI):</label>
+                <input
+                  type="text"
+                  style={inputStyle}
+                  value={formData.contributionAmount}
+                  onChange={(e) => handleInputChange("contributionAmount", e.target.value)}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>[12] Contribution method:</label>
+                <input
+                  type="text"
+                  style={inputStyle}
+                  value={formData.contributionMethod}
+                  onChange={(e) => handleInputChange("contributionMethod", e.target.value)}
+                  placeholder="3 months, 6 months, 12 months..."
+                />
+              </div>
             </div>
 
-            <div>
-              <label style={labelStyle}>Nơi Cấp CCCD</label>
+            <div style={{ marginBottom: theme.spacing.md }}>
+              <label style={labelStyle}>[13] Initial health care provider:</label>
               <input
                 type="text"
-                value={formData.noiCapCCCD}
-                onChange={(e) => handleInputChange('noiCapCCCD', e.target.value)}
-                disabled={!isEditing}
                 style={inputStyle}
-                placeholder="Nhập nơi cấp CCCD..."
+                value={formData.healthInsuranceProvider}
+                onChange={(e) => handleInputChange("healthInsuranceProvider", e.target.value)}
               />
             </div>
           </div>
+        </>
+      ) : (
+        <>
+          {/* Phần II: Người đã có mã số BHXH */}
+          <div style={formSectionStyle}>
+            <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
+              II. For participants with a Social Insurance number (information change)
+            </h3>
 
-          {/* Địa chỉ */}
-          <h3 style={sectionTitleStyle}>🏠 Thông Tin Địa Chỉ</h3>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: "24px"
-          }}>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Địa Chỉ Thường Trú</label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+              <div>
+                <label style={labelStyle}>[01] Full name (UPPERCASE): *</label>
+                <input
+                  type="text"
+                  style={selectedEmployee
+                    ? { ...readOnlyInputStyle, ...(fieldErrors.name && { borderColor: "#dc2626" }) }
+                    : { ...inputStyle, ...(fieldErrors.name && { borderColor: "#dc2626" }) }
+                  }
+                  value={formData.name}
+                  onChange={(e) => handleInputChange("name", e.target.value.toUpperCase())}
+                  readOnly={!!selectedEmployee}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>[02] Date of birth: *</label>
+                <input
+                  type="date"
+                  style={selectedEmployee
+                    ? { ...readOnlyInputStyle, ...(fieldErrors.dateOfBirth && { borderColor: "#dc2626" }) }
+                    : { ...inputStyle, ...(fieldErrors.dateOfBirth && { borderColor: "#dc2626" }) }
+                  }
+                  value={formData.dateOfBirth}
+                  onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
+                  readOnly={!!selectedEmployee}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: theme.spacing.md }}>
+              <label style={labelStyle}>[03] Social Insurance number: *</label>
               <input
                 type="text"
-                value={formData.diaChiThuongTru}
-                onChange={(e) => handleInputChange('diaChiThuongTru', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Nhập địa chỉ thường trú..."
+                style={selectedEmployee
+                  ? { ...readOnlyInputStyle, ...(fieldErrors.socialInsuranceNumber && { borderColor: "#dc2626" }) }
+                  : { ...inputStyle, ...(fieldErrors.socialInsuranceNumber && { borderColor: "#dc2626" }) }
+                }
+                value={formData.socialInsuranceNumber}
+                onChange={(e) => handleInputChange("socialInsuranceNumber", e.target.value)}
+                readOnly={!!selectedEmployee}
               />
             </div>
 
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Địa Chỉ Tạm Trú</label>
-              <input
-                type="text"
-                value={formData.diaChiTamTru}
-                onChange={(e) => handleInputChange('diaChiTamTru', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Nhập địa chỉ tạm trú..."
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Số Điện Thoại</label>
-              <input
-                type="tel"
-                value={formData.soDienThoai}
-                onChange={(e) => handleInputChange('soDienThoai', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Nhập số điện thoại..."
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Email</label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Nhập địa chỉ email..."
-              />
-            </div>
-          </div>
-
-          {/* Thông tin công việc */}
-          <h3 style={sectionTitleStyle}>💼 Thông Tin Công Việc</h3>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: "24px"
-          }}>
-            <div>
-              <label style={labelStyle}>Chức Vụ</label>
-              <input
-                type="text"
-                value={formData.chucVu}
-                onChange={(e) => handleInputChange('chucVu', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Nhập chức vụ..."
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Phòng Ban</label>
-              <input
-                type="text"
-                value={formData.phongBan}
-                onChange={(e) => handleInputChange('phongBan', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Nhập phòng ban..."
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Ngày Bắt Đầu Làm Việc</label>
-              <input
-                type="date"
-                value={formData.ngayBatDauLamViec}
-                onChange={(e) => handleInputChange('ngayBatDauLamViec', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Loại Hợp Đồng</label>
-              <select
-                value={formData.loaiHopDong}
-                onChange={(e) => handleInputChange('loaiHopDong', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-              >
-                <option value="">-- Chọn loại hợp đồng --</option>
-                <option value="Không xác định thời hạn">Không xác định thời hạn</option>
-                <option value="Xác định thời hạn">Xác định thời hạn</option>
-                <option value="Thời vụ">Thời vụ</option>
-                <option value="Thử việc">Thử việc</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Thời Hạn Hợp Đồng</label>
-              <input
-                type="text"
-                value={formData.thoiHanHopDong}
-                onChange={(e) => handleInputChange('thoiHanHopDong', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Ví dụ: 2 năm, 6 tháng..."
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Lương Cơ Bản (VNĐ)</label>
-              <input
-                type="number"
-                value={formData.luongCoBan}
-                onChange={(e) => handleInputChange('luongCoBan', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Nhập lương cơ bản..."
-              />
-            </div>
-          </div>
-
-          {/* Thông tin BHXH/BHYT */}
-          <h3 style={sectionTitleStyle}>🛡️ Thông Tin BHXH/BHYT/BHTN</h3>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: "24px"
-          }}>
-            <div>
-              <label style={labelStyle}>Số Sổ BHXH</label>
-              <input
-                type="text"
-                value={formData.soSoBHXH}
-                onChange={(e) => handleInputChange('soSoBHXH', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Nhập số sổ BHXH..."
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Nơi Đăng Ký KCB</label>
-              <input
-                type="text"
-                value={formData.noiDangKyKCB}
-                onChange={(e) => handleInputChange('noiDangKyKCB', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Nhập nơi đăng ký khám chữa bệnh..."
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Tham Gia BHXH</label>
-              <select
-                value={formData.thamGiaBHXH}
-                onChange={(e) => handleInputChange('thamGiaBHXH', e.target.value === 'true')}
-                disabled={!isEditing}
-                style={inputStyle}
-              >
-                <option value={true}>Có</option>
-                <option value={false}>Không</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Tham Gia BHYT</label>
-              <select
-                value={formData.thamGiaBHYT}
-                onChange={(e) => handleInputChange('thamGiaBHYT', e.target.value === 'true')}
-                disabled={!isEditing}
-                style={inputStyle}
-              >
-                <option value={true}>Có</option>
-                <option value={false}>Không</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Tham Gia BHTN</label>
-              <select
-                value={formData.thamGiaBHTN}
-                onChange={(e) => handleInputChange('thamGiaBHTN', e.target.value === 'true')}
-                disabled={!isEditing}
-                style={inputStyle}
-              >
-                <option value={false}>Không</option>
-                <option value={true}>Có</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Thông tin liên hệ khẩn cấp */}
-          <h3 style={sectionTitleStyle}>🚨 Người Liên Hệ Khẩn Cấp</h3>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: "24px"
-          }}>
-            <div>
-              <label style={labelStyle}>Họ Tên Người Liên Hệ</label>
-              <input
-                type="text"
-                value={formData.nguoiLienHeKhanCap}
-                onChange={(e) => handleInputChange('nguoiLienHeKhanCap', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Nhập họ tên người liên hệ..."
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Quan Hệ Với Người Lao Động</label>
-              <input
-                type="text"
-                value={formData.quanHeVoiNguoiLD}
-                onChange={(e) => handleInputChange('quanHeVoiNguoiLD', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Ví dụ: Vợ, Chồng, Cha, Mẹ..."
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Số Điện Thoại Liên Hệ</label>
-              <input
-                type="tel"
-                value={formData.soDienThoaiNguoiLienHe}
-                onChange={(e) => handleInputChange('soDienThoaiNguoiLienHe', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Nhập số điện thoại liên hệ..."
-              />
-            </div>
-          </div>
-
-          {/* Thông tin bổ sung */}
-          <h3 style={sectionTitleStyle}>📚 Thông Tin Bổ Sung</h3>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: "24px"
-          }}>
-            <div>
-              <label style={labelStyle}>Trình Độ Học Vấn</label>
-              <select
-                value={formData.trinhDoHocVan}
-                onChange={(e) => handleInputChange('trinhDoHocVan', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-              >
-                <option value="">-- Chọn trình độ --</option>
-                <option value="Tiến sĩ">Tiến sĩ</option>
-                <option value="Thạc sĩ">Thạc sĩ</option>
-                <option value="Đại học">Đại học</option>
-                <option value="Cao đẳng">Cao đẳng</option>
-                <option value="Trung cấp">Trung cấp</option>
-                <option value="Trung học phổ thông">Trung học phổ thông</option>
-                <option value="Trung học cơ sở">Trung học cơ sở</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Chuyên Ngành</label>
-              <input
-                type="text"
-                value={formData.chuyenNganh}
-                onChange={(e) => handleInputChange('chuyenNganh', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Nhập chuyên ngành..."
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Ngoại Ngữ</label>
-              <input
-                type="text"
-                value={formData.ngoaiNgu}
-                onChange={(e) => handleInputChange('ngoaiNgu', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Ví dụ: Tiếng Anh B2, Tiếng Nhật N3..."
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Tin Học</label>
-              <input
-                type="text"
-                value={formData.tinHoc}
-                onChange={(e) => handleInputChange('tinHoc', e.target.value)}
-                disabled={!isEditing}
-                style={inputStyle}
-                placeholder="Ví dụ: MOS Word, MOS Excel..."
-              />
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Kinh Nghiệm Làm Việc</label>
+            <div style={{ marginBottom: theme.spacing.md }}>
+              <label style={labelStyle}>[04] Requested changes: *</label>
               <textarea
-                value={formData.kinhNghiem}
-                onChange={(e) => handleInputChange('kinhNghiem', e.target.value)}
-                disabled={!isEditing}
                 style={{
                   ...inputStyle,
                   minHeight: "100px",
-                  resize: "vertical"
+                  ...(fieldErrors.changeContent && { borderColor: "#dc2626" })
                 }}
-                placeholder="Mô tả kinh nghiệm làm việc, kỹ năng chuyên môn..."
+                value={formData.changeContent}
+                onChange={(e) => handleInputChange("changeContent", e.target.value)}
+                placeholder="Describe the requested changes..."
+              />
+            </div>
+
+            <div style={{ marginBottom: theme.spacing.md }}>
+              <label style={labelStyle}>[05] Supporting documents (if any):</label>
+              <textarea
+                style={{ ...inputStyle, minHeight: "80px" }}
+                value={formData.attachedDocuments}
+                onChange={(e) => handleInputChange("attachedDocuments", e.target.value)}
+                placeholder="List attached documents..."
               />
             </div>
           </div>
+        </>
+      )}
+
+      {/* Ngày tháng địa điểm kê khai */}
+      <div style={formSectionStyle}>
+        <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
+          Declaration details
+        </h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
+          <div>
+            <label style={labelStyle}>Declaration place:</label>
+            <input
+              type="text"
+              style={inputStyle}
+              value={formData.declarationPlace}
+              onChange={(e) => handleInputChange("declarationPlace", e.target.value)}
+              placeholder="e.g. Ho Chi Minh City"
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Declaration date:</label>
+            <input
+              type="date"
+              style={inputStyle}
+              value={formData.declarationDate}
+              onChange={(e) => handleInputChange("declarationDate", e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Phụ lục: Thành viên hộ gia đình */}
+      <div style={formSectionStyle}>
+        <h3 style={{ marginBottom: theme.spacing.md, color: theme.primary.main }}>
+          Appendix: Household members (if any)
+        </h3>
+
+        <div style={{ marginBottom: theme.spacing.md }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+            <div>
+              <label style={labelStyle}>Household head full name:</label>
+              <input
+                type="text"
+                style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                value={formData.householdHeadName}
+                onChange={(e) => handleInputChange("householdHeadName", e.target.value)}
+                readOnly={!!selectedEmployee}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Phone number (optional):</label>
+              <input
+                type="text"
+                style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                value={formData.householdHeadPhone}
+                onChange={(e) => handleInputChange("householdHeadPhone", e.target.value)}
+                readOnly={!!selectedEmployee}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: theme.spacing.sm }}>
+            <label style={labelStyle}>Country:</label>
+            <select
+              style={inputStyle}
+              value={formData.householdAddressCountry}
+              onChange={(e) => {
+                const country = countries.find(c => c.code === e.target.value);
+                handleInputChange("householdAddressCountry", e.target.value);
+                handleInputChange("householdAddressCountryName", country?.name || "");
+                if (e.target.value !== "VN") {
+                  handleInputChange("householdAddressProvince", "");
+                  handleInputChange("householdAddressProvinceCode", "");
+                }
+              }}
+            >
+              <option value="">-- Select country --</option>
+              {countries.map(country => (
+                <option key={country.code} value={country.code}>
+                  {country.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {formData.householdAddressCountry === "VN" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+              <div>
+                <label style={labelStyle}>Hamlet:</label>
+                <input
+                  type="text"
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                  value={formData.householdAddressWard}
+                  onChange={(e) => handleInputChange("householdAddressWard", e.target.value)}
+                  readOnly={!!selectedEmployee}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Commune:</label>
+                <input
+                  type="text"
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                  value={formData.householdAddressDistrict}
+                  onChange={(e) => handleInputChange("householdAddressDistrict", e.target.value)}
+                  readOnly={!!selectedEmployee}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Province/City:</label>
+                <select
+                  style={selectedEmployee ? readOnlyInputStyle : inputStyle}
+                  value={formData.householdAddressProvinceCode}
+                  onChange={(e) => {
+                    const province = vietnamProvinces.find(p => p.code === e.target.value);
+                    handleInputChange("householdAddressProvinceCode", e.target.value);
+                    handleInputChange("householdAddressProvince", province?.name || "");
+                  }}
+                  disabled={!!selectedEmployee}
+                >
+                  <option value="">-- Select province/city --</option>
+                  {vietnamProvinces.map(province => (
+                    <option key={province.code} value={province.code}>
+                      {province.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+          {formData.householdAddressCountry !== "VN" && formData.householdAddressCountry && (
+            <div>
+              <label style={labelStyle}>Address:</label>
+              <input
+                type="text"
+                style={inputStyle}
+                value={formData.householdAddressWard}
+                onChange={(e) => handleInputChange("householdAddressWard", e.target.value)}
+                placeholder="Enter full address"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Add household member form */}
+        <div style={{ ...formSectionStyle, backgroundColor: theme.neutral.white, marginBottom: theme.spacing.md }}>
+          <h4 style={{ marginBottom: theme.spacing.md }}>Add household member:</h4>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+            <div>
+              <label style={labelStyle}>Full name: *</label>
+              <input
+                type="text"
+                style={inputStyle}
+                value={householdMember.name}
+                onChange={(e) => setHouseholdMember({ ...householdMember, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Social Insurance No.:</label>
+              <input
+                type="text"
+                style={inputStyle}
+                value={householdMember.socialInsuranceNumber}
+                onChange={(e) => setHouseholdMember({ ...householdMember, socialInsuranceNumber: e.target.value })}
+              />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+            <div>
+              <label style={labelStyle}>Date of birth:</label>
+              <input
+                type="date"
+                style={inputStyle}
+                value={householdMember.dateOfBirth}
+                onChange={(e) => setHouseholdMember({ ...householdMember, dateOfBirth: e.target.value })}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Gender:</label>
+              <select
+                style={inputStyle}
+                value={householdMember.gender}
+                onChange={(e) => setHouseholdMember({ ...householdMember, gender: e.target.value })}
+              >
+                <option value="">-- Select --</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+            <div>
+              <label style={labelStyle}>Birth certificate place:</label>
+              <input
+                type="text"
+                style={inputStyle}
+                value={householdMember.birthPlace}
+                onChange={(e) => setHouseholdMember({ ...householdMember, birthPlace: e.target.value })}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Relationship to household head:</label>
+              <input
+                type="text"
+                style={inputStyle}
+                value={householdMember.relationship}
+                onChange={(e) => setHouseholdMember({ ...householdMember, relationship: e.target.value })}
+                placeholder="Spouse, child, ..."
+              />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+            <div>
+              <label style={labelStyle}>ID/Passport/Citizen ID:</label>
+              <input
+                type="text"
+                style={inputStyle}
+                value={householdMember.idNumber}
+                onChange={(e) => setHouseholdMember({ ...householdMember, idNumber: e.target.value })}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Notes:</label>
+              <input
+                type="text"
+                style={inputStyle}
+                value={householdMember.note}
+                onChange={(e) => setHouseholdMember({ ...householdMember, note: e.target.value })}
+              />
+            </div>
+          </div>
+          <button
+            style={buttonStyle}
+            onClick={addHouseholdMember}
+          >
+            ➕ Add member
+          </button>
+        </div>
+
+        {/* List of household members */}
+        {formData.householdMembers.length > 0 && (
+          <div style={{ marginTop: theme.spacing.md }}>
+            <h4 style={{ marginBottom: theme.spacing.md }}>Added members:</h4>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: theme.typography.small.fontSize }}>
+              <thead>
+                <tr style={{ backgroundColor: theme.primary.main, color: theme.neutral.white }}>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>No.</th>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Full name</th>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Social Insurance No.</th>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Date of birth</th>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Gender</th>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Relationship</th>
+                  <th style={{ padding: theme.spacing.sm, border: "1px solid #ddd", textAlign: "left" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {formData.householdMembers.map((member, idx) => (
+                  <tr key={idx}>
+                    <td style={{ padding: theme.spacing.sm, border: "1px solid #ddd" }}>{idx + 1}</td>
+                    <td style={{ padding: theme.spacing.sm, border: "1px solid #ddd" }}>{member.name}</td>
+                    <td style={{ padding: theme.spacing.sm, border: "1px solid #ddd" }}>{member.socialInsuranceNumber || "-"}</td>
+                    <td style={{ padding: theme.spacing.sm, border: "1px solid #ddd" }}>{member.dateOfBirth || "-"}</td>
+                    <td style={{ padding: theme.spacing.sm, border: "1px solid #ddd" }}>{member.gender || "-"}</td>
+                    <td style={{ padding: theme.spacing.sm, border: "1px solid #ddd" }}>{member.relationship || "-"}</td>
+                    <td style={{ padding: theme.spacing.sm, border: "1px solid #ddd" }}>
+                      <button
+                        onClick={() => removeHouseholdMember(idx)}
+                        style={{
+                          padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+                          backgroundColor: theme.error.main,
+                          color: theme.neutral.white,
+                          border: "none",
+                          borderRadius: theme.radius.sm,
+                          cursor: "pointer",
+                          fontSize: theme.typography.small.fontSize
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Action Buttons */}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: theme.spacing.md, marginTop: theme.spacing.xl }}>
+        <button
+          style={{
+            ...buttonStyle,
+            backgroundColor: loading ? theme.neutral.gray400 : theme.primary.dark,
+            cursor: loading ? "not-allowed" : "pointer",
+            opacity: loading ? 0.7 : 1
+          }}
+          onClick={saveFormData}
+          disabled={loading || loadingWord || !selectedEmployee}
+        >
+          {loading ? "⏳ Saving..." : "💾 Save"}
+        </button>
+        <button
+          style={{
+            ...buttonStyle,
+            backgroundColor: loadingWord ? theme.neutral.gray400 : theme.primary.main,
+            cursor: loadingWord ? "not-allowed" : "pointer",
+            opacity: loadingWord ? 0.7 : 1
+          }}
+          onClick={exportToWord}
+          disabled={loadingWord || loading}
+        >
+          {loadingWord ? "⏳ Generating Word..." : "📝 Export Word"}
+        </button>
+        <button
+          style={{
+            ...buttonStyle,
+          backgroundColor: loading ? theme.neutral.gray400 : theme.primary.main,
+          cursor: loading ? "not-allowed" : "pointer",
+          opacity: loading ? 0.7 : 1
+          }}
+          onClick={exportToPDF}
+          disabled={loading || loadingWord}
+        >
+          {loading ? "⏳ Generating PDF..." : "📄 Export PDF"}
+        </button>
+      </div>
+
+      {message && (
+        <div style={{
+          marginTop: theme.spacing.md,
+          padding: theme.spacing.md,
+          backgroundColor: isSuccessMessage ? theme.success.light : theme.error.light,
+          color: isSuccessMessage ? theme.success.dark : theme.error.dark,
+          borderRadius: theme.radius.md
+        }}>
+          {message}
         </div>
       )}
     </div>
   );
-};
+}
 
-export default TK1TSForm;

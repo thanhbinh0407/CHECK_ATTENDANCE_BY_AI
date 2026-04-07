@@ -36,17 +36,6 @@ const CHANGE_TYPE_BADGE_STYLE = {
   default: { background: "#e5e7eb", color: "#374151", borderRadius: 999, padding: "3px 9px", fontSize: 12, fontWeight: 600 },
 };
 
-const SAMPLE_USER_HISTORY = {
-  jobHistory: [
-    { id: 'sample-j1', effectiveDate: new Date().toISOString().slice(0,10), changeType: 'promotion', fromDepartmentName: 'Sales', toDepartmentName: 'Sales', fromJobTitleName: 'Junior Sales', toJobTitleName: 'Senior Sales' },
-    { id: 'sample-j2', effectiveDate: new Date().toISOString().slice(0,10), changeType: 'transfer', fromDepartmentName: 'Support', toDepartmentName: 'Marketing', fromJobTitleName: 'Support Agent', toJobTitleName: 'Marketing Specialist' }
-  ],
-  salaryChangeHistory: [
-    { id: 'sample-s1', effectiveDate: new Date().toISOString().slice(0,10), changeType: 'increase', previousBaseSalary: 8000000, newBaseSalary: 9000000, reason: 'Performance bonus' },
-    { id: 'sample-s2', effectiveDate: new Date().toISOString().slice(0,10), changeType: 'correction', previousBaseSalary: 9000000, newBaseSalary: 9200000, reason: 'Payroll adjustment' }
-  ]
-};
-
 function getHeaders() {
   const token = localStorage.getItem("authToken");
   return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
@@ -58,6 +47,7 @@ export default function UserManagement() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [listMode, setListMode] = useState("active"); // active | inactive
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -71,9 +61,10 @@ export default function UserManagement() {
   const [detailJobMeta, setDetailJobMeta] = useState({ page: 1, pageSize: 8, totalPages: 1, totalItems: 0, currentPage: 1 });
   const [detailSalaryMeta, setDetailSalaryMeta] = useState({ page: 1, pageSize: 8, totalPages: 1, totalItems: 0, currentPage: 1 });
   const [form, setForm] = useState({
-    name: "", email: "", password: "", employeeCode: "",
+    name: "", email: "", employeeCode: "",
     role: "employee", isActive: true,
   });
+  const [newPwModal, setNewPwModal] = useState(null); // { name, employeeCode, password }
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [roleTarget, setRoleTarget] = useState(null);
   const [roleForm, setRoleForm] = useState({ role: "employee", reason: "" });
@@ -102,7 +93,7 @@ export default function UserManagement() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: "", email: "", password: "", employeeCode: "", role: "employee", isActive: true });
+    setForm({ name: "", email: "", employeeCode: "", role: "employee", isActive: true });
     setShowModal(true);
   };
 
@@ -111,7 +102,6 @@ export default function UserManagement() {
     setForm({
       name: user.name || "",
       email: user.email || "",
-      password: "",
       employeeCode: user.employeeCode || "",
       role: user.role || "employee",
       isActive: user.isActive !== false,
@@ -127,7 +117,6 @@ export default function UserManagement() {
       : `${API_BASE}/api/admin/employees/${editing.id}`;
     const method = isCreate ? "POST" : "PUT";
     const body = { ...form };
-    if (!isCreate && !body.password) delete body.password;
 
     const res = await fetch(url, { method, headers: getHeaders(), body: JSON.stringify(body) });
     const data = await res.json();
@@ -139,41 +128,80 @@ export default function UserManagement() {
       setShowModal(false);
       load();
       window.dispatchEvent(new CustomEvent("hrms-admin-refresh"));
+      if (isCreate && data.newPassword) {
+        setNewPwModal({
+          name: saved?.name || form.name,
+          employeeCode: saved?.employeeCode || form.employeeCode || "—",
+          password: data.newPassword,
+        });
+      }
     } else {
       alert(data.message || "Lỗi khi lưu tài khoản");
     }
   };
 
   const resetPassword = async (userId, userName) => {
-    const newPassword = prompt(`Nhập mật khẩu mới cho "${userName}":`);
-    if (!newPassword || newPassword.length < 8) {
-      alert("Password must be at least 8 characters");
-      return;
-    }
+    if (!confirm(`Reset mật khẩu ngẫu nhiên cho "${userName}"?`)) return;
     const res = await fetch(`${API_BASE}/api/admin/employees/${userId}/reset-password`, {
       method: "POST",
       headers: getHeaders(),
-      body: JSON.stringify({ newPassword }),
+      body: JSON.stringify({}),
     });
     const data = await res.json();
-    if (data.status === "success") {
-      alert("Password reset successfully");
+    if (data.status === "success" && data.newPassword) {
+      setNewPwModal({
+        name: data.employeeName || userName,
+        employeeCode: data.employeeCode || "—",
+        password: data.newPassword,
+      });
     } else {
-      alert(data.message || "Error resetting password");
+      alert(data.message || "Lỗi khi reset mật khẩu");
     }
   };
 
-  const toggleActive = async (user) => {
-    const action = user.isActive ? "Deactivate" : "Activate";
-    if (!confirm(`Confirm ${action} account "${user.name}"?`)) return;
+  const deactivate = async (user) => {
+    if (!confirm(`Deactivate account "${user.name}"?`)) return;
     const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}`, {
-      method: "PUT",
+      method: "DELETE",
       headers: getHeaders(),
-      body: JSON.stringify({ isActive: !user.isActive }),
     });
     const data = await res.json();
-    if (data.status === "success" || data.employee) load();
+    if (res.ok && data.status === "success") load();
     else alert(data.message || "Lỗi");
+  };
+
+  const restore = async (user) => {
+    if (!confirm(`Restore account "${user.name}"?`)) return;
+    const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}/restore`, {
+      method: "PATCH",
+      headers: getHeaders(),
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (res.ok && data.status === "success") load();
+    else alert(data.message || "Lỗi");
+  };
+
+  const permanentlyDeleteUser = async (user) => {
+    if (!confirm(`Permanently delete "${user.name}"?\n\nThis cannot be undone.`)) return;
+    const password = window.prompt("Nhập mật khẩu Manager để xác nhận xóa vĩnh viễn:");
+    if (!password) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}/permanent`, {
+        method: "DELETE",
+        headers: getHeaders(),
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (res.ok && data.status === "success") {
+        load();
+        window.dispatchEvent(new CustomEvent("hrms-admin-refresh"));
+      } else {
+        alert(data.message || "Lỗi xóa vĩnh viễn");
+      }
+    } catch (e) {
+      alert(e.message || "Lỗi kết nối");
+    }
   };
 
   const filtered = users.filter(u => {
@@ -182,7 +210,8 @@ export default function UserManagement() {
       u.email?.toLowerCase().includes(search.toLowerCase()) ||
       u.employeeCode?.toLowerCase().includes(search.toLowerCase());
     const matchRole = roleFilter ? u.role === roleFilter : true;
-    return matchSearch && matchRole;
+    const matchList = listMode === "active" ? u.isActive !== false : u.isActive === false;
+    return matchSearch && matchRole && matchList;
   });
 
   const exportCsv = () => {
@@ -231,7 +260,11 @@ export default function UserManagement() {
       });
       const data = await res.json();
       if (!res.ok || data.status !== "success") {
-        alert(data.message || "Đổi role thất bại");
+        let msg = data.message || "Đổi role thất bại";
+        if (Array.isArray(data.missingFields) && data.missingFields.length) {
+          msg += `\nThiếu trường: ${data.missingFields.join(", ")}`;
+        }
+        alert(msg);
         return;
       }
       setShowRoleModal(false);
@@ -369,8 +402,12 @@ export default function UserManagement() {
     border: "1px solid #e2e8f0",
   };
 
-  const jobDisplayRows = detailJobRows.length > 0 ? detailJobRows : SAMPLE_USER_HISTORY.jobHistory;
-  const salaryDisplayRows = detailSalaryRows.length > 0 ? detailSalaryRows : SAMPLE_USER_HISTORY.salaryChangeHistory;
+  const hasJobFilter = Boolean(
+    detailJobFilter.fromDate || detailJobFilter.toDate || detailJobFilter.changeType
+  );
+  const hasSalaryFilter = Boolean(
+    detailSalaryFilter.fromDate || detailSalaryFilter.toDate || detailSalaryFilter.changeType
+  );
 
   return (
     <div>
@@ -399,6 +436,40 @@ export default function UserManagement() {
 
       {/* Search & Create */}
       <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setListMode("active")}
+            style={{
+              padding: "9px 14px",
+              background: listMode === "active" ? "#667eea" : "#e2e8f0",
+              color: listMode === "active" ? "#fff" : "#111827",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: 13,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Danh sách tài khoản
+          </button>
+          <button
+            onClick={() => setListMode("inactive")}
+            style={{
+              padding: "9px 14px",
+              background: listMode === "inactive" ? "#667eea" : "#e2e8f0",
+              color: listMode === "inactive" ? "#fff" : "#111827",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: 13,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Danh sách vô hiệu hóa
+          </button>
+        </div>
         <input
           style={{ flex: 1, padding: "9px 14px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 14 }}
           placeholder="Search by name, email, employee code..."
@@ -438,7 +509,7 @@ export default function UserManagement() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr>
-                  {['Employee Code', 'Name', 'Email', 'Role', 'Status', 'Created At', 'Actions'].map(h => (
+                  {['Employee Code', 'Name', 'Email', 'Role', 'Status', 'Deactivated At', 'Created At', 'Actions'].map(h => (
                     <th key={h} style={{ background: "#f0f9ff", padding: "10px 12px", textAlign: "left", fontWeight: 600 }}>{h}</th>
                   ))}
                 </tr>
@@ -471,8 +542,11 @@ export default function UserManagement() {
                           background: user.isActive ? "#c6f6d5" : "#fed7d7",
                           color: user.isActive ? "#276749" : "#9b2c2c",
                         }}>
-                          {user.isActive ? "Đang hoạt động" : "Vô hiệu hóa"}
+                          {user.isActive ? "Active" : "Inactive"}
                         </span>
+                      </td>
+                      <td style={{ padding: "10px 12px", borderBottom: "1px solid #f0f4f8", color: "#64748b" }}>
+                        {user.deactivatedAt ? new Date(user.deactivatedAt).toLocaleString("vi-VN") : "-"}
                       </td>
                       <td style={{ padding: "10px 12px", borderBottom: "1px solid #f0f4f8", color: "#64748b" }}>
                         {user.createdAt ? new Date(user.createdAt).toLocaleDateString("vi-VN") : "-"}
@@ -503,16 +577,44 @@ export default function UserManagement() {
                           >
                             Reset Password
                           </button>
-                          <button
-                            onClick={() => toggleActive(user)}
-                            style={{
-                              padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
-                              background: user.isActive ? "#fed7d7" : "#c6f6d5",
-                              color: user.isActive ? "#9b2c2c" : "#276749",
-                            }}
-                          >
-                            {user.isActive ? "Deactivate" : "Activate"}
-                          </button>
+                          {listMode === "active" ? (
+                            <button
+                              onClick={() => deactivate(user)}
+                              style={{
+                                padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
+                                background: "#fed7d7",
+                                color: "#9b2c2c",
+                              }}
+                            >
+                              Deactivate
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => restore(user)}
+                                style={{
+                                  padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
+                                  background: "#c6f6d5",
+                                  color: "#276749",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                Restore
+                              </button>
+                              <button
+                                onClick={() => permanentlyDeleteUser(user)}
+                                style={{
+                                  padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
+                                  background: "#7f1d1d",
+                                  color: "#fff",
+                                  fontWeight: 700,
+                                }}
+                                title="Permanent delete (requires Manager password)"
+                              >
+                                Delete Forever
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -520,7 +622,7 @@ export default function UserManagement() {
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: 20, color: "#718096" }}>
+                    <td colSpan={8} style={{ textAlign: "center", padding: 20, color: "#718096" }}>
                       No records found. The user management section is ready for data.
                     </td>
                   </tr>
@@ -633,10 +735,14 @@ export default function UserManagement() {
               <button onClick={() => setShowModal(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#718096" }}>×</button>
             </div>
             <form onSubmit={save}>
+              {!editing && (
+                <div style={{ marginBottom: 14, padding: "10px 14px", background: "#ebf8ff", border: "1px solid #bee3f8", borderRadius: 8, fontSize: 13, color: "#2c5282" }}>
+                  🔐 Mật khẩu ngẫu nhiên sẽ được tự động tạo (ví dụ: <strong>HMA#9940</strong>) và hiển thị sau khi tạo tài khoản.
+                </div>
+              )}
               {[
                 { label: "Full Name *", key: "name", type: "text", required: true },
                 { label: "Email *", key: "email", type: "email", required: true },
-                { label: editing ? "New Password (leave blank to keep)" : "Password *", key: "password", type: "password", required: !editing },
                 { label: "Employee Code", key: "employeeCode", type: "text" },
               ].map(f => (
                 <div key={f.key} style={{ marginBottom: 14 }}>
@@ -679,7 +785,7 @@ export default function UserManagement() {
                     onChange={e => setForm({ ...form, isActive: e.target.checked })}
                     style={{ width: 16, height: 16 }}
                   />
-                  <span style={{ fontSize: 14 }}>Tài khoản đang hoạt động</span>
+                  <span style={{ fontSize: 14 }}>Account is active</span>
                 </label>
               </div>
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
@@ -748,15 +854,15 @@ export default function UserManagement() {
                   </div>
                   {detailJobRows.length === 0 && (
                     <div style={{ marginTop: 8, color: '#64748b' }}>
-                      No job history for selected filters. Showing sample items:
+                      {hasJobFilter ? "No job history for selected filters." : "No job history available."}
                     </div>
                   )}
-                  {(detailJobRows.length > 0 ? detailJobRows : SAMPLE_USER_HISTORY.jobHistory).length > 0 && (
+                  {detailJobRows.length > 0 && (
                     <div style={{ overflowX: "auto", marginTop: 8 }}>
                       <table style={{ width: "100%", borderCollapse: "collapse" }}>
                         <thead><tr><th style={{ textAlign: "left", padding: 6 }}>Date</th><th style={{ textAlign: "left", padding: 6 }}>Type</th><th style={{ textAlign: "left", padding: 6 }}>Department</th><th style={{ textAlign: "left", padding: 6 }}>Job Title</th></tr></thead>
                         <tbody>
-                          {jobDisplayRows.map((h) => (
+                          {detailJobRows.map((h) => (
                             <tr key={h.id} style={{ borderTop: "1px solid #e2e8f0" }}>
                               <td style={{ padding: 6 }}>{h.effectiveDate || "-"}</td>
                               <td style={{ padding: 6 }}>
@@ -764,8 +870,32 @@ export default function UserManagement() {
                                   {h.changeType || "unknown"}
                                 </span>
                               </td>
-                              <td style={{ padding: 6 }}>{h.fromDepartmentName || "-"} → {h.toDepartmentName || "-"}</td>
-                              <td style={{ padding: 6 }}>{h.fromJobTitleName || "-"} → {h.toJobTitleName || "-"}</td>
+                                <td style={{ padding: 6 }}>
+                                    {h.changeType === "other" ? (
+                                      <>
+                                        <span style={{ color: "#dc2626", fontWeight: 500 }}>{h.fromDepartmentName || "-"}</span>
+                                        <span style={{ color: "#64748b" }}>{" -> "}</span>
+                                        <span style={{ color: "#16a34a", fontWeight: 500 }}>{h.toDepartmentName || "-"}</span>
+                                      </>
+                                    ) : (
+                                      <span style={{ color: "#16a34a", fontWeight: 500 }}>
+                                        {h.toDepartmentName || h.fromDepartmentName || "-"}
+                                      </span>
+                                    )}
+                                </td>
+                                <td style={{ padding: 6 }}>
+                                    {h.changeType === "other" ? (
+                                      <>
+                                        <span style={{ color: "#dc2626", fontWeight: 500 }}>{h.fromJobTitleName || "-"}</span>
+                                        <span style={{ color: "#64748b" }}>{" -> "}</span>
+                                        <span style={{ color: "#16a34a", fontWeight: 500 }}>{h.toJobTitleName || "-"}</span>
+                                      </>
+                                    ) : (
+                                      <span style={{ color: "#dc2626", fontWeight: 500 }}>
+                                        {h.toJobTitleName || h.fromJobTitleName || "-"}
+                                      </span>
+                                    )}
+                                </td>
                             </tr>
                           ))}
                         </tbody>
@@ -803,15 +933,15 @@ export default function UserManagement() {
                   </div>
                   {detailSalaryRows.length === 0 && (
                     <div style={{ marginTop: 8, color: '#64748b' }}>
-                      No salary changes for selected filters. Showing sample items.
+                      {hasSalaryFilter ? "No salary changes for selected filters." : "No salary change history available."}
                     </div>
                   )}
-                  {(detailSalaryRows.length > 0 ? detailSalaryRows : SAMPLE_USER_HISTORY.salaryChangeHistory).length > 0 && (
+                  {detailSalaryRows.length > 0 && (
                     <div style={{ overflowX: "auto", marginTop: 8 }}>
                       <table style={{ width: "100%", borderCollapse: "collapse" }}>
                         <thead><tr><th style={{ textAlign: "left", padding: 6 }}>Date</th><th style={{ textAlign: "left", padding: 6 }}>Type</th><th style={{ textAlign: "left", padding: 6 }}>Old to New Salary</th><th style={{ textAlign: "left", padding: 6 }}>Reason</th></tr></thead>
                         <tbody>
-                          {salaryDisplayRows.map((h) => (
+                          {detailSalaryRows.map((h) => (
                             <tr key={h.id} style={{ borderTop: "1px solid #e2e8f0" }}>
                               <td style={{ padding: 6 }}>{h.effectiveDate || "-"}</td>
                               <td style={{ padding: 6 }}>
@@ -905,6 +1035,48 @@ export default function UserManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {newPwModal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setNewPwModal(null)}
+        >
+          <div
+            style={{ background: "#fff", borderRadius: 12, padding: 28, width: 420, maxWidth: "94vw", textAlign: "center" }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 36, marginBottom: 8 }}>🔐</div>
+            <h3 style={{ fontSize: 17, color: "#1a365d", marginBottom: 4 }}>Mật khẩu mới</h3>
+            <p style={{ fontSize: 13, color: "#718096", marginBottom: 18 }}>
+              <strong>{newPwModal.name}</strong> ({newPwModal.employeeCode})
+            </p>
+            <div
+              style={{
+                background: "#f0fff4", border: "2px solid #9ae6b4", borderRadius: 8,
+                padding: "14px 20px", fontSize: 26, fontWeight: 800, letterSpacing: 3,
+                color: "#276749", marginBottom: 18, fontFamily: "monospace",
+              }}
+            >
+              {newPwModal.password}
+            </div>
+            <p style={{ fontSize: 12, color: "#e53e3e", marginBottom: 20 }}>
+              ⚠️ Ghi lại mật khẩu này ngay — sẽ không hiển thị lại sau khi đóng.
+            </p>
+            <button
+              onClick={() => { navigator.clipboard?.writeText(newPwModal.password); }}
+              style={{ padding: "8px 18px", background: "#ebf8ff", border: "1px solid #90cdf4", borderRadius: 6, cursor: "pointer", fontSize: 13, marginRight: 8 }}
+            >
+              📋 Sao chép
+            </button>
+            <button
+              onClick={() => setNewPwModal(null)}
+              style={{ padding: "8px 18px", background: "#667eea", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+            >
+              Đã ghi lại ✓
+            </button>
           </div>
         </div>
       )}

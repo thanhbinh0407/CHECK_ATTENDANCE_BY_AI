@@ -13,7 +13,7 @@
     "db:migrate:d02-lt": "node src/db/migrations/add-d02-lt-reports-table.js",
     "db:migrate:security": "node src/db/migrations/add-role-audit-and-approval-columns.js",
     "db:reset": "node src/db/migrations/reset.js",
-    "db:reset:drop": "DROP_DB=true node src/db/migrations/reset.js",
+    "db:reset:drop": "node src/db/migrations/reset.js --drop",
     "db:seed": "node seed-data.js",
     "test": "node --test tests/**/*.test.js",
     "lint": "echo \"No linter configured\" && exit 0"

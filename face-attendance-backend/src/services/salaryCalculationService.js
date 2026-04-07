@@ -7,6 +7,8 @@ import ShiftSetting from "../models/pg/ShiftSetting.js";
 import SalaryAdvance from "../models/pg/SalaryAdvance.js";
 import LeaveRequest from "../models/pg/LeaveRequest.js";
 import { Op } from "sequelize";
+import { calculateInsurance } from "./insuranceService.js";
+import { calculatePersonalIncomeTax } from "./taxService.js";
 
 // Calculate working day numbers (exclude weekends)
 function getWorkingDayNumbersInMonth(year, month) {
@@ -295,10 +297,19 @@ export async function calculateSalaryForUser(userId, month, year, { requireExist
   }
 
   const grossSalary = baseSalary + bonus;
-  const finalSalary = grossSalary - deduction;
+
+  /** BHXH + BHYT + BHTN (NLĐ) + thuế TNCN — cộng vào tổng khấu trừ như kế toán thực tế */
+  try {
+    const insurance = await calculateInsurance(userId, parseInt(month, 10), parseInt(year, 10));
+    const tax = await calculatePersonalIncomeTax(userId, grossSalary, parseInt(month, 10), parseInt(year, 10));
+    deduction += insurance.employee.total + tax.taxAmount;
+  } catch (err) {
+    console.error("[salaryCalculation] BH/thuế:", err.message);
+  }
+
+  const finalSalary = parseFloat((grossSalary - deduction).toFixed(2));
 
   const statusToSet = statusDecision.nextStatus;
-  const hadRejectionNote = typeof salary.notes === "string" && salary.notes.trim().startsWith("[REJECTED]");
   await salary.update({
     baseSalary,
     bonus,
@@ -308,9 +319,7 @@ export async function calculateSalaryForUser(userId, month, year, { requireExist
     finalSalary,
     calculatedAt: new Date(),
     status: statusToSet,
-    paidAt: statusToSet === "pending" ? null : salary.paidAt,
-    // Sau khi tính lại, bỏ ghi chú từ chối cũ để bản ghi quay về hàng chờ duyệt "sạch"
-    notes: hadRejectionNote ? null : salary.notes,
+    paidAt: statusToSet === "pending" ? null : salary.paidAt
   });
 
   // Bind/deduct salary advance after salary calculation

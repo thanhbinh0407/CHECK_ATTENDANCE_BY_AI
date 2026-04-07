@@ -45,8 +45,7 @@ const BusinessTripRequest = sequelize.define('BusinessTripRequest', {
   },
   transportType: {
     type: DataTypes.ENUM('plane', 'train', 'bus', 'car', 'other'),
-    allowNull: true,
-    comment: 'Phương tiện di chuyển'
+    allowNull: true
   },
   accommodation: {
     type: DataTypes.STRING,
@@ -55,8 +54,7 @@ const BusinessTripRequest = sequelize.define('BusinessTripRequest', {
   },
   approvalStatus: {
     type: DataTypes.ENUM('pending', 'approved', 'rejected'),
-    defaultValue: 'pending',
-    comment: 'Trạng thái duyệt'
+    defaultValue: 'pending'
   },
   approvedBy: {
     type: DataTypes.INTEGER,

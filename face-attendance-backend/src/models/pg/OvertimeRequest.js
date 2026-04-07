@@ -50,8 +50,7 @@ const OvertimeRequest = sequelize.define('OvertimeRequest', {
   },
   approvalStatus: {
     type: DataTypes.ENUM('pending', 'approved', 'rejected'),
-    defaultValue: 'pending',
-    comment: 'Trạng thái duyệt'
+    defaultValue: 'pending'
   },
   approvedBy: {
     type: DataTypes.INTEGER,

@@ -8,7 +8,7 @@ function authHeaders() {
 }
 
 function currency(v) {
-  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(Number(v || 0));
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "VND" }).format(Number(v || 0));
 }
 
 function extractList(data, keys) {
@@ -17,6 +17,14 @@ function extractList(data, keys) {
     if (Array.isArray(v)) return v;
   }
   return [];
+}
+
+function formatDuration(ms) {
+  const safeMs = Math.max(0, Number(ms) || 0);
+  const totalMinutes = Math.floor(safeMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}h ${String(minutes).padStart(2, "0")}m`;
 }
 
 export function useManagerDashboardData() {
@@ -30,6 +38,8 @@ export function useManagerDashboardData() {
     trip: 0,
     advance: 0,
   });
+  const [workDurations, setWorkDurations] = useState([]);
+  const [workSummary, setWorkSummary] = useState({ active: 0, finished: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -38,7 +48,7 @@ export function useManagerDashboardData() {
       setLoading(true);
       setError("");
 
-      const [empRes, deptRes, jtRes, auditRes, leaveRes, otRes, tripRes, advRes] = await Promise.all([
+      const [empRes, deptRes, jtRes, auditRes, leaveRes, otRes, tripRes, advRes, attendanceRes] = await Promise.all([
         fetch(`${API_BASE}/api/admin/employees`, { headers: authHeaders() }),
         fetch(`${API_BASE}/api/departments`, { headers: authHeaders() }),
         fetch(`${API_BASE}/api/job-titles`, { headers: authHeaders() }),
@@ -47,6 +57,7 @@ export function useManagerDashboardData() {
         fetch(`${API_BASE}/api/overtime-requests?status=pending`, { headers: authHeaders() }),
         fetch(`${API_BASE}/api/business-trip-requests?status=pending`, { headers: authHeaders() }),
         fetch(`${API_BASE}/api/salary-advances?status=pending`, { headers: authHeaders() }),
+        fetch(`${API_BASE}/api/attendance/today`, { headers: authHeaders() }).catch(() => null),
       ]);
 
       const empData = await empRes.json();
@@ -56,6 +67,75 @@ export function useManagerDashboardData() {
       setEmployees(list);
       setDepartments(deptData.departments || deptData.data || []);
       setJobTitles(jtData.jobTitles || jtData.data || []);
+
+      let attendanceJson = {};
+      if (attendanceRes && attendanceRes.ok) {
+        attendanceJson = await attendanceRes.json();
+      }
+      const todayLogs = attendanceJson.logs || attendanceJson.data || [];
+
+      const userNameMap = new Map();
+      list.forEach((u) => {
+        userNameMap.set(String(u.id), u.name || u.employeeCode || `#${u.id}`);
+      });
+
+      const byUser = new Map();
+      todayLogs.forEach((log) => {
+        if (!log?.userId) return;
+        const uid = String(log.userId);
+        const ts = new Date(log.timestamp);
+        if (!byUser.has(uid)) {
+          byUser.set(uid, {
+            userId: log.userId,
+            name: userNameMap.get(uid) || log.detectedName || `Employee #${log.userId}`,
+            firstIn: null,
+            lastOut: null,
+            lastType: null,
+            lastAt: null,
+          });
+        }
+        const row = byUser.get(uid);
+        if (log.type === "IN" && (!row.firstIn || ts < row.firstIn)) {
+          row.firstIn = ts;
+        }
+        if (log.type === "OUT" && (!row.lastOut || ts > row.lastOut)) {
+          row.lastOut = ts;
+        }
+        if (!row.lastAt || ts > row.lastAt) {
+          row.lastAt = ts;
+          row.lastType = log.type;
+        }
+      });
+
+      const now = Date.now();
+      const workRows = Array.from(byUser.values())
+        .filter((u) => !!u.firstIn)
+        .map((u) => {
+          const endTime = u.lastType === "IN" ? now : u.lastOut ? u.lastOut.getTime() : now;
+          const durationMs = Math.max(0, endTime - u.firstIn.getTime());
+          const status = u.lastType === "IN" ? "Working" : "Checked Out";
+          return {
+            userId: u.userId,
+            name: u.name,
+            status,
+            durationMs,
+            durationText: formatDuration(durationMs),
+            firstInText: u.firstIn.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+            lastActionText: u.lastAt
+              ? u.lastAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+              : "—",
+          };
+        })
+        .sort((a, b) => {
+          if (a.status !== b.status) return a.status === "Working" ? -1 : 1;
+          return b.durationMs - a.durationMs;
+        });
+
+      setWorkDurations(workRows);
+      setWorkSummary({
+        active: workRows.filter((r) => r.status === "Working").length,
+        finished: workRows.filter((r) => r.status === "Checked Out").length,
+      });
 
       const leaveJson = await leaveRes.json();
       const otJson = await otRes.json();
@@ -95,7 +175,7 @@ export function useManagerDashboardData() {
           employeeName: target.name || `User #${log.userId}`,
           type: "role",
           effectiveDate: when,
-          title: `Vai trò: ${log.oldRole} → ${log.newRole}${log.reason ? ` — ${log.reason}` : ""}`,
+          title: `Role: ${log.oldRole} -> ${log.newRole}${log.reason ? ` - ${log.reason}` : ""}`,
         });
       });
       detailResponses.filter(Boolean).forEach((d) => {
@@ -125,24 +205,24 @@ export function useManagerDashboardData() {
         setRecentChanges([
           {
             id: "sample-1",
-            employeeName: "Nguyễn Văn A",
+            employeeName: "Nguyen Van A",
             type: "job",
             effectiveDate: new Date().toISOString(),
-            title: "Thăng chức: Junior Dev → Senior Dev",
+            title: "Promotion: Junior Dev -> Senior Dev",
           },
           {
             id: "sample-2",
-            employeeName: "Trần Thị B",
+            employeeName: "Tran Thi B",
             type: "salary",
             effectiveDate: new Date().toISOString(),
-            title: "Điều chỉnh lương cơ bản",
+            title: "Base salary adjustment",
           },
         ]);
       } else {
         setRecentChanges(finalFeed);
       }
     } catch (e) {
-      setError(e.message || "Không tải được dữ liệu dashboard");
+      setError(e.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
@@ -174,6 +254,8 @@ export function useManagerDashboardData() {
     jobTitles,
     recentChanges,
     pending,
+    workDurations,
+    workSummary,
     loading,
     error,
     summary,

@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AccountantDashboard from "./components/AccountantDashboard.jsx";
 import SalaryManagement from "./components/SalaryManagement.jsx";
 import SalaryCalculation from "./components/SalaryCalculation.jsx";
 import SalaryApprovalDashboard from "./components/SalaryApprovalDashboard.jsx";
-import ApprovalManagement from "./components/ApprovalManagement.jsx";
 import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
 import EmployeeDetailView from "./components/EmployeeDetailView.jsx";
 import EmployeeManagement from "./components/EmployeeManagement.jsx";
@@ -13,6 +12,17 @@ import { theme } from "./theme.js";
 import socket from "./socket.js";
 import "./App.css";
 import "./accountantShell.css";
+import PersonalProfileModal from "./components/PersonalProfileModal.jsx";
+
+const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:5000").replace(/\/$/, "");
+
+function portalAvatarSrc(apiBase, avatarUrl) {
+  if (!avatarUrl) return null;
+  if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
+  const base = (apiBase || "").replace(/\/$/, "");
+  const path = avatarUrl.startsWith("/") ? avatarUrl : `/${avatarUrl}`;
+  return `${base}${path}`;
+}
 
 function App() {
   const [authToken, setAuthToken] = useState(() => {
@@ -29,10 +39,18 @@ function App() {
   });
   const [currentView, setCurrentView] = useState("dashboard");
   const [isChecking, setIsChecking] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const patchSessionUser = useCallback((patch) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      localStorage.setItem("user", JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
-
     (async () => {
       try {
         const urlParams = new URLSearchParams(window.location.search);
@@ -58,7 +76,7 @@ function App() {
           try {
             const decodedToken = decodeURIComponent(tokenFromUrl);
             localStorage.setItem("authToken", decodedToken);
-            const res = await fetch(`${apiBase}/api/auth/me`, {
+            const res = await fetch(`${API_BASE}/api/auth/me`, {
               headers: { Authorization: `Bearer ${decodedToken}` },
             });
             const data = await res.json();
@@ -91,6 +109,19 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!authToken) return;
+    fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${authToken}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.status === "success" && data.user) {
+          setUser(data.user);
+          localStorage.setItem("user", JSON.stringify(data.user));
+        }
+      })
+      .catch(() => {});
+  }, [authToken]);
+
+  useEffect(() => {
     // Socket connection for real-time updates
     socket.on('connect', () => {
       console.log('Connected to server');
@@ -113,6 +144,10 @@ function App() {
       socket.off('new-notification');
     };
   }, []);
+
+  useEffect(() => {
+    if (currentView === "approvals") setCurrentView("dashboard");
+  }, [currentView]);
 
   const handleLogout = () => {
     localStorage.removeItem("authToken");
@@ -239,51 +274,49 @@ function App() {
   const financeExtraRoles = ["admin", "accountant", "manager"];
 
   const navCore = [
-    { id: "dashboard", label: "Tổng quan", icon: "📊" },
-    { id: "salary-calculation", label: "Tính lương", icon: "💰" },
-    { id: "salary-management", label: "Quản lý lương", icon: "📋" },
-    { id: "salary-approval", label: "Duyệt payroll", icon: "✅" },
+    { id: "dashboard", label: "Overview", icon: "📊" },
+    { id: "salary-calculation", label: "Salary calculation", icon: "💰" },
+    { id: "salary-management", label: "Salary management", icon: "📋" },
+    { id: "salary-approval", label: "Payroll approval", icon: "✅" },
   ];
 
   const navFinance = financeExtraRoles.includes(user?.role)
     ? [
-        { id: "approvals", label: "Duyệt hồ sơ liên quan", icon: "🆗" },
-        { id: "rules", label: "Quy tắc lương", icon: "⚙️" },
-        { id: "d02-lt-report", label: "Báo cáo D02-LT", icon: "📄" },
-        { id: "tk1-ts-form", label: "Mẫu TK1-TS", icon: "🏥" },
+        { id: "rules", label: "Salary rules", icon: "⚙️" },
+        { id: "d02-lt-report", label: "D02-LT report", icon: "📄" },
+        { id: "tk1-ts-form", label: "TK1-TS form", icon: "🏥" },
       ]
     : [];
 
   const navPeople = [
-    { id: "employee-details", label: "Thông tin nhân viên", icon: "👤" },
-    { id: "employee-management", label: "Danh sách nhân viên", icon: "🏢" },
+    { id: "employee-details", label: "Employee details", icon: "👤" },
+    { id: "employee-management", label: "Employees", icon: "🏢" },
   ];
 
   const viewTitles = {
-    dashboard: "Tổng quan",
-    "salary-calculation": "Tính lương",
-    "salary-management": "Quản lý lương",
-    "salary-approval": "Duyệt payroll",
-    approvals: "Duyệt hồ sơ",
-    rules: "Quy tắc lương",
-    "d02-lt-report": "Báo cáo D02-LT",
-    "tk1-ts-form": "Mẫu TK1-TS",
-    "employee-details": "Thông tin nhân viên",
-    "employee-management": "Quản lý nhân viên",
+    dashboard: "Overview",
+    "salary-calculation": "Salary calculation",
+    "salary-management": "Salary management",
+    "salary-approval": "Payroll approval",
+    rules: "Salary rules",
+    "d02-lt-report": "D02-LT report",
+    "tk1-ts-form": "TK1-TS form",
+    "employee-details": "Employee details",
+    "employee-management": "Employee management",
   };
 
   return (
     <div className="acc-app">
-      <aside className="acc-sidebar" aria-label="Điều hướng chính">
+      <aside className="acc-sidebar" aria-label="Main navigation">
         <div className="acc-brand">
           <div className="acc-brand-mark" aria-hidden>
             💼
           </div>
-          <div className="acc-brand-title">Payroll &amp; BHXH</div>
-          <div className="acc-brand-sub">Kế toán · Dashboard</div>
+          <div className="acc-brand-title">Payroll &amp; statutory insurance</div>
+          <div className="acc-brand-sub">Accountant · Dashboard</div>
         </div>
         <nav className="acc-nav">
-          <div className="acc-nav-label">Lương &amp; payroll</div>
+          <div className="acc-nav-label">Salary &amp; payroll</div>
           {navCore.map((item) => (
             <button
               key={item.id}
@@ -297,7 +330,7 @@ function App() {
           ))}
           {navFinance.length > 0 && (
             <>
-              <div className="acc-nav-label">Tuân thủ &amp; cấu hình</div>
+              <div className="acc-nav-label">Compliance &amp; configuration</div>
               {navFinance.map((item) => (
                 <button
                   key={item.id}
@@ -311,7 +344,7 @@ function App() {
               ))}
             </>
           )}
-          <div className="acc-nav-label">Nhân sự</div>
+          <div className="acc-nav-label">Human resources</div>
           {navPeople.map((item) => (
             <button
               key={item.id}
@@ -325,13 +358,13 @@ function App() {
           ))}
         </nav>
         <div className="acc-sidebar-footer">
-          <strong>{user?.name || "Kế toán viên"}</strong>
+          <strong>{user?.name || "Accountant"}</strong>
           <span style={{ opacity: 0.75 }}>{user?.email}</span>
           <span style={{ display: "block", marginTop: 6, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", opacity: 0.6 }}>
             {user?.role || "accountant"}
           </span>
           <button type="button" className="acc-logout" onClick={handleLogout}>
-            Đăng xuất
+            Log out
           </button>
         </div>
       </aside>
@@ -339,16 +372,37 @@ function App() {
       <div className="acc-main">
         <header className="acc-topbar">
           <h1>{viewTitles[currentView] || "Payroll"}</h1>
-          <span className="acc-topbar-meta">
-            {new Intl.DateTimeFormat("vi-VN", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(new Date())}
-          </span>
+          <div className="acc-topbar-actions">
+            <button
+              type="button"
+              className="portal-avatar-btn"
+              onClick={() => setProfileOpen(true)}
+              title="Hồ sơ cá nhân"
+              aria-label="Mở hồ sơ cá nhân"
+            >
+              {portalAvatarSrc(API_BASE, user?.avatarUrl) ? (
+                <img className="portal-avatar-img" src={portalAvatarSrc(API_BASE, user?.avatarUrl)} alt="" />
+              ) : (
+                <span className="portal-avatar-fallback" aria-hidden>
+                  {(user?.name || "?").charAt(0).toUpperCase()}
+                </span>
+              )}
+            </button>
+            <span className="acc-topbar-meta">
+              {new Intl.DateTimeFormat("en-US", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              }).format(new Date())}
+            </span>
+          </div>
         </header>
         <div className="acc-content" style={{ animation: "fadeInUp 0.45s ease-out 0.05s backwards" }}>
           {currentView === "dashboard" && <AccountantDashboard onNavigate={setCurrentView} />}
           {currentView === "salary-calculation" && <SalaryCalculation />}
           {currentView === "salary-management" && <SalaryManagement />}
           {currentView === "salary-approval" && <SalaryApprovalDashboard onNavigate={setCurrentView} />}
-          {currentView === "approvals" && <ApprovalManagement />}
           {currentView === "rules" && <SalaryRulesManagement />}
           {currentView === "d02-lt-report" && <D02LTReport />}
           {currentView === "tk1-ts-form" && <TK1TSForm />}
@@ -356,6 +410,12 @@ function App() {
           {currentView === "employee-management" && <EmployeeManagement />}
         </div>
       </div>
+      <PersonalProfileModal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        apiBase={API_BASE}
+        onSessionUserPatch={patchSessionUser}
+      />
     </div>
   );
 }

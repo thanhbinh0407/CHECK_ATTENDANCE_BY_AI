@@ -6,20 +6,28 @@ const DROP_DB = process.env.DROP_DB === 'true' || process.argv.includes('--drop'
 async function resetDatabase() {
   try {
     console.log("🚀 Starting database reset...");
-    
-    if (DROP_DB) {
-      console.log("⚠️  DROP_DB=true detected - Dropping all tables...");
-      await sequelize.drop();
-      console.log("✅ All tables dropped");
-    }
+    await sequelize.authenticate();
+    console.log("✅ Database connection OK");
 
-    console.log("🔄 Syncing database schema...");
-    
     // Ensure all models are loaded
     void User && void FaceProfile && void AttendanceLog && void ShiftSetting && void Salary && void SalaryRule;
 
-    // Sync with force: true to drop and recreate
-    await sequelize.sync({ force: DROP_DB, alter: !DROP_DB });
+    if (DROP_DB) {
+      console.log("⚠️  DROP_DB=true — xóa toàn bộ schema public (mọi bảng/type)...");
+      await sequelize.query("DROP SCHEMA IF EXISTS public CASCADE");
+      await sequelize.query("CREATE SCHEMA public");
+      // Quyền mặc định cho user kết nối (tránh lỗi permission sau khi tạo schema)
+      const user = sequelize.config.username;
+      if (user) {
+        await sequelize.query(`GRANT ALL ON SCHEMA public TO "${user.replace(/"/g, '""')}"`);
+        await sequelize.query(`GRANT ALL ON SCHEMA public TO public`);
+      }
+      console.log("✅ Schema public trống — tạo lại bảng từ model");
+    }
+
+    console.log("🔄 Syncing database schema...");
+    // Sau khi drop schema chỉ cần sync tạo bảng (không dùng force/alter để tránh lỗi ENUM USING trên PG)
+    await sequelize.sync({ force: false, alter: !DROP_DB });
     
     console.log("✅ Database schema synced successfully");
     console.log("📊 Models included:");

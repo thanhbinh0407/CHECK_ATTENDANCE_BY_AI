@@ -37,6 +37,46 @@ body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #2d3748;
 
 /* ─── Main area ───────────────────────────────────────────────── */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.portal-avatar-btn {
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.portal-avatar-img {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  border: 2px solid #e2e8f0;
+  box-sizing: border-box;
+}
+.portal-avatar-fallback {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  border: 2px solid #e2e8f0;
+  box-sizing: border-box;
+}
+.portal-topbar-email {
+  font-size: 13px;
+  color: #64748b;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .topbar {
   background: #fff; padding: 14px 24px; border-bottom: 1px solid #e2e8f0;
   display: flex; justify-content: space-between; align-items: center;
@@ -98,3 +138,60 @@ tr:hover td { background: #f7faff; }
 /* ─── Loading ─────────────────────────────────────────────────── */
 .loading { text-align: center; padding: 40px; color: #718096; }
 .error-msg { color: #e53e3e; background: #fff5f5; padding: 12px; border-radius: 6px; margin-bottom: 16px; }
+
+/* ─── Employee Management (UC-07) ─────────────────────────────── */
+.emp-toolbar {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
+}
+.emp-search {
+  flex: 1; min-width: 200px; padding: 9px 14px;
+  border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px;
+}
+.emp-search:focus { outline: none; border-color: #2b6cb0; box-shadow: 0 0 0 3px rgba(43,108,176,.15); }
+.emp-filter-select {
+  padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 6px;
+  font-size: 13px; background: #fff; cursor: pointer; min-width: 150px;
+}
+.emp-summary-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 20px; border-bottom: 1px solid #f0f4f8;
+  font-size: 13px; color: #4a5568; background: #f7fafc;
+  border-radius: 10px 10px 0 0;
+}
+.emp-actions { display: flex; gap: 6px; align-items: stretch; flex-wrap: wrap; }
+
+/* Table action buttons — matches Manager UI style */
+.btn-tbl {
+  padding: 5px 10px; border: none; border-radius: 8px;
+  cursor: pointer; font-size: 12px; font-weight: 500;
+  text-align: center; line-height: 1.35; min-width: 68px;
+  transition: filter .15s;
+}
+.btn-tbl:hover { filter: brightness(.91); }
+.btn-tbl-details { background: #ebf8ff; color: #2c5282; }
+.btn-tbl-edit    { background: #e2e8f0; color: #2d3748; }
+.btn-tbl-reset   { background: #fefcbf; color: #744210; }
+.btn-tbl-delete  { background: #fed7d7; color: #9b2c2c; }
+.btn-tbl-restore { background: #c6f6d5; color: #276749; }
+
+/* ─── Detail Modal ─────────────────────────────────────────────── */
+.detail-modal { background: #fff; border-radius: 12px; padding: 24px; width: 900px; max-width: 96vw; max-height: 90vh; overflow-y: auto; }
+.detail-section { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
+.detail-section-title { font-size: 13px; font-weight: 700; color: #2d3748; margin-bottom: 12px; }
+.detail-filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.detail-filter-input {
+  padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 8px;
+  font-size: 13px; background: #fff;
+}
+.detail-history-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.detail-history-table th { text-align: left; padding: 7px 8px; background: #f1f5f9; font-weight: 600; }
+.detail-history-table td { padding: 7px 8px; border-top: 1px solid #e2e8f0; }
+.detail-pagination { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: #475569; }
+.change-badge { border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 600; }
+
+/* ─── Form section label ───────────────────────────────────────── */
+.form-section-label {
+  font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: #a0aec0; margin-bottom: 10px;
+  padding-bottom: 6px; border-bottom: 1px solid #f0f4f8;
+}

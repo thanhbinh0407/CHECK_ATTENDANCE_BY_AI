@@ -34,7 +34,7 @@ function BarList({ items, valueKey = 'value', labelKey = 'name', max }) {
 }
 
 function TrendBars({ points, valueKey, labelKey }) {
-  if (!points?.length) return <div className="hr-empty">Không có dữ liệu xu hướng</div>;
+  if (!points?.length) return <div className="hr-empty">No trend data available</div>;
   const m = Math.max(1, ...points.map((p) => Math.abs(Number(p[valueKey]) || 0)));
   return (
     <div>
@@ -72,7 +72,7 @@ export default function HrAnalytics({ token }) {
       .then((r) => r.json())
       .then((j) => {
         if (j.status === 'success' && j.analytics) setData(j.analytics);
-        else setErr(j.message || 'Không tải được dữ liệu phân tích');
+        else setErr(j.message || 'Failed to load analytics data');
         setLoading(false);
       })
       .catch((e) => {
@@ -92,7 +92,7 @@ export default function HrAnalytics({ token }) {
   if (loading) {
     return (
       <div className="hr-dash-root">
-        <div className="loading">Đang tải phân tích…</div>
+        <div className="loading">Loading analytics…</div>
       </div>
     );
   }
@@ -100,14 +100,14 @@ export default function HrAnalytics({ token }) {
   return (
     <div className="hr-dash-root">
       <div className="hr-panel-head">
-        <h2>Phân tích HR</h2>
+        <h2>HR Analytics</h2>
         <div className="hr-filters">
           <label>
-            Tháng
+            Month
             <input type="number" min={1} max={12} value={month} onChange={(e) => setMonth(Number(e.target.value))} />
           </label>
           <label>
-            Năm
+            Year
             <input type="number" min={2020} max={2040} value={year} onChange={(e) => setYear(Number(e.target.value))} />
           </label>
         </div>
@@ -119,65 +119,65 @@ export default function HrAnalytics({ token }) {
         <>
           <div className="hr-stat-grid">
             <div className="hr-stat-box">
-              <div className="lbl">Tổng nhân viên (active)</div>
+              <div className="lbl">Total Employees (Active)</div>
               <div className="val">{summary?.totalEmployees ?? '—'}</div>
             </div>
             <div className="hr-stat-box">
-              <div className="lbl">Phòng ban</div>
+              <div className="lbl">Departments</div>
               <div className="val">{summary?.totalDepartments ?? '—'}</div>
             </div>
             <div className="hr-stat-box">
-              <div className="lbl">Chức danh</div>
+              <div className="lbl">Job Titles</div>
               <div className="val">{summary?.totalJobTitles ?? '—'}</div>
             </div>
             <div className="hr-stat-box">
-              <div className="lbl">Tỷ lệ chấm công TB (tháng)</div>
+              <div className="lbl">Avg. Attendance Rate (Month)</div>
               <div className="val">{summary?.currentMonthAttendance?.averageAttendanceRate ?? '—'}%</div>
             </div>
             <div className="hr-stat-box">
-              <div className="lbl">Chi phí lương (tháng)</div>
+              <div className="lbl">Payroll Cost (Month)</div>
               <div className="val" style={{ fontSize: '1rem' }}>{formatVnd(summary?.currentMonthPayroll?.totalCost)}</div>
             </div>
             <div className="hr-stat-box">
-              <div className="lbl">Giờ tăng ca (tháng)</div>
+              <div className="lbl">Overtime Hours (Month)</div>
               <div className="val">{summary?.currentMonthOvertime?.totalHours ?? '—'}</div>
             </div>
           </div>
 
           <div className="card">
-            <p className="card-title">Cơ cấu theo phòng ban</p>
+            <p className="card-title">Structure by Department</p>
             <BarList items={charts?.structureByDepartment || []} max={deptMax} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
             <div className="card">
-              <p className="card-title">Loại hợp đồng</p>
+              <p className="card-title">Contract Types</p>
               <BarList items={charts?.structureByContractType || []} />
             </div>
             <div className="card">
-              <p className="card-title">Trình độ / học vấn</p>
+              <p className="card-title">Education Level</p>
               <BarList items={charts?.educationLevel || []} />
             </div>
           </div>
 
-          <div className="hr-mini-title">Xu hướng 6 tháng</div>
+          <div className="hr-mini-title">6-Month Trends</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
             <div className="card">
-              <p className="card-title">Tỷ lệ chấm công TB</p>
+              <p className="card-title">Avg. Attendance Rate</p>
               <TrendBars points={charts?.attendanceTrend || []} valueKey="averageAttendanceRate" labelKey="label" />
             </div>
             <div className="card">
-              <p className="card-title">Tỷ lệ biến động nhân sự (%)</p>
+              <p className="card-title">Turnover Rate (%)</p>
               <TrendBars points={charts?.turnoverTrend || []} valueKey="turnoverRate" labelKey="label" />
             </div>
             <div className="card">
-              <p className="card-title">Tổng chi phí lương</p>
+              <p className="card-title">Total Payroll Cost</p>
               <TrendBars points={charts?.payrollTrend || []} valueKey="totalCost" labelKey="label" />
             </div>
           </div>
 
           <div className="card" style={{ marginTop: 14 }}>
-            <p className="card-title">Tăng ca theo phòng ban (giờ)</p>
+            <p className="card-title">Overtime by Department (Hours)</p>
             <BarList
               items={(charts?.overtimeByDepartment || []).map((d) => ({ name: d.name, value: d.hours }))}
               valueKey="value"

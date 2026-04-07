@@ -1,0 +1,372 @@
+/* Minimal B&W — Employee Profiles (AdminDashboard) */
+.aep-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.aep-hero {
+  background: #fafafa;
+  color: #0a0a0a;
+  padding: 36px 32px;
+  border-radius: 14px 14px 0 0;
+  border: 1px solid #e5e5e5;
+  border-bottom: none;
+}
+
+.aep-hero h1 {
+  margin: 0 0 8px 0;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.aep-hero p {
+  margin: 0;
+  font-size: 14px;
+  color: #525252;
+  line-height: 1.5;
+}
+
+.aep-main {
+  background: #fff;
+  border-radius: 0 0 14px 14px;
+  padding: 28px 32px 40px;
+  border: 1px solid #e5e5e5;
+  border-top: 1px solid #eee;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.aep-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.aep-search {
+  flex: 1;
+  min-width: 220px;
+  padding: 11px 16px;
+  border: 1px solid #d4d4d4;
+  border-radius: 10px;
+  font-size: 14px;
+  background: #fff;
+  color: #0a0a0a;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.aep-search:focus {
+  border-color: #0a0a0a;
+  box-shadow: 0 0 0 2px rgba(10, 10, 10, 0.08);
+}
+
+.aep-search::placeholder {
+  color: #a3a3a3;
+}
+
+.aep-btn {
+  padding: 11px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.aep-btn--ghost {
+  background: #fff;
+  border-color: #d4d4d4;
+  color: #0a0a0a;
+}
+
+.aep-btn--ghost:hover {
+  background: #f5f5f5;
+  border-color: #a3a3a3;
+}
+
+.aep-btn--primary {
+  background: #0a0a0a;
+  color: #fff;
+  border-color: #0a0a0a;
+}
+
+.aep-btn--primary:hover {
+  background: #262626;
+}
+
+.aep-btn--sm {
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
+.aep-advanced {
+  margin-top: 4px;
+  margin-bottom: 20px;
+  padding: 20px;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  background: #fafafa;
+}
+
+.aep-advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.aep-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #737373;
+  margin-bottom: 6px;
+}
+
+.aep-field select,
+.aep-field input[type="date"] {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  color: #0a0a0a;
+  font-family: inherit;
+}
+
+.aep-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.aep-actions-row .aep-btn--outline {
+  background: #fff;
+  border: 1px solid #d4d4d4;
+  color: #0a0a0a;
+}
+
+.aep-actions-row .aep-btn--outline:hover {
+  background: #f5f5f5;
+}
+
+.aep-meta {
+  font-size: 13px;
+  color: #737373;
+  margin-bottom: 20px;
+}
+
+.aep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+}
+
+.aep-card {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e5e5e5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.aep-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  border-color: #d4d4d4;
+}
+
+.aep-card-inner {
+  padding: 18px 18px 16px;
+}
+
+.aep-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 12px;
+  position: relative;
+  padding-right: 100px;
+}
+
+.aep-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: #0a0a0a;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.aep-badge-reg {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.aep-badge-reg--ok {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.aep-badge-reg--no {
+  background: #f5f5f5;
+  color: #525252;
+  border: 1px solid #e5e5e5;
+}
+
+.aep-name {
+  margin: 0 0 4px 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #0a0a0a;
+  line-height: 1.25;
+}
+
+.aep-sub {
+  font-size: 13px;
+  color: #737373;
+  line-height: 1.35;
+  word-break: break-all;
+}
+
+.aep-presence {
+  display: inline-flex;
+  margin-top: 8px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.aep-presence--in {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.aep-presence--out {
+  background: #f5f5f5;
+  color: #525252;
+  border: 1px solid #e5e5e5;
+}
+
+.aep-presence--none {
+  background: #fafafa;
+  color: #a3a3a3;
+  border: 1px solid #e5e5e5;
+}
+
+.aep-info-panel {
+  background: #f5f5f5;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid #ebebeb;
+}
+
+.aep-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+}
+
+.aep-info-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #a3a3a3;
+  margin-bottom: 4px;
+}
+
+.aep-info-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #404040;
+}
+
+.aep-info-value--muted {
+  color: #a3a3a3;
+  font-weight: 500;
+}
+
+.aep-info-value--ok {
+  color: #15803d;
+}
+
+.aep-footnote {
+  font-size: 11px;
+  color: #a3a3a3;
+  line-height: 1.45;
+  margin-bottom: 14px;
+}
+
+.aep-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.aep-card-actions .aep-btn {
+  flex: 1 1 auto;
+  min-width: min(100%, 130px);
+  text-align: center;
+}
+
+.aep-msg {
+  padding: 14px 18px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid;
+}
+
+.aep-msg--ok {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.aep-msg--err {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.aep-empty {
+  text-align: center;
+  padding: 48px 24px;
+  background: #fafafa;
+  border-radius: 14px;
+  border: 1px dashed #d4d4d4;
+  color: #525252;
+}
+
+.aep-loading {
+  text-align: center;
+  padding: 48px;
+  color: #737373;
+}

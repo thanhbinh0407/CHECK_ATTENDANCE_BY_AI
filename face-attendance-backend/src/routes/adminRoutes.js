@@ -1,12 +1,12 @@
 import express from "express";
 import {
   getAllEmployees,
-  getTodayPresenceSummary,
   getEmployeeById,
   getEmployeeWithPassword,
   updateEmployee,
   deleteEmployee,
   permanentlyDeleteEmployee,
+  restoreEmployee,
   resetEmployeePassword,
   getEmployeeAttendanceStats,
   getEmployeeDetailedInfo,
@@ -63,12 +63,6 @@ router.get(
   "/employees",
   requirePermission(PERMISSIONS["user:read"]),
   getAllEmployees
-);
-
-router.get(
-  "/attendance/today-presence",
-  requirePermission(PERMISSIONS["user:read"]),
-  getTodayPresenceSummary
 );
 
 // GET employee by ID - Với kiểm tra quyền truy cập dữ liệu
@@ -138,26 +132,34 @@ router.get(
   getEmployeeWithPassword
 );
 
-// DELETE employee (hard delete) - Manager only
+// DELETE employee (soft delete) - HR or Manager (UC-07.3)
 router.delete(
   "/employees/:id",
-  managerOnly,
+  hrOrManager,
   requirePermission(PERMISSIONS["user:delete"]),
   deleteEmployee
+);
+
+// PATCH restore employee (reactivate) - HR or Manager
+router.patch(
+  "/employees/:id/restore",
+  hrOrManager,
+  requirePermission(PERMISSIONS["user:update"]),
+  restoreEmployee
 );
 
 // DELETE employee permanently - Manager only
 router.delete(
   "/employees/:id/permanent",
-  managerOnly,
+  hrOrManager,
   requirePermission(PERMISSIONS["user:delete"]),
   permanentlyDeleteEmployee
 );
 
-// POST reset password - Manager only
+// POST reset password - HR or Manager (UC-07.4)
 router.post(
   "/employees/:id/reset-password",
-  managerOnly,
+  hrOrManager,
   requirePermission(PERMISSIONS["user:role:update"]),
   resetEmployeePassword
 );

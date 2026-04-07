@@ -172,7 +172,7 @@ export default function ApprovalManagement() {
                       </div>
                     </td>
                     <td style={{ padding: "12px 16px" }}>
-                      {new Date(item.createdAt).toLocaleDateString("vi-VN")}
+                      {new Date(item.createdAt).toLocaleDateString("en-US")}
                     </td>
                     <td style={{ padding: "12px 16px", textAlign: "center" }}>
                       <button

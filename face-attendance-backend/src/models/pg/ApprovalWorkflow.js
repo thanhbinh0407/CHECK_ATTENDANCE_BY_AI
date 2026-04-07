@@ -10,8 +10,7 @@ const ApprovalWorkflow = sequelize.define('ApprovalWorkflow', {
   },
   requestType: {
     type: DataTypes.ENUM('leave', 'overtime', 'business_trip', 'salary_advance', 'other'),
-    allowNull: false,
-    comment: 'Loại đơn từ'
+    allowNull: false
   },
   requestId: {
     type: DataTypes.INTEGER,
@@ -34,8 +33,7 @@ const ApprovalWorkflow = sequelize.define('ApprovalWorkflow', {
   },
   status: {
     type: DataTypes.ENUM('pending', 'approved', 'rejected', 'skipped'),
-    defaultValue: 'pending',
-    comment: 'Trạng thái duyệt ở cấp này'
+    defaultValue: 'pending'
   },
   approvedAt: {
     type: DataTypes.DATE,

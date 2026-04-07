@@ -130,7 +130,7 @@ export const createInsuranceConfig = async (req, res) => {
       name,
       effectiveDate,
       expiryDate: expiryDate || null,
-      employeeSocialInsuranceRate: parseFloat(employeeSocialInsuranceRate) || 10.5,
+      employeeSocialInsuranceRate: parseFloat(employeeSocialInsuranceRate) || 8,
       employerSocialInsuranceRate: parseFloat(employerSocialInsuranceRate) || 21.5,
       employeeHealthInsuranceRate: parseFloat(employeeHealthInsuranceRate) || 1.5,
       employerHealthInsuranceRate: parseFloat(employerHealthInsuranceRate) || 3.0,

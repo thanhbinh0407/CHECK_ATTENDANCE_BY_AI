@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import EmployeeDashboard from "./components/EmployeeDashboard.jsx";
 import AttendanceHistory from "./components/AttendanceHistory.jsx";
 import SalaryHistory from "./components/SalaryHistory.jsx";
@@ -12,7 +12,18 @@ import SalaryAdvanceRequest from "./components/SalaryAdvanceRequest.jsx";
 import OvertimeRequest from "./components/OvertimeRequest.jsx";
 import BusinessTripRequest from "./components/BusinessTripRequest.jsx";
 import ChangePassword from "./components/ChangePassword.jsx";
+import PersonalProfileModal from "./components/PersonalProfileModal.jsx";
 import "./App.css";
+
+const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:5000").replace(/\/$/, "");
+
+function portalAvatarSrc(apiBase, avatarUrl) {
+  if (!avatarUrl) return null;
+  if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
+  const base = (apiBase || "").replace(/\/$/, "");
+  const path = avatarUrl.startsWith("/") ? avatarUrl : `/${avatarUrl}`;
+  return `${base}${path}`;
+}
 
 function App() {
   const [authToken, setAuthToken] = useState(() => {
@@ -24,10 +35,18 @@ function App() {
   });
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isChecking, setIsChecking] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const patchSessionUser = useCallback((patch) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      localStorage.setItem("user", JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
-
     (async () => {
       try {
         const urlParams = new URLSearchParams(window.location.search);
@@ -53,7 +72,7 @@ function App() {
           try {
             const decodedToken = decodeURIComponent(tokenFromUrl);
             localStorage.setItem("authToken", decodedToken);
-            const res = await fetch(`${apiBase}/api/auth/me`, {
+            const res = await fetch(`${API_BASE}/api/auth/me`, {
               headers: { Authorization: `Bearer ${decodedToken}` },
             });
             const data = await res.json();
@@ -80,6 +99,19 @@ function App() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!authToken) return;
+    fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${authToken}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.status === "success" && data.user) {
+          setUser(data.user);
+          localStorage.setItem("user", JSON.stringify(data.user));
+        }
+      })
+      .catch(() => {});
+  }, [authToken]);
 
   const handleLoginSuccess = (token, userData) => {
     setAuthToken(token);
@@ -219,7 +251,57 @@ function App() {
               Attendance & Payroll Management System
             </p>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <button
+              type="button"
+              onClick={() => setProfileOpen(true)}
+              title="Hồ sơ cá nhân"
+              aria-label="Mở hồ sơ cá nhân"
+              style={{
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                background: "transparent",
+                borderRadius: "50%",
+                flexShrink: 0,
+              }}
+            >
+              {portalAvatarSrc(API_BASE, user?.avatarUrl) ? (
+                <img
+                  src={portalAvatarSrc(API_BASE, user?.avatarUrl)}
+                  alt=""
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                    border: "2px solid rgba(255,255,255,0.85)",
+                    display: "block",
+                    boxSizing: "border-box",
+                  }}
+                />
+              ) : (
+                <span
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "rgba(255,255,255,0.25)",
+                    color: "#fff",
+                    fontWeight: 700,
+                    fontSize: 16,
+                    border: "2px solid rgba(255,255,255,0.85)",
+                    boxSizing: "border-box",
+                  }}
+                  aria-hidden
+                >
+                  {(user?.name || "?").charAt(0).toUpperCase()}
+                </span>
+              )}
+            </button>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontWeight: "600", fontSize: "15px" }}>{user?.name}</div>
               <div style={{ fontSize: "12px", opacity: 0.85 }}>{user?.email}</div>
@@ -384,6 +466,12 @@ function App() {
         {activeTab === "approval" && user?.role === "admin" && <ApprovalManagement />}
         {activeTab === "rules" && user?.role === "admin" && <SalaryRulesManagement />}
       </div>
+      <PersonalProfileModal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        apiBase={API_BASE}
+        onSessionUserPatch={patchSessionUser}
+      />
     </div>
   );
 }

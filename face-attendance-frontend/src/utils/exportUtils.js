@@ -3,79 +3,35 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { calculateCompleteSalary, SALARY_CONSTANTS } from './salaryCalculation.js';
 
-const EMPLOYMENT_EXPORT_LABELS = {
-  active: 'Đang làm việc',
-  maternity_leave: 'Thai sản',
-  unpaid_leave: 'Nghỉ không lương',
-  suspended: 'Tạm ngưng',
-  terminated: 'Chấm dứt HĐ',
-  resigned: 'Đã nghỉ việc',
-};
-
-function employmentExportLabel(emp) {
-  const key = emp.employmentStatus || 'active';
-  return EMPLOYMENT_EXPORT_LABELS[key] || key;
-}
-
-/** presenceByUserId: { [userId]: { lastType, lastAt, logCount } } */
-function todayPresenceExport(presenceByUserId, empId) {
-  const p = presenceByUserId?.[String(empId)];
-  if (!p?.lastType) return { line: 'Chưa điểm danh', time: '' };
-  const time = p.lastAt ? new Date(p.lastAt).toLocaleString('vi-VN') : '';
-  if (p.lastType === 'IN') return { line: 'Đang làm việc', time };
-  return { line: 'Đã check-out', time };
-}
-
 // Export employees to Excel
-export const exportEmployeesToExcel = (employees, filename = 'danh-sach-nhan-vien', options = {}) => {
-  const { presenceByUserId } = options;
-
-  const data = employees.map((emp) => {
-    const pres = todayPresenceExport(presenceByUserId, emp.id);
-    return {
-      'Mã NV': emp.employeeCode || '',
-      'Tên': emp.name || '',
-      'Email đăng nhập': emp.email || '',
-      'Email công ty': emp.companyEmail || '',
-      'SĐT': emp.phoneNumber || '',
-      'Phòng ban': emp.Department?.name || '',
-      'Chức danh': emp.JobTitle?.name || '',
-      'Ngày vào làm': emp.startDate ? new Date(emp.startDate).toLocaleDateString('vi-VN') : '',
-      'Trạng thái HĐ': employmentExportLabel(emp),
-      'Vai trò hệ thống': emp.role || '',
-      'Tài khoản': emp.isActive !== false ? 'Hoạt động' : 'Khóa',
-      'Đăng ký khuôn mặt': emp.FaceProfiles && emp.FaceProfiles.length > 0 ? 'Có' : 'Không',
-      'Điểm danh hôm nay': pres.line,
-      'Thời điểm điểm danh gần nhất': pres.time,
-      'Lương cơ bản': emp.baseSalary ?? '',
-      'Chi nhánh': emp.branchName || '',
-      'Ngày tạo hồ sơ': emp.createdAt ? new Date(emp.createdAt).toLocaleDateString('vi-VN') : '',
-    };
-  });
+export const exportEmployeesToExcel = (employees, filename = 'danh-sach-nhan-vien') => {
+  const data = employees.map(emp => ({
+    'Mã NV': emp.employeeCode || '',
+    'Tên': emp.name || '',
+    'Email': emp.email || '',
+    'Vai trò': emp.role || '',
+    'Trạng thái': emp.isActive ? 'Hoạt động' : 'Không hoạt động',
+    'Đã đăng ký khuôn mặt': (emp.FaceProfiles && emp.FaceProfiles.length > 0) ? 'Có' : 'Không',
+    'Ngày tạo': emp.createdAt ? new Date(emp.createdAt).toLocaleDateString('vi-VN') : '',
+    'Lương cơ bản': emp.baseSalary || 0
+  }));
 
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Nhân viên');
-
-  ws['!cols'] = [
-    { wch: 12 },
-    { wch: 22 },
-    { wch: 28 },
-    { wch: 24 },
-    { wch: 14 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 14 },
-    { wch: 12 },
-    { wch: 14 },
-    { wch: 18 },
-    { wch: 22 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 14 },
+  
+  // Auto-size columns
+  const colWidths = [
+    { wch: 12 }, // Mã NV
+    { wch: 25 }, // Tên
+    { wch: 30 }, // Email
+    { wch: 12 }, // Vai trò
+    { wch: 15 }, // Trạng thái
+    { wch: 20 }, // Đã đăng ký
+    { wch: 15 }, // Ngày tạo
+    { wch: 15 }  // Lương cơ bản
   ];
+  ws['!cols'] = colWidths;
 
   XLSX.writeFile(wb, `${filename}.xlsx`);
 };
@@ -213,52 +169,33 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
 };
 
 // Export employees to PDF
-export const exportEmployeesToPDF = (employees, filename = 'danh-sach-nhan-vien', options = {}) => {
-  const { presenceByUserId } = options;
-  const doc = new jsPDF('landscape');
+export const exportEmployeesToPDF = (employees, filename = 'danh-sach-nhan-vien') => {
+  const doc = new jsPDF();
+  
+  // Title
+  doc.setFontSize(18);
+  doc.text('Danh Sách Nhân Viên', 14, 20);
+  doc.setFontSize(12);
+  doc.text(`Xuất ngày: ${new Date().toLocaleDateString('vi-VN')}`, 14, 28);
+  doc.text(`Tổng số: ${employees.length} nhân viên`, 14, 34);
 
-  doc.setFontSize(16);
-  doc.text('Danh sách nhân viên', 14, 16);
-  doc.setFontSize(10);
-  doc.text(`Xuất: ${new Date().toLocaleString('vi-VN')}`, 14, 24);
-  doc.text(`Tổng: ${employees.length} nhân viên`, 14, 30);
-
-  const head = [
-    'Mã NV',
-    'Tên',
-    'Phòng ban',
-    'Chức danh',
-    'Ngày vào làm',
-    'Trạng thái HĐ',
-    'Điểm danh hôm nay',
-    'SĐT',
-    'Email',
-    'Khuôn mặt',
-  ];
-
-  const tableData = employees.map((emp) => {
-    const pres = todayPresenceExport(presenceByUserId, emp.id);
-    return [
-      emp.employeeCode || '',
-      emp.name || '',
-      emp.Department?.name || '',
-      emp.JobTitle?.name || '',
-      emp.startDate ? new Date(emp.startDate).toLocaleDateString('vi-VN') : '',
-      employmentExportLabel(emp),
-      pres.time ? `${pres.line} (${pres.time})` : pres.line,
-      emp.phoneNumber || '',
-      emp.email || '',
-      emp.FaceProfiles && emp.FaceProfiles.length > 0 ? 'Có' : 'Không',
-    ];
-  });
+  // Table data
+  const tableData = employees.map(emp => [
+    emp.employeeCode || '',
+    emp.name || '',
+    emp.email || '',
+    emp.role || '',
+    emp.isActive ? 'Hoạt động' : 'Không hoạt động',
+    (emp.FaceProfiles && emp.FaceProfiles.length > 0) ? 'Có' : 'Không'
+  ]);
 
   doc.autoTable({
-    startY: 36,
-    head: [head],
+    startY: 40,
+    head: [['Mã NV', 'Tên', 'Email', 'Vai trò', 'Trạng thái', 'Đã đăng ký']],
     body: tableData,
-    styles: { fontSize: 7, cellPadding: 2 },
-    headStyles: { fillColor: [31, 41, 55] },
-    alternateRowStyles: { fillColor: [249, 250, 251] },
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [102, 126, 234] },
+    alternateRowStyles: { fillColor: [245, 245, 245] }
   });
 
   doc.save(`${filename}.pdf`);

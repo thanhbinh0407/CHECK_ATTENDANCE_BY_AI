@@ -1,76 +1,77 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import PersonalProfileModal from '../components/PersonalProfileModal.jsx';
 import './managerShell.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
 const NAV_GROUPS = [
   {
-    label: 'Tổng quan',
+    label: 'Overview',
     items: [{ to: '/dashboard', label: 'Dashboard', icon: '📊' }],
   },
   {
-    label: 'Nhân sự & tài khoản',
+    label: 'People & Accounts',
     items: [
-      { to: '/employees', label: 'Hồ sơ nhân viên', icon: '👥' },
-      { to: '/users', label: 'Tài khoản & phân quyền', icon: '🔐' },
+      { to: '/employees', label: 'Employee Profiles', icon: '👥' },
+      { to: '/users', label: 'Accounts & Permissions', icon: '🔐' },
     ],
   },
   {
-    label: 'Tổ chức',
+    label: 'Organization',
     items: [
-      { to: '/departments', label: 'Phòng ban', icon: '🏢' },
-      { to: '/job-titles', label: 'Chức danh', icon: '📋' },
-      { to: '/shifts', label: 'Ca làm việc', icon: '🕐' },
+      { to: '/departments', label: 'Departments', icon: '🏢' },
+      { to: '/job-titles', label: 'Job Titles', icon: '📋' },
+      { to: '/shifts', label: 'Work Shifts', icon: '🕐' },
     ],
   },
   {
-    label: 'Chấm công',
+    label: 'Attendance',
     items: [
-      { to: '/camera', label: 'Kiosk nhận diện', icon: '📷' },
-      { to: '/attendance-logs', label: 'Nhật ký chấm công', icon: '📅' },
+      { to: '/camera', label: 'Face Recognition Kiosk', icon: '📷' },
+      { to: '/attendance-logs', label: 'Attendance Logs', icon: '📅' },
     ],
   },
   {
-    label: 'Đơn từ',
+    label: 'Requests',
     items: [
-      { to: '/leave', label: 'Nghỉ phép', icon: '🏖️' },
-      { to: '/overtime', label: 'Tăng ca', icon: '⏱️' },
-      { to: '/business-trips', label: 'Công tác', icon: '✈️' },
-      { to: '/salary-advances', label: 'Tạm ứng lương', icon: '💵' },
-      { to: '/approvals', label: 'Luồng duyệt (HR)', icon: '✅' },
+      { to: '/leave', label: 'Leave Requests', icon: '🏖️' },
+      { to: '/overtime', label: 'Overtime', icon: '⏱️' },
+      { to: '/business-trips', label: 'Business Trips', icon: '✈️' },
+      { to: '/salary-advances', label: 'Salary Advances', icon: '💵' },
+      { to: '/approvals', label: 'Approval Flow (HR)', icon: '✅' },
     ],
   },
   {
-    label: 'Lương & BH',
+    label: 'Payroll & Insurance',
     items: [
-      { to: '/salary', label: 'Quản lý lương', icon: '💰' },
-      { to: '/salary-admin', label: 'Lương (admin)', icon: '📑' },
-      { to: '/salary-calc', label: 'Tính lương', icon: '🧮' },
-      { to: '/salary-grades', label: 'Cấp bậc lương', icon: '📈' },
-      { to: '/insurance-config', label: 'Cấu hình BH', icon: '🏥' },
+      { to: '/salary', label: 'Payroll Management', icon: '💰' },
+      { to: '/salary-admin', label: 'Payroll (Admin)', icon: '📑' },
+      { to: '/salary-calc', label: 'Payroll Calculation', icon: '🧮' },
+      { to: '/salary-grades', label: 'Salary Grades', icon: '📈' },
+      { to: '/insurance-config', label: 'Insurance Settings', icon: '🏥' },
       { to: '/insurance-d02', label: 'D02-LT', icon: '📄' },
       { to: '/insurance-tk1', label: 'TK1-TS', icon: '📝' },
     ],
   },
   {
-    label: 'Báo cáo',
+    label: 'Reports',
     items: [
-      { to: '/reports', label: 'Báo cáo', icon: '📊' },
-      { to: '/analytics', label: 'Phân tích', icon: '📉' },
+      { to: '/reports', label: 'Reports', icon: '📊' },
+      { to: '/analytics', label: 'Analytics', icon: '📉' },
     ],
   },
   {
-    label: 'Hồ sơ & tài liệu',
+    label: 'Profiles & Documents',
     items: [
-      { to: '/documents', label: 'Tài liệu', icon: '📎' },
-      { to: '/dependents', label: 'Người phụ thuộc', icon: '👨‍👩‍👧' },
-      { to: '/qualifications', label: 'Bằng cấp / CC', icon: '🎓' },
+      { to: '/documents', label: 'Documents', icon: '📎' },
+      { to: '/dependents', label: 'Dependents', icon: '👨‍👩‍👧' },
+      { to: '/qualifications', label: 'Qualifications / Certificates', icon: '🎓' },
     ],
   },
   {
-    label: 'Khác',
-    items: [{ to: '/enrollment', label: 'Đăng ký khuôn mặt', icon: '🪪' }],
+    label: 'Other',
+    items: [{ to: '/enrollment', label: 'Face Enrollment', icon: '🪪' }],
   },
 ];
 
@@ -83,11 +84,37 @@ function titleFromPath(pathname) {
   return 'HRMS Manager';
 }
 
+const ROLE_LABEL_VI = {
+  manager: 'Giám đốc / Quản trị',
+  hr: 'Nhân sự',
+  accountant: 'Kế toán',
+  supervisor: 'Quản lý',
+  employee: 'Nhân viên',
+};
+
+function resolveAvatarUrl(apiBase, avatarUrl) {
+  if (!avatarUrl) return null;
+  if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
+  const base = (apiBase || '').replace(/\/$/, '');
+  const path = avatarUrl.startsWith('/') ? avatarUrl : `/${avatarUrl}`;
+  return `${base}${path}`;
+}
+
 export default function ManagerLayout() {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const location = useLocation();
+
+  const patchSessionUser = useCallback((patch) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
@@ -99,13 +126,18 @@ export default function ManagerLayout() {
         setUser(null);
       }
     }
-    if (token && !raw) {
+    if (token) {
       fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
         .then((data) => {
           if (data.status === 'success' && data.user) {
             localStorage.setItem('user', JSON.stringify(data.user));
             setUser(data.user);
+          } else {
+            // Token invalidated (e.g. role changed) => force logout
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            window.location.href = 'http://localhost:3000/';
           }
         })
         .catch(() => {});
@@ -133,15 +165,15 @@ export default function ManagerLayout() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
 
   if (!ready || !token) {
-    return <div className="mgr-loading">Đang kiểm tra phiên đăng nhập…</div>;
+    return <div className="mgr-loading">Checking your sign-in session...</div>;
   }
 
   if (!user) {
-    return <div className="mgr-loading">Đang tải thông tin tài khoản…</div>;
+    return <div className="mgr-loading">Loading account information...</div>;
   }
 
   if (user.role !== 'manager') {
-    return <div className="mgr-loading">Đang chuyển hướng…</div>;
+    return <div className="mgr-loading">Redirecting...</div>;
   }
 
   const pageTitle = titleFromPath(location.pathname);
@@ -180,7 +212,7 @@ export default function ManagerLayout() {
           {!collapsed && (
             <>
               <strong style={{ color: '#cbd5e1' }}>{user?.name}</strong>
-              <div>Giám đốc / Manager</div>
+              <div>{ROLE_LABEL_VI[user?.role] || 'Tài khoản'}</div>
             </>
           )}
         </div>
@@ -194,9 +226,28 @@ export default function ManagerLayout() {
             <span className="mgr-topbar-title">{pageTitle}</span>
           </div>
           <div className="mgr-topbar-actions">
+            <button
+              type="button"
+              className="mgr-topbar-avatar-btn"
+              onClick={() => setProfileOpen(true)}
+              title="Hồ sơ cá nhân"
+              aria-label="Mở hồ sơ cá nhân"
+            >
+              {resolveAvatarUrl(API_BASE, user?.avatarUrl) ? (
+                <img
+                  className="mgr-topbar-avatar"
+                  src={resolveAvatarUrl(API_BASE, user?.avatarUrl)}
+                  alt=""
+                />
+              ) : (
+                <span className="mgr-topbar-avatar mgr-topbar-avatar--fallback" aria-hidden>
+                  {(user?.name || '?').charAt(0).toUpperCase()}
+                </span>
+              )}
+            </button>
             <span style={{ fontSize: 13, color: '#64748b' }}>{user?.email}</span>
             <button type="button" className="mgr-btn-logout" onClick={logout}>
-              Đăng xuất
+              Sign out
             </button>
           </div>
         </header>
@@ -204,6 +255,12 @@ export default function ManagerLayout() {
           <Outlet />
         </main>
       </div>
+      <PersonalProfileModal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        apiBase={API_BASE}
+        onSessionUserPatch={patchSessionUser}
+      />
     </div>
   );
 }
