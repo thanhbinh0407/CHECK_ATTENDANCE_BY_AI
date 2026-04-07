@@ -235,7 +235,12 @@ export const getSalaries = async (req, res) => {
       where,
       include: [{
         model: User,
-        attributes: ['id', 'name', 'email', 'employeeCode']
+        attributes: ['id', 'name', 'email', 'employeeCode'],
+        include: [
+          { model: Department, attributes: ['id', 'name'], required: false },
+          { model: JobTitle, attributes: ['id', 'name'], required: false },
+          { model: SalaryGrade, attributes: ['id', 'name', 'code', 'level', 'baseSalary'], required: false }
+        ]
       }],
       order: [['year', 'DESC'], ['month', 'DESC']]
     });
@@ -265,7 +270,7 @@ export const getSalaryById = async (req, res) => {
           include: [
             { model: Department, attributes: ["id", "name"] },
             { model: JobTitle, attributes: ["id", "name"] },
-            { model: SalaryGrade, attributes: ["id", "name", "code"] }
+            { model: SalaryGrade, attributes: ["id", "name", "code", "level", "baseSalary"] }
           ]
         }
       ]

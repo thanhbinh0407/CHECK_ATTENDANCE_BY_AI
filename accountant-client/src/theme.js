@@ -36,6 +36,30 @@ export const theme = {
     gray900: "#111827",
     black: "#030712",
   },
+
+  success: {
+    main: "#10b981",
+    light: "#d1fae5",
+    dark: "#059669",
+  },
+  error: {
+    main: "#ef4444",
+    light: "#fee2e2",
+    dark: "#dc2626",
+  },
+  warning: {
+    main: "#f59e0b",
+    bg: "#fffbeb",
+    text: "#92400e",
+  },
+
+  typography: {
+    fontFamily:
+      "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    body: { fontSize: "1rem", fontWeight: "400", lineHeight: "1.6" },
+    small: { fontSize: "0.875rem", fontWeight: "400", lineHeight: "1.5" },
+    tiny: { fontSize: "0.75rem", fontWeight: "400", lineHeight: "1.4" },
+  },
   
   // Spacing (8px base)
   spacing: {

@@ -80,6 +80,12 @@ export const calculateInsurance = async (userId, month, year) => {
 
     return {
       insuranceBase: adjustedBase,
+      /** Employee contribution rates (%) — for payslip / breakdown UI */
+      employeeRatesPercent: {
+        social: parseFloat(config.employeeSocialInsuranceRate),
+        health: parseFloat(config.employeeHealthInsuranceRate),
+        unemployment: parseFloat(config.employeeUnemploymentInsuranceRate),
+      },
       employee: {
         socialInsurance: parseFloat(employeeSocialInsurance.toFixed(2)),
         healthInsurance: parseFloat(employeeHealthInsurance.toFixed(2)),
