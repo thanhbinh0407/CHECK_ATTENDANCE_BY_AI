@@ -46,7 +46,7 @@ export const registerUser = async (req, res) => {
   try {
     const { name, email, employeeCode, descriptor, password, jobTitle, educationLevel, certificates, dependents, baseSalary } = req.body;
 
-    if (!name || !email || !employeeCode || !descriptor) {
+    if (!name || !email || !employeeCode) {
       return res.status(400).json({
         status: "error",
         message: "Missing required fields"
@@ -72,6 +72,13 @@ export const registerUser = async (req, res) => {
     // Normalize education level to match DB enum
     const normalizedEducationLevel = normalizeEducationLevel(educationLevel);
 
+    if (descriptor !== undefined && descriptor !== null && (!Array.isArray(descriptor) || descriptor.length === 0)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Descriptor must be a non-empty array when provided"
+      });
+    }
+
     // Create user with password and job-related fields
     const user = await User.create({
       name,
@@ -85,11 +92,13 @@ export const registerUser = async (req, res) => {
       baseSalary: baseSalary || 1800000 // Default to state-owned base salary
     });
 
-    // Create face profile
-    await FaceProfile.create({
-      userId: user.id,
-      embeddings: descriptor
-    });
+    // Face enrollment is optional at registration time.
+    if (Array.isArray(descriptor) && descriptor.length > 0) {
+      await FaceProfile.create({
+        userId: user.id,
+        embeddings: descriptor
+      });
+    }
 
     console.log(`User enrolled: ${name} (${employeeCode}) with ${password ? 'custom' : 'auto-generated'} password`);
 
@@ -138,6 +147,55 @@ export const registerUser = async (req, res) => {
     return res.status(500).json({
       status: "error",
       message: "Enrollment failed: " + err.message
+    });
+  }
+};
+
+export const updateUserFace = async (req, res) => {
+  try {
+    const { employeeCode, userId, descriptor } = req.body;
+
+    if ((!employeeCode && !userId) || !Array.isArray(descriptor) || descriptor.length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "employeeCode or userId and a non-empty descriptor are required"
+      });
+    }
+
+    const where = employeeCode ? { employeeCode } : { id: userId };
+    const user = await User.findOne({ where });
+
+    if (!user) {
+      return res.status(404).json({
+        status: "error",
+        message: "Employee not found"
+      });
+    }
+
+    const existingFace = await FaceProfile.findOne({ where: { userId: user.id } });
+    if (existingFace) {
+      await existingFace.update({ embeddings: descriptor });
+    } else {
+      await FaceProfile.create({
+        userId: user.id,
+        embeddings: descriptor
+      });
+    }
+
+    return res.json({
+      status: "success",
+      message: "Face profile updated successfully",
+      user: {
+        id: user.id,
+        name: user.name,
+        employeeCode: user.employeeCode
+      }
+    });
+  } catch (err) {
+    console.error("Update face error:", err);
+    return res.status(500).json({
+      status: "error",
+      message: "Update face failed: " + err.message
     });
   }
 };
