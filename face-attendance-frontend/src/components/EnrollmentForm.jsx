@@ -429,13 +429,7 @@ export default function EnrollmentForm() {
     const salaryValid = validateField("baseSalary", formData.baseSalary);
     const jobTitleValid = validateField("jobTitle", formData.jobTitle);
 
-    if (!capturedDescriptor) {
-      setErrors(prev => ({ ...prev, faceCapture: "Please capture your face before submitting" }));
-      setMessage("❌ Please capture your face before submitting");
-      return;
-    } else {
-      setErrors(prev => ({ ...prev, faceCapture: "" }));
-    }
+    setErrors(prev => ({ ...prev, faceCapture: "" }));
     
     if (!nameValid || !emailValid || !codeValid || !passwordValid || !salaryValid || !jobTitleValid) {
       setMessage("❌ Please fix all validation errors before submitting");
@@ -446,23 +440,27 @@ export default function EnrollmentForm() {
       setLoading(true);
       const token = localStorage.getItem("authToken");
       
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        employeeCode: formData.employeeCode,
+        password: useCustomPassword ? formData.password : undefined,
+        jobTitleId: formData.jobTitleId,
+        jobTitle: formData.jobTitle,
+        educationLevel: formData.educationLevel,
+        baseSalary: formData.baseSalary
+      };
+      if (capturedDescriptor) {
+        payload.descriptor = capturedDescriptor;
+      }
+
       const res = await fetch(`${apiBase}/api/enroll/register`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          employeeCode: formData.employeeCode,
-          descriptor: capturedDescriptor,
-          password: useCustomPassword ? formData.password : undefined,
-          jobTitleId: formData.jobTitleId,
-          jobTitle: formData.jobTitle,
-          educationLevel: formData.educationLevel,
-          baseSalary: formData.baseSalary
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
@@ -643,7 +641,7 @@ export default function EnrollmentForm() {
           New Employee Registration
         </h1>
         <p style={{ margin: 0, fontSize: "15px", opacity: 0.95, color: "#fff" }}>
-          Fill in the form below and capture your face to complete registration. Fields marked with * are required.
+          Fill in the form below to create employee information first. Face can be captured now or updated later. Fields marked with * are required.
         </p>
       </div>
 
@@ -931,7 +929,7 @@ export default function EnrollmentForm() {
                   backgroundColor: capturedDescriptor ? "#28a745" : (errors.faceCapture ? "#ef4444" : "#ffc107"),
                   display: "inline-block"
                 }}></span>
-                {capturedDescriptor ? "✅ Face captured - Ready to enroll" : (errors.faceCapture ? "❌ " + errors.faceCapture : "⚠️ Capture your face to proceed")}
+                {capturedDescriptor ? "✅ Face captured - Ready to enroll" : "⚠️ Face not captured yet (you can update later)"}
               </div>
             </div>
 
@@ -939,10 +937,10 @@ export default function EnrollmentForm() {
               type="submit"
               style={{
                 ...successButtonStyle,
-                opacity: !capturedDescriptor || loading ? 0.6 : 1,
-                cursor: !capturedDescriptor || loading ? "not-allowed" : "pointer"
+                opacity: loading ? 0.6 : 1,
+                cursor: loading ? "not-allowed" : "pointer"
               }}
-              disabled={!capturedDescriptor || loading}
+              disabled={loading}
             >
               {loading ? "Enrolling..." : "Complete Enrollment"}
             </button>

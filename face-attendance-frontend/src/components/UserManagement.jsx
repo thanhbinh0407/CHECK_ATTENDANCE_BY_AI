@@ -2,7 +2,8 @@
  * UserManagement.jsx
  * Quản lý tài khoản người dùng và phân quyền - dành riêng cho Manager (Giám đốc)
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import * as faceapi from "face-api.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
@@ -75,6 +76,16 @@ export default function UserManagement() {
   const [auditFilterUserId, setAuditFilterUserId] = useState("");
   const [auditPage, setAuditPage] = useState(1);
   const [auditMeta, setAuditMeta] = useState({ page: 1, pageSize: 10, totalPages: 1, total: 0 });
+  const [showFaceModal, setShowFaceModal] = useState(false);
+  const [faceTargetUser, setFaceTargetUser] = useState(null);
+  const [faceModelsLoaded, setFaceModelsLoaded] = useState(false);
+  const [faceCameraActive, setFaceCameraActive] = useState(false);
+  const [capturedDescriptor, setCapturedDescriptor] = useState(null);
+  const [faceLoading, setFaceLoading] = useState(false);
+  const [faceMessage, setFaceMessage] = useState("");
+
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,6 +101,33 @@ export default function UserManagement() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        const modelUrls = [
+          "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@latest/model/",
+          "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/models/"
+        ];
+        for (const modelUrl of modelUrls) {
+          try {
+            await Promise.all([
+              faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
+              faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl),
+              faceapi.nets.faceRecognitionNet.loadFromUri(modelUrl)
+            ]);
+            setFaceModelsLoaded(true);
+            return;
+          } catch {
+            // try fallback URL
+          }
+        }
+      } catch {
+        // keep false, handled in UI
+      }
+    };
+    loadModels();
+  }, []);
 
   const openCreate = () => {
     setEditing(null);
@@ -180,6 +218,96 @@ export default function UserManagement() {
     const data = await res.json();
     if (res.ok && data.status === "success") load();
     else alert(data.message || "Lỗi");
+  };
+
+  const openFaceModal = (user) => {
+    setFaceTargetUser(user);
+    setCapturedDescriptor(null);
+    setFaceMessage("");
+    setShowFaceModal(true);
+  };
+
+  const closeFaceModal = () => {
+    if (videoRef.current?.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+    }
+    setFaceCameraActive(false);
+    setShowFaceModal(false);
+    setFaceTargetUser(null);
+    setCapturedDescriptor(null);
+  };
+
+  const startFaceCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 }
+      });
+      videoRef.current.srcObject = stream;
+      videoRef.current.onloadedmetadata = () => {
+        videoRef.current.play();
+        setFaceCameraActive(true);
+        setFaceMessage("Camera đã bật. Hãy nhìn thẳng vào camera.");
+      };
+    } catch (err) {
+      setFaceMessage("Không thể bật camera: " + err.message);
+    }
+  };
+
+  const captureFace = async () => {
+    if (!faceCameraActive || !faceModelsLoaded || !videoRef.current) return;
+    try {
+      setFaceLoading(true);
+      const detection = await faceapi
+        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        setFaceMessage("Không phát hiện khuôn mặt. Vui lòng thử lại.");
+        return;
+      }
+
+      setCapturedDescriptor(Array.from(detection.descriptor));
+      setFaceMessage("Đã chụp khuôn mặt. Sẵn sàng cập nhật.");
+    } catch (err) {
+      setFaceMessage("Lỗi khi chụp khuôn mặt: " + err.message);
+    } finally {
+      setFaceLoading(false);
+    }
+  };
+
+  const updateFaceForUser = async () => {
+    if (!faceTargetUser?.employeeCode) {
+      setFaceMessage("Không tìm thấy mã nhân viên.");
+      return;
+    }
+    if (!capturedDescriptor) {
+      setFaceMessage("Vui lòng chụp khuôn mặt trước khi cập nhật.");
+      return;
+    }
+
+    try {
+      setFaceLoading(true);
+      const res = await fetch(`${API_BASE}/api/enroll/face`, {
+        method: "PUT",
+        headers: getHeaders(),
+        body: JSON.stringify({
+          employeeCode: faceTargetUser.employeeCode,
+          descriptor: capturedDescriptor
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== "success") {
+        setFaceMessage(data.message || "Cập nhật khuôn mặt thất bại");
+        return;
+      }
+      setFaceMessage("Cập nhật khuôn mặt thành công");
+      setTimeout(() => closeFaceModal(), 500);
+    } catch (err) {
+      setFaceMessage("Cập nhật khuôn mặt thất bại: " + err.message);
+    } finally {
+      setFaceLoading(false);
+    }
   };
 
   const permanentlyDeleteUser = async (user) => {
@@ -576,6 +704,12 @@ export default function UserManagement() {
                             style={{ padding: "4px 10px", background: "#fefcbf", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12, color: "#744210" }}
                           >
                             Reset Password
+                          </button>
+                          <button
+                            onClick={() => openFaceModal(user)}
+                            style={{ padding: "4px 10px", background: "#dcfce7", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12, color: "#166534" }}
+                          >
+                            Update Face
                           </button>
                           {listMode === "active" ? (
                             <button
@@ -1077,6 +1211,72 @@ export default function UserManagement() {
             >
               Đã ghi lại ✓
             </button>
+          </div>
+        </div>
+      )}
+
+      {showFaceModal && faceTargetUser && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 2200, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={closeFaceModal}
+        >
+          <div
+            style={{ background: "#fff", borderRadius: 12, padding: 20, width: 760, maxWidth: "96vw" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h3 style={{ margin: 0, color: "#1a365d" }}>
+                Cập nhật khuôn mặt: {faceTargetUser.name} ({faceTargetUser.employeeCode})
+              </h3>
+              <button onClick={closeFaceModal} style={{ border: "none", background: "transparent", fontSize: 22, cursor: "pointer" }}>×</button>
+            </div>
+
+            {!faceModelsLoaded && (
+              <div style={{ marginBottom: 12, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: 10 }}>
+                Đang tải face model, vui lòng đợi...
+              </div>
+            )}
+            {faceMessage && (
+              <div style={{ marginBottom: 12, color: "#334155", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: 10 }}>
+                {faceMessage}
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "1.2fr .8fr", gap: 14 }}>
+              <div style={{ background: "#000", borderRadius: 8, overflow: "hidden", aspectRatio: "4/3", position: "relative" }}>
+                <video ref={videoRef} style={{ width: "100%", height: "100%", objectFit: "cover" }} autoPlay muted playsInline />
+                <canvas ref={canvasRef} style={{ display: "none" }} width={640} height={480} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={startFaceCamera}
+                  disabled={!faceModelsLoaded || faceCameraActive || faceLoading}
+                  style={{ padding: "10px 12px", border: "none", borderRadius: 8, background: "#2563eb", color: "#fff", cursor: "pointer" }}
+                >
+                  Bật camera
+                </button>
+                <button
+                  type="button"
+                  onClick={captureFace}
+                  disabled={!faceCameraActive || !faceModelsLoaded || faceLoading}
+                  style={{ padding: "10px 12px", border: "none", borderRadius: 8, background: "#059669", color: "#fff", cursor: "pointer" }}
+                >
+                  {faceLoading ? "Đang xử lý..." : "Chụp khuôn mặt"}
+                </button>
+                <button
+                  type="button"
+                  onClick={updateFaceForUser}
+                  disabled={!capturedDescriptor || faceLoading}
+                  style={{ padding: "10px 12px", border: "none", borderRadius: 8, background: "#7c3aed", color: "#fff", cursor: "pointer", fontWeight: 700 }}
+                >
+                  Cập nhật khuôn mặt
+                </button>
+                <div style={{ fontSize: 13, color: capturedDescriptor ? "#166534" : "#92400e", marginTop: 4 }}>
+                  {capturedDescriptor ? "Đã có dữ liệu khuôn mặt." : "Chưa chụp khuôn mặt."}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
