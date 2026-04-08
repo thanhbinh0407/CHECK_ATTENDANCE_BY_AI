@@ -136,6 +136,11 @@ const User = sequelize.define('User', {
     defaultValue: 0
   },
 
+  insuranceBaseSalary: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0
+  },
+
   // Allowances (Các khoản phụ cấp)
   lunchAllowance: {
     type: DataTypes.DECIMAL(12, 2),
