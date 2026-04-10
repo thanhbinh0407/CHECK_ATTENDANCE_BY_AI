@@ -36,7 +36,7 @@ export default function SalaryRulesManagement() {
       }
     } catch (error) {
       console.error("Error fetching rules:", error);
-      setMessage("Lỗi khi tải quy tắc");
+      setMessage("Failed to load rules");
     } finally {
       setLoading(false);
     }
@@ -79,23 +79,23 @@ export default function SalaryRulesManagement() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage(editingRule ? "Cập nhật quy tắc thành công!" : "Tạo quy tắc thành công!");
+        setMessage(editingRule ? "Rule updated successfully!" : "Rule created successfully!");
         setEditingRule(null);
         setFormData({ type: "bonus", name: "", description: "", amountType: "fixed", amount: 0, triggerType: "custom" });
         fetchRules();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể lưu quy tắc"));
+        setMessage("Error: " + (data.message || "Unable to save rule"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (ruleId) => {
-    if (!confirm("Bạn chắc chắn muốn xóa quy tắc này?")) return;
+    if (!confirm("Are you sure you want to delete this rule?")) return;
 
     try {
       setLoading(true);
@@ -109,14 +109,14 @@ export default function SalaryRulesManagement() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Xóa quy tắc thành công!");
+        setMessage("Rule deleted successfully!");
         fetchRules();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể xóa quy tắc"));
+        setMessage("Error: " + (data.message || "Unable to delete rule"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -198,15 +198,15 @@ export default function SalaryRulesManagement() {
     padding: "12px",
     marginBottom: "20px",
     borderRadius: "5px",
-    backgroundColor: message.includes("Lỗi") ? "#fee" : "#efe",
-    color: message.includes("Lỗi") ? "#c33" : "#3c3",
+    backgroundColor: message.includes("Error") ? "#fee" : "#efe",
+    color: message.includes("Error") ? "#c33" : "#3c3",
     fontWeight: "600"
   };
 
   return (
     <div style={containerStyle}>
       <h2 style={{ color: "#2196F3", marginBottom: "20px" }}>
-        ⚙️ Quản Lý Quy Tắc Tính Lương
+        ⚙️ Salary Rule Management
       </h2>
 
       {message && <div style={messageStyle}>{message}</div>}
@@ -214,33 +214,33 @@ export default function SalaryRulesManagement() {
       <div style={formStyle}>
         <div style={{ gridColumn: "1 / -1" }}>
           <h3 style={{ marginTop: 0, color: "#2196F3" }}>
-            {editingRule ? "Sửa Quy Tắc" : "Tạo Quy Tắc Mới"}
+            {editingRule ? "Edit Rule" : "Create New Rule"}
           </h3>
         </div>
 
         <div>
           <label style={{ display: "block", marginBottom: "5px", fontWeight: "600" }}>
-            Loại Quy Tắc
+            Rule Type
           </label>
           <select
             value={formData.type}
             onChange={(e) => setFormData({ ...formData, type: e.target.value })}
             style={inputStyle}
           >
-            <option value="bonus">Phụ cấp/Thưởng</option>
-            <option value="deduction">Khoản khấu trừ</option>
+            <option value="bonus">Allowance/Bonus</option>
+            <option value="deduction">Deduction</option>
           </select>
         </div>
 
         <div>
           <label style={{ display: "block", marginBottom: "5px", fontWeight: "600" }}>
-            Tên Quy Tắc
+            Rule Name
           </label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="VD: Phụ cấp ăn trưa"
+            placeholder="Example: Lunch allowance"
             style={inputStyle}
             required
           />
@@ -248,20 +248,20 @@ export default function SalaryRulesManagement() {
 
         <div>
           <label style={{ display: "block", marginBottom: "5px", fontWeight: "600" }}>
-            Mô Tả
+            Description
           </label>
           <input
             type="text"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            placeholder="Mô tả quy tắc"
+            placeholder="Rule description"
             style={inputStyle}
           />
         </div>
 
         <div>
           <label style={{ display: "block", marginBottom: "5px", fontWeight: "600" }}>
-            Phần Trăm (%)
+            Percentage (%)
           </label>
           <input
             type="number"
@@ -275,7 +275,7 @@ export default function SalaryRulesManagement() {
 
         <div>
           <label style={{ display: "block", marginBottom: "5px", fontWeight: "600" }}>
-            Số Tiền Cố Định (VND)
+            Fixed Amount (VND)
           </label>
           <input
             type="number"
@@ -293,14 +293,14 @@ export default function SalaryRulesManagement() {
             disabled={loading || !formData.name}
             style={{ ...buttonStyle, opacity: loading || !formData.name ? 0.6 : 1 }}
           >
-            {editingRule ? "Cập Nhật" : "Tạo Mới"}
+            {editingRule ? "Update" : "Create"}
           </button>
           {editingRule && (
             <button
               onClick={handleCancel}
               style={{ ...buttonStyle, backgroundColor: "#999" }}
             >
-              Hủy
+              Cancel
             </button>
           )}
         </div>
@@ -310,18 +310,18 @@ export default function SalaryRulesManagement() {
         <table style={tableStyle}>
           <thead>
             <tr>
-              <th style={thStyle}>Loại</th>
-              <th style={thStyle}>Tên Quy Tắc</th>
-              <th style={thStyle}>Mô Tả</th>
-              <th style={thStyle}>Số Tiền</th>
-              <th style={thStyle}>Hành Động</th>
+              <th style={thStyle}>Type</th>
+              <th style={thStyle}>Rule Name</th>
+              <th style={thStyle}>Description</th>
+              <th style={thStyle}>Amount</th>
+              <th style={thStyle}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {rules.length === 0 ? (
               <tr>
                 <td colSpan="5" style={{ ...tdStyle, textAlign: "center", color: "#999" }}>
-                  Chưa có quy tắc nào
+                  No rules found
                 </td>
               </tr>
             ) : (
@@ -335,14 +335,14 @@ export default function SalaryRulesManagement() {
                   if (amountType === 'percentage') {
                     amountDisplay = `${amountValue.toFixed(2)}%`;
                   } else {
-                    amountDisplay = `${amountValue.toLocaleString("vi-VN")} VND`;
+                    amountDisplay = `${amountValue.toLocaleString("en-US")} VND`;
                   }
                 }
                 
                 return (
                   <tr key={rule.id}>
                     <td style={tdStyle}>
-                      {rule.type === "bonus" ? "↑ Phụ cấp" : "↘ Khấu trừ"}
+                      {rule.type === "bonus" ? "↑ Allowance" : "↘ Deduction"}
                     </td>
                     <td style={tdStyle}>{rule.name}</td>
                     <td style={tdStyle}>{rule.description || "-"}</td>
@@ -363,7 +363,7 @@ export default function SalaryRulesManagement() {
                           fontSize: "12px"
                         }}
                       >
-                        Sửa
+                        Edit
                       </button>
                       <button
                         onClick={() => handleDelete(rule.id)}
@@ -377,7 +377,7 @@ export default function SalaryRulesManagement() {
                           fontSize: "12px"
                         }}
                       >
-                        Xóa
+                        Delete
                       </button>
                     </td>
                   </tr>

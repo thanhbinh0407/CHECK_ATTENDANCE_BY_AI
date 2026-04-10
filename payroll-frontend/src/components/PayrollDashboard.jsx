@@ -52,7 +52,7 @@ const PayrollDashboard = () => {
 
   const months = Array.from({ length: 12 }, (_, i) => ({
     value: i + 1,
-    label: `Tháng ${i + 1}`,
+    label: `Month ${i + 1}`,
   }));
 
   const years = Array.from({ length: 5 }, (_, i) => ({
@@ -61,11 +61,11 @@ const PayrollDashboard = () => {
   }));
 
   const statusOptions = [
-    { value: 'all', label: 'Tất cả' },
-    { value: 'draft', label: 'Nháp' },
-    { value: 'pending_approval', label: 'Chờ duyệt' },
-    { value: 'approved', label: 'Đã duyệt' },
-    { value: 'paid', label: 'Đã thanh toán' },
+    { value: 'all', label: 'All' },
+    { value: 'draft', label: 'Draft' },
+    { value: 'pending_approval', label: 'Pending approval' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'paid', label: 'Paid' },
   ];
 
   return (
@@ -73,12 +73,12 @@ const PayrollDashboard = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Bảng Lương Tháng</h1>
-          <p className="text-gray-600 mt-2">Quản lý và tính toán lương nhân viên</p>
+          <h1 className="text-3xl font-bold text-gray-900">Monthly Payroll</h1>
+          <p className="text-gray-600 mt-2">Manage and calculate employee payroll</p>
         </div>
         <button className="bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition">
           <PlusIcon className="w-5 h-5" />
-          Tạo Mới
+          Create new
         </button>
       </div>
 
@@ -87,7 +87,7 @@ const PayrollDashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tháng
+              Month
             </label>
             <select
               value={filters.month}
@@ -107,7 +107,7 @@ const PayrollDashboard = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Năm
+              Year
             </label>
             <select
               value={filters.year}
@@ -127,7 +127,7 @@ const PayrollDashboard = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Trạng Thái
+              Status
             </label>
             <select
               value={filters.status}
@@ -147,17 +147,17 @@ const PayrollDashboard = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tìm kiếm
+              Search
             </label>
             <input
               type="text"
-              placeholder="Tên hoặc mã NV..."
+              placeholder="Employee name or code..."
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
           <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
-            Tìm kiếm
+            Search
           </button>
         </div>
       </div>
@@ -168,7 +168,7 @@ const PayrollDashboard = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Nháp</p>
+                <p className="text-gray-600 text-sm">Draft</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {statsData.draft_count || 0}
                 </p>
@@ -182,7 +182,7 @@ const PayrollDashboard = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Chờ duyệt</p>
+                <p className="text-gray-600 text-sm">Pending approval</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {statsData.pending_count || 0}
                 </p>
@@ -196,7 +196,7 @@ const PayrollDashboard = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Đã duyệt</p>
+                <p className="text-gray-600 text-sm">Approved</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {statsData.approved_count || 0}
                 </p>
@@ -210,7 +210,7 @@ const PayrollDashboard = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Đã thanh toán</p>
+                <p className="text-gray-600 text-sm">Paid</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {statsData.paid_count || 0}
                 </p>
@@ -229,24 +229,24 @@ const PayrollDashboard = () => {
           <table className="w-full">
             <thead className="bg-gray-100 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">STT</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">No.</th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Nhân Viên
+                  Employee
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Mức Lương
+                  Base salary
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Tổng Thu Nhập
+                  Total income
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Lương Thực
+                  Net salary
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Trạng Thái
+                  Status
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Thao Tác
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -283,7 +283,7 @@ const PayrollDashboard = () => {
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <button className="text-blue-600 hover:text-blue-800 font-medium">
-                        Chi tiết
+                        Details
                       </button>
                     </td>
                   </tr>
@@ -291,7 +291,7 @@ const PayrollDashboard = () => {
               ) : (
                 <tr>
                   <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
-                    Không có dữ liệu
+                    No data available
                   </td>
                 </tr>
               )}
@@ -302,14 +302,14 @@ const PayrollDashboard = () => {
         {/* Pagination */}
         <div className="bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-between items-center">
           <div className="text-sm text-gray-600">
-            Hiển thị <span className="font-medium">{page}</span> trang
+            Showing page <span className="font-medium">{page}</span>
           </div>
           <div className="flex gap-2">
             <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition">
-              Trước
+              Previous
             </button>
             <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition">
-              Sau
+              Next
             </button>
           </div>
         </div>

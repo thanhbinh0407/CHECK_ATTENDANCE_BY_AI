@@ -95,9 +95,9 @@ export default function EmployeeDashboard({ userId, userName, onNavigate }) {
 
   const greeting = useMemo(() => {
     const h = now.getHours();
-    if (h < 12) return "Chào buổi sáng";
-    if (h < 18) return "Chào buổi chiều";
-    return "Chào buổi tối";
+    if (h < 12) return "Good morning";
+    if (h < 18) return "Good afternoon";
+    return "Good evening";
   }, []);
 
   const go = (tab) => {
@@ -107,7 +107,7 @@ export default function EmployeeDashboard({ userId, userName, onNavigate }) {
   if (dash.loading) {
     return (
       <div className="emp-dash">
-        <div style={{ padding: 40, textAlign: "center", color: "#718096" }}>Đang tải tổng quan…</div>
+        <div style={{ padding: 40, textAlign: "center", color: "#718096" }}>Loading overview…</div>
       </div>
     );
   }
@@ -121,12 +121,12 @@ export default function EmployeeDashboard({ userId, userName, onNavigate }) {
             {userName ? `, ${userName}` : ""}
           </h2>
           <p>
-            Đây là trang chủ cá nhân: đơn chờ duyệt, hoạt động chấm công trong tháng và đơn nghỉ gần đây — chọn thẻ hoặc menu phía trên để thao tác.
+            This is your personal dashboard: pending requests, monthly attendance activity, and recent leave requests.
           </p>
           <div className="emp-dash-pills">
-            <span className="emp-dash-pill">Tháng {now.getMonth() + 1}/{now.getFullYear()}</span>
-            <span className="emp-dash-pill">{totalPending} đơn đang chờ phê duyệt</span>
-            <span className="emp-dash-pill">{dash.attendanceLogsThisMonth} bản ghi chấm công (tháng này)</span>
+            <span className="emp-dash-pill">Month {now.getMonth() + 1}/{now.getFullYear()}</span>
+            <span className="emp-dash-pill">{totalPending} requests pending approval</span>
+            <span className="emp-dash-pill">{dash.attendanceLogsThisMonth} attendance logs this month</span>
           </div>
         </div>
       </div>
@@ -134,40 +134,40 @@ export default function EmployeeDashboard({ userId, userName, onNavigate }) {
       <div className="emp-dash-kpis">
         <div className="emp-dash-kpi">
           <span className="emp-dash-kpi-deco" aria-hidden>🏖️</span>
-          <div className="lbl">Nghỉ phép chờ</div>
+          <div className="lbl">Pending leave</div>
           <div className="val">{dash.pendingLeave}</div>
-          <div className="hint">Theo dõi tại Leave Request</div>
+          <div className="hint">Track in Leave Request</div>
         </div>
         <div className="emp-dash-kpi">
           <span className="emp-dash-kpi-deco" aria-hidden>⏱️</span>
-          <div className="lbl">Tăng ca chờ</div>
+          <div className="lbl">Pending overtime</div>
           <div className="val">{dash.pendingOt}</div>
-          <div className="hint">Duyệt bởi quản lý</div>
+          <div className="hint">Awaiting manager approval</div>
         </div>
         <div className="emp-dash-kpi">
           <span className="emp-dash-kpi-deco" aria-hidden>✈️</span>
-          <div className="lbl">Công tác chờ</div>
+          <div className="lbl">Pending business trips</div>
           <div className="val">{dash.pendingTrip}</div>
-          <div className="hint">Lịch &amp; chi phí</div>
+          <div className="hint">Schedule &amp; expenses</div>
         </div>
         <div className="emp-dash-kpi">
           <span className="emp-dash-kpi-deco" aria-hidden>💵</span>
-          <div className="lbl">Tạm ứng chờ</div>
+          <div className="lbl">Pending advances</div>
           <div className="val">{dash.pendingAdvance}</div>
-          <div className="hint">Ứng lương</div>
+          <div className="hint">Salary advances</div>
         </div>
       </div>
 
       <div className="emp-dash-split">
         <div className="emp-dash-panel">
-          <h3>Đơn nghỉ phép chờ duyệt (gần đây)</h3>
+          <h3>Recent pending leave requests</h3>
           {dash.pendingLeaveList.length === 0 ? (
-            <p style={{ color: "#a0aec0", fontSize: 14 }}>Chưa có đơn nghỉ chờ duyệt.</p>
+            <p style={{ color: "#a0aec0", fontSize: 14 }}>No pending leave requests.</p>
           ) : (
             dash.pendingLeaveList.map((lv) => (
               <div key={lv.id} className="emp-dash-row">
                 <div>
-                  <strong>{lv.type || "Nghỉ"}</strong>
+                  <strong>{lv.type || "Leave"}</strong>
                   <div style={{ fontSize: 12, color: "#a0aec0" }}>
                     {lv.startDate} → {lv.endDate}
                   </div>
@@ -178,24 +178,24 @@ export default function EmployeeDashboard({ userId, userName, onNavigate }) {
           )}
         </div>
         <div className="emp-dash-panel">
-          <h3>Chấm công tháng hiện tại</h3>
+          <h3>Current month attendance</h3>
           <p style={{ margin: "0 0 12px", fontSize: 14, color: "#718096", lineHeight: 1.5 }}>
-            Hệ thống ghi nhận <strong>{dash.attendanceLogsThisMonth}</strong> bản ghi log trong tháng (theo API employee/attendance).
-            Xem chi tiết từng ngày tại mục Attendance.
+            The system recorded <strong>{dash.attendanceLogsThisMonth}</strong> logs this month (via employee/attendance API).
+            View daily details in the Attendance section.
           </p>
           <button type="button" className="emp-dash-act" style={{ width: "100%" }} onClick={() => go("attendance")}>
-            Mở lịch sử chấm công →
+            Open attendance history →
           </button>
         </div>
       </div>
 
       <div className="emp-dash-panel">
-        <h3>Đơn chờ khác của bạn</h3>
+        <h3>Your other pending requests</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 10 }}>
           <div style={{ border: "1px solid rgba(148,163,184,0.35)", borderRadius: 14, padding: 12, background: "#fff" }}>
-            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Tăng ca</div>
+            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Overtime</div>
             {dash.pendingOtList.length === 0 ? (
-              <div style={{ color: "#a0aec0", fontSize: 13 }}>Trống</div>
+              <div style={{ color: "#a0aec0", fontSize: 13 }}>Empty</div>
             ) : (
               dash.pendingOtList.map((r) => (
                 <div key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
@@ -210,15 +210,15 @@ export default function EmployeeDashboard({ userId, userName, onNavigate }) {
           </div>
 
           <div style={{ border: "1px solid rgba(148,163,184,0.35)", borderRadius: 14, padding: 12, background: "#fff" }}>
-            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Công tác / Ứng lương</div>
+            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Business trips / Advances</div>
             {dash.pendingTripList.length === 0 && dash.pendingAdvanceList.length === 0 ? (
-              <div style={{ color: "#a0aec0", fontSize: 13 }}>Trống</div>
+              <div style={{ color: "#a0aec0", fontSize: 13 }}>Empty</div>
             ) : (
               <>
                 {dash.pendingTripList.map((r) => (
                   <div key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 700 }}>CT: {r.destination || r.location || "—"}</div>
+                      <div style={{ fontWeight: 700 }}>Trip: {r.destination || r.location || "—"}</div>
                       <div style={{ fontSize: 12, color: "#a0aec0" }}>{r.date || r.startDate || "—"}</div>
                     </div>
                     <span style={{ fontWeight: 900 }}>{r.approvalStatus}</span>
@@ -227,8 +227,8 @@ export default function EmployeeDashboard({ userId, userName, onNavigate }) {
                 {dash.pendingAdvanceList.map((a) => (
                   <div key={a.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 700 }}>Ứng: {a.month}/{a.year}</div>
-                      <div style={{ fontSize: 12, color: "#a0aec0" }}>{Number(a.amount || 0).toLocaleString("vi-VN")} VND</div>
+                      <div style={{ fontWeight: 700 }}>Advance: {a.month}/{a.year}</div>
+                      <div style={{ fontSize: 12, color: "#a0aec0" }}>{Number(a.amount || 0).toLocaleString("en-US")} VND</div>
                     </div>
                     <span style={{ fontWeight: 900 }}>{a.approvalStatus}</span>
                   </div>
@@ -240,19 +240,19 @@ export default function EmployeeDashboard({ userId, userName, onNavigate }) {
       </div>
 
       <div className="emp-dash-panel">
-        <h3>Lối tắt</h3>
+        <h3>Shortcuts</h3>
         <div className="emp-dash-actions" style={{ marginTop: 12 }}>
           <button type="button" className="emp-dash-act" onClick={() => go("leave")}>
-            Đơn nghỉ phép
+            Leave requests
           </button>
           <button type="button" className="emp-dash-act" onClick={() => go("overtime")}>
-            Đăng ký tăng ca
+            Overtime request
           </button>
           <button type="button" className="emp-dash-act" onClick={() => go("salary")}>
-            Lương &amp; payslip
+            Salary &amp; payslip
           </button>
           <button type="button" className="emp-dash-act" onClick={() => go("account")}>
-            Tài khoản &amp; mật khẩu
+            Account &amp; password
           </button>
         </div>
       </div>

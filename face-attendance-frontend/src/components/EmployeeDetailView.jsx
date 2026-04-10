@@ -89,7 +89,7 @@ export default function EmployeeDetailView() {
       }
     } catch (error) {
       console.error("Error fetching employees:", error);
-      setMessage("Lỗi khi tải danh sách nhân viên");
+      setMessage("Failed to load employee list");
     } finally {
       setLoading(false);
     }
@@ -111,11 +111,11 @@ export default function EmployeeDetailView() {
         setShowModal(true);
         setSelectedEmployee(employeeId);
       } else {
-        setMessage("Không thể tải chi tiết nhân viên");
+        setMessage("Unable to load employee details");
       }
     } catch (error) {
       console.error("Error fetching employee details:", error);
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -163,9 +163,9 @@ export default function EmployeeDetailView() {
 
       const data = await res.json();
       if (res.ok) {
-        let msg = "✅ Cập nhật thông tin nhân viên thành công!";
+        let msg = "✅ Employee information updated successfully!";
         if (data.recalculatedSalaryCount > 0) {
-          msg += ` (${data.recalculatedSalaryCount} bản ghi lương đã được tính lại)`;
+          msg += ` (${data.recalculatedSalaryCount} payroll records recalculated)`;
         }
         setMessage(msg);
         setIsEditing(false);
@@ -173,10 +173,10 @@ export default function EmployeeDetailView() {
         fetchEmployees(); // Refresh list
         setTimeout(() => setMessage(""), 5000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể cập nhật"));
+        setMessage("Error: " + (data.message || "Unable to update"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -189,15 +189,15 @@ export default function EmployeeDetailView() {
 
   return (
     <div style={{ padding: theme.spacing.xl, backgroundColor: theme.neutral.gray50, minHeight: "100vh" }}>
-      <h1 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>👤 Thông Tin Chi Tiết Nhân Viên</h1>
+      <h1 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>👤 Employee Detail Information</h1>
 
       {message && (
         <div
           style={{
             padding: theme.spacing.md,
             marginBottom: theme.spacing.lg,
-            backgroundColor: message.includes("Lỗi") ? "#f8d7da" : "#d4edda",
-            color: message.includes("Lỗi") ? "#721c24" : "#155724",
+            backgroundColor: message.includes("Error") ? "#f8d7da" : "#d4edda",
+            color: message.includes("Error") ? "#721c24" : "#155724",
             borderRadius: theme.radius.md
           }}
         >
@@ -216,11 +216,11 @@ export default function EmployeeDetailView() {
             height: "fit-content"
           }}
         >
-          <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>📋 Danh Sách Nhân Viên</h3>
+          <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>📋 Employee List</h3>
 
           <input
             type="text"
-            placeholder="Tìm kiếm tên hoặc mã NV..."
+            placeholder="Search by name or employee code..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
@@ -235,7 +235,7 @@ export default function EmployeeDetailView() {
           <div style={{ maxHeight: "600px", overflowY: "auto" }}>
             {filteredEmployees.length === 0 ? (
               <p style={{ color: theme.neutral.gray500, textAlign: "center", padding: theme.spacing.xl }}>
-                Không tìm thấy nhân viên
+                No employees found
               </p>
             ) : (
               filteredEmployees.map((emp) => (
@@ -276,7 +276,7 @@ export default function EmployeeDetailView() {
               }}
             >
               <div style={{ fontSize: "3em", marginBottom: theme.spacing.md }}>👈</div>
-              <p>Chọn một nhân viên từ danh sách để xem chi tiết</p>
+              <p>Select an employee from the list to view details</p>
             </div>
           )}
         </div>
@@ -329,9 +329,9 @@ export default function EmployeeDetailView() {
                 <div>
                   <h2 style={{ margin: `0 0 ${theme.spacing.md} 0` }}>{selectedEmployeeForModal.name}</h2>
                   <div style={{ display: "flex", gap: theme.spacing.xl, fontSize: theme.typography.small.fontSize }}>
-                    <span><strong>Mã NV:</strong> {selectedEmployeeForModal.employeeCode}</span>
-                    <span><strong>Chức vụ:</strong> {selectedEmployeeForModal.JobTitle?.name || "N/A"}</span>
-                    <span><strong>Phòng ban:</strong> {selectedEmployeeForModal.Department?.name || "N/A"}</span>
+                    <span><strong>Employee Code:</strong> {selectedEmployeeForModal.employeeCode}</span>
+                    <span><strong>Position:</strong> {selectedEmployeeForModal.JobTitle?.name || "N/A"}</span>
+                    <span><strong>Department:</strong> {selectedEmployeeForModal.Department?.name || "N/A"}</span>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: theme.spacing.sm }}>
@@ -348,7 +348,7 @@ export default function EmployeeDetailView() {
                         fontWeight: 600
                       }}
                     >
-                      ✏️ Chỉnh sửa
+                      ✏️ Edit
                     </button>
                   )}
                   <button
@@ -388,10 +388,10 @@ export default function EmployeeDetailView() {
                       borderBottom: activeTab === tab ? `3px solid ${theme.info.main}` : "none"
                     }}
                   >
-                    {tab === "info" && "ℹ️ Thông Tin"}
-                    {tab === "attendance" && "📍 Chuyên Cần"}
-                    {tab === "leave" && "📅 Nghỉ Phép"}
-                    {tab === "salary" && "💰 Lương"}
+                    {tab === "info" && "ℹ️ Information"}
+                    {tab === "attendance" && "📍 Attendance"}
+                    {tab === "leave" && "📅 Leave"}
+                    {tab === "salary" && "💰 Salary"}
                   </button>
                 ))}
               </div>
@@ -401,13 +401,13 @@ export default function EmployeeDetailView() {
                 {/* Info Tab */}
                 {activeTab === "info" && selectedEmployeeForModal && (
                   <div>
-                    <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>Thông Tin Cá Nhân</h3>
+                    <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>Personal Information</h3>
 
                     {isEditing ? (
                       <div>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl, marginBottom: theme.spacing.xl }}>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Tên *</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Name *</label>
                             <input
                               type="text"
                               value={editForm.name}
@@ -435,7 +435,7 @@ export default function EmployeeDetailView() {
                             />
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Số điện thoại</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Phone Number</label>
                             <input
                               type="text"
                               value={editForm.phoneNumber}
@@ -449,7 +449,7 @@ export default function EmployeeDetailView() {
                             />
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày sinh</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Date of Birth</label>
                             <input
                               type="date"
                               value={editForm.dateOfBirth}
@@ -463,7 +463,7 @@ export default function EmployeeDetailView() {
                             />
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Giới tính</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Gender</label>
                             <select
                               value={editForm.gender}
                               onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
@@ -474,14 +474,14 @@ export default function EmployeeDetailView() {
                                 borderRadius: theme.radius.md
                               }}
                             >
-                              <option value="">Chọn giới tính</option>
-                              <option value="male">Nam</option>
-                              <option value="female">Nữ</option>
-                              <option value="other">Khác</option>
+                              <option value="">Select gender</option>
+                              <option value="male">Male</option>
+                              <option value="female">Female</option>
+                              <option value="other">Other</option>
                             </select>
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Phòng ban</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Department</label>
                             <select
                               value={editForm.departmentId || ""}
                               onChange={(e) => setEditForm({ ...editForm, departmentId: e.target.value ? parseInt(e.target.value) : null })}
@@ -492,14 +492,14 @@ export default function EmployeeDetailView() {
                                 borderRadius: theme.radius.md
                               }}
                             >
-                              <option value="">Chọn phòng ban</option>
+                              <option value="">Select department</option>
                               {departments.map(dept => (
                                 <option key={dept.id} value={dept.id}>{dept.name}</option>
                               ))}
                             </select>
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chức vụ</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Position</label>
                             <select
                               value={editForm.jobTitleId || ""}
                               onChange={(e) => setEditForm({ ...editForm, jobTitleId: e.target.value ? parseInt(e.target.value) : null })}
@@ -510,14 +510,14 @@ export default function EmployeeDetailView() {
                                 borderRadius: theme.radius.md
                               }}
                             >
-                              <option value="">Chọn chức vụ</option>
+                              <option value="">Select position</option>
                               {jobTitles.map(job => (
                                 <option key={job.id} value={job.id}>{job.name}</option>
                               ))}
                             </select>
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Lương cơ bản (VNĐ)</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Base Salary (VND)</label>
                             <input
                               type="number"
                               value={editForm.baseSalary}
@@ -544,11 +544,11 @@ export default function EmployeeDetailView() {
                               }}
                             />
                             <p style={{ margin: theme.spacing.xs, fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500 }}>
-                              Dùng để tính thâm niên và ngày phép năm
+                              Used for seniority and annual leave calculations
                             </p>
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Loại hợp đồng</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Contract Type</label>
                             <select
                               value={editForm.contractType || ""}
                               onChange={(e) => setEditForm({ ...editForm, contractType: e.target.value || null })}
@@ -559,7 +559,7 @@ export default function EmployeeDetailView() {
                                 borderRadius: theme.radius.md
                               }}
                             >
-                              <option value="">Chọn loại hợp đồng</option>
+                              <option value="">Select contract type</option>
                               <option value="probation">Probation</option>
                               <option value="1_year">1-year contract</option>
                               <option value="3_year">3-year contract</option>
@@ -568,7 +568,7 @@ export default function EmployeeDetailView() {
                             </select>
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Trạng thái lao động</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Employment Status</label>
                             <select
                               value={editForm.employmentStatus || "active"}
                               onChange={(e) => setEditForm({ ...editForm, employmentStatus: e.target.value })}
@@ -588,12 +588,12 @@ export default function EmployeeDetailView() {
                             </select>
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chi nhánh</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Branch</label>
                             <input
                               type="text"
                               value={editForm.branchName}
                               onChange={(e) => setEditForm({ ...editForm, branchName: e.target.value })}
-                              placeholder="Tên chi nhánh/văn phòng"
+                              placeholder="Branch/office name"
                               style={{
                                 width: "100%",
                                 padding: theme.spacing.md,
@@ -603,7 +603,7 @@ export default function EmployeeDetailView() {
                             />
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Quản lý trực tiếp</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Direct Manager</label>
                             <select
                               value={editForm.managerId || ""}
                               onChange={(e) => setEditForm({ ...editForm, managerId: e.target.value ? parseInt(e.target.value) : null })}
@@ -614,7 +614,7 @@ export default function EmployeeDetailView() {
                                 borderRadius: theme.radius.md
                               }}
                             >
-                              <option value="">Chọn quản lý (duyệt đơn chấm công, nghỉ phép)</option>
+                              <option value="">Select manager (attendance/leave approver)</option>
                               {managers.filter(m => m.id !== selectedEmployeeForModal?.id).map(mgr => (
                                 <option key={mgr.id} value={mgr.id}>
                                   {mgr.name} ({mgr.employeeCode || mgr.email})
@@ -623,7 +623,7 @@ export default function EmployeeDetailView() {
                             </select>
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Địa chỉ</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Address</label>
                             <textarea
                               value={editForm.address}
                               onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
@@ -661,7 +661,7 @@ export default function EmployeeDetailView() {
                               fontWeight: 600
                             }}
                           >
-                            {loading ? "Đang lưu..." : "💾 Lưu thay đổi"}
+                            {loading ? "Saving..." : "💾 Save Changes"}
                           </button>
                           <button
                             onClick={() => {
@@ -678,7 +678,7 @@ export default function EmployeeDetailView() {
                               fontWeight: 600
                             }}
                           >
-                            Hủy
+                            Cancel
                           </button>
                         </div>
                       </div>
@@ -690,38 +690,38 @@ export default function EmployeeDetailView() {
                         </div>
 
                         <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Số điện thoại:</label>
-                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.phoneNumber || "Chưa cập nhật"}</p>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Phone Number:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.phoneNumber || "Not updated"}</p>
                         </div>
 
                         <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Ngày sinh:</label>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Date of Birth:</label>
                           <p style={{ margin: 0, color: theme.neutral.gray600 }}>
-                            {selectedEmployeeForModal.dateOfBirth ? new Date(selectedEmployeeForModal.dateOfBirth).toLocaleDateString('vi-VN') : "Chưa cập nhật"}
+                            {selectedEmployeeForModal.dateOfBirth ? new Date(selectedEmployeeForModal.dateOfBirth).toLocaleDateString('en-US') : "Not updated"}
                           </p>
                         </div>
 
                         <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Giới tính:</label>
-                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.gender || "Chưa cập nhật"}</p>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Gender:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.gender || "Not updated"}</p>
                         </div>
                       </div>
                     )}
 
                     <div style={{ borderTop: `1px solid ${theme.neutral.gray200}`, paddingTop: theme.spacing.xl, marginTop: theme.spacing.xl }}>
-                      <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>👨‍👩‍👧‍👦 Người Phụ Thuộc</h3>
+                      <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>👨‍👩‍👧‍👦 Dependents</h3>
 
                       {(() => {
                         const dependents = selectedEmployeeForModal.Dependents || selectedEmployeeForModal.dependents || [];
                         if (!dependents || dependents.length === 0) {
                           return (
-                            <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>Chưa có người phụ thuộc</p>
+                            <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No dependents yet</p>
                           );
                         }
                         return (
                           <div>
                             <div style={{ marginBottom: theme.spacing.lg, padding: theme.spacing.md, backgroundColor: theme.info.bg, borderRadius: theme.radius.md }}>
-                              <strong>Tổng cộng: {dependents.length} người</strong>
+                              <strong>Total: {dependents.length} people</strong>
                             </div>
 
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.lg }}>
@@ -737,9 +737,9 @@ export default function EmployeeDetailView() {
                                 >
                                   <div style={{ fontWeight: "600", marginBottom: theme.spacing.xs }}>{dep.fullName}</div>
                                   <div style={{ fontSize: theme.typography.small.fontSize, color: theme.neutral.gray600 }}>
-                                    <div>Quan hệ: {dep.relationship}</div>
-                                    <div>Ngày sinh: {dep.dateOfBirth ? new Date(dep.dateOfBirth).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}</div>
-                                    {dep.gender && <div>Giới tính: {dep.gender}</div>}
+                                    <div>Relationship: {dep.relationship}</div>
+                                    <div>Date of birth: {dep.dateOfBirth ? new Date(dep.dateOfBirth).toLocaleDateString('en-US') : 'Not updated'}</div>
+                                    {dep.gender && <div>Gender: {dep.gender}</div>}
                                   </div>
                                 </div>
                               ))}
@@ -750,20 +750,20 @@ export default function EmployeeDetailView() {
                     </div>
 
                     <div style={{ borderTop: `1px solid ${theme.neutral.gray200}`, paddingTop: theme.spacing.xl, marginTop: theme.spacing.xl }}>
-                      <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>📜 Bằng Cấp & Chứng Chỉ</h3>
+                      <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>📜 Degrees & Certificates</h3>
 
                       {(() => {
                         const qualifications = selectedEmployeeForModal.Qualifications || selectedEmployeeForModal.qualifications || [];
                         if (!qualifications || qualifications.length === 0) {
                           return (
-                            <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>Chưa có bằng cấp hoặc chứng chỉ</p>
+                            <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No degrees or certificates yet</p>
                           );
                         }
 
                         return (
                           <div>
                             <div style={{ marginBottom: theme.spacing.lg, padding: theme.spacing.md, backgroundColor: theme.info.bg, borderRadius: theme.radius.md }}>
-                              <strong>Tổng cộng: {qualifications.length} bằng cấp</strong>
+                              <strong>Total: {qualifications.length} qualifications</strong>
                             </div>
 
                             {(() => {
@@ -782,10 +782,10 @@ export default function EmployeeDetailView() {
                                     borderRadius: theme.radius.md,
                                     marginBottom: theme.spacing.md
                                   }}>
-                                    {type === 'degree' && '🎓 Bằng Cấp'}
-                                    {type === 'certificate' && '🏅 Chứng Chỉ'}
-                                    {type === 'license' && '📋 Giấy Phép'}
-                                    {type === 'training' && '📚 Huấn Luyện'}
+                                    {type === 'degree' && '🎓 Degree'}
+                                    {type === 'certificate' && '🏅 Certificate'}
+                                    {type === 'license' && '📋 License'}
+                                    {type === 'training' && '📚 Training'}
                                     <span style={{ marginLeft: theme.spacing.sm, color: theme.neutral.gray600, fontWeight: "400" }}>({quals.length})</span>
                                   </div>
                                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
@@ -802,11 +802,11 @@ export default function EmployeeDetailView() {
                                       >
                                         <div style={{ fontWeight: "600", marginBottom: theme.spacing.xs }}>{qual.name}</div>
                                         {qual.issuedBy && (
-                                          <div style={{ color: theme.neutral.gray600, fontSize: theme.typography.tiny.fontSize }}>Cơ quan: {qual.issuedBy}</div>
+                                          <div style={{ color: theme.neutral.gray600, fontSize: theme.typography.tiny.fontSize }}>Issued by: {qual.issuedBy}</div>
                                         )}
                                         {qual.issuedDate && (
                                           <div style={{ color: theme.neutral.gray600, fontSize: theme.typography.tiny.fontSize }}>
-                                            Cấp ngày: {new Date(qual.issuedDate).toLocaleDateString('vi-VN')}
+                                            Issued date: {new Date(qual.issuedDate).toLocaleDateString('en-US')}
                                           </div>
                                         )}
                                       </div>
@@ -821,21 +821,21 @@ export default function EmployeeDetailView() {
                     </div>
 
                     <div style={{ borderTop: `1px solid ${theme.neutral.gray200}`, paddingTop: theme.spacing.xl, marginTop: theme.spacing.xl }}>
-                      <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>💼 Thông tin Công việc</h3>
+                      <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>💼 Job Information</h3>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.xl }}>
                         <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Phòng ban/Bộ phận:</label>
-                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.Department?.name || selectedEmployeeForModal.department || "Chưa cập nhật"}</p>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Department/Unit:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.Department?.name || selectedEmployeeForModal.department || "Not updated"}</p>
                         </div>
 
                         <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chi nhánh:</label>
-                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.branchName || "Chưa cập nhật"}</p>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Branch:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.branchName || "Not updated"}</p>
                         </div>
 
                         <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Chức danh/Vị trí:</label>
-                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.JobTitle?.name || selectedEmployeeForModal.jobTitle || "Chưa cập nhật"}</p>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Job Title/Position:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.JobTitle?.name || selectedEmployeeForModal.jobTitle || "Not updated"}</p>
                         </div>
 
                         <div>
@@ -850,7 +850,7 @@ export default function EmployeeDetailView() {
                         </div>
 
                         <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Trạng thái lao động:</label>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Employment Status:</label>
                           <p
                             style={{
                               margin: 0,
@@ -888,26 +888,26 @@ export default function EmployeeDetailView() {
                         </div>
 
                         <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Quản lý trực tiếp:</label>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Direct Manager:</label>
                           <p style={{ margin: 0, color: theme.neutral.gray600 }}>
                             {selectedEmployeeForModal.Manager?.name
                               ? `${selectedEmployeeForModal.Manager.name}${selectedEmployeeForModal.Manager.employeeCode ? ` (${selectedEmployeeForModal.Manager.employeeCode})` : ""}`
-                              : "Chưa cập nhật"}
+                              : "Not updated"}
                           </p>
                           <p style={{ margin: theme.spacing.xs, fontSize: theme.typography.small.fontSize, color: theme.neutral.gray500 }}>
-                            Người duyệt đơn chấm công, nghỉ phép
+                            Approver for attendance and leave requests
                           </p>
                         </div>
 
                         <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Bậc lương:</label>
-                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.SalaryGrade?.name || selectedEmployeeForModal.salaryGrade || "Chưa cập nhật"}</p>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Salary Grade:</label>
+                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.SalaryGrade?.name || selectedEmployeeForModal.salaryGrade || "Not updated"}</p>
                         </div>
 
                         <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Lương cơ bản:</label>
+                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Base Salary:</label>
                           <p style={{ margin: 0, color: theme.neutral.gray600, fontWeight: "600" }}>
-                            ₫{selectedEmployeeForModal.baseSalary?.toLocaleString("vi-VN") || "0"}
+                            ₫{selectedEmployeeForModal.baseSalary?.toLocaleString("en-US") || "0"}
                           </p>
                         </div>
                       </div>
@@ -918,24 +918,24 @@ export default function EmployeeDetailView() {
                 {/* Attendance Tab */}
                 {activeTab === "attendance" && selectedEmployeeForModal && (
                   <div>
-                    <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>Thống Kê Chuyên Cần</h3>
-                    <p style={{ color: theme.neutral.gray500 }}>Chức năng đang được phát triển...</p>
+                    <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>Attendance Statistics</h3>
+                    <p style={{ color: theme.neutral.gray500 }}>Feature under development...</p>
                   </div>
                 )}
 
                 {/* Leave Tab */}
                 {activeTab === "leave" && selectedEmployeeForModal && (
                   <div>
-                    <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>Lịch Sử Nghỉ Phép</h3>
-                    <p style={{ color: theme.neutral.gray500 }}>Chức năng đang được phát triển...</p>
+                    <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>Leave History</h3>
+                    <p style={{ color: theme.neutral.gray500 }}>Feature under development...</p>
                   </div>
                 )}
 
                 {/* Salary Tab */}
                 {activeTab === "salary" && selectedEmployeeForModal && (
                   <div>
-                    <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>Lịch Sử Lương</h3>
-                    <p style={{ color: theme.neutral.gray500 }}>Chức năng đang được phát triển...</p>
+                    <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>Salary History</h3>
+                    <p style={{ color: theme.neutral.gray500 }}>Feature under development...</p>
                   </div>
                 )}
               </div>

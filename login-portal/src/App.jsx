@@ -2,8 +2,8 @@ import { useState } from 'react'
 import './App.css'
 
 /**
- * Mỗi vai trò → client riêng (đúng cổng Vite trong repo).
- * Ghi đè bằng biến môi trường nếu deploy khác (vd. VITE_HR_CLIENT_URL).
+ * Each role maps to its own client app (matching Vite ports).
+ * Override via env vars when deploying (e.g. VITE_HR_CLIENT_URL).
  */
 const ROLE_CLIENT_CONFIG = {
   manager: {
@@ -29,11 +29,11 @@ const ROLE_CLIENT_CONFIG = {
 }
 
 const ROLE_DESCRIPTIONS = {
-  manager:    'Manage user accounts, permissions, and system settings',
+  manager:    'Manage user accounts, roles, and system configuration',
   hr:         'Manage employee profiles, departments, job titles, and attendance',
-  accountant: 'Handle payroll, payslips, taxes, and social insurance',
-  supervisor: 'Approve requests, review payroll, and view reports',
-  employee:   'View personal information, attendance history, and submit requests',
+  accountant: 'Handle payroll, tax, and social insurance operations',
+  supervisor: 'Review requests, approve payroll, and monitor reports',
+  employee:   'View personal profile, attendance history, and submit requests',
 }
 
 function App() {
@@ -48,12 +48,12 @@ function App() {
     setError('')
 
     if (!selectedRole) {
-      setError('Please select a login role')
+      setError('Please select a role to sign in')
       return
     }
 
     if (!email || !password) {
-      setError('Please enter your email and password')
+      setError('Please enter email and password')
       return
     }
 
@@ -71,7 +71,7 @@ function App() {
       if (data.status === 'success') {
         const cfg = ROLE_CLIENT_CONFIG[selectedRole]
         if (!cfg) {
-          setError('Client configuration for this role is not available yet.')
+          setError('Client configuration for this role is missing.')
           setLoading(false)
           return
         }
@@ -79,11 +79,11 @@ function App() {
         const dest = `${cfg.origin}${cfg.path}?token=${tokenParam}`
         window.location.href = dest
       } else {
-        setError(data.message || 'Login failed')
+        setError(data.message || 'Sign in failed')
       }
     } catch (err) {
       console.error('Login error:', err)
-      setError('Unable to connect to the server. Please try again.')
+      setError('Cannot connect to server. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -95,13 +95,13 @@ function App() {
         <div className="login-header">
           <h1>Human Resource Management System</h1>
           <p style={{ fontSize: '13px', color: '#718096', marginTop: '4px' }}>
-            Unified access portal for role-based HR operations
+            Human Resource Management System
           </p>
         </div>
 
         <form onSubmit={handleLogin} className="login-form">
           <div className="form-group">
-            <label htmlFor="role">Login role</label>
+            <label htmlFor="role">Sign-in role</label>
             <select
               id="role"
               value={selectedRole}
@@ -109,8 +109,8 @@ function App() {
               className="form-select"
               required
             >
-              <option value="">-- Select a role --</option>
-              <option value="manager">🏢 Director (Manager)</option>
+              <option value="">-- Select role --</option>
+              <option value="manager">🏢 Manager</option>
               <option value="hr">👥 HR Staff</option>
               <option value="accountant">💰 Accountant</option>
               <option value="supervisor">✅ Supervisor</option>
@@ -144,7 +144,7 @@ function App() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="form-input"
-              placeholder="Enter your password"
+              placeholder="Enter password"
               required
             />
           </div>
@@ -165,7 +165,7 @@ function App() {
         </form>
 
         <div className="login-footer">
-          <p>Select the correct role to access the corresponding app</p>
+          <p>Select the correct role to access the corresponding portal</p>
           <p style={{ fontSize: '11px', color: '#a0aec0', marginTop: '8px' }}>
             💡 Manager accounts can access all portals
           </p>

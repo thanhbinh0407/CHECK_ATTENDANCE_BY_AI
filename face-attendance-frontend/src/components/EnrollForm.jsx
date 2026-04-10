@@ -24,13 +24,13 @@ export default function EnrollForm() {
   };
 
   const handleEnroll = async () => {
-    if (!modelsLoaded) return alert("Đang tải models");
+    if (!modelsLoaded) return alert("Loading models");
     const detection = await faceapi
       .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
       .withFaceLandmarks()
       .withFaceDescriptor();
 
-    if (!detection) return alert("Không tìm thấy khuôn mặt");
+    if (!detection) return alert("No face detected");
 
     const descriptor = Array.from(detection.descriptor);
 
@@ -53,21 +53,21 @@ export default function EnrollForm() {
       body: JSON.stringify(payload)
     });
     const data = await res.json();
-    if (data.status === "success") alert("Enroll thành công");
-    else alert("Lỗi enroll");
+    if (data.status === "success") alert("Enrollment successful");
+    else alert("Enrollment failed");
   };
 
   return (
     <div>
       <h3>Enroll user</h3>
-      <input placeholder="Tên" value={name} onChange={e => setName(e.target.value)} />
+      <input placeholder="Name" value={name} onChange={e => setName(e.target.value)} />
       <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
       <div>
         <video ref={videoRef} width="320" height="240" autoPlay muted />
       </div>
-      <button onClick={startCamera}>Bật Camera</button>
+      <button onClick={startCamera}>Start Camera</button>
       <button onClick={handleEnroll} style={{ marginLeft: 8 }}>
-        Enroll (chụp & gửi)
+        Enroll (capture & submit)
       </button>
     </div>
   );

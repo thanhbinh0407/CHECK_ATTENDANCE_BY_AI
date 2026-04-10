@@ -3,7 +3,7 @@
  */
 
 export const formatCurrency = (value) => {
-  if (!value) return '0 VNĐ';
+  if (!value) return '0 VND';
   return new Intl.NumberFormat('vi-VN', {
     style: 'currency',
     currency: 'VND',
@@ -33,11 +33,11 @@ export const getStatusColor = (status) => {
 
 export const getStatusLabel = (status) => {
   const labels = {
-    draft: 'Nháp',
-    pending_approval: 'Chờ duyệt',
-    approved: 'Đã duyệt',
-    paid: 'Đã thanh toán',
-    rejected: 'Bị từ chối',
+    draft: 'Draft',
+    pending_approval: 'Pending approval',
+    approved: 'Approved',
+    paid: 'Paid',
+    rejected: 'Rejected',
   };
   return labels[status] || status;
 };

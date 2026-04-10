@@ -42,10 +42,10 @@ export default function QualificationManagement() {
       if (res.ok) {
         setQualifications(data.qualifications || []);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể tải danh sách bằng cấp"));
+        setMessage("Error: " + (data.message || "Unable to load qualifications"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -92,16 +92,16 @@ export default function QualificationManagement() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage(editingId ? "Cập nhật bằng cấp thành công!" : "Tạo bằng cấp thành công!");
+        setMessage(editingId ? "Qualification updated successfully!" : "Qualification created successfully!");
         setShowForm(false);
         setEditingId(null);
         setFormData({ userId: "", type: "degree", name: "", issuedBy: "", issuedDate: "", expiryDate: "", certificateNumber: "", description: "", isActive: true });
         fetchQualifications();
       } else {
-        setMessage("Lỗi: " + (data.message || "Unknown error"));
+        setMessage("Error: " + (data.message || "Unknown error"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -124,7 +124,7 @@ export default function QualificationManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Bạn chắc chắn muốn xóa bằng cấp này?")) return;
+    if (!window.confirm("Are you sure you want to delete this qualification?")) return;
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
@@ -134,13 +134,13 @@ export default function QualificationManagement() {
       });
       const data = await res.json();
       if (res.ok) {
-        setMessage("Xóa bằng cấp thành công!");
+        setMessage("Qualification deleted successfully!");
         fetchQualifications();
       } else {
-        setMessage("Lỗi: " + (data.message || "Unknown error"));
+        setMessage("Error: " + (data.message || "Unknown error"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -148,10 +148,10 @@ export default function QualificationManagement() {
 
   const getTypeLabel = (type) => {
     const labels = {
-      degree: "Bằng cấp",
-      certificate: "Chứng chỉ",
-      license: "Giấy phép",
-      training: "Khóa đào tạo"
+      degree: "Degree",
+      certificate: "Certificate",
+      license: "License",
+      training: "Training Course"
     };
     return labels[type] || type;
   };
@@ -159,7 +159,7 @@ export default function QualificationManagement() {
   return (
     <div style={{ padding: "20px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <h2 style={{ color: theme.primary.main }}>📜 Quản Lý Bằng Cấp & Chứng Chỉ</h2>
+        <h2 style={{ color: theme.primary.main }}>📜 Qualification & Certificate Management</h2>
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <select
             value={filterUserId}
@@ -170,7 +170,7 @@ export default function QualificationManagement() {
               borderRadius: theme.radius.sm
             }}
           >
-            <option value="">Tất cả nhân viên</option>
+            <option value="">All employees</option>
             {employees.map(emp => (
               <option key={emp.id} value={emp.id}>{emp.name} ({emp.employeeCode})</option>
             ))}
@@ -191,7 +191,7 @@ export default function QualificationManagement() {
               fontWeight: "600"
             }}
           >
-            + Thêm Bằng Cấp
+            + Add Qualification
           </button>
         </div>
       </div>
@@ -200,8 +200,8 @@ export default function QualificationManagement() {
         <div style={{
           padding: "12px",
           marginBottom: "20px",
-          backgroundColor: message.includes("thành công") ? theme.success.bg : theme.error.bg,
-          color: message.includes("thành công") ? theme.success.text : theme.error.text,
+          backgroundColor: message.toLowerCase().includes("success") ? theme.success.bg : theme.error.bg,
+          color: message.toLowerCase().includes("success") ? theme.success.text : theme.error.text,
           borderRadius: theme.radius.md
         }}>
           {message}
@@ -217,13 +217,13 @@ export default function QualificationManagement() {
           boxShadow: theme.shadows.md
         }}>
           <h3 style={{ marginTop: 0, color: theme.primary.main }}>
-            {editingId ? "Chỉnh Sửa Bằng Cấp" : "Thêm Bằng Cấp Mới"}
+            {editingId ? "Edit Qualification" : "Add New Qualification"}
           </h3>
           <form onSubmit={handleSubmit}>
             <div style={{ display: "grid", gridTemplateColumns: editingId ? "1fr 1fr" : "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
               {!editingId && (
                 <div>
-                  <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Nhân viên *</label>
+                  <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Employee *</label>
                   <select
                     required={!editingId}
                     value={formData.userId}
@@ -235,7 +235,7 @@ export default function QualificationManagement() {
                       borderRadius: theme.radius.sm
                     }}
                   >
-                    <option value="">Chọn nhân viên</option>
+                    <option value="">Select employee</option>
                     {employees.map(emp => (
                       <option key={emp.id} value={emp.id}>{emp.name} ({emp.employeeCode})</option>
                     ))}
@@ -243,7 +243,7 @@ export default function QualificationManagement() {
                 </div>
               )}
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Loại *</label>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Type *</label>
                 <select
                   required
                   value={formData.type}
@@ -255,14 +255,14 @@ export default function QualificationManagement() {
                     borderRadius: theme.radius.sm
                   }}
                 >
-                  <option value="degree">Bằng cấp</option>
-                  <option value="certificate">Chứng chỉ</option>
-                  <option value="license">Giấy phép</option>
-                  <option value="training">Khóa đào tạo</option>
+                  <option value="degree">Degree</option>
+                  <option value="certificate">Certificate</option>
+                  <option value="license">License</option>
+                  <option value="training">Training Course</option>
                 </select>
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Tên bằng cấp *</label>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Qualification Name *</label>
                 <input
                   type="text"
                   required
@@ -277,7 +277,7 @@ export default function QualificationManagement() {
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Cơ quan cấp</label>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Issued By</label>
                 <input
                   type="text"
                   value={formData.issuedBy}
@@ -291,7 +291,7 @@ export default function QualificationManagement() {
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Ngày cấp</label>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Issue Date</label>
                 <input
                   type="date"
                   value={formData.issuedDate}
@@ -305,7 +305,7 @@ export default function QualificationManagement() {
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Ngày hết hạn</label>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Expiry Date</label>
                 <input
                   type="date"
                   value={formData.expiryDate}
@@ -319,7 +319,7 @@ export default function QualificationManagement() {
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Số chứng chỉ</label>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Certificate Number</label>
                 <input
                   type="text"
                   value={formData.certificateNumber}
@@ -339,12 +339,12 @@ export default function QualificationManagement() {
                     checked={formData.isActive}
                     onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                   />
-                  <span>Hoạt động</span>
+                  <span>Active</span>
                 </label>
               </div>
             </div>
             <div style={{ marginBottom: "16px" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Mô tả</label>
+              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Description</label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -371,7 +371,7 @@ export default function QualificationManagement() {
                   opacity: loading ? 0.6 : 1
                 }}
               >
-                {loading ? "Đang lưu..." : (editingId ? "Cập nhật" : "Tạo mới")}
+                {loading ? "Saving..." : (editingId ? "Update" : "Create")}
               </button>
               <button
                 type="button"
@@ -389,7 +389,7 @@ export default function QualificationManagement() {
                   cursor: "pointer"
                 }}
               >
-                Hủy
+                Cancel
               </button>
             </div>
           </form>
@@ -397,19 +397,19 @@ export default function QualificationManagement() {
       )}
 
       {loading && !showForm ? (
-        <div style={{ textAlign: "center", padding: "40px" }}>Đang tải...</div>
+        <div style={{ textAlign: "center", padding: "40px" }}>Loading...</div>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse", backgroundColor: "white", borderRadius: theme.radius.md, overflow: "hidden" }}>
           <thead>
             <tr style={{ backgroundColor: theme.primary.main, color: "white" }}>
-              <th style={{ padding: "12px", textAlign: "left" }}>Nhân viên</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Loại</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Tên</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Cơ quan cấp</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Ngày cấp</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Ngày hết hạn</th>
-              <th style={{ padding: "12px", textAlign: "center" }}>Trạng thái</th>
-              <th style={{ padding: "12px", textAlign: "center" }}>Thao tác</th>
+              <th style={{ padding: "12px", textAlign: "left" }}>Employee</th>
+              <th style={{ padding: "12px", textAlign: "left" }}>Type</th>
+              <th style={{ padding: "12px", textAlign: "left" }}>Name</th>
+              <th style={{ padding: "12px", textAlign: "left" }}>Issued By</th>
+              <th style={{ padding: "12px", textAlign: "left" }}>Issue Date</th>
+              <th style={{ padding: "12px", textAlign: "left" }}>Expiry Date</th>
+              <th style={{ padding: "12px", textAlign: "center" }}>Status</th>
+              <th style={{ padding: "12px", textAlign: "center" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -436,7 +436,7 @@ export default function QualificationManagement() {
                     backgroundColor: qual.isActive ? theme.success.bg : theme.error.bg,
                     color: qual.isActive ? theme.success.text : theme.error.text
                   }}>
-                    {qual.isActive ? "Hoạt động" : "Không hoạt động"}
+                    {qual.isActive ? "Active" : "Inactive"}
                   </span>
                 </td>
                 <td style={{ padding: "12px", textAlign: "center" }}>
@@ -453,7 +453,7 @@ export default function QualificationManagement() {
                       fontSize: "12px"
                     }}
                   >
-                    Sửa
+                    Edit
                   </button>
                   <button
                     onClick={() => handleDelete(qual.id)}
@@ -467,7 +467,7 @@ export default function QualificationManagement() {
                       fontSize: "12px"
                     }}
                   >
-                    Xóa
+                    Delete
                   </button>
                 </td>
               </tr>

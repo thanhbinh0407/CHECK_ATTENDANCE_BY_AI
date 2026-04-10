@@ -665,8 +665,8 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
           <div style={{
             padding: theme.spacing.md,
             margin: theme.spacing.md,
-            backgroundColor: (message.includes("successfully") || message.includes("thành công")) ? "#d4edda" : "#f8d7da",
-            color: (message.includes("successfully") || message.includes("thành công")) ? "#155724" : "#721c24",
+            backgroundColor: (message.includes("successfully") || message.toLowerCase().includes("success")) ? "#d4edda" : "#f8d7da",
+            color: (message.includes("successfully") || message.toLowerCase().includes("success")) ? "#155724" : "#721c24",
             borderRadius: theme.radius.md,
             fontSize: "14px"
           }}>
@@ -1065,7 +1065,7 @@ onError={(e) => {
                           value={editForm.major}
                           onChange={(e) => setEditForm({ ...editForm, major: e.target.value })}
                           style={inputStyle}
-                          placeholder="Chuyên ngành đào tạo"
+                          placeholder="Training major"
                         />
                       ) : (
                         <div style={valueStyle}>{employeeDetails?.major || "-"}</div>
@@ -1769,7 +1769,7 @@ onError={(e) => {
                           value={editForm.healthInsuranceProvider}
                           onChange={(e) => setEditForm({ ...editForm, healthInsuranceProvider: e.target.value })}
                           style={inputStyle}
-                          placeholder="Nơi đăng ký KCB ban đầu"
+                          placeholder="Initial healthcare registration place"
                         />
                       ) : (
                         <div style={valueStyle}>{employeeDetails?.healthInsuranceProvider || "-"}</div>

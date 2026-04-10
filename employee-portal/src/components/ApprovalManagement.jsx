@@ -62,7 +62,7 @@ export default function ApprovalManagement() {
 
   const rejectItem = async (id) => {
     if (!rejectReasons[id]) {
-      alert("Vui lòng nhập lý do từ chối");
+      alert("Please enter a rejection reason");
       return;
     }
 
@@ -122,39 +122,39 @@ export default function ApprovalManagement() {
 
   return (
     <div style={{ padding: "20px" }}>
-      <h2>✅ Quản lý phê duyệt</h2>
+      <h2>✅ Approval management</h2>
 
       <div style={{ marginBottom: "20px" }}>
         <button
           onClick={() => setActiveTab("dependents")}
           style={tabStyle(activeTab === "dependents")}
         >
-          👨‍👩‍👧‍👦 Người Phụ Thuộc
+          👨‍👩‍👧‍👦 Dependents
         </button>
         <button
           onClick={() => setActiveTab("qualifications")}
           style={tabStyle(activeTab === "qualifications")}
         >
-          📜 Chứng Chỉ
+          📜 Qualifications
         </button>
       </div>
 
       {loading ? (
-        <p>Đang tải...</p>
+        <p>Loading...</p>
       ) : items.length === 0 ? (
         <div style={{ textAlign: "center", padding: "40px", backgroundColor: "#f5f5f5", borderRadius: "8px" }}>
-          <p>✅ Không có đơn chờ phê duyệt</p>
+          <p>✅ No pending requests</p>
         </div>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", backgroundColor: "white" }}>
             <thead>
               <tr style={{ backgroundColor: "#f5f5f5", borderBottom: "2px solid #ddd" }}>
-                <th style={{ padding: "12px", textAlign: "left" }}>Tên</th>
-                <th style={{ padding: "12px", textAlign: "left" }}>Chi tiết</th>
-                <th style={{ padding: "12px", textAlign: "left" }}>Nhân viên</th>
-                <th style={{ padding: "12px", textAlign: "left" }}>Ngày gửi</th>
-                <th style={{ padding: "12px", textAlign: "center" }}>Hành động</th>
+                <th style={{ padding: "12px", textAlign: "left" }}>Name</th>
+                <th style={{ padding: "12px", textAlign: "left" }}>Details</th>
+                <th style={{ padding: "12px", textAlign: "left" }}>Employee</th>
+                <th style={{ padding: "12px", textAlign: "left" }}>Submitted date</th>
+                <th style={{ padding: "12px", textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -186,7 +186,7 @@ export default function ApprovalManagement() {
                           fontSize: "12px"
                         }}
                       >
-                        ✅ Phê duyệt
+                        ✅ Approve
                       </button>
                       <button
                         onClick={() =>
@@ -205,7 +205,7 @@ export default function ApprovalManagement() {
                           fontSize: "12px"
                         }}
                       >
-                        ❌ Từ chối
+                        ❌ Reject
                       </button>
                     </td>
                   </tr>
@@ -214,7 +214,7 @@ export default function ApprovalManagement() {
                     <tr style={{ backgroundColor: "#fff3cd" }}>
                       <td colSpan="5" style={{ padding: "12px" }}>
                         <label style={{ display: "block", marginBottom: "8px" }}>
-                          Lý do từ chối:
+                          Rejection reason:
                         </label>
                         <textarea
                           value={rejectReasons[item.id] || ""}
@@ -232,7 +232,7 @@ export default function ApprovalManagement() {
                             minHeight: "60px",
                             marginBottom: "10px"
                           }}
-                          placeholder="Nhập lý do từ chối..."
+                          placeholder="Enter rejection reason..."
                         />
                         <button
                           onClick={() => rejectItem(item.id)}
@@ -246,7 +246,7 @@ export default function ApprovalManagement() {
                             marginRight: "5px"
                           }}
                         >
-                          Xác nhận từ chối
+                          Confirm rejection
                         </button>
                         <button
                           onClick={() =>
@@ -264,7 +264,7 @@ export default function ApprovalManagement() {
                             cursor: "pointer"
                           }}
                         >
-                          Hủy
+                          Cancel
                         </button>
                       </td>
                     </tr>

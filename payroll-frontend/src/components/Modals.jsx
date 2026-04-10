@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 /**
  * Reusable Modal for approval actions
  */
-export function ApprovalModal({ isOpen, title, message, onConfirm, onCancel, confirmText = 'Xác Nhận', cancelText = 'Huỷ', isDangerous = false, requiresReason = false }) {
+export function ApprovalModal({ isOpen, title, message, onConfirm, onCancel, confirmText = 'Confirm', cancelText = 'Cancel', isDangerous = false, requiresReason = false }) {
   const [reason, setReason] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -36,12 +36,12 @@ export function ApprovalModal({ isOpen, title, message, onConfirm, onCancel, con
         {requiresReason && (
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Lý do:
+              Reason:
             </label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Nhập lý do từ chối..."
+              placeholder="Enter rejection reason..."
               className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
               rows="3"
             />
@@ -65,7 +65,7 @@ export function ApprovalModal({ isOpen, title, message, onConfirm, onCancel, con
                 : 'bg-blue-600 hover:bg-blue-700'
             }`}
           >
-            {isLoading ? 'Đang xử lý...' : confirmText}
+            {isLoading ? 'Processing...' : confirmText}
           </button>
         </div>
       </div>
@@ -102,12 +102,12 @@ export function EditPayrollModal({ isOpen, payroll, onSave, onCancel }) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">✏️ Chỉnh Sửa Bảng Lương</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">✏️ Edit Payroll</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Mã Nhân Viên</label>
+              <label className="block text-sm font-medium text-gray-700">Employee code</label>
               <input
                 type="text"
                 value={formData.employeeCode || ''}
@@ -117,7 +117,7 @@ export function EditPayrollModal({ isOpen, payroll, onSave, onCancel }) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Tên Nhân Viên</label>
+              <label className="block text-sm font-medium text-gray-700">Employee name</label>
               <input
                 type="text"
                 value={formData.employeeName || ''}
@@ -130,7 +130,7 @@ export function EditPayrollModal({ isOpen, payroll, onSave, onCancel }) {
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Tháng</label>
+              <label className="block text-sm font-medium text-gray-700">Month</label>
               <input
                 type="number"
                 min="1"
@@ -141,7 +141,7 @@ export function EditPayrollModal({ isOpen, payroll, onSave, onCancel }) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Năm</label>
+              <label className="block text-sm font-medium text-gray-700">Year</label>
               <input
                 type="number"
                 value={formData.payrollYear || ''}
@@ -150,12 +150,12 @@ export function EditPayrollModal({ isOpen, payroll, onSave, onCancel }) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Ghi Chú</label>
+              <label className="block text-sm font-medium text-gray-700">Notes</label>
               <input
                 type="text"
                 value={formData.notes || ''}
                 onChange={(e) => handleChange('notes', e.target.value)}
-                placeholder="Ghi chú thêm..."
+                placeholder="Additional notes..."
                 className="mt-1 w-full px-3 py-2 border rounded-md"
               />
             </div>
@@ -168,14 +168,14 @@ export function EditPayrollModal({ isOpen, payroll, onSave, onCancel }) {
               disabled={isLoading}
               className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 font-medium disabled:opacity-50"
             >
-              Huỷ
+              Cancel
             </button>
             <button
               type="submit"
               disabled={isLoading}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:opacity-50"
             >
-              {isLoading ? 'Đang lưu...' : 'Lưu Thay Đổi'}
+              {isLoading ? 'Saving...' : 'Save changes'}
             </button>
           </div>
         </form>
@@ -224,7 +224,7 @@ export function ViewPayrollModal({ isOpen, payroll, onClose }) {
       }
     } catch (error) {
       console.error('Error fetching password:', error);
-      setPasswordError('Không thể tải mật khẩu. Vui lòng thử lại.');
+      setPasswordError('Unable to load password. Please try again.');
     } finally {
       setIsLoadingPassword(false);
     }
@@ -236,7 +236,7 @@ export function ViewPayrollModal({ isOpen, payroll, onClose }) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">👁️ Chi Tiết Bảng Lương</h2>
+          <h2 className="text-2xl font-bold text-gray-900">👁️ Payroll Details</h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 text-2xl"
@@ -248,15 +248,15 @@ export function ViewPayrollModal({ isOpen, payroll, onClose }) {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
             <div>
-              <p className="text-sm text-gray-600">Mã Nhân Viên</p>
+              <p className="text-sm text-gray-600">Employee code</p>
               <p className="text-lg font-semibold text-gray-900">{payroll.employeeCode}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Tên Nhân Viên</p>
+              <p className="text-sm text-gray-600">Employee name</p>
               <p className="text-lg font-semibold text-gray-900">{payroll.employeeName}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Kỳ Lương</p>
+              <p className="text-sm text-gray-600">Payroll period</p>
               <p className="text-lg font-semibold text-gray-900">{payroll.payrollMonth}/{payroll.payrollYear}</p>
             </div>
             <div>

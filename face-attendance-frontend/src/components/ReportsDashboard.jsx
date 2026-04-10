@@ -670,7 +670,7 @@ export default function ReportsDashboard() {
               e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.08)";
             }}>
               <div style={{ fontSize: 32, fontWeight: 700, color: "#333", marginBottom: 12 }}>
-                {analyticsData.summary?.currentMonthPayroll?.totalCost?.toLocaleString('vi-VN') || 0} VNĐ
+                {analyticsData.summary?.currentMonthPayroll?.totalCost?.toLocaleString('en-US') || 0} VND
               </div>
               <div style={{ fontSize: 14, color: "#666", fontWeight: 600 }}>Total Payroll Cost</div>
             </div>

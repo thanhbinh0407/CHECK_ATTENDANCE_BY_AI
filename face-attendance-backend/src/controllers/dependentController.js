@@ -4,7 +4,8 @@ import DependentDocument from "../models/pg/DependentDocument.js";
 import { Op } from "sequelize";
 import { getDependentFileUrl } from "../utils/fileUpload.js";
 
-const isValidIdNumber12 = (value) => typeof value === "string" && /^\d{12}$/.test(value);
+const normalizeIdNumber = (value) => String(value || "").replace(/\D/g, "");
+const isValidIdNumber = (value) => /^(\d{9}|\d{12})$/.test(normalizeIdNumber(value));
 
 const isFutureDate = (date) => {
   if (!date) return false;
@@ -161,10 +162,11 @@ export const createDependent = async (req, res) => {
       });
     }
 
-    if (!isValidIdNumber12(idNumber)) {
+    const normalizedIdNumber = normalizeIdNumber(idNumber);
+    if (!isValidIdNumber(normalizedIdNumber)) {
       return res.status(400).json({
         status: "error",
-        message: "ID Number must be exactly 12 digits"
+        message: "ID Number must be 9 or 12 digits"
       });
     }
 
@@ -190,7 +192,7 @@ export const createDependent = async (req, res) => {
       relationship,
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
       gender,
-      idNumber,
+      idNumber: normalizedIdNumber,
       address,
       phoneNumber,
       email,
@@ -227,10 +229,11 @@ export const updateDependent = async (req, res) => {
       });
     }
 
-    if (idNumber !== undefined && !isValidIdNumber12(idNumber)) {
+    const normalizedIdNumber = idNumber !== undefined ? normalizeIdNumber(idNumber) : undefined;
+    if (idNumber !== undefined && !isValidIdNumber(normalizedIdNumber)) {
       return res.status(400).json({
         status: "error",
-        message: "ID Number must be exactly 12 digits"
+        message: "ID Number must be 9 or 12 digits"
       });
     }
 
@@ -246,7 +249,7 @@ export const updateDependent = async (req, res) => {
       relationship: relationship || dependent.relationship,
       dateOfBirth: dateOfBirth !== undefined ? (dateOfBirth ? new Date(dateOfBirth) : null) : dependent.dateOfBirth,
       gender: gender !== undefined ? gender : dependent.gender,
-      idNumber: idNumber !== undefined ? idNumber : dependent.idNumber,
+      idNumber: idNumber !== undefined ? normalizedIdNumber : dependent.idNumber,
       address: address !== undefined ? address : dependent.address,
       phoneNumber: phoneNumber !== undefined ? phoneNumber : dependent.phoneNumber,
       email: email !== undefined ? email : dependent.email,

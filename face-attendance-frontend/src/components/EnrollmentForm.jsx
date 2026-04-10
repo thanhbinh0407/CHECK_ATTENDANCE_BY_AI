@@ -40,9 +40,9 @@ export default function EnrollmentForm() {
     email: "",
     employeeCode: "",
     password: "",
-    jobTitle: "Nhân viên",
+    jobTitle: "Employee",
     jobTitleId: null,
-    educationLevel: "Đại học",
+    educationLevel: "University",
     baseSalary: 1800000
   });
   const [useCustomPassword, setUseCustomPassword] = useState(false);
@@ -392,7 +392,7 @@ export default function EnrollmentForm() {
       const antiScore = Number.isFinite(anti?.score) ? anti.score : 100;
       const ANTI_PHOTO_THRESHOLD = 28;
       if (antiScore < ANTI_PHOTO_THRESHOLD) {
-        setMessage("Không chấp nhận ảnh. Vui lòng dùng khuôn mặt thật trước camera (đảm bảo ánh sáng tốt).");
+        setMessage("Photo spoofing is not accepted. Please use a real face in front of the camera (with good lighting).");
         setErrors((prev) => ({ ...prev, faceCapture: "Photo not allowed" }));
         setLoading(false);
         return;
@@ -475,9 +475,9 @@ export default function EnrollmentForm() {
           email: "", 
           employeeCode: "", 
           password: "",
-          jobTitle: "Nhân viên",
+          jobTitle: "Employee",
           jobTitleId: null,
-          educationLevel: "Đại học",
+          educationLevel: "University",
           baseSalary: 1800000
         });
         setUseCustomPassword(false);
@@ -652,10 +652,10 @@ export default function EnrollmentForm() {
         {message && (
           <div style={{
             padding: "16px 20px",
-            backgroundColor: /success|captured successfully/i.test(message) ? theme.success.bg : /failed|error|denied|required|cannot|invalid|please enter|Không chấp nhận ảnh/i.test(message) ? theme.error.bg : theme.info.bg,
-            border: `2px solid ${/success|captured successfully/i.test(message) ? theme.success.border : /failed|error|denied|required|cannot|invalid|please enter|Không chấp nhận ảnh/i.test(message) ? theme.error.border : theme.info.border}`,
+            backgroundColor: /success|captured successfully/i.test(message) ? theme.success.bg : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted/i.test(message) ? theme.error.bg : theme.info.bg,
+            border: `2px solid ${/success|captured successfully/i.test(message) ? theme.success.border : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted/i.test(message) ? theme.error.border : theme.info.border}`,
             borderRadius: "10px",
-            color: /success|captured successfully/i.test(message) ? theme.success.text : /failed|error|denied|required|cannot|invalid|please enter|Không chấp nhận ảnh/i.test(message) ? theme.error.text : theme.info.text,
+            color: /success|captured successfully/i.test(message) ? theme.success.text : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted/i.test(message) ? theme.error.text : theme.info.text,
             marginBottom: "24px",
             fontSize: "14px",
             fontWeight: "500",
@@ -682,7 +682,7 @@ export default function EnrollmentForm() {
                 value={formData.name}
                 onChange={(e) => handleFieldChange("name", filterNumbersFromName(e.target.value))}
                 onBlur={(e) => { handleBlur("name"); Object.assign(e.target.style, getInputStyle("name")); }}
-                placeholder="Nguyễn Văn A"
+                placeholder="John Doe"
                 onFocus={(e) => Object.assign(e.target.style, getInputFocusStyle("name"))}
                 onMouseEnter={(e) => { if (e.target !== document.activeElement && !errors.name) Object.assign(e.target.style, inputHoverStyle) }}
                 onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, getInputStyle("name")) }}
@@ -1105,14 +1105,14 @@ export default function EnrollmentForm() {
             color: theme.warning.text,
             border: `2px solid ${theme.warning.border}`
           }}>
-            <strong>Lưu ý quan trọng:</strong> Vui lòng ghi lại mật khẩu này và cung cấp cho nhân viên. Mật khẩu sẽ không được hiển thị lại sau khi bạn rời khỏi trang này.
+            <strong>Important:</strong> Please save this password and provide it to the employee. It will not be shown again after you leave this page.
           </div>
           <button
             onClick={(e) => {
               navigator.clipboard.writeText(generatedPassword);
               const btn = e.target;
               const originalText = btn.textContent;
-              btn.textContent = "Đã copy!";
+              btn.textContent = "Copied!";
               btn.style.backgroundColor = "#28a745";
               setTimeout(() => {
                 btn.textContent = originalText;
