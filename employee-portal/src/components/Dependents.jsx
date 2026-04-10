@@ -154,12 +154,13 @@ export default function Dependents({ userId }) {
   };
 
   const validateIdNumber = (value) => {
-    if (!value || value.trim() === "") {
+    const normalized = String(value || "").replace(/\D/g, "");
+    if (!normalized) {
       return "ID Number is required";
     }
-    // Must be exactly 12 digits
-    if (!/^\d{12}$/.test(value)) {
-      return "ID Number must be exactly 12 digits";
+    // Vietnamese ID documents: old CMND (9 digits) or CCCD (12 digits)
+    if (!/^(\d{9}|\d{12})$/.test(normalized)) {
+      return "ID Number must be 9 or 12 digits";
     }
     return "";
   };
@@ -1150,9 +1151,8 @@ export default function Dependents({ userId }) {
                     onBlur={handleBlur}
                     required
                     inputMode="numeric"
-                    pattern="\\d{12}"
                     maxLength={12}
-                    placeholder="ID/Passport number"
+                    placeholder="Enter 9 or 12 digits"
                     style={{
                       width: "100%",
                       padding: "14px 16px",

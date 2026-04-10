@@ -100,7 +100,7 @@ export default function ShiftAdmin() {
         <p style={{ color: '#666', fontSize: '14px' }}>Configure start and end work times for the entire company</p>
       </div>
 
-      {message && <div style={(message.includes('successfully') || message.includes('thành công')) ? messageSuccess : messageError}>{message}</div>}
+      {message && <div style={(message.includes('successfully') || message.toLowerCase().includes('success')) ? messageSuccess : messageError}>{message}</div>}
 
       {/* Display Current Settings */}
       {shift && !editing && (

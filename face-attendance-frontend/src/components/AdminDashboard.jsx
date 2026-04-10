@@ -38,29 +38,29 @@ function buildPresenceMap(logs) {
 function formatHm(iso) {
   if (!iso) return "";
   const d = new Date(iso);
-  return d.toLocaleTimeString("vi-VN", {
+  return d.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
 }
 
-function contractLabelVi(status) {
+function contractLabel(status) {
   switch (status) {
     case "active":
-      return "Đang làm việc";
+      return "Active";
     case "maternity_leave":
-      return "Nghỉ thai sản";
+      return "Maternity Leave";
     case "unpaid_leave":
-      return "Nghỉ không lương";
+      return "Unpaid Leave";
     case "suspended":
-      return "Tạm ngưng";
+      return "Suspended";
     case "terminated":
-      return "Đã chấm dứt";
+      return "Terminated";
     case "resigned":
-      return "Đã nghỉ việc";
+      return "Resigned";
     default:
-      return status ? String(status) : "Đang làm việc";
+      return status ? String(status) : "Active";
   }
 }
 
@@ -267,7 +267,7 @@ export default function AdminDashboard() {
       const token = localStorage.getItem("authToken");
 
       if (!token || !token.trim()) {
-        setMessage("Lỗi: Không tìm thấy token xác thực. Vui lòng đăng nhập lại.");
+        setMessage("Error: Authentication token not found. Please sign in again.");
         setTimeout(() => {
           localStorage.removeItem("authToken");
           localStorage.removeItem("user");
@@ -291,18 +291,18 @@ export default function AdminDashboard() {
         fetchTodayPresence();
       } else {
         if (res.status === 401) {
-          setMessage("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+          setMessage("Session expired. Please sign in again.");
           setTimeout(() => {
             localStorage.removeItem("authToken");
             localStorage.removeItem("user");
             window.location.reload();
           }, 2000);
         } else {
-          setMessage("Lỗi tải danh sách nhân viên: " + (data.message || "Unknown error"));
+          setMessage("Failed to load employee list: " + (data.message || "Unknown error"));
         }
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
       console.error("Fetch employees error:", error);
     } finally {
       setLoading(false);
@@ -314,13 +314,13 @@ export default function AdminDashboard() {
   }, []);
 
   const deactivateEmployee = async (employeeId) => {
-    if (!window.confirm("Bạn có chắc muốn vô hiệu hóa (Deactivate) nhân viên này?")) return;
+    if (!window.confirm("Are you sure you want to deactivate this employee?")) return;
 
     try {
       const token = localStorage.getItem("authToken");
 
       if (!token || !token.trim()) {
-        setMessage("Lỗi: Không tìm thấy token xác thực. Vui lòng đăng nhập lại.");
+        setMessage("Error: Authentication token not found. Please sign in again.");
         setTimeout(() => {
           localStorage.removeItem("authToken");
           localStorage.removeItem("user");
@@ -340,34 +340,34 @@ export default function AdminDashboard() {
       const data = await res.json();
 
       if (res.ok) {
-        setMessage("Đã vô hiệu hóa nhân viên: " + (data.user?.name || data.deletedEmployee?.name || ""));
+        setMessage("Employee deactivated: " + (data.user?.name || data.deletedEmployee?.name || ""));
         fetchEmployees();
       } else {
         if (res.status === 401) {
-          setMessage("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+          setMessage("Session expired. Please sign in again.");
           setTimeout(() => {
             localStorage.removeItem("authToken");
             localStorage.removeItem("user");
             window.location.reload();
           }, 2000);
         } else {
-          setMessage("Lỗi: " + (data.message || "Unknown error"));
+          setMessage("Error: " + (data.message || "Unknown error"));
           console.error("Delete error:", data);
         }
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
       console.error("Delete exception:", error);
     }
   };
 
   const restoreEmployee = async (employeeId) => {
-    if (!window.confirm("Khôi phục (Activate) nhân viên này?")) return;
+    if (!window.confirm("Restore this employee account?")) return;
     try {
       const token = localStorage.getItem("authToken");
 
       if (!token || !token.trim()) {
-        setMessage("Lỗi: Không tìm thấy token xác thực. Vui lòng đăng nhập lại.");
+        setMessage("Error: Authentication token not found. Please sign in again.");
         setTimeout(() => {
           localStorage.removeItem("authToken");
           localStorage.removeItem("user");
@@ -387,34 +387,34 @@ export default function AdminDashboard() {
 
       const data = await res.json();
       if (res.ok && data.status === "success") {
-        setMessage("Đã khôi phục nhân viên: " + (data.user?.name || ""));
+        setMessage("Employee restored: " + (data.user?.name || ""));
         fetchEmployees();
       } else {
         if (res.status === 401) {
-          setMessage("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+          setMessage("Session expired. Please sign in again.");
           setTimeout(() => {
             localStorage.removeItem("authToken");
             localStorage.removeItem("user");
             window.location.reload();
           }, 2000);
         } else {
-          setMessage("Lỗi: " + (data.message || "Unknown error"));
+          setMessage("Error: " + (data.message || "Unknown error"));
         }
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     }
   };
 
   const permanentlyDeleteEmployee = async (employeeId, employeeName) => {
-    if (!window.confirm(`Xóa vĩnh viễn "${employeeName}"?\n\nThao tác không thể hoàn tác.`)) return;
-    const password = window.prompt("Nhập mật khẩu Manager để xác nhận xóa vĩnh viễn:");
+    if (!window.confirm(`Permanently delete "${employeeName}"?\n\nThis action cannot be undone.`)) return;
+    const password = window.prompt("Enter Manager password to confirm permanent deletion:");
     if (!password) return;
     try {
       const token = localStorage.getItem("authToken");
 
       if (!token || !token.trim()) {
-        setMessage("Lỗi: Không tìm thấy token xác thực. Vui lòng đăng nhập lại.");
+        setMessage("Error: Authentication token not found. Please sign in again.");
         setTimeout(() => {
           localStorage.removeItem("authToken");
           localStorage.removeItem("user");
@@ -434,22 +434,22 @@ export default function AdminDashboard() {
 
       const data = await res.json();
       if (res.ok && data.status === "success") {
-        setMessage("✅ Đã xóa vĩnh viễn: " + employeeName);
+        setMessage("✅ Permanently deleted: " + employeeName);
         fetchEmployees();
       } else {
         if (res.status === 401) {
-          setMessage("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+          setMessage("Session expired. Please sign in again.");
           setTimeout(() => {
             localStorage.removeItem("authToken");
             localStorage.removeItem("user");
             window.location.reload();
           }, 2000);
         } else {
-          setMessage("Lỗi: " + (data.message || "Unknown error"));
+          setMessage("Error: " + (data.message || "Unknown error"));
         }
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     }
   };
 
@@ -467,16 +467,16 @@ export default function AdminDashboard() {
   const msgOk =
     message &&
     (message.includes("successfully") ||
-      message.includes("thành công") ||
+      message.includes("success") ||
       message.startsWith("✅"));
 
   return (
     <div className="aep-page">
       <div className="aep-hero">
-        <h1>👥 Hồ sơ nhân viên</h1>
+        <h1>👥 Employee Profiles</h1>
         <p>
-          Xem và quản lý thông tin nhân viên. Tìm nhanh bằng ô tìm kiếm; mở bộ lọc nâng cao khi cần lọc theo tổ chức,
-          hợp đồng hoặc điểm danh hôm nay.
+          View and manage employee information. Use search for quick lookup; open advanced filters to refine by
+          organization, contract status, or today attendance.
         </p>
       </div>
 
@@ -496,7 +496,7 @@ export default function AdminDashboard() {
               onClick={() => setListMode("active")}
               style={{ padding: "9px 14px" }}
             >
-              Danh sách nhân viên
+              Employee List
             </button>
             <button
               type="button"
@@ -504,7 +504,7 @@ export default function AdminDashboard() {
               onClick={() => setListMode("inactive")}
               style={{ padding: "9px 14px" }}
             >
-              Danh sách vô hiệu hóa
+              Disabled List
             </button>
           </div>
           <input
@@ -512,15 +512,15 @@ export default function AdminDashboard() {
             className="aep-search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm theo tên, email, mã nhân viên…"
-            aria-label="Tìm kiếm nhân viên"
+            placeholder="Search by name, email, employee code..."
+            aria-label="Search employees"
           />
           <button
             type="button"
             className="aep-btn aep-btn--ghost"
             onClick={() => setShowAdvancedFilters((v) => !v)}
           >
-            Bộ lọc nâng cao
+            Advanced Filters
             {activeAdvancedCount > 0 ? ` (${activeAdvancedCount})` : ""}
             {showAdvancedFilters ? " ▲" : " ▼"}
           </button>
@@ -530,26 +530,26 @@ export default function AdminDashboard() {
           <div className="aep-advanced">
             <div className="aep-advanced-grid">
               <div className="aep-field">
-                <label>Đăng ký khuôn mặt</label>
+                <label>Face Enrollment</label>
                 <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                  <option value="all">Tất cả ({employees.length})</option>
+                  <option value="all">All ({employees.length})</option>
                   <option value="withFace">
-                    Đã đăng ký (
+                    Enrolled (
                     {employees.filter((e) => e.FaceProfiles && e.FaceProfiles.length > 0).length})
                   </option>
                   <option value="withoutFace">
-                    Chưa đăng ký (
+                    Not enrolled (
                     {employees.filter((e) => !e.FaceProfiles || e.FaceProfiles.length === 0).length})
                   </option>
                 </select>
               </div>
               <div className="aep-field">
-                <label>Phòng ban</label>
+                <label>Department</label>
                 <select
                   value={filterDepartmentId}
                   onChange={(e) => setFilterDepartmentId(e.target.value)}
                 >
-                  <option value="">Tất cả phòng ban</option>
+                  <option value="">All departments</option>
                   {departmentOptions.map(([id, name]) => (
                     <option key={id} value={String(id)}>
                       {name}
@@ -558,9 +558,9 @@ export default function AdminDashboard() {
                 </select>
               </div>
               <div className="aep-field">
-                <label>Chức danh</label>
+                <label>Job Title</label>
                 <select value={filterJobTitleId} onChange={(e) => setFilterJobTitleId(e.target.value)}>
-                  <option value="">Tất cả chức danh</option>
+                  <option value="">All job titles</option>
                   {jobTitleOptions.map(([id, name]) => (
                     <option key={id} value={String(id)}>
                       {name}
@@ -569,34 +569,34 @@ export default function AdminDashboard() {
                 </select>
               </div>
               <div className="aep-field">
-                <label>Hợp đồng / trạng thái</label>
+                <label>Employment / Status</label>
                 <select
                   value={filterEmployment}
                   onChange={(e) => setFilterEmployment(e.target.value)}
                 >
-                  <option value="all">Tất cả</option>
-                  <option value="active">Đang làm việc</option>
-                  <option value="maternity_leave">Nghỉ thai sản</option>
-                  <option value="unpaid_leave">Nghỉ không lương</option>
-                  <option value="suspended">Tạm ngưng</option>
-                  <option value="terminated">Đã chấm dứt</option>
-                  <option value="resigned">Đã nghỉ việc</option>
+                  <option value="all">All</option>
+                  <option value="active">Active</option>
+                  <option value="maternity_leave">Maternity Leave</option>
+                  <option value="unpaid_leave">Unpaid Leave</option>
+                  <option value="suspended">Suspended</option>
+                  <option value="terminated">Terminated</option>
+                  <option value="resigned">Resigned</option>
                 </select>
               </div>
               <div className="aep-field">
-                <label>Điểm danh hôm nay</label>
+                <label>Today's Attendance</label>
                 <select
                   value={filterPresence}
                   onChange={(e) => setFilterPresence(e.target.value)}
                 >
-                  <option value="all">Tất cả</option>
-                  <option value="checkedIn">Đang trong ca (đã vào, chưa ra)</option>
-                  <option value="checkedOut">Đã check-out hôm nay</option>
-                  <option value="absent">Chưa điểm danh hôm nay</option>
+                  <option value="all">All</option>
+                  <option value="checkedIn">On shift (checked in, not checked out)</option>
+                  <option value="checkedOut">Checked out today</option>
+                  <option value="absent">No attendance record today</option>
                 </select>
               </div>
               <div className="aep-field">
-                <label>Ngày vào làm (từ)</label>
+                <label>Start date (from)</label>
                 <input
                   type="date"
                   value={startDateFrom}
@@ -604,7 +604,7 @@ export default function AdminDashboard() {
                 />
               </div>
               <div className="aep-field">
-                <label>Ngày vào làm (đến)</label>
+                <label>Start date (to)</label>
                 <input
                   type="date"
                   value={startDateTo}
@@ -613,7 +613,7 @@ export default function AdminDashboard() {
               </div>
             </div>
             <button type="button" className="aep-btn aep-btn--ghost aep-btn--sm" onClick={resetFilters}>
-              Xóa bộ lọc
+              Clear Filters
             </button>
           </div>
         )}
@@ -629,7 +629,7 @@ export default function AdminDashboard() {
               )
             }
           >
-            Xuất Excel
+            Export Excel
           </button>
           <button
             type="button"
@@ -641,13 +641,13 @@ export default function AdminDashboard() {
               )
             }
           >
-            Xuất PDF
+            Export PDF
           </button>
           <button type="button" className="aep-btn aep-btn--outline" onClick={downloadEmployeeTemplate}>
-            Tải mẫu Excel
+            Download Excel Template
           </button>
           <label className="aep-btn aep-btn--outline" style={{ cursor: "pointer" }}>
-            Nhập từ Excel
+            Import from Excel
             <input
               type="file"
               accept=".xlsx,.xls"
@@ -659,7 +659,7 @@ export default function AdminDashboard() {
                   setLoading(true);
                   const imported = await importEmployeesFromExcel(file);
                   const token = localStorage.getItem("authToken");
-                  if (!token) throw new Error("Không có token xác thực");
+                  if (!token) throw new Error("Authentication token missing");
                   const res = await fetch(`${apiBase}/api/admin/employees/bulk`, {
                     method: "POST",
                     headers: {
@@ -678,21 +678,21 @@ export default function AdminDashboard() {
                         .slice(0, 5)
                         .map((f) => `- ${f.name} (${f.employeeCode}): ${f.reason}`)
                         .join("\n");
-                      const moreFailed = failCount > 5 ? `\n... và ${failCount - 5} lỗi khác` : "";
+                      const moreFailed = failCount > 5 ? `\n... and ${failCount - 5} more errors` : "";
                       alert(
-                        `Import hoàn tất!\n\n✅ Thành công: ${successCount}\n❌ Thất bại: ${failCount}\n\n${failedDetails}${moreFailed}`
+                        `Import completed!\n\n✅ Success: ${successCount}\n❌ Failed: ${failCount}\n\n${failedDetails}${moreFailed}`
                       );
                     } else {
-                      setMessage(`✅ Import thành công: ${successCount} nhân viên`);
+                      setMessage(`✅ Import success: ${successCount} employees`);
                     }
                     fetchEmployees();
                   } else {
-                    throw new Error(data.message || "Lỗi khi import nhân viên");
+                    throw new Error(data.message || "Failed to import employees");
                   }
                 } catch (err) {
                   console.error("Import error:", err);
-                  setMessage(`❌ Lỗi import: ${err.message}`);
-                  alert(`Lỗi khi import: ${err.message}`);
+                  setMessage(`❌ Import error: ${err.message}`);
+                  alert(`Import error: ${err.message}`);
                 } finally {
                   setLoading(false);
                   e.target.value = "";
@@ -703,25 +703,25 @@ export default function AdminDashboard() {
         </div>
 
         <p className="aep-meta">
-          Hiển thị <strong>{filteredEmployees.length}</strong> / {employees.length} nhân viên · Đang trong ca được ưu
-          tiên đầu danh sách
+          Showing <strong>{filteredEmployees.length}</strong> / {employees.length} employees · On-shift employees are
+          prioritized at the top
         </p>
 
         {loading ? (
           <div className="aep-loading">
             <div style={{ fontSize: 36, marginBottom: 12 }}>⏳</div>
-            <div>Đang tải danh sách…</div>
+            <div>Loading list...</div>
           </div>
         ) : filteredEmployees.length === 0 ? (
           <div className="aep-empty">
             <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
             <h3 style={{ margin: "0 0 8px", color: "#262626" }}>
-              {employees.length === 0 ? "Chưa có nhân viên" : "Không khớp bộ lọc"}
+              {employees.length === 0 ? "No employees yet" : "No matches for current filters"}
             </h3>
             <p style={{ margin: 0, fontSize: 14 }}>
               {employees.length === 0
-                ? "Thêm nhân viên hoặc nhập từ Excel."
-                : "Thử điều chỉnh tìm kiếm hoặc bộ lọc nâng cao."}
+                ? "Add employees or import from Excel."
+                : "Try adjusting search or advanced filters."}
             </p>
             {employees.length > 0 && (
               <button
@@ -730,7 +730,7 @@ export default function AdminDashboard() {
                 style={{ marginTop: 16 }}
                 onClick={resetFilters}
               >
-                Xóa bộ lọc
+                Clear Filters
               </button>
             )}
           </div>
@@ -742,18 +742,18 @@ export default function AdminDashboard() {
               const deptName = emp.Department?.name;
               const jobName = emp.JobTitle?.name;
               const empStatus = emp.employmentStatus || "active";
-              const contractVi = contractLabelVi(empStatus);
+              const contractText = contractLabel(empStatus);
               const isActiveContract = empStatus === "active";
 
               let presenceClass = "aep-presence--none";
-              let presenceText = "Chưa điểm danh hôm nay";
+              let presenceText = "No attendance record today";
               if (presence) {
                 if (presence.checkedIn) {
                   presenceClass = "aep-presence--in";
-                  presenceText = `Hoạt động · vào ${formatHm(presence.lastInAt || presence.lastAt)}`;
+                  presenceText = `Active · check-in ${formatHm(presence.lastInAt || presence.lastAt)}`;
                 } else {
                   presenceClass = "aep-presence--out";
-                  presenceText = `Đã check-out · ${formatHm(presence.lastAt)}`;
+                  presenceText = `Checked out · ${formatHm(presence.lastAt)}`;
                 }
               }
 
@@ -772,52 +772,52 @@ export default function AdminDashboard() {
                       <div
                         className={`aep-badge-reg ${hasFace ? "aep-badge-reg--ok" : "aep-badge-reg--no"}`}
                       >
-                        {hasFace ? "Đã đăng ký" : "Chưa đăng ký"}
+                        {hasFace ? "Enrolled" : "Not enrolled"}
                       </div>
                     </div>
 
                     <div className="aep-info-panel">
                       <div className="aep-info-grid">
                         <div>
-                          <div className="aep-info-label">Phòng ban</div>
+                          <div className="aep-info-label">Department</div>
                           <div className={deptName ? "aep-info-value" : "aep-info-value aep-info-value--muted"}>
-                            {deptName || "Chưa cập nhật"}
+                            {deptName || "Not updated"}
                           </div>
                         </div>
                         <div>
-                          <div className="aep-info-label">Chức danh</div>
+                          <div className="aep-info-label">Job Title</div>
                           <div className={jobName ? "aep-info-value" : "aep-info-value aep-info-value--muted"}>
-                            {jobName || "Chưa cập nhật"}
+                            {jobName || "Not updated"}
                           </div>
                         </div>
                         <div>
-                          <div className="aep-info-label">Hợp đồng</div>
+                          <div className="aep-info-label">Contract</div>
                           <div
                             className={
                               isActiveContract ? "aep-info-value aep-info-value--ok" : "aep-info-value"
                             }
                           >
-                            {contractVi}
+                            {contractText}
                           </div>
                         </div>
                         <div>
-                          <div className="aep-info-label">Vào làm</div>
+                          <div className="aep-info-label">Start Date</div>
                           <div
                             className={
                               emp.startDate ? "aep-info-value" : "aep-info-value aep-info-value--muted"
                             }
                           >
                             {emp.startDate
-                              ? new Date(emp.startDate).toLocaleDateString("vi-VN")
-                              : "Chưa cập nhật"}
+                              ? new Date(emp.startDate).toLocaleDateString("en-US")
+                              : "Not updated"}
                           </div>
                         </div>
                       </div>
                     </div>
 
                     <p className="aep-footnote">
-                      *Các mục trên lấy từ hồ sơ nhân sự. Nếu trống, mở <strong>Chi tiết</strong> để chọn phòng ban,
-                      chức danh và ngày vào làm.
+                      *These fields are pulled from HR profile data. If empty, open <strong>Details</strong> to set
+                      department, job title, and start date.
                     </p>
 
                     <div className="aep-card-actions">
@@ -826,7 +826,7 @@ export default function AdminDashboard() {
                         className="aep-btn aep-btn--primary"
                         onClick={() => setSelectedEmployee(emp)}
                       >
-                        Chi tiết
+                        Details
                       </button>
                       {emp.isActive !== false ? (
                         <button
@@ -834,7 +834,7 @@ export default function AdminDashboard() {
                           className="aep-btn aep-btn--ghost"
                           onClick={() => deactivateEmployee(emp.id)}
                         >
-                          Vô hiệu hóa
+                          Deactivate
                         </button>
                       ) : (
                         <>
@@ -843,7 +843,7 @@ export default function AdminDashboard() {
                             className="aep-btn aep-btn--ghost"
                             onClick={() => restoreEmployee(emp.id)}
                           >
-                            Khôi phục
+                            Restore
                           </button>
                           <button
                             type="button"

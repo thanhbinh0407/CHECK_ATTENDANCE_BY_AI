@@ -1,61 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import SupervisorReports from './SupervisorReports.jsx';
-import PersonalProfileModal from './PersonalProfileModal.jsx';
 import './index.css';
 import './supervisorDashboard.css';
 
-const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:5000').replace(/\/$/, '');
-const API = `${API_BASE}/api`;
+const API = 'http://localhost:5000/api';
 function authHeaders(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-}
-
-function portalAvatarSrc(apiBase, avatarUrl) {
-  if (!avatarUrl) return null;
-  if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
-  const base = (apiBase || '').replace(/\/$/, '');
-  const path = avatarUrl.startsWith('/') ? avatarUrl : `/${avatarUrl}`;
-  return `${base}${path}`;
-}
-
-function formatDuration(ms) {
-  const safeMs = Math.max(0, Number(ms) || 0);
-  const totalMinutes = Math.floor(safeMs / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
-}
-
-function normalizeText(value) {
-  return String(value || '').toLowerCase();
-}
-
-function getFilterDate(item) {
-  const candidates = [
-    item?.date,
-    item?.startDate,
-    item?.requestDate,
-    item?.createdAt,
-    item?.updatedAt,
-    item?.approvedAt,
-    item?.endDate,
-  ];
-
-  for (const v of candidates) {
-    if (!v) continue;
-    const d = new Date(v);
-    if (!Number.isNaN(d.getTime())) return d;
-  }
-
-  return null;
 }
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────────
 function Dashboard({ token, onNavigate }) {
   const [stats, setStats] = useState({ pendingLeave: 0, pendingOvertime: 0, pendingTrip: 0, pendingAdvance: 0, pendingSalary: 0 });
   const [recentQueue, setRecentQueue] = useState([]);
-  const [workDurations, setWorkDurations] = useState([]);
-  const [workSummary, setWorkSummary] = useState({ active: 0, finished: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -65,79 +21,12 @@ function Dashboard({ token, onNavigate }) {
       fetch(`${API}/business-trip-requests?status=pending`, { headers: authHeaders(token) }).then(r => r.json()),
       fetch(`${API}/salary-advances?status=pending`, { headers: authHeaders(token) }).then(r => r.json()),
       fetch(`${API}/salary/pending`, { headers: authHeaders(token) }).then(r => r.json()).catch(() => ({})),
-      fetch(`${API}/attendance/today`, { headers: authHeaders(token) }).then(r => r.json()).catch(() => ({})),
-      fetch(`${API}/admin/employees`, { headers: authHeaders(token) }).then(r => r.json()).catch(() => ({})),
-    ]).then(([leave, ot, trip, adv, sal, attendanceToday, employeesData]) => {
+    ]).then(([leave, ot, trip, adv, sal]) => {
       const leaveList = leave.leaveRequests || leave.data || [];
       const otList = ot.requests || ot.overtimeRequests || ot.data || [];
       const tripList = trip.requests || trip.businessTripRequests || trip.data || [];
       const advList = adv.advances || adv.salaryAdvances || adv.data || [];
       const salList = sal.salaries || sal.data || sal.pending || [];
-      const todayLogs = attendanceToday.logs || attendanceToday.data || [];
-      const employees = employeesData.employees || employeesData.data || [];
-
-      const userNameMap = new Map();
-      employees.forEach((u) => {
-        userNameMap.set(String(u.id), u.name || u.employeeCode || `#${u.id}`);
-      });
-
-      const byUser = new Map();
-      todayLogs.forEach((log) => {
-        if (!log?.userId) return;
-        const uid = String(log.userId);
-        const ts = new Date(log.timestamp);
-        if (!byUser.has(uid)) {
-          byUser.set(uid, {
-            userId: log.userId,
-            name: userNameMap.get(uid) || log.detectedName || `Employee #${log.userId}`,
-            firstIn: null,
-            lastOut: null,
-            lastType: null,
-            lastAt: null,
-          });
-        }
-        const row = byUser.get(uid);
-        if (log.type === 'IN' && (!row.firstIn || ts < row.firstIn)) {
-          row.firstIn = ts;
-        }
-        if (log.type === 'OUT' && (!row.lastOut || ts > row.lastOut)) {
-          row.lastOut = ts;
-        }
-        if (!row.lastAt || ts > row.lastAt) {
-          row.lastAt = ts;
-          row.lastType = log.type;
-        }
-      });
-
-      const now = Date.now();
-      const rows = Array.from(byUser.values())
-        .filter((u) => !!u.firstIn)
-        .map((u) => {
-          const endTime = u.lastType === 'IN' ? now : (u.lastOut ? u.lastOut.getTime() : now);
-          const durationMs = Math.max(0, endTime - u.firstIn.getTime());
-          const status = u.lastType === 'IN' ? 'Working' : 'Checked out';
-          return {
-            userId: u.userId,
-            name: u.name,
-            status,
-            durationText: formatDuration(durationMs),
-            durationMs,
-            firstInText: u.firstIn.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-            lastActionText: u.lastAt
-              ? u.lastAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-              : '—',
-          };
-        })
-        .sort((a, b) => {
-          if (a.status !== b.status) return a.status === 'Working' ? -1 : 1;
-          return b.durationMs - a.durationMs;
-        });
-
-      setWorkDurations(rows.slice(0, 8));
-      setWorkSummary({
-        active: rows.filter((r) => r.status === 'Working').length,
-        finished: rows.filter((r) => r.status === 'Checked out').length,
-      });
 
       const queue = [
         ...(leaveList || []).slice(0, 2).map((l) => ({
@@ -205,11 +94,11 @@ function Dashboard({ token, onNavigate }) {
         <div className="sup-dash-hero-inner">
           <h2>Approval Center</h2>
           <p>
-            Track every pending request in one place within your permission scope. Prioritize older requests or those tied to attendance/payroll deadlines.
+            Track all pending requests in one place within your assigned scope. Prioritize older requests or requests tied to attendance and payroll cycles.
           </p>
           <div className="sup-dash-pills">
-            <span className="sup-dash-pill">{total} items pending</span>
-            <span className="sup-dash-pill">Leave · Overtime · Trip · Advance · Payroll</span>
+            <span className="sup-dash-pill">{total} pending items</span>
+            <span className="sup-dash-pill">Leave · Overtime · Business Trip · Advance · Payroll</span>
           </div>
         </div>
       </div>
@@ -217,77 +106,48 @@ function Dashboard({ token, onNavigate }) {
       <div className="sup-dash-kpis">
         <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('leave')}>
           <span className="sup-dash-kpi-deco" aria-hidden>📋</span>
-          <div className="lbl">Leave Requests</div>
+          <div className="lbl">Leave</div>
           <div className="val">{stats.pendingLeave}</div>
-          <div className="hint">Open approval list →</div>
+          <div className="hint">Click to review →</div>
         </button>
         <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('overtime')}>
           <span className="sup-dash-kpi-deco" aria-hidden>⏰</span>
           <div className="lbl">Overtime</div>
           <div className="val">{stats.pendingOvertime}</div>
-          <div className="hint">Review overtime hours →</div>
+          <div className="hint">Review OT hours →</div>
         </button>
         <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('business-trip')}>
           <span className="sup-dash-kpi-deco" aria-hidden>✈️</span>
-          <div className="lbl">Business Trips</div>
+          <div className="lbl">Business trip</div>
           <div className="val">{stats.pendingTrip}</div>
-          <div className="hint">Review schedule &amp; cost →</div>
+          <div className="hint">Cost &amp; schedule →</div>
         </button>
         <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('salary-advance')}>
           <span className="sup-dash-kpi-deco" aria-hidden>💵</span>
-          <div className="lbl">Salary Advances</div>
+          <div className="lbl">Salary advance</div>
           <div className="val">{stats.pendingAdvance}</div>
-          <div className="hint">Advance requests →</div>
+          <div className="hint">Advance request →</div>
         </button>
       </div>
 
       <div className="sup-dash-kpis" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginBottom: 16 }}>
         <button type="button" className="sup-dash-kpi" style={{ cursor: 'pointer', border: '1px solid rgba(148,163,184,0.35)', font: 'inherit', textAlign: 'left' }} onClick={() => go('salary')}>
           <span className="sup-dash-kpi-deco" aria-hidden>💰</span>
-          <div className="lbl">Pending Payroll</div>
+          <div className="lbl">Pending payroll</div>
           <div className="val">{stats.pendingSalary}</div>
-          <div className="hint">If empty, this cycle may have no pending payroll</div>
+          <div className="hint">If API is empty, this cycle may not have pending payroll</div>
         </button>
         <div className="sup-dash-kpi">
           <span className="sup-dash-kpi-deco" aria-hidden>📊</span>
-          <div className="lbl">Total Backlog</div>
+          <div className="lbl">Total backlog</div>
           <div className="val" style={{ color: '#1e1b4b' }}>{total}</div>
-          <div className="hint">Including payroll when available</div>
+          <div className="hint">Includes payroll (if available)</div>
         </div>
-      </div>
-
-      <div className="card sup-work-card" style={{ marginBottom: 16, borderRadius: 16 }}>
-        <div className="sup-work-head">
-          <p className="card-title" style={{ marginBottom: 0 }}>Today Work Status</p>
-          <div className="sup-work-pills">
-            <span className="sup-work-pill active">Working: {workSummary.active}</span>
-            <span className="sup-work-pill done">Checked out: {workSummary.finished}</span>
-          </div>
-        </div>
-
-        {workDurations.length > 0 ? (
-          <div className="sup-work-list">
-            {workDurations.map((row) => (
-              <div key={row.userId} className="sup-work-row">
-                <div className="sup-work-main">
-                  <div className="sup-work-name">{row.name}</div>
-                  <div className="sup-work-meta">Checked in: {row.firstInText} • Last update: {row.lastActionText}</div>
-                </div>
-                <div className="sup-work-side">
-                  <span className={`sup-work-status ${row.status === 'Working' ? 'is-active' : 'is-done'}`}>{row.status}</span>
-                  <strong className="sup-work-duration">{row.durationText}</strong>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ color: '#718096', fontSize: 13, marginTop: 6 }}>No attendance data today to calculate working duration.</div>
-        )}
       </div>
 
       {total > 0 && (
         <div className="card" style={{ marginBottom: 16, borderRadius: 16 }}>
-          <p className="card-title">Pending Distribution (%)</p>
+          <p className="card-title">Pending distribution (%)</p>
           <div className="sup-dash-bar">
             {[
               ['Leave', stats.pendingLeave],
@@ -310,7 +170,7 @@ function Dashboard({ token, onNavigate }) {
 
       {recentQueue.length > 0 && (
         <div className="card" style={{ marginBottom: 16, borderRadius: 16 }}>
-          <p className="card-title">Recent Queue</p>
+          <p className="card-title">Recent queue</p>
           <div style={{ display: "grid", gap: 10, marginTop: 6 }}>
             {recentQueue.map((item) => (
               <div key={item.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", padding: 10, border: "1px solid rgba(148,163,184,0.35)", borderRadius: 12, background: "#fff" }}>
@@ -331,14 +191,14 @@ function Dashboard({ token, onNavigate }) {
       )}
 
       <div className="sup-dash-foot">
-        <h3>Suggested Workflow</h3>
+        <h3>Suggested workflow</h3>
         <p>
-          Approve in this order: <strong>leave</strong> (affects attendance) → <strong>overtime / trips</strong> → <strong>salary advances</strong> → <strong>payroll</strong>.
-          Use the <strong>Reports</strong> tab for reconciliation after closing the cycle.
+          Review in this order: <strong>leave</strong> (affects attendance) → <strong>overtime / business trip</strong> → <strong>salary advance</strong> → <strong>payroll</strong>.
+          Use the <strong>Reports</strong> tab to reconcile after closing the cycle.
         </p>
         <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          <button type="button" className="btn btn-primary" style={{ fontSize: 13 }} onClick={() => go('reports')}>Open Reports</button>
-          <button type="button" className="btn btn-secondary" style={{ fontSize: 13 }} onClick={() => go('leave')}>Open Leave Requests</button>
+          <button type="button" className="btn btn-primary" style={{ fontSize: 13 }} onClick={() => go('reports')}>Open reports</button>
+          <button type="button" className="btn btn-secondary" style={{ fontSize: 13 }} onClick={() => go('leave')}>Leave requests</button>
         </div>
       </div>
     </div>
@@ -349,9 +209,6 @@ function Dashboard({ token, onNavigate }) {
 function ApprovalList({ token, type, apiPath, columns, extractList }) {
   const [items, setItems] = useState([]);
   const [statusFilter, setStatusFilter] = useState('pending');
-  const [searchText, setSearchText] = useState('');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [actionModal, setActionModal] = useState(null); // { item, action }
   const [comment, setComment] = useState('');
@@ -411,45 +268,6 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
     load();
   };
 
-  const filteredItems = items.filter((item) => {
-    const q = normalizeText(searchText).trim();
-    if (q) {
-      const textPayload = [
-        item?.id,
-        item?.reason,
-        item?.purpose,
-        item?.destination,
-        item?.type,
-        item?.approvalStatus,
-        item?.status,
-        item?.User?.name,
-        item?.employeeCode,
-        item?.userId,
-        ...columns.map((c) => (c.render ? c.render(item) : item?.[c.key])),
-      ]
-        .map((v) => normalizeText(v))
-        .join(' | ');
-
-      if (!textPayload.includes(q)) return false;
-    }
-
-    if (fromDate || toDate) {
-      const rowDate = getFilterDate(item);
-      if (!rowDate) return false;
-
-      if (fromDate) {
-        const min = new Date(`${fromDate}T00:00:00`);
-        if (rowDate < min) return false;
-      }
-      if (toDate) {
-        const max = new Date(`${toDate}T23:59:59`);
-        if (rowDate > max) return false;
-      }
-    }
-
-    return true;
-  });
-
   return (
     <div>
       <div className="filters">
@@ -459,43 +277,8 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </select>
-        <input
-          type="text"
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          placeholder="Search by employee, reason, code..."
-        />
-        <input
-          type="date"
-          value={fromDate}
-          onChange={(e) => setFromDate(e.target.value)}
-          title="From date"
-        />
-        <input
-          type="date"
-          value={toDate}
-          onChange={(e) => setToDate(e.target.value)}
-          title="To date"
-        />
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => {
-            setStatusFilter('pending');
-            setSearchText('');
-            setFromDate('');
-            setToDate('');
-          }}
-        >
-          Clear filters
-        </button>
       </div>
       <div className="card">
-        {!loading && (
-          <p style={{ marginBottom: 10, fontSize: 12, color: '#64748b' }}>
-            Showing {filteredItems.length}/{items.length} records
-          </p>
-        )}
         {loading ? <div className="loading">Loading...</div> : (
           <div className="table-wrap">
             <table>
@@ -507,7 +290,7 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
                 </tr>
               </thead>
               <tbody>
-                {filteredItems.map(item => {
+                {items.map(item => {
                   const rowStatus = item.status ?? item.approvalStatus ?? 'pending';
                   return (
                   <tr key={item.id}>
@@ -526,19 +309,19 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
                             className="btn btn-approve"
                             style={{ fontSize: 12, padding: '4px 10px' }}
                             onClick={() => { setActionModal({ item, action: 'approve' }); setComment(''); }}
-                          >Approve</button>
+                          >✓ Approve</button>
                           <button
                             className="btn btn-reject"
                             style={{ fontSize: 12, padding: '4px 10px' }}
                             onClick={() => { setActionModal({ item, action: 'reject' }); setComment(''); }}
-                          >Reject</button>
+                          >✗ Reject</button>
                         </div>
                       )}
                     </td>
                   </tr>
                 )})}
-                {filteredItems.length === 0 && (
-                  <tr><td colSpan={columns.length + 2} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No data found</td></tr>
+                {items.length === 0 && (
+                  <tr><td colSpan={columns.length + 2} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No data</td></tr>
                 )}
               </tbody>
             </table>
@@ -550,18 +333,18 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
         <div className="modal-overlay" onClick={() => setActionModal(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{actionModal.action === 'approve' ? 'Confirm approval' : 'Confirm rejection'}</h3>
+              <h3>{actionModal.action === 'approve' ? '✓ Confirm approval' : '✗ Confirm rejection'}</h3>
               <button className="close-btn" onClick={() => setActionModal(null)}>×</button>
             </div>
             <div className="form-group">
               <label>Comment (optional)</label>
-              <textarea rows={3} value={comment} onChange={e => setComment(e.target.value)} placeholder="Add a comment..." />
+              <textarea rows={3} value={comment} onChange={e => setComment(e.target.value)} placeholder="Enter comment..." />
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary" onClick={() => setActionModal(null)}>Cancel</button>
               {actionModal.action === 'approve'
-                ? <button className="btn btn-approve" onClick={approve}>Confirm</button>
-                : <button className="btn btn-reject" onClick={reject}>Confirm</button>
+                ? <button className="btn btn-approve" onClick={approve}>Confirm approval</button>
+                : <button className="btn btn-reject" onClick={reject}>Confirm rejection</button>
               }
             </div>
           </div>
@@ -642,9 +425,9 @@ function SalaryAdvanceApprovals({ token }) {
       columns={[
         { key: 'id', label: 'ID' },
         { key: 'User', label: 'Employee', render: r => r.User?.name || r.userId },
-        { key: 'amount', label: 'Amount', render: r => Number(r.amount || 0).toLocaleString('vi-VN') + ' đ' },
+        { key: 'amount', label: 'Amount', render: r => Number(r.amount || 0).toLocaleString('en-US') + ' VND' },
         { key: 'reason', label: 'Reason' },
-        { key: 'requestDate', label: 'Request date', render: r => r.requestDate?.slice(0, 10) || r.createdAt?.slice(0, 10) },
+        { key: 'requestDate', label: 'Requested date', render: r => r.requestDate?.slice(0, 10) || r.createdAt?.slice(0, 10) },
       ]}
     />
   );
@@ -654,9 +437,6 @@ function SalaryAdvanceApprovals({ token }) {
 function SalaryApprovals({ token }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchText, setSearchText] = useState('');
-  const [monthFilter, setMonthFilter] = useState('');
-  const [yearFilter, setYearFilter] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -673,116 +453,54 @@ function SalaryApprovals({ token }) {
     load();
   };
 
-  const yearOptions = Array.from(new Set(items.map((i) => Number(i.year)).filter((v) => Number.isFinite(v)))).sort((a, b) => b - a);
-
-  const filteredItems = items.filter((item) => {
-    const q = normalizeText(searchText).trim();
-    if (q) {
-      const textPayload = [
-        item?.id,
-        item?.User?.name,
-        item?.userId,
-        item?.month,
-        item?.year,
-      ]
-        .map((v) => normalizeText(v))
-        .join(' | ');
-      if (!textPayload.includes(q)) return false;
-    }
-
-    if (monthFilter && Number(item.month) !== Number(monthFilter)) return false;
-    if (yearFilter && Number(item.year) !== Number(yearFilter)) return false;
-
-    return true;
-  });
-
   return (
-    <div>
-      <div className="filters">
-        <input
-          type="text"
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          placeholder="Search by employee or ID..."
-        />
-        <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
-          <option value="">All months</option>
-          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-            <option key={m} value={m}>Month {m}</option>
-          ))}
-        </select>
-        <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}>
-          <option value="">All years</option>
-          {yearOptions.map((y) => (
-            <option key={y} value={y}>{y}</option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => {
-            setSearchText('');
-            setMonthFilter('');
-            setYearFilter('');
-          }}
-        >
-          Clear filters
-        </button>
-      </div>
-
-      <div className="card">
-        <p className="card-title">Pending Payroll</p>
-        {!loading && (
-          <p style={{ marginBottom: 10, fontSize: 12, color: '#64748b' }}>
-            Showing {filteredItems.length}/{items.length} payroll items
-          </p>
-        )}
+    <div className="card">
+      <p className="card-title">Pending payroll</p>
       {loading ? <div className="loading">Loading...</div> : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>ID</th><th>Employee</th><th>Month/Year</th>
-                <th>Net Salary</th><th>Status</th><th>Actions</th>
+                <th>Net salary</th><th>Status</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredItems.map(item => (
+              {items.map(item => (
                 <tr key={item.id}>
                   <td>{item.id}</td>
                   <td>{item.User?.name || item.userId}</td>
                   <td>{item.month}/{item.year}</td>
-                  <td>{Number(item.netSalary || item.totalSalary || 0).toLocaleString('vi-VN')} đ</td>
+                  <td>{Number(item.netSalary || item.totalSalary || 0).toLocaleString('en-US')} VND</td>
                   <td><span className="badge badge-pending">Pending</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-approve" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'approve')}>Approve</button>
-                      <button className="btn btn-reject" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'reject')}>Reject</button>
+                      <button className="btn btn-approve" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'approve')}>✓ Approve</button>
+                      <button className="btn btn-reject" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'reject')}>✗ Reject</button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {filteredItems.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No pending payroll records</td></tr>
+              {items.length === 0 && (
+                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No pending payroll</td></tr>
               )}
             </tbody>
           </table>
         </div>
       )}
-      </div>
     </div>
   );
 }
 
 // ─── APP ROOT ──────────────────────────────────────────────────────────────────
 const TABS = [
-  { key: 'dashboard',     label: 'Overview',         icon: '📊' },
-  { key: 'leave',         label: 'Leave Approvals',  icon: '📋' },
-  { key: 'overtime',      label: 'Overtime Approvals', icon: '⏰' },
-  { key: 'business-trip', label: 'Trip Approvals',   icon: '✈️' },
-  { key: 'salary-advance',label: 'Advance Approvals', icon: '💵' },
-  { key: 'salary',        label: 'Payroll Approvals', icon: '💰' },
-  { key: 'reports',       label: 'Reports',          icon: '📈' },
+  { key: 'dashboard',     label: 'Overview',        icon: '📊' },
+  { key: 'leave',         label: 'Leave approvals', icon: '📋' },
+  { key: 'overtime',      label: 'Overtime approvals', icon: '⏰' },
+  { key: 'business-trip', label: 'Trip approvals',  icon: '✈️' },
+  { key: 'salary-advance',label: 'Advance approvals', icon: '💵' },
+  { key: 'salary',        label: 'Payroll approvals', icon: '💰' },
+  { key: 'reports',       label: 'Reports',         icon: '📈' },
 ];
 
 export default function App() {
@@ -790,16 +508,6 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
-  const [profileOpen, setProfileOpen] = useState(false);
-
-  const patchSessionUser = useCallback((patch) => {
-    setUser((prev) => {
-      if (!prev) return prev;
-      const next = { ...prev, ...patch };
-      localStorage.setItem('user', JSON.stringify(next));
-      return next;
-    });
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -859,19 +567,6 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!token) return;
-    fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.status === 'success' && data.user) {
-          setUser(data.user);
-          localStorage.setItem('user', JSON.stringify(data.user));
-        }
-      })
-      .catch(() => {});
-  }, [token]);
-
   const logout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
@@ -885,20 +580,20 @@ export default function App() {
       <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100vh' }}>
         <div className="card" style={{ textAlign:'center' }}>
           <p style={{ fontSize:18, marginBottom:12 }}>⛔ Access denied</p>
-          <p style={{ color:'#718096', marginBottom:20 }}>This page is available only for Supervisor or Manager roles.</p>
-          <button className="btn btn-primary" onClick={logout}>Sign in again</button>
+          <p style={{ color:'#718096', marginBottom:20 }}>This page is only for Supervisor or Manager roles.</p>
+          <button className="btn btn-primary" onClick={logout}>Back to login</button>
         </div>
       </div>
     );
   }
 
   const tabTitles = {
-    dashboard: 'Overview - Supervisor',
-    leave: 'Leave Approvals',
-    overtime: 'Overtime Approvals',
-    'business-trip': 'Business Trip Approvals',
-    'salary-advance': 'Salary Advance Approvals',
-    salary: 'Payroll Approvals',
+    dashboard: 'Supervisor overview',
+    leave: 'Leave approvals',
+    overtime: 'Overtime approvals',
+    'business-trip': 'Business trip approvals',
+    'salary-advance': 'Salary advance approvals',
+    salary: 'Payroll approvals',
     reports: 'Reports',
   };
 
@@ -926,38 +621,19 @@ export default function App() {
             <strong>{user?.name}</strong><br />
             <span style={{ opacity: 0.65 }}>{user?.role === 'manager' ? 'Manager' : 'Supervisor'}</span>
           </div>
-          <button className="logout-btn" onClick={logout}>Sign out</button>
+          <button className="logout-btn" onClick={logout}>Log out</button>
         </div>
       </nav>
 
       <div className="main-content">
         <div className="topbar">
-          <h1 style={{ margin: 0 }}>{tabTitles[activeTab]}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <button
-              type="button"
-              className="portal-avatar-btn"
-              onClick={() => setProfileOpen(true)}
-              title="Hồ sơ cá nhân"
-              aria-label="Mở hồ sơ cá nhân"
-            >
-              {portalAvatarSrc(API_BASE, user?.avatarUrl) ? (
-                <img className="portal-avatar-img" src={portalAvatarSrc(API_BASE, user?.avatarUrl)} alt="" />
-              ) : (
-                <span className="portal-avatar-fallback" aria-hidden>
-                  {(user?.name || '?').charAt(0).toUpperCase()}
-                </span>
-              )}
-            </button>
-            <span className="portal-topbar-email">{user?.email}</span>
-            <button
-              type="button"
-              onClick={() => setCollapsed(!collapsed)}
-              style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}
-            >
-              {collapsed ? '→' : '←'}
-            </button>
-          </div>
+          <h1>{tabTitles[activeTab]}</h1>
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            style={{ background:'none',border:'1px solid #e2e8f0',borderRadius:6,padding:'6px 12px',cursor:'pointer' }}
+          >
+            {collapsed ? '→' : '←'}
+          </button>
         </div>
         <div className="page-content">
           {activeTab === 'dashboard'      && <Dashboard token={token} onNavigate={setActiveTab} />}
@@ -969,12 +645,6 @@ export default function App() {
           {activeTab === 'reports'        && <SupervisorReports token={token} />}
         </div>
       </div>
-      <PersonalProfileModal
-        open={profileOpen}
-        onClose={() => setProfileOpen(false)}
-        apiBase={API_BASE}
-        onSessionUserPatch={patchSessionUser}
-      />
     </div>
   );
 }

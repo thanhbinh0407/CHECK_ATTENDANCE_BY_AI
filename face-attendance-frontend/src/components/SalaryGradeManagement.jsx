@@ -435,7 +435,7 @@ export default function SalaryGradeManagement() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
-                  placeholder="e.g., Bậc 1, Bậc 2, Senior"
+                  placeholder="e.g., Level 1, Level 2, Senior"
                   style={{
                     width: "100%",
                     padding: "12px",

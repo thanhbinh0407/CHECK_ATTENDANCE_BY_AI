@@ -70,7 +70,7 @@ export default function CameraScan({ onDetected }) {
       };
     } catch (error) {
       console.error("Error accessing camera:", error);
-      setMessage("Camera access bị từ chối hoặc không khả dụng: " + error.message + ". Hãy kiểm tra quyền camera và thử lại.");
+      setMessage("Camera access was denied or is unavailable: " + error.message + ". Please check camera permissions and try again.");
     }
   };
 

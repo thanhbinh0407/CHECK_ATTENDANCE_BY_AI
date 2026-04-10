@@ -30,20 +30,13 @@ function buildReportUrl(type, month, year) {
   return `${API}/reports/${type}?${qs}`;
 }
 
-function ReportRenderer({ type, data, keyword = '' }) {
+function ReportRenderer({ type, data }) {
   if (!data) return null;
-
-  const kw = String(keyword || '').trim().toLowerCase();
-  const matchRow = (row, fields = []) => {
-    if (!kw) return true;
-    const source = fields.length > 0 ? fields.map((f) => row?.[f]) : Object.values(row || {});
-    return source.some((v) => String(v ?? '').toLowerCase().includes(kw));
-  };
 
   if (data.status === 'error') {
     return (
       <div className="sup-rep-alert sup-rep-alert--err">
-        <strong>Unable to load report</strong>
+        <strong>Could not load report</strong>
         <p>{data.message || 'Unknown error'}</p>
       </div>
     );
@@ -60,20 +53,17 @@ function ReportRenderer({ type, data, keyword = '' }) {
 
   if (type === 'attendance' && rep?.report) {
     const rows = rep.report;
-    const filteredRows = rows.filter((r) =>
-      matchRow(r, ['employeeCode', 'employeeName', 'department', 'attendanceRate', 'presentDays', 'lateCount'])
-    );
     return (
       <div className="sup-rep-card">
         <h3 className="sup-rep-card-title">Attendance — {rep.month}/{rep.year}</h3>
-        <p className="sup-rep-muted">{filteredRows.length}/{rows.length} employees</p>
+        <p className="sup-rep-muted">{rep.totalEmployees} employees</p>
         <div className="sup-rep-table-wrap">
           <table className="sup-rep-table">
             <thead>
               <tr>
                 <th>Emp Code</th>
-                <th>Employee</th>
-                <th>Department</th>
+                <th>Full name</th>
+                <th>Dept</th>
                 <th>Present</th>
                 <th>Leave</th>
                 <th>Absent</th>
@@ -83,7 +73,7 @@ function ReportRenderer({ type, data, keyword = '' }) {
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((r) => (
+              {rows.map((r) => (
                 <tr key={r.employeeId}>
                   <td>{r.employeeCode}</td>
                   <td>{r.employeeName}</td>
@@ -96,9 +86,6 @@ function ReportRenderer({ type, data, keyword = '' }) {
                   <td>{r.attendanceRate}</td>
                 </tr>
               ))}
-              {filteredRows.length === 0 && (
-                <tr><td colSpan={9} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -108,28 +95,24 @@ function ReportRenderer({ type, data, keyword = '' }) {
 
   if (type === 'leave-status' && rep) {
     const rows = rep.report || [];
-    const filteredRows = rows.filter((r) =>
-      matchRow(r, ['employeeCode', 'employeeName', 'department', 'totalLeaveDaysUsed', 'remainingLeaveDays'])
-    );
     const sum = rep.summary;
     return (
       <div className="sup-rep-card">
-        <h3 className="sup-rep-card-title">Leave Status — Year {rep.year}</h3>
-        <p className="sup-rep-muted">{filteredRows.length}/{rows.length} employees</p>
+        <h3 className="sup-rep-card-title">Leave status — year {rep.year}</h3>
         {sum && (
           <div className="sup-rep-kpis">
             <div className="sup-rep-kpi"><span>Total leave used</span><strong>{sum.totalLeaveDaysUsed}</strong></div>
-            <div className="sup-rep-kpi"><span>Estimated leave remaining</span><strong>{sum.totalRemainingLeaveDays}</strong></div>
+            <div className="sup-rep-kpi"><span>Remaining leave (est.)</span><strong>{sum.totalRemainingLeaveDays}</strong></div>
             <div className="sup-rep-kpi"><span>Avg utilization %</span><strong>{sum.averageUtilizationRate}</strong></div>
           </div>
         )}
         <div className="sup-rep-table-wrap">
           <table className="sup-rep-table">
             <thead>
-              <tr><th>Code</th><th>Employee</th><th>Department</th><th>Used</th><th>Remaining</th></tr>
+              <tr><th>Code</th><th>Full name</th><th>Dept</th><th>Used</th><th>Remaining</th></tr>
             </thead>
             <tbody>
-              {filteredRows.map((r) => (
+              {rows.map((r) => (
                 <tr key={r.employeeId}>
                   <td>{r.employeeCode}</td>
                   <td>{r.employeeName}</td>
@@ -138,9 +121,6 @@ function ReportRenderer({ type, data, keyword = '' }) {
                   <td>{r.remainingLeaveDays}</td>
                 </tr>
               ))}
-              {filteredRows.length === 0 && (
-                <tr><td colSpan={5} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -151,13 +131,9 @@ function ReportRenderer({ type, data, keyword = '' }) {
   if (type === 'overtime' && rep) {
     const sum = rep.summary;
     const byEmp = rep.byEmployee || [];
-    const filteredByEmp = byEmp.filter((r) =>
-      matchRow(r, ['employeeCode', 'employeeName', 'department', 'totalHours', 'requestCount'])
-    );
     return (
       <div className="sup-rep-card">
         <h3 className="sup-rep-card-title">Overtime — {rep.month}/{rep.year}</h3>
-        <p className="sup-rep-muted">{filteredByEmp.length}/{byEmp.length} employees</p>
         {sum && (
           <div className="sup-rep-kpis">
             <div className="sup-rep-kpi"><span>Total hours</span><strong>{sum.totalHours}</strong></div>
@@ -168,10 +144,10 @@ function ReportRenderer({ type, data, keyword = '' }) {
         <div className="sup-rep-table-wrap">
           <table className="sup-rep-table">
             <thead>
-              <tr><th>Code</th><th>Employee</th><th>Department</th><th>Hours</th><th>Requests</th></tr>
+              <tr><th>Code</th><th>Full name</th><th>Dept</th><th>Hours</th><th>Requests</th></tr>
             </thead>
             <tbody>
-              {filteredByEmp.map((r) => (
+              {byEmp.map((r) => (
                 <tr key={r.employeeId}>
                   <td>{r.employeeCode}</td>
                   <td>{r.employeeName}</td>
@@ -180,9 +156,6 @@ function ReportRenderer({ type, data, keyword = '' }) {
                   <td>{r.requestCount}</td>
                 </tr>
               ))}
-              {filteredByEmp.length === 0 && (
-                <tr><td colSpan={5} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -193,13 +166,9 @@ function ReportRenderer({ type, data, keyword = '' }) {
   if (type === 'payroll-cost' && rep) {
     const sum = rep.summary;
     const rows = rep.breakdown || [];
-    const filteredRows = rows.filter((r) =>
-      matchRow(r, ['employeeName', 'department', 'grossSalary', 'netSalary', 'employeeInsurance', 'tax'])
-    );
     return (
       <div className="sup-rep-card">
-        <h3 className="sup-rep-card-title">Payroll Cost — {rep.month}/{rep.year}</h3>
-        <p className="sup-rep-muted">{filteredRows.length}/{rows.length} records</p>
+        <h3 className="sup-rep-card-title">Payroll cost — {rep.month}/{rep.year}</h3>
         {sum && (
           <div className="sup-rep-kpis sup-rep-kpis--wrap">
             <div className="sup-rep-kpi"><span>Total gross</span><strong>{formatVnd(sum.totalGrossSalary)}</strong></div>
@@ -214,11 +183,11 @@ function ReportRenderer({ type, data, keyword = '' }) {
           <table className="sup-rep-table">
             <thead>
               <tr>
-                <th>Employee</th><th>Department</th><th>Gross</th><th>Net</th><th>Insurance (Emp)</th><th>Tax</th>
+                <th>Employee</th><th>Dept</th><th>Gross</th><th>Net</th><th>Employee Ins.</th><th>Tax</th>
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((r) => (
+              {rows.map((r) => (
                 <tr key={r.employeeId}>
                   <td>{r.employeeName}</td>
                   <td>{r.department}</td>
@@ -228,9 +197,6 @@ function ReportRenderer({ type, data, keyword = '' }) {
                   <td>{formatVnd(r.tax)}</td>
                 </tr>
               ))}
-              {filteredRows.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -239,12 +205,9 @@ function ReportRenderer({ type, data, keyword = '' }) {
   }
 
   if (type === 'average-income' && rep) {
-    const byDepartment = (rep.byDepartment || []).filter((r) =>
-      matchRow(r, ['name', 'count', 'average', 'min', 'max'])
-    );
     return (
       <div className="sup-rep-card">
-        <h3 className="sup-rep-card-title">Average Income — {rep.month}/{rep.year}</h3>
+        <h3 className="sup-rep-card-title">Average income — {rep.month}/{rep.year}</h3>
         {rep.overall && (
           <div className="sup-rep-kpis">
             <div className="sup-rep-kpi"><span>Company average</span><strong>{formatVnd(rep.overall.averageSalary)}</strong></div>
@@ -252,15 +215,14 @@ function ReportRenderer({ type, data, keyword = '' }) {
             <div className="sup-rep-kpi"><span>Max</span><strong>{formatVnd(rep.overall.maxSalary)}</strong></div>
           </div>
         )}
-        <h4 className="sup-rep-subtitle">By Department</h4>
-        <p className="sup-rep-muted">{byDepartment.length}/{(rep.byDepartment || []).length} departments</p>
+        <h4 className="sup-rep-subtitle">By department</h4>
         <div className="sup-rep-table-wrap">
           <table className="sup-rep-table">
             <thead>
               <tr><th>Department</th><th>Headcount</th><th>Average</th><th>Min</th><th>Max</th></tr>
             </thead>
             <tbody>
-              {byDepartment.map((r, i) => (
+              {(rep.byDepartment || []).map((r, i) => (
                 <tr key={i}>
                   <td>{r.name}</td>
                   <td>{r.count}</td>
@@ -269,9 +231,6 @@ function ReportRenderer({ type, data, keyword = '' }) {
                   <td>{formatVnd(r.max)}</td>
                 </tr>
               ))}
-              {byDepartment.length === 0 && (
-                <tr><td colSpan={5} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -281,43 +240,33 @@ function ReportRenderer({ type, data, keyword = '' }) {
 
   if (type === 'turnover' && rep) {
     const det = rep.details || {};
-    const newEmployees = (det.newEmployees || []).filter((e) => matchRow(e, ['employeeCode', 'name', 'startDate']));
-    const terminatedEmployees = (det.terminatedEmployees || []).filter((e) => matchRow(e, ['employeeCode', 'name', 'employmentStatus']));
     return (
       <div className="sup-rep-card">
-        <h3 className="sup-rep-card-title">Workforce Turnover</h3>
+        <h3 className="sup-rep-card-title">Workforce turnover</h3>
         <div className="sup-rep-kpis">
           <div className="sup-rep-kpi"><span>New hires</span><strong>{rep.newEmployees}</strong></div>
-          <div className="sup-rep-kpi"><span>Terminations</span><strong>{rep.terminatedEmployees}</strong></div>
+          <div className="sup-rep-kpi"><span>Terminated</span><strong>{rep.terminatedEmployees}</strong></div>
           <div className="sup-rep-kpi"><span>Turnover %</span><strong>{rep.turnoverRate}</strong></div>
         </div>
-        <h4 className="sup-rep-subtitle">New Hires</h4>
-        <p className="sup-rep-muted">{newEmployees.length}/{(det.newEmployees || []).length} people</p>
+        <h4 className="sup-rep-subtitle">New hires</h4>
         <div className="sup-rep-table-wrap sup-rep-mb">
           <table className="sup-rep-table">
-            <thead><tr><th>Code</th><th>Name</th><th>Start date</th></tr></thead>
+            <thead><tr><th>Code</th><th>Full name</th><th>Start date</th></tr></thead>
             <tbody>
-              {newEmployees.map((e) => (
+              {(det.newEmployees || []).map((e) => (
                 <tr key={e.id}><td>{e.employeeCode}</td><td>{e.name}</td><td>{String(e.startDate || '').slice(0, 10)}</td></tr>
               ))}
-              {newEmployees.length === 0 && (
-                <tr><td colSpan={3} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
-              )}
             </tbody>
           </table>
         </div>
-        <h4 className="sup-rep-subtitle">Terminations</h4>
-        <p className="sup-rep-muted">{terminatedEmployees.length}/{(det.terminatedEmployees || []).length} people</p>
+        <h4 className="sup-rep-subtitle">Terminated</h4>
         <div className="sup-rep-table-wrap">
           <table className="sup-rep-table">
-            <thead><tr><th>Code</th><th>Name</th><th>Status</th></tr></thead>
+            <thead><tr><th>Code</th><th>Full name</th><th>Status</th></tr></thead>
             <tbody>
-              {terminatedEmployees.map((e) => (
+              {(det.terminatedEmployees || []).map((e) => (
                 <tr key={e.id}><td>{e.employeeCode}</td><td>{e.name}</td><td>{e.employmentStatus}</td></tr>
               ))}
-              {terminatedEmployees.length === 0 && (
-                <tr><td colSpan={3} style={{ textAlign: 'center', color: '#64748b' }}>No data matched your filter</td></tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -327,7 +276,7 @@ function ReportRenderer({ type, data, keyword = '' }) {
 
   return (
     <div className="sup-rep-card">
-      <h3 className="sup-rep-card-title">Raw Data</h3>
+      <h3 className="sup-rep-card-title">Data</h3>
       <pre className="sup-rep-raw">{JSON.stringify(data, null, 2)}</pre>
     </div>
   );
@@ -339,7 +288,6 @@ export default function SupervisorReports({ token }) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [keyword, setKeyword] = useState('');
 
   const loadReport = async () => {
     setLoading(true);
@@ -364,7 +312,7 @@ export default function SupervisorReports({ token }) {
             <option value="overtime">Overtime</option>
             <option value="payroll-cost">Payroll cost</option>
             <option value="average-income">Average income</option>
-            <option value="turnover">Turnover (monthly)</option>
+            <option value="turnover">Workforce turnover (monthly)</option>
           </select>
           {(reportType !== 'leave-status') && (
             <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
@@ -378,27 +326,18 @@ export default function SupervisorReports({ token }) {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
-          <input
-            type="text"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="Filter results by employee / department / code..."
-          />
-          <button type="button" className="btn btn-secondary" onClick={() => setKeyword('')}>
-            Clear filter
-          </button>
           <button type="button" className="btn btn-primary" onClick={loadReport} disabled={loading}>
             {loading ? 'Loading…' : 'View report'}
           </button>
         </div>
         <p className="sup-rep-hint">
-          {reportType === 'leave-status' && 'Leave status uses the selected year only.'}
-          {reportType === 'turnover' && 'Turnover uses the full date range of the selected month.'}
+          {reportType === 'leave-status' && 'Leave status uses only the selected year.'}
+          {reportType === 'turnover' && 'Turnover range is from start to end of selected month.'}
         </p>
       </div>
 
       {loading && <div className="loading">Loading report…</div>}
-      {!loading && report && <ReportRenderer type={reportType} data={report} keyword={keyword} />}
+      {!loading && report && <ReportRenderer type={reportType} data={report} />}
     </div>
   );
 }
