@@ -109,6 +109,15 @@ export default function EmployeeManagement() {
     }
   };
 
+  const formatVnd = (value) => {
+    const amount = Number(value);
+    const safeAmount = Number.isFinite(amount) ? amount : 0;
+    return `${new Intl.NumberFormat("vi-VN", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(safeAmount)} VNĐ`;
+  };
+
   const handleEdit = (employee) => {
     setEditingEmployee({ ...employee });
     setShowEditModal(true);
@@ -833,8 +842,8 @@ export default function EmployeeManagement() {
                   {selectedEmployee.salaryChangeHistory.map((history) => (
                     <div key={history.id} className="emp-detail-card">
                       <div className="emp-detail-card-name">{history.changeType} - {history.effectiveDate}</div>
-                      <div className="emp-detail-card-info">Base Salary: {history.previousBaseSalary || 0} → {history.newBaseSalary || 0}</div>
-                      <div className="emp-detail-card-info">Allowance: {history.previousTotalAllowance || 0} → {history.newTotalAllowance || 0}</div>
+                      <div className="emp-detail-card-info">Lương cơ bản: {formatVnd(history.previousBaseSalary)} → {formatVnd(history.newBaseSalary)}</div>
+                      <div className="emp-detail-card-info">Phụ cấp: {formatVnd(history.previousTotalAllowance)} → {formatVnd(history.newTotalAllowance)}</div>
                       <div className="emp-detail-card-info">Reason: {history.reason || "-"}</div>
                     </div>
                   ))}

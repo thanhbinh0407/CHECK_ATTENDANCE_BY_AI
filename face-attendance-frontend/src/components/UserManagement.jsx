@@ -310,6 +310,96 @@ export default function UserManagement() {
     }
   };
 
+  const openFaceModal = (user) => {
+    setFaceTargetUser(user);
+    setCapturedDescriptor(null);
+    setFaceMessage("");
+    setShowFaceModal(true);
+  };
+
+  const closeFaceModal = () => {
+    if (videoRef.current?.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+    }
+    setFaceCameraActive(false);
+    setShowFaceModal(false);
+    setFaceTargetUser(null);
+    setCapturedDescriptor(null);
+  };
+
+  const startFaceCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 }
+      });
+      videoRef.current.srcObject = stream;
+      videoRef.current.onloadedmetadata = () => {
+        videoRef.current.play();
+        setFaceCameraActive(true);
+        setFaceMessage("Camera đã bật. Hãy nhìn thẳng vào camera.");
+      };
+    } catch (err) {
+      setFaceMessage("Không thể bật camera: " + err.message);
+    }
+  };
+
+  const captureFace = async () => {
+    if (!faceCameraActive || !faceModelsLoaded || !videoRef.current) return;
+    try {
+      setFaceLoading(true);
+      const detection = await faceapi
+        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        setFaceMessage("Không phát hiện khuôn mặt. Vui lòng thử lại.");
+        return;
+      }
+
+      setCapturedDescriptor(Array.from(detection.descriptor));
+      setFaceMessage("Đã chụp khuôn mặt. Sẵn sàng cập nhật.");
+    } catch (err) {
+      setFaceMessage("Lỗi khi chụp khuôn mặt: " + err.message);
+    } finally {
+      setFaceLoading(false);
+    }
+  };
+
+  const updateFaceForUser = async () => {
+    if (!faceTargetUser?.employeeCode) {
+      setFaceMessage("Không tìm thấy mã nhân viên.");
+      return;
+    }
+    if (!capturedDescriptor) {
+      setFaceMessage("Vui lòng chụp khuôn mặt trước khi cập nhật.");
+      return;
+    }
+
+    try {
+      setFaceLoading(true);
+      const res = await fetch(`${API_BASE}/api/enroll/face`, {
+        method: "PUT",
+        headers: getHeaders(),
+        body: JSON.stringify({
+          employeeCode: faceTargetUser.employeeCode,
+          descriptor: capturedDescriptor
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== "success") {
+        setFaceMessage(data.message || "Cập nhật khuôn mặt thất bại");
+        return;
+      }
+      setFaceMessage("Cập nhật khuôn mặt thành công");
+      setTimeout(() => closeFaceModal(), 500);
+    } catch (err) {
+      setFaceMessage("Cập nhật khuôn mặt thất bại: " + err.message);
+    } finally {
+      setFaceLoading(false);
+    }
+  };
+
   const permanentlyDeleteUser = async (user) => {
     if (!confirm(`Permanently delete "${user.name}"?\n\nThis cannot be undone.`)) return;
     const password = window.prompt("Enter Manager password to confirm permanent deletion:");

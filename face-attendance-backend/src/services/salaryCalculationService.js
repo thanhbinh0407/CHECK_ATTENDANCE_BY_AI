@@ -212,7 +212,8 @@ export async function calculateSalaryForUser(userId, month, year, { requireExist
         }
         break;
       case "full_attendance": {
-        const hasFullAttendance = workingDayNumbers.size >= totalWorkingDays && lateCount === 0 && earlyLeaveCount === 0 && absentDays === 0;
+        const coveredWorkingDays = new Set([...presentDayNumbers, ...approvedLeaveDayNumbers]).size;
+        const hasFullAttendance = coveredWorkingDays >= totalWorkingDays && lateCount === 0 && earlyLeaveCount === 0 && absentDays === 0;
         if (hasFullAttendance && (!rule.threshold || totalWorkingDays >= rule.threshold)) {
           shouldApply = true;
           ruleAmount = rule.amountType === "percentage"
