@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { theme } from "../styles/theme.js";
+import { toastConfirm } from "../lib/notify.jsx";
 
 export default function DependentManagement() {
   const [dependents, setDependents] = useState([]);
@@ -129,7 +130,8 @@ export default function DependentManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this dependent?")) return;
+    const ok = await toastConfirm({ message: "Are you sure you want to delete this dependent?" });
+    if (!ok) return;
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");

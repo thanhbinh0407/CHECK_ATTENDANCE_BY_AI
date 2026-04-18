@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { calculateCompleteSalary, SALARY_CONSTANTS } from './salaryCalculation.js';
+import { toastError, toastWarning } from '../lib/notify.jsx';
 
 // Export employees to Excel
 export const exportEmployeesToExcel = (employees, filename = 'danh-sach-nhan-vien') => {
@@ -356,7 +357,7 @@ export const downloadEmployeeTemplate = () => {
     console.log('✅ Template downloaded successfully');
   } catch (error) {
     console.error('Error downloading template:', error);
-    alert(`Lỗi khi tải template: ${error.message}`);
+    toastError(`Failed to download template: ${error.message}`);
   }
 };
 
@@ -470,7 +471,9 @@ export const importEmployeesFromExcel = async (file) => {
             return;
           }
           // Show warnings but continue with valid data
-          alert(`Cảnh báo:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n... và ${errors.length - 5} cảnh báo khác` : ''}\n\nSẽ import ${employees.length} nhân viên hợp lệ.`);
+          toastWarning(
+            `Warning:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n... and ${errors.length - 5} more warning(s)` : ''}\n\n${employees.length} valid employee(s) will be imported.`
+          );
         }
         
         if (employees.length === 0) {

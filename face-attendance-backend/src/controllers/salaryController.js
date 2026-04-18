@@ -10,7 +10,7 @@ import ShiftSetting from "../models/pg/ShiftSetting.js";
 import SalaryAdvance from "../models/pg/SalaryAdvance.js";
 import SalaryHistory from "../models/pg/SalaryHistory.js";
 import { Op } from "sequelize";
-import { sendNotification } from "./notificationController.js";
+import { createNotification } from "./notificationController.js";
 import { getSalaryTransitionError, SALARY_STATUS } from "../services/salaryStatusRBAC.js";
 import { getSalaryBreakdownDetail } from "../services/salaryBreakdownDetailService.js";
 
@@ -438,11 +438,14 @@ export const approveSalary = async (req, res) => {
       calculatedAt: new Date()
     });
 
-    // Send broadcast notification
     const employee = await User.findByPk(salary.userId, { attributes: ['name', 'employeeCode'] });
-    await sendNotification(null, 'system', 'Salary Approved', 
-      `Salary for ${employee?.name || 'employee'} (${employee?.employeeCode || salary.userId}) for ${salary.month}/${salary.year} has been approved.`, 
-      { salaryId: salary.id, action: 'approved' });
+    await createNotification(
+      null,
+      'system',
+      'Salary Approved',
+      `Salary for ${employee?.name || 'employee'} (${employee?.employeeCode || salary.userId}) for ${salary.month}/${salary.year} has been approved.`,
+      { salaryId: salary.id, action: 'approved' }
+    );
 
     return res.json({
       status: "success",

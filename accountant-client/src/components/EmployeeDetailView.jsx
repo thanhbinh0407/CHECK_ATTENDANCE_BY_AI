@@ -2,7 +2,11 @@ import React, { useState, useEffect, useMemo } from "react";
 import { theme } from "../theme.js";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from 'recharts';
 
-export default function EmployeeDetailView() {
+export default function EmployeeDetailView({
+  embedded = false,
+  initialEmployeeId = null,
+  onClose = null,
+} = {}) {
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employeeDetails, setEmployeeDetails] = useState(null);
@@ -21,8 +25,8 @@ export default function EmployeeDetailView() {
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
   useEffect(() => {
-    fetchEmployees();
-  }, []);
+    if (!embedded) fetchEmployees();
+  }, [embedded]);
 
   const fetchEmployees = async () => {
     try {
@@ -175,6 +179,12 @@ export default function EmployeeDetailView() {
   };
 
   useEffect(() => {
+    if (embedded && initialEmployeeId != null) {
+      viewEmployeeDetails(initialEmployeeId);
+    }
+  }, [embedded, initialEmployeeId]);
+
+  useEffect(() => {
     if (activeTab === "job-history") {
       fetchHistory("job");
     }
@@ -186,9 +196,15 @@ export default function EmployeeDetailView() {
     }
   }, [activeTab, selectedEmployee, salaryChangeFilter.fromDate, salaryChangeFilter.toDate, salaryChangeFilter.changeType, salaryPagination.page]);
 
+  const outerStyle = embedded
+    ? { padding: 0, backgroundColor: "transparent", minHeight: 0 }
+    : { padding: "20px", backgroundColor: theme.colors.light, minHeight: "100vh" };
+
   return (
-    <div style={{ padding: "20px", backgroundColor: theme.colors.light, minHeight: "100vh" }}>
-      <h1 style={{ color: theme.colors.primary, marginBottom: "20px" }}>👤 Employee Details</h1>
+    <div style={outerStyle}>
+      {!embedded && (
+        <h1 style={{ color: theme.colors.primary, marginBottom: "20px" }}>👤 Employee Details</h1>
+      )}
 
       {message && (
         <div
@@ -204,67 +220,74 @@ export default function EmployeeDetailView() {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "350px 1fr", gap: "20px" }}>
-        {/* Employee List */}
-        <div
-          style={{
-            backgroundColor: "white",
-            borderRadius: "8px",
-            padding: "15px",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            height: "fit-content"
-          }}
-        >
-          <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>📋 Employee List</h3>
-
-          <input
-            type="text"
-            placeholder="Search by name or employee ID..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: embedded ? "1fr" : "350px 1fr",
+          gap: "20px",
+        }}
+      >
+        {!embedded && (
+          <div
             style={{
-              width: "100%",
-              padding: "10px",
-              marginBottom: "15px",
-              borderRadius: "5px",
-              border: `1px solid ${theme.colors.border}`
+              backgroundColor: "white",
+              borderRadius: "8px",
+              padding: "15px",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              height: "fit-content",
             }}
-          />
+          >
+            <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>📋 Employee List</h3>
 
-          <div style={{ maxHeight: "600px", overflowY: "auto" }}>
-            {filteredEmployees.length === 0 ? (
-              <p style={{ color: "#999", textAlign: "center", padding: "20px 0" }}>
-                No employees found
-              </p>
-            ) : (
-              filteredEmployees.map((emp) => (
-                <div
-                  key={emp.id}
-                  onClick={() => viewEmployeeDetails(emp.id)}
-                  style={{
-                    padding: "12px",
-                    marginBottom: "8px",
-                    backgroundColor: selectedEmployee === emp.id ? (theme.colors?.primary || "#1e3a5f") : "#f9f9f9",
-                    color: selectedEmployee === emp.id ? "white" : "black",
-                    fontWeight: selectedEmployee === emp.id ? 700 : "normal",
-                    borderRadius: "5px",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    borderLeft: selectedEmployee === emp.id ? "4px solid rgba(255,255,255,0.8)" : "none"
-                  }}
-                >
-                  <div style={{ fontWeight: "bold", fontSize: "0.95em" }}>{emp.name}</div>
-                  <div style={{ fontSize: "0.85em", opacity: 0.8 }}>
-                    {emp.employeeCode} | {emp.Department?.name || "N/A"}
+            <input
+              type="text"
+              placeholder="Search by name or employee ID..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px",
+                marginBottom: "15px",
+                borderRadius: "5px",
+                border: `1px solid ${theme.colors.border}`,
+              }}
+            />
+
+            <div style={{ maxHeight: "600px", overflowY: "auto" }}>
+              {filteredEmployees.length === 0 ? (
+                <p style={{ color: "#999", textAlign: "center", padding: "20px 0" }}>
+                  No employees found
+                </p>
+              ) : (
+                filteredEmployees.map((emp) => (
+                  <div
+                    key={emp.id}
+                    onClick={() => viewEmployeeDetails(emp.id)}
+                    style={{
+                      padding: "12px",
+                      marginBottom: "8px",
+                      backgroundColor:
+                        selectedEmployee === emp.id ? theme.colors?.primary || "#1e3a5f" : "#f9f9f9",
+                      color: selectedEmployee === emp.id ? "white" : "black",
+                      fontWeight: selectedEmployee === emp.id ? 700 : "normal",
+                      borderRadius: "5px",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      borderLeft: selectedEmployee === emp.id ? "4px solid rgba(255,255,255,0.8)" : "none",
+                    }}
+                  >
+                    <div style={{ fontWeight: "bold", fontSize: "0.95em" }}>{emp.name}</div>
+                    <div style={{ fontSize: "0.85em", opacity: 0.8 }}>
+                      {emp.employeeCode} | {emp.Department?.name || "N/A"}
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Employee details displayed on the right (no popup) */}
-        <div style={{ minHeight: "400px" }}>
+        <div style={{ minHeight: embedded ? "200px" : "400px" }}>
           {!employeeDetails && (
             <div
               style={{
@@ -272,11 +295,17 @@ export default function EmployeeDetailView() {
                 borderRadius: "8px",
                 padding: "40px",
                 textAlign: "center",
-                color: "#999"
+                color: "#999",
               }}
             >
-              <div style={{ fontSize: "3em", marginBottom: "10px" }}>👈</div>
-              <p>Select an employee from the list to view details</p>
+              {embedded ? (
+                <p>{loading ? "Loading employee profile…" : message || "Could not load this profile."}</p>
+              ) : (
+                <>
+                  <div style={{ fontSize: "3em", marginBottom: "10px" }}>👈</div>
+                  <p>Select an employee from the list to view details</p>
+                </>
+              )}
             </div>
           )}
           {employeeDetails && (
@@ -311,9 +340,11 @@ export default function EmployeeDetailView() {
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => {
                     setEmployeeDetails(null);
                     setSelectedEmployee(null);
+                    if (typeof onClose === "function") onClose();
                   }}
                   style={{
                     background: "none",
@@ -321,7 +352,7 @@ export default function EmployeeDetailView() {
                     color: "white",
                     fontSize: "24px",
                     cursor: "pointer",
-                    padding: "5px 10px"
+                    padding: "5px 10px",
                   }}
                   title="Close"
                 >

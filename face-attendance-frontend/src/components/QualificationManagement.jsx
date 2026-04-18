@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { theme } from "../styles/theme.js";
+import { toastConfirm } from "../lib/notify.jsx";
 
 export default function QualificationManagement() {
   const [qualifications, setQualifications] = useState([]);
@@ -124,7 +125,8 @@ export default function QualificationManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this qualification?")) return;
+    const ok = await toastConfirm({ message: "Are you sure you want to delete this qualification?" });
+    if (!ok) return;
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");

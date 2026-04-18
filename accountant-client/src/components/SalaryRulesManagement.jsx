@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
+import { toastConfirm } from "../lib/notify.jsx";
 
 export default function SalaryRulesManagement() {
   const [rules, setRules] = useState([]);
@@ -96,7 +97,8 @@ export default function SalaryRulesManagement() {
   };
 
   const handleDelete = async (ruleId) => {
-    if (!confirm("Are you sure you want to delete this rule?")) return;
+    const ok = await toastConfirm({ message: "Are you sure you want to delete this rule?" });
+    if (!ok) return;
 
     try {
       setLoading(true);

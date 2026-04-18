@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 // Import jspdf-autotable - for v5.x we need to import and apply the plugin
 import { applyPlugin } from 'jspdf-autotable';
+import { toastError, toastWarning } from '../lib/notify.jsx';
 
 // Apply the plugin to extend jsPDF prototype
 applyPlugin(jsPDF);
@@ -35,7 +36,7 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
     }
 
     if (salaries.length === 0) {
-      alert('No data to export.');
+      toastWarning('No data to export.');
       return;
     }
 
@@ -116,7 +117,7 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
     console.log(`✅ Exported ${salaries.length} salaries to ${filename}.xlsx`);
   } catch (error) {
     console.error('Error exporting to Excel:', error);
-    alert(`Error exporting Excel: ${error.message}`);
+    toastError(`Error exporting Excel: ${error.message}`);
   }
 };
 
@@ -128,7 +129,7 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
     }
 
     if (salaries.length === 0) {
-      alert('No data to export.');
+      toastWarning('No data to export.');
       return;
     }
 
@@ -202,6 +203,6 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
     console.log(`✅ Exported ${salaries.length} salaries to ${filename}.pdf`);
   } catch (error) {
     console.error('Error exporting to PDF:', error);
-    alert(`Error exporting PDF: ${error.message}\n\nEnsure jspdf-autotable is installed: npm install jspdf-autotable`);
+    toastError(`Error exporting PDF: ${error.message}. Ensure jspdf-autotable is installed: npm install jspdf-autotable`);
   }
 };

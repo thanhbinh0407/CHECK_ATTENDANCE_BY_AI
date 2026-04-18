@@ -27,6 +27,8 @@ import DocumentManagement from './components/DocumentManagement.jsx';
 import DependentManagement from './components/DependentManagement.jsx';
 import QualificationManagement from './components/QualificationManagement.jsx';
 import EnrollmentForm from './components/EnrollmentForm.jsx';
+import ApprovalAuditLog from './components/ApprovalAuditLog.jsx';
+import { AppToastContainer } from './lib/notify.jsx';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
@@ -101,9 +103,11 @@ function AppRBAC() {
             <Route path="/dependents" element={<DependentManagement />} />
             <Route path="/qualifications" element={<QualificationManagement />} />
             <Route path="/enrollment" element={<EnrollmentForm />} />
+            <Route path="/approval-audit" element={<ApprovalAuditLog />} />
           </Route>
         </Routes>
       </div>
+      <AppToastContainer />
     </Router>
   );
 }

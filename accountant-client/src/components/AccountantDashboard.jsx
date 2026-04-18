@@ -151,8 +151,8 @@ export default function AccountantDashboard({ onNavigate } = {}) {
         <div className="acc-dash-card">
           <h3>Suggested workflow</h3>
           <p>
-            Prioritize <strong>payroll pending approval</strong>, then reconcile <strong>advances</strong> and open{" "}
-            <strong>employee details</strong> when you need to verify allowances, social insurance, or bank details.
+            Prioritize <strong>payroll pending approval</strong>, then reconcile <strong>advances</strong>. Under{" "}
+            <strong>Employees</strong>, use <strong>View</strong> on a row to open the full profile (attendance, leave, salary tabs).
           </p>
         </div>
         <div className="acc-dash-card">
@@ -232,9 +232,9 @@ export default function AccountantDashboard({ onNavigate } = {}) {
             <span>✅</span>
             <span>Payroll approval</span>
           </button>
-          <button type="button" className="acc-dash-link" onClick={() => go("employee-details")}>
-            <span>👤</span>
-            <span>Employee details</span>
+          <button type="button" className="acc-dash-link" onClick={() => go("employee-management")}>
+            <span>🏢</span>
+            <span>Employees (View profile)</span>
           </button>
           <button type="button" className="acc-dash-link" onClick={() => go("d02-lt-report")}>
             <span>📄</span>

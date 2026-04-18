@@ -146,7 +146,51 @@ async function purgeEmployeeRelatedRows(userId, transaction) {
   await FaceProfile.destroy({ where: { userId: uid }, ...t });
 }
 
-async function verifyActorPasswordOrThrow(req, transaction) {
+/**
+ * Manager: mọi vai trò trừ chính mình.
+ * HR: chỉ tài khoản role `employee`; không được thao tác manager (admin) hoặc chính mình.
+ */
+function getAccountLifecyclePolicyViolation(req, targetUser, action = "deactivate") {
+  const actorRole = req.user?.role;
+  const actorId = req.user?.userId ?? req.user?.id ?? null;
+  const targetId = targetUser?.id != null ? Number(targetUser.id) : NaN;
+  const aid = actorId != null ? Number(actorId) : NaN;
+
+  if (!Number.isFinite(targetId)) return null;
+
+  if (Number.isFinite(aid) && aid === targetId) {
+    const selfMessages = {
+      deactivate: "Cannot deactivate your own account",
+      permanent: "Cannot permanently delete your own account",
+      restore: "Cannot restore your own account",
+    };
+    return {
+      status: 400,
+      code: "SELF_ACTION",
+      message: selfMessages[action] || selfMessages.deactivate,
+    };
+  }
+
+  if (actorRole === "manager") return null;
+
+  if (actorRole === "hr") {
+    if (targetUser.role === "manager") {
+      return { status: 403, code: "NO_PERMISSION_ADMIN", message: "Bạn không có quyền này" };
+    }
+    if (targetUser.role !== "employee") {
+      return {
+        status: 403,
+        code: "HR_EMPLOYEE_ONLY",
+        message: "Chỉ có thể thao tác với tài khoản nhân viên.",
+      };
+    }
+    return null;
+  }
+
+  return { status: 403, message: "Forbidden" };
+}
+
+async function verifyActorPasswordOrThrow(req, transaction, actionLabel = "perform this action") {
   const actorId = req.user?.userId ?? req.user?.id;
   if (!actorId) {
     const err = new Error("Unauthorized");
@@ -163,7 +207,7 @@ async function verifyActorPasswordOrThrow(req, transaction) {
 
   const password = req.body?.password;
   if (!password || typeof password !== "string") {
-    const err = new Error("Password is required for permanent delete");
+    const err = new Error(`Password is required to ${actionLabel}`);
     err.statusCode = 400;
     throw err;
   }
@@ -669,13 +713,13 @@ export const deleteEmployee = async (req, res) => {
       });
     }
 
-    const actorId = req.user?.userId ?? req.user?.id ?? null;
-    if (actorId && Number(actorId) === Number(employee.id)) {
-      return res.status(400).json({ status: "error", message: "Cannot deactivate your own account" });
-    }
-
-    if (employee.role === "manager") {
-      return res.status(403).json({ status: "error", message: "Cannot deactivate manager account" });
+    const policy = getAccountLifecyclePolicyViolation(req, employee, "deactivate");
+    if (policy) {
+      return res.status(policy.status).json({
+        status: "error",
+        message: policy.message,
+        ...(policy.code ? { code: policy.code } : {}),
+      });
     }
 
     if (employee.isActive === false) {
@@ -685,6 +729,8 @@ export const deleteEmployee = async (req, res) => {
         user: { id: employee.id, name: employee.name, isActive: false },
       });
     }
+
+    await verifyActorPasswordOrThrow(req, null, "deactivate employee");
 
     await employee.update({
       isActive: false,
@@ -700,7 +746,8 @@ export const deleteEmployee = async (req, res) => {
     });
   } catch (err) {
     console.error("Error deleting employee:", err);
-    return res.status(500).json({
+    const statusCode = err.statusCode || 500;
+    return res.status(statusCode).json({
       status: "error",
       message: err.message
     });
@@ -717,8 +764,13 @@ export const restoreEmployee = async (req, res) => {
       return res.status(404).json({ status: "error", message: "Employee not found" });
     }
 
-    if (employee.role === "manager") {
-      return res.status(403).json({ status: "error", message: "Cannot restore manager account via this endpoint" });
+    const policy = getAccountLifecyclePolicyViolation(req, employee, "restore");
+    if (policy) {
+      return res.status(policy.status).json({
+        status: "error",
+        message: policy.message,
+        ...(policy.code ? { code: policy.code } : {}),
+      });
     }
 
     if (employee.isActive === true) {
@@ -763,8 +815,13 @@ export const permanentlyDeleteEmployee = async (req, res) => {
       });
     }
 
-    if (employee.role === "manager") {
-      return res.status(403).json({ status: "error", message: "Cannot delete manager account" });
+    const policy = getAccountLifecyclePolicyViolation(req, employee, "permanent");
+    if (policy) {
+      return res.status(policy.status).json({
+        status: "error",
+        message: policy.message,
+        ...(policy.code ? { code: policy.code } : {}),
+      });
     }
 
     if (employee.isActive !== false) {
@@ -772,11 +829,6 @@ export const permanentlyDeleteEmployee = async (req, res) => {
         status: "error",
         message: "User must be inactive (deactivated) before permanent delete"
       });
-    }
-
-    const actorId = req.user?.userId ?? req.user?.id ?? null;
-    if (actorId && Number(actorId) === Number(employee.id)) {
-      return res.status(400).json({ status: "error", message: "Cannot permanently delete your own account" });
     }
 
     await sequelize.transaction(async (transaction) => {
@@ -1979,6 +2031,159 @@ export const getRoleAuditLogs = async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching role audit logs:", err);
+    return res.status(500).json({ status: "error", message: err.message });
+  }
+};
+
+export const getApprovalAuditLogs = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || "20", 10), 1), 100);
+
+    const role = (req.query.role || "").trim().toLowerCase();
+    const requestType = (req.query.requestType || "").trim().toLowerCase();
+    const status = (req.query.status || "").trim().toLowerCase();
+    const fromDate = (req.query.fromDate || "").trim();
+    const toDate = (req.query.toDate || "").trim();
+
+    const approverInclude = {
+      model: User,
+      as: "Approver",
+      attributes: ["id", "name", "email", "employeeCode", "role"],
+      required: Boolean(role),
+      where: role ? { role } : undefined,
+    };
+
+    const actedAtRange = {};
+    if (fromDate) actedAtRange[Op.gte] = new Date(`${fromDate}T00:00:00.000Z`);
+    if (toDate) actedAtRange[Op.lte] = new Date(`${toDate}T23:59:59.999Z`);
+
+    const applyDateFilter = (baseWhere = {}) => {
+      if (!fromDate && !toDate) return baseWhere;
+      return { ...baseWhere, approvedAt: actedAtRange };
+    };
+
+    const shouldLoad = (type) => !requestType || requestType === type;
+
+    const tasks = [];
+    if (shouldLoad("leave")) {
+      tasks.push(
+        LeaveRequest.findAll({
+          where: applyDateFilter({ approvedBy: { [Op.ne]: null } }),
+          include: [approverInclude],
+          order: [["approvedAt", "DESC"]],
+          limit: 1000,
+        }).then((rows) =>
+          rows.map((r) => ({
+            id: `leave-${r.id}`,
+            requestType: "leave",
+            requestId: r.id,
+            level: 1,
+            status: r.status,
+            comments: r.rejectionReason || null,
+            approvedAt: r.approvedAt,
+            updatedAt: r.updatedAt,
+            Approver: r.Approver || null,
+          }))
+        )
+      );
+    }
+
+    if (shouldLoad("other")) {
+      tasks.push(
+        Payroll.findAll({
+          where: applyDateFilter({
+            approvedBy: { [Op.ne]: null },
+            status: { [Op.in]: ["approved", "rejected", "paid"] },
+          }),
+          include: [approverInclude],
+          order: [["approvedAt", "DESC"]],
+          limit: 1000,
+        }).then((rows) =>
+          rows.map((r) => ({
+            id: `payroll-${r.id}`,
+            requestType: "other",
+            requestId: r.id,
+            level: 1,
+            status: r.status,
+            comments: r.rejectionReason || null,
+            approvedAt: r.approvedAt,
+            updatedAt: r.updatedAt,
+            Approver: r.Approver || null,
+          }))
+        )
+      );
+
+      tasks.push(
+        ApprovalWorkflow.findAll({
+          where: applyDateFilter({ approvedAt: { [Op.ne]: null } }),
+          include: [approverInclude],
+          order: [["approvedAt", "DESC"]],
+          limit: 1000,
+        }).then((rows) =>
+          rows.map((r) => ({
+            id: `workflow-${r.id}`,
+            requestType: r.requestType || "other",
+            requestId: r.requestId,
+            level: r.level,
+            status: r.status,
+            comments: r.comments || null,
+            approvedAt: r.approvedAt,
+            updatedAt: r.updatedAt,
+            Approver: r.Approver || null,
+          }))
+        )
+      );
+    } else if (shouldLoad(requestType)) {
+      tasks.push(
+        ApprovalWorkflow.findAll({
+          where: applyDateFilter({
+            approvedAt: { [Op.ne]: null },
+            requestType,
+          }),
+          include: [approverInclude],
+          order: [["approvedAt", "DESC"]],
+          limit: 1000,
+        }).then((rows) =>
+          rows.map((r) => ({
+            id: `workflow-${r.id}`,
+            requestType: r.requestType || "other",
+            requestId: r.requestId,
+            level: r.level,
+            status: r.status,
+            comments: r.comments || null,
+            approvedAt: r.approvedAt,
+            updatedAt: r.updatedAt,
+            Approver: r.Approver || null,
+          }))
+        )
+      );
+    }
+
+    const merged = (await Promise.all(tasks)).flat();
+    const filteredByStatus = status ? merged.filter((r) => String(r.status || "").toLowerCase() === status) : merged;
+    filteredByStatus.sort((a, b) => {
+      const ta = new Date(a.approvedAt || a.updatedAt || 0).getTime();
+      const tb = new Date(b.approvedAt || b.updatedAt || 0).getTime();
+      return tb - ta;
+    });
+
+    const count = filteredByStatus.length;
+    const offset = (page - 1) * pageSize;
+    const rows = filteredByStatus.slice(offset, offset + pageSize);
+
+    return res.json({
+      status: "success",
+      logs: rows,
+      pagination: {
+        page,
+        pageSize,
+        total: count,
+        totalPages: Math.max(1, Math.ceil(count / pageSize)),
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching approval audit logs:", err);
     return res.status(500).json({ status: "error", message: err.message });
   }
 };

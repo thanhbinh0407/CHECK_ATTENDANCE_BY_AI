@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { theme } from "../styles/theme.js";
+import { toastConfirm } from "../lib/notify.jsx";
 
 const DOCUMENT_TYPES = [
   { value: "id_card", label: "CCCD/Passport (Scan)" },
@@ -121,7 +122,8 @@ export default function DocumentManagement() {
   };
 
   const handleDelete = async (docId) => {
-    if (!window.confirm("Delete this document?")) return;
+    const ok = await toastConfirm({ message: "Delete this document?" });
+    if (!ok) return;
     try {
       setLoading(true);
       setMessage("");

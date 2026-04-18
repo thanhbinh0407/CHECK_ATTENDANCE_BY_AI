@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as faceapi from "face-api.js";
+import { toastError, toastSuccess, toastWarning } from "../lib/notify.jsx";
 
 export default function EnrollForm() {
   const videoRef = useRef();
@@ -24,13 +25,13 @@ export default function EnrollForm() {
   };
 
   const handleEnroll = async () => {
-    if (!modelsLoaded) return alert("Loading models");
+    if (!modelsLoaded) return toastWarning("Loading models, please wait.");
     const detection = await faceapi
       .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
       .withFaceLandmarks()
       .withFaceDescriptor();
 
-    if (!detection) return alert("No face detected");
+    if (!detection) return toastError("No face detected.");
 
     const descriptor = Array.from(detection.descriptor);
 
@@ -53,8 +54,8 @@ export default function EnrollForm() {
       body: JSON.stringify(payload)
     });
     const data = await res.json();
-    if (data.status === "success") alert("Enrollment successful");
-    else alert("Enrollment failed");
+    if (data.status === "success") toastSuccess("Enrollment successful.");
+    else toastError(data.message || "Enrollment failed.");
   };
 
   return (

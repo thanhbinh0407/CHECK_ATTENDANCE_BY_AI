@@ -51,6 +51,7 @@ export default function EnrollmentForm() {
   const [passwordGenerated, setPasswordGenerated] = useState(false);
   const detectionIntervalRef = useRef(null);
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  const normalizedEmployeeCode = String(formData.employeeCode || "").trim().toUpperCase();
 
   // Validation errors state
   const [errors, setErrors] = useState({
@@ -424,7 +425,7 @@ export default function EnrollmentForm() {
     // Validate all fields
     const nameValid = validateField("name", formData.name);
     const emailValid = validateField("email", formData.email);
-    const codeValid = validateField("employeeCode", formData.employeeCode);
+    const codeValid = validateField("employeeCode", normalizedEmployeeCode);
     const passwordValid = useCustomPassword ? validateField("password", formData.password) : true;
     const salaryValid = validateField("baseSalary", formData.baseSalary);
     const jobTitleValid = validateField("jobTitle", formData.jobTitle);
@@ -435,6 +436,12 @@ export default function EnrollmentForm() {
       setMessage("❌ Please fix all validation errors before submitting");
       return;
     }
+    if (!normalizedEmployeeCode) {
+      setErrors((prev) => ({ ...prev, employeeCode: "Employee code has not been generated yet" }));
+      setTouched((prev) => ({ ...prev, employeeCode: true }));
+      setMessage("❌ Employee code is not ready. Please select Job Title to auto-generate code.");
+      return;
+    }
 
     try {
       setLoading(true);
@@ -443,7 +450,7 @@ export default function EnrollmentForm() {
       const payload = {
         name: formData.name,
         email: formData.email,
-        employeeCode: formData.employeeCode,
+        employeeCode: normalizedEmployeeCode,
         password: useCustomPassword ? formData.password : undefined,
         jobTitleId: formData.jobTitleId,
         jobTitle: formData.jobTitle,
@@ -465,7 +472,12 @@ export default function EnrollmentForm() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("✅ Employee registered successfully!");
+        const persistedCode =
+          data?.employee?.employeeCode ||
+          data?.user?.employeeCode ||
+          data?.employeeCode ||
+          normalizedEmployeeCode;
+        setMessage(`✅ Employee registered successfully! Employee Code: ${persistedCode}`);
         setGeneratedPassword(data.password);
         setPasswordGenerated(data.passwordGenerated || false);
         setFormData({ 
@@ -726,13 +738,14 @@ export default function EnrollmentForm() {
                 type="text"
                 style={getInputStyle("employeeCode")}
                 value={formData.employeeCode}
-                onChange={(e) => handleFieldChange("employeeCode", e.target.value)}
-                onBlur={(e) => { handleBlur("employeeCode"); Object.assign(e.target.style, getInputStyle("employeeCode")); }}
-                placeholder="EMP001"
-                onFocus={(e) => Object.assign(e.target.style, getInputFocusStyle("employeeCode"))}
-                onMouseEnter={(e) => { if (e.target !== document.activeElement && !errors.employeeCode) Object.assign(e.target.style, inputHoverStyle) }}
-                onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, getInputStyle("employeeCode")) }}
+                readOnly
+                placeholder="Auto-generated from Job Title"
               />
+              {!errors.employeeCode && (
+                <div style={{ fontSize: "12px", color: theme.neutral.gray600, marginTop: "6px", fontWeight: "500" }}>
+                  🔒 Auto-generated from Job Title (cannot be edited)
+                </div>
+              )}
               {touched.employeeCode && errors.employeeCode && (
                 <div style={errorMessageStyle}>
                   <span>⚠️</span>
@@ -826,13 +839,9 @@ export default function EnrollmentForm() {
                 type="number"
                 style={getInputStyle("baseSalary")}
                 value={formData.baseSalary}
-                onChange={(e) => handleFieldChange("baseSalary", parseInt(e.target.value) || 0)}
-                onBlur={(e) => { handleBlur("baseSalary"); Object.assign(e.target.style, getInputStyle("baseSalary")); }}
+                readOnly
                 min="0"
                 placeholder="1800000"
-                onFocus={(e) => Object.assign(e.target.style, getInputFocusStyle("baseSalary"))}
-                onMouseEnter={(e) => { if (e.target !== document.activeElement && !errors.baseSalary) Object.assign(e.target.style, inputHoverStyle) }}
-                onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, getInputStyle("baseSalary")) }}
               />
               {touched.baseSalary && errors.baseSalary && (
                 <div style={errorMessageStyle}>
@@ -842,7 +851,7 @@ export default function EnrollmentForm() {
               )}
               {!errors.baseSalary && (
                 <div style={{ fontSize: "12px", color: theme.neutral.gray600, marginTop: "6px", fontWeight: "500" }}>
-                  💡 Default: 1,800,000 VND (state base salary)
+                  💡 Auto from selected Job Title (view only)
                 </div>
               )}
             </div>
