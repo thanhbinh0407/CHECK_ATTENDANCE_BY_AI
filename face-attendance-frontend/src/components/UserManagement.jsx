@@ -4,6 +4,13 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import * as faceapi from "face-api.js";
+import {
+  toastConfirm,
+  toastError,
+  toastSuccess,
+  toastWarning,
+  toastPrompt,
+} from "../lib/notify.jsx";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
@@ -40,6 +47,21 @@ const CHANGE_TYPE_BADGE_STYLE = {
 function getHeaders() {
   const token = localStorage.getItem("authToken");
   return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+}
+
+function getActorIdFromToken() {
+  try {
+    const t = localStorage.getItem("authToken");
+    if (!t) return null;
+    const part = t.split(".")[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
+    return payload.userId ?? payload.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export default function UserManagement() {
@@ -80,12 +102,18 @@ export default function UserManagement() {
   const [faceTargetUser, setFaceTargetUser] = useState(null);
   const [faceModelsLoaded, setFaceModelsLoaded] = useState(false);
   const [faceCameraActive, setFaceCameraActive] = useState(false);
+  const [faceDetected, setFaceDetected] = useState(false);
   const [capturedDescriptor, setCapturedDescriptor] = useState(null);
   const [faceLoading, setFaceLoading] = useState(false);
   const [faceMessage, setFaceMessage] = useState("");
 
+  const actorUserId = getActorIdFromToken();
+  const managerMayLifecycleMutate = (u) =>
+    u && actorUserId != null && Number(u.id) !== Number(actorUserId);
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const faceDetectionIntervalRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -174,12 +202,13 @@ export default function UserManagement() {
         });
       }
     } else {
-      alert(data.message || "Failed to save account");
+      toastError(data.message || "Failed to save account");
     }
   };
 
   const resetPassword = async (userId, userName) => {
-    if (!confirm(`Reset random password for "${userName}"?`)) return;
+    const ok = await toastConfirm({ message: `Reset random password for "${userName}"?` });
+    if (!ok) return;
     const res = await fetch(`${API_BASE}/api/admin/employees/${userId}/reset-password`, {
       method: "POST",
       headers: getHeaders(),
@@ -192,32 +221,49 @@ export default function UserManagement() {
         employeeCode: data.employeeCode || "—",
         password: data.newPassword,
       });
+      toastSuccess("Password reset. Check the dialog for the new password.");
     } else {
-      alert(data.message || "Failed to reset password");
+      toastError(data.message || "Failed to reset password");
     }
   };
 
-  const deactivate = async (user) => {
-    if (!confirm(`Deactivate account "${user.name}"?`)) return;
-    const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}`, {
+  const deactivate = async (userRow) => {
+    const ok = await toastConfirm({ message: `Deactivate account "${userRow.name}"?` });
+    if (!ok) return;
+    const password = await toastPrompt({
+      message: "Enter your password to confirm deactivation:",
+      inputType: "password",
+    });
+    if (password === null) return;
+    if (!String(password).trim()) {
+      toastWarning("Password is required.");
+      return;
+    }
+    const res = await fetch(`${API_BASE}/api/admin/employees/${userRow.id}`, {
       method: "DELETE",
       headers: getHeaders(),
+      body: JSON.stringify({ password }),
     });
     const data = await res.json();
-    if (res.ok && data.status === "success") load();
-    else alert(data.message || "Error");
+    if (res.ok && data.status === "success") {
+      load();
+      toastSuccess("Account deactivated.");
+    } else toastError(data.message || "Error");
   };
 
   const restore = async (user) => {
-    if (!confirm(`Restore account "${user.name}"?`)) return;
+    const ok = await toastConfirm({ message: `Restore account "${user.name}"?` });
+    if (!ok) return;
     const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}/restore`, {
       method: "PATCH",
       headers: getHeaders(),
       body: JSON.stringify({}),
     });
     const data = await res.json();
-    if (res.ok && data.status === "success") load();
-    else alert(data.message || "Error");
+    if (res.ok && data.status === "success") {
+      load();
+      toastSuccess("Account restored.");
+    } else toastError(data.message || "Error");
   };
 
   const openFaceModal = (user) => {
@@ -228,10 +274,15 @@ export default function UserManagement() {
   };
 
   const closeFaceModal = () => {
+    if (faceDetectionIntervalRef.current) {
+      clearInterval(faceDetectionIntervalRef.current);
+      faceDetectionIntervalRef.current = null;
+    }
     if (videoRef.current?.srcObject) {
       videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
     }
     setFaceCameraActive(false);
+    setFaceDetected(false);
     setShowFaceModal(false);
     setFaceTargetUser(null);
     setCapturedDescriptor(null);
@@ -276,6 +327,67 @@ export default function UserManagement() {
     }
   };
 
+  useEffect(() => {
+    if (!showFaceModal || !faceCameraActive || !faceModelsLoaded || !videoRef.current || !canvasRef.current) {
+      if (faceDetectionIntervalRef.current) {
+        clearInterval(faceDetectionIntervalRef.current);
+        faceDetectionIntervalRef.current = null;
+      }
+      return;
+    }
+
+    faceDetectionIntervalRef.current = setInterval(async () => {
+      try {
+        const detections = await faceapi
+          .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+          .withFaceLandmarks();
+
+        setFaceDetected(detections.length > 0);
+
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        detections.forEach((detection) => {
+          const box = detection.detection.box;
+          ctx.strokeStyle = "#22c55e";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+          if (detection.landmarks) {
+            ctx.strokeStyle = "#22c55e";
+            ctx.lineWidth = 1.5;
+            const drawPath = (points, closePath = false) => {
+              ctx.beginPath();
+              points.forEach((point, idx) => {
+                if (idx === 0) ctx.moveTo(point.x, point.y);
+                else ctx.lineTo(point.x, point.y);
+              });
+              if (closePath) ctx.closePath();
+              ctx.stroke();
+            };
+
+            drawPath(detection.landmarks.getJawOutline());
+            drawPath(detection.landmarks.getLeftEye(), true);
+            drawPath(detection.landmarks.getRightEye(), true);
+            drawPath(detection.landmarks.getNose());
+            drawPath(detection.landmarks.getMouth(), true);
+          }
+        });
+      } catch {
+        // keep silent to avoid noisy UI while camera feed is initializing
+      }
+    }, 120);
+
+    return () => {
+      if (faceDetectionIntervalRef.current) {
+        clearInterval(faceDetectionIntervalRef.current);
+        faceDetectionIntervalRef.current = null;
+      }
+    };
+  }, [showFaceModal, faceCameraActive, faceModelsLoaded]);
+
   const updateFaceForUser = async () => {
     if (!faceTargetUser?.employeeCode) {
       setFaceMessage("Employee code not found.");
@@ -310,100 +422,20 @@ export default function UserManagement() {
     }
   };
 
-  const openFaceModal = (user) => {
-    setFaceTargetUser(user);
-    setCapturedDescriptor(null);
-    setFaceMessage("");
-    setShowFaceModal(true);
-  };
-
-  const closeFaceModal = () => {
-    if (videoRef.current?.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
-    }
-    setFaceCameraActive(false);
-    setShowFaceModal(false);
-    setFaceTargetUser(null);
-    setCapturedDescriptor(null);
-  };
-
-  const startFaceCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 }
-      });
-      videoRef.current.srcObject = stream;
-      videoRef.current.onloadedmetadata = () => {
-        videoRef.current.play();
-        setFaceCameraActive(true);
-        setFaceMessage("Camera đã bật. Hãy nhìn thẳng vào camera.");
-      };
-    } catch (err) {
-      setFaceMessage("Không thể bật camera: " + err.message);
-    }
-  };
-
-  const captureFace = async () => {
-    if (!faceCameraActive || !faceModelsLoaded || !videoRef.current) return;
-    try {
-      setFaceLoading(true);
-      const detection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-
-      if (!detection) {
-        setFaceMessage("Không phát hiện khuôn mặt. Vui lòng thử lại.");
-        return;
-      }
-
-      setCapturedDescriptor(Array.from(detection.descriptor));
-      setFaceMessage("Đã chụp khuôn mặt. Sẵn sàng cập nhật.");
-    } catch (err) {
-      setFaceMessage("Lỗi khi chụp khuôn mặt: " + err.message);
-    } finally {
-      setFaceLoading(false);
-    }
-  };
-
-  const updateFaceForUser = async () => {
-    if (!faceTargetUser?.employeeCode) {
-      setFaceMessage("Không tìm thấy mã nhân viên.");
-      return;
-    }
-    if (!capturedDescriptor) {
-      setFaceMessage("Vui lòng chụp khuôn mặt trước khi cập nhật.");
-      return;
-    }
-
-    try {
-      setFaceLoading(true);
-      const res = await fetch(`${API_BASE}/api/enroll/face`, {
-        method: "PUT",
-        headers: getHeaders(),
-        body: JSON.stringify({
-          employeeCode: faceTargetUser.employeeCode,
-          descriptor: capturedDescriptor
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.status !== "success") {
-        setFaceMessage(data.message || "Cập nhật khuôn mặt thất bại");
-        return;
-      }
-      setFaceMessage("Cập nhật khuôn mặt thành công");
-      setTimeout(() => closeFaceModal(), 500);
-    } catch (err) {
-      setFaceMessage("Cập nhật khuôn mặt thất bại: " + err.message);
-    } finally {
-      setFaceLoading(false);
-    }
-  };
-
   const permanentlyDeleteUser = async (user) => {
-    if (!confirm(`Permanently delete "${user.name}"?\n\nThis cannot be undone.`)) return;
-    const password = window.prompt("Enter Manager password to confirm permanent deletion:");
-    if (!password) return;
+    const ok = await toastConfirm({
+      message: `Permanently delete "${user.name}"?\n\nThis cannot be undone.`,
+    });
+    if (!ok) return;
+    const password = await toastPrompt({
+      message: "Enter Manager password to confirm permanent deletion:",
+      inputType: "password",
+    });
+    if (password === null) return;
+    if (!String(password).trim()) {
+      toastWarning("Password is required.");
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}/permanent`, {
         method: "DELETE",
@@ -414,11 +446,12 @@ export default function UserManagement() {
       if (res.ok && data.status === "success") {
         load();
         window.dispatchEvent(new CustomEvent("hrms-admin-refresh"));
+        toastSuccess("Account permanently deleted.");
       } else {
-        alert(data.message || "Failed to permanently delete");
+        toastError(data.message || "Failed to permanently delete");
       }
     } catch (e) {
-      alert(e.message || "Connection error");
+      toastError(e.message || "Connection error");
     }
   };
 
@@ -466,7 +499,7 @@ export default function UserManagement() {
     e.preventDefault();
     if (!roleTarget?.id) return;
     if (!roleForm.role) {
-      alert("Please select a new role.");
+      toastWarning("Please select a new role.");
       return;
     }
     setUpdatingRole(true);
@@ -482,7 +515,7 @@ export default function UserManagement() {
         if (Array.isArray(data.missingFields) && data.missingFields.length) {
           msg += `\nMissing fields: ${data.missingFields.join(", ")}`;
         }
-        alert(msg);
+        toastError(msg);
         return;
       }
       setShowRoleModal(false);
@@ -492,9 +525,9 @@ export default function UserManagement() {
         setDetailUser((prev) => (prev ? { ...prev, role: roleForm.role } : prev));
       }
       window.dispatchEvent(new CustomEvent("hrms-admin-refresh"));
-      alert("Role changed successfully");
+      toastSuccess("Role changed successfully.");
     } catch (err) {
-      alert(`Failed to change role: ${err.message}`);
+      toastError(`Failed to change role: ${err.message}`);
     } finally {
       setUpdatingRole(false);
     }
@@ -802,42 +835,46 @@ export default function UserManagement() {
                             Update Face
                           </button>
                           {listMode === "active" ? (
-                            <button
-                              onClick={() => deactivate(user)}
-                              style={{
-                                padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
-                                background: "#fed7d7",
-                                color: "#9b2c2c",
-                              }}
-                            >
-                              Deactivate
-                            </button>
+                            managerMayLifecycleMutate(user) && (
+                              <button
+                                onClick={() => deactivate(user)}
+                                style={{
+                                  padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
+                                  background: "#fed7d7",
+                                  color: "#9b2c2c",
+                                }}
+                              >
+                                Deactivate
+                              </button>
+                            )
                           ) : (
-                            <>
-                              <button
-                                onClick={() => restore(user)}
-                                style={{
-                                  padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
-                                  background: "#c6f6d5",
-                                  color: "#276749",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                Restore
-                              </button>
-                              <button
-                                onClick={() => permanentlyDeleteUser(user)}
-                                style={{
-                                  padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
-                                  background: "#7f1d1d",
-                                  color: "#fff",
-                                  fontWeight: 700,
-                                }}
-                                title="Permanent delete (requires Manager password)"
-                              >
-                                Delete Forever
-                              </button>
-                            </>
+                            managerMayLifecycleMutate(user) && (
+                              <>
+                                <button
+                                  onClick={() => restore(user)}
+                                  style={{
+                                    padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
+                                    background: "#c6f6d5",
+                                    color: "#276749",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  Restore
+                                </button>
+                                <button
+                                  onClick={() => permanentlyDeleteUser(user)}
+                                  style={{
+                                    padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
+                                    background: "#7f1d1d",
+                                    color: "#fff",
+                                    fontWeight: 700,
+                                  }}
+                                  title="Permanent delete (requires Manager password)"
+                                >
+                                  Delete Forever
+                                </button>
+                              </>
+                            )
                           )}
                         </div>
                       </td>
@@ -1335,7 +1372,37 @@ export default function UserManagement() {
             <div style={{ display: "grid", gridTemplateColumns: "1.2fr .8fr", gap: 14 }}>
               <div style={{ background: "#000", borderRadius: 8, overflow: "hidden", aspectRatio: "4/3", position: "relative" }}>
                 <video ref={videoRef} style={{ width: "100%", height: "100%", objectFit: "cover" }} autoPlay muted playsInline />
-                <canvas ref={canvasRef} style={{ display: "none" }} width={640} height={480} />
+                <canvas
+                  ref={canvasRef}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    pointerEvents: "none",
+                    zIndex: 4,
+                  }}
+                  width={640}
+                  height={480}
+                />
+                {faceCameraActive && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      width: "62%",
+                      height: "78%",
+                      transform: "translate(-50%, -50%)",
+                      border: "2px dashed rgba(255,255,255,0.85)",
+                      borderRadius: "50%",
+                      boxShadow: "0 0 0 9999px rgba(0,0,0,0.2)",
+                      zIndex: 3,
+                      pointerEvents: "none",
+                    }}
+                  />
+                )}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <button
@@ -1364,6 +1431,9 @@ export default function UserManagement() {
                 </button>
                 <div style={{ fontSize: 13, color: capturedDescriptor ? "#166534" : "#92400e", marginTop: 4 }}>
                   {capturedDescriptor ? "Face data captured." : "Face not captured yet."}
+                </div>
+                <div style={{ fontSize: 12, color: faceDetected ? "#166534" : "#b45309" }}>
+                  {faceDetected ? "Live face detected in frame." : "Align one face inside the guide frame."}
                 </div>
               </div>
             </div>

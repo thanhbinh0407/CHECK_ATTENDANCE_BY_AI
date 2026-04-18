@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import SupervisorReports from './SupervisorReports.jsx';
+import socket from './socket.js';
+import { toastInfo } from './lib/notify.jsx';
 import './index.css';
 import './supervisorDashboard.css';
 
@@ -566,6 +568,25 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!token || !user?.id) return;
+    const joinRooms = () => {
+      socket.emit('join-room', { room: `user-${user.id}` });
+      socket.emit('join-room', { room: 'admin' });
+    };
+    if (socket.connected) joinRooms();
+    socket.on('connect', joinRooms);
+    const onNotify = (data) => {
+      const title = data?.title || 'Notification';
+      toastInfo(`New: ${title}`);
+    };
+    socket.on('new-notification', onNotify);
+    return () => {
+      socket.off('connect', joinRooms);
+      socket.off('new-notification', onNotify);
+    };
+  }, [token, user?.id]);
 
   const logout = () => {
     localStorage.removeItem('authToken');

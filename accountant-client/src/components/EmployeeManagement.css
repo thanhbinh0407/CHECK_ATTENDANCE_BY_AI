@@ -248,13 +248,16 @@
   font-size: 14px;
 }
 
-/* Table Wrapper */
+/* Table Wrapper — allow horizontal scroll instead of clipping last column / actions */
 .emp-table-wrapper {
   background: white;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
   border: 1px solid var(--border-color);
+  -webkit-overflow-scrolling: touch;
+  pointer-events: auto;
 }
 
 /* Table Styles */
@@ -286,10 +289,155 @@
   background-color: #f9f9f9;
 }
 
+.emp-table tbody tr.emp-table-row--active {
+  background-color: #e0f2fe !important;
+  box-shadow: inset 3px 0 0 #0ea5e9;
+}
+
+.emp-table tbody tr.emp-table-row--active:hover {
+  background-color: #bae6fd !important;
+}
+
+/* Full-screen profile overlay (portal → body) */
+.emp-profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.emp-profile-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(3px);
+  cursor: pointer;
+}
+
+.emp-profile-overlay__panel {
+  position: relative;
+  z-index: 1;
+  width: min(1120px, 100%);
+  max-height: min(92vh, 920px);
+  display: flex;
+  flex-direction: column;
+  background: #f1f5f9;
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.emp-profile-overlay__header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+  color: #fff;
+}
+
+.emp-profile-overlay__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.emp-profile-overlay__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.emp-profile-overlay__toolbar-btn {
+  font-size: 12px !important;
+  padding: 7px 12px !important;
+}
+
+.emp-profile-overlay__close {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+
+.emp-profile-overlay__close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.emp-profile-overlay__subbar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.emp-profile-overlay__temp-pw {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.emp-profile-overlay__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px 18px;
+}
+
 .emp-table td {
   padding: 14px 16px;
   font-size: 14px;
   color: var(--text-dark);
+}
+
+/* Keep Actions on top of row content + visible when table scrolls horizontally */
+.emp-table thead th:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 4;
+  background: linear-gradient(135deg, var(--primary-color) 0%, #2e3fa6 100%);
+  box-shadow: -8px 0 14px rgba(15, 23, 42, 0.12);
+}
+
+.emp-table td.emp-actions {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  background: #fff;
+  box-shadow: -8px 0 14px rgba(15, 23, 42, 0.08);
+}
+
+.emp-table tbody tr:hover td.emp-actions {
+  background: #f9f9f9;
+}
+
+.emp-table tbody tr.emp-table-row--active td.emp-actions {
+  background: #e0f2fe;
+}
+
+.emp-table tbody tr.emp-table-row--active:hover td.emp-actions {
+  background: #bae6fd;
 }
 
 .emp-id {
@@ -318,8 +466,77 @@
 }
 
 .emp-actions {
-  display: flex;
+  vertical-align: middle;
+}
+
+.emp-action-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 2;
+}
+
+.emp-action-group .emp-btn-edit {
+  margin-left: 0;
+}
+
+/* Primary “View profile” — separate from generic .emp-btn-view */
+.emp-view-profile-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  border: 1px solid rgba(14, 116, 144, 0.55);
+  background: linear-gradient(180deg, #22bfd4 0%, #17a2b8 45%, #117a8b 100%);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  padding: 8px 14px;
+  min-height: 38px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 6px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.08s ease;
+}
+
+.emp-view-profile-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+  box-shadow: 0 4px 12px rgba(23, 162, 184, 0.4);
+}
+
+.emp-view-profile-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.emp-view-profile-btn:focus-visible {
+  outline: 2px solid #0ea5e9;
+  outline-offset: 2px;
+}
+
+.emp-view-profile-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+}
+
+.emp-view-profile-btn__icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.emp-view-profile-btn__label {
+  font-size: 13px;
 }
 
 /* Empty State */
@@ -350,7 +567,7 @@
 
 /* Modal Overlay */
 .emp-modal-overlay {
-  display: none;
+  display: flex;
   position: fixed;
   top: 0;
   left: 0;
@@ -362,10 +579,6 @@
   z-index: 1000;
   padding: 20px;
   backdrop-filter: blur(2px);
-}
-
-.emp-modal-overlay.emp-modal-active {
-  display: flex;
   animation: fadeIn 0.3s ease-out;
 }
 
@@ -592,12 +805,9 @@
     flex-direction: column;
   }
 
-  .emp-actions {
+  .emp-action-group {
     flex-direction: column;
-  }
-
-  .emp-btn-edit {
-    margin-left: 0;
+    align-items: stretch;
   }
 }
 

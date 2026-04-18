@@ -8,6 +8,13 @@ import {
 import EmployeeProfileModal from "./EmployeeProfileModal.jsx";
 import socket from "../socket.js";
 import "./adminEmployeeProfiles.css";
+import {
+  toastConfirm,
+  toastError,
+  toastSuccess,
+  toastWarning,
+  toastPrompt,
+} from "../lib/notify.jsx";
 
 function buildPresenceMap(logs) {
   const byUser = {};
@@ -314,7 +321,8 @@ export default function AdminDashboard() {
   }, []);
 
   const deactivateEmployee = async (employeeId) => {
-    if (!window.confirm("Are you sure you want to deactivate this employee?")) return;
+    const ok = await toastConfirm({ message: "Are you sure you want to deactivate this employee?" });
+    if (!ok) return;
 
     try {
       const token = localStorage.getItem("authToken");
@@ -342,6 +350,7 @@ export default function AdminDashboard() {
       if (res.ok) {
         setMessage("Employee deactivated: " + (data.user?.name || data.deletedEmployee?.name || ""));
         fetchEmployees();
+        toastSuccess("Employee deactivated.");
       } else {
         if (res.status === 401) {
           setMessage("Session expired. Please sign in again.");
@@ -362,7 +371,8 @@ export default function AdminDashboard() {
   };
 
   const restoreEmployee = async (employeeId) => {
-    if (!window.confirm("Restore this employee account?")) return;
+    const ok = await toastConfirm({ message: "Restore this employee account?" });
+    if (!ok) return;
     try {
       const token = localStorage.getItem("authToken");
 
@@ -389,6 +399,7 @@ export default function AdminDashboard() {
       if (res.ok && data.status === "success") {
         setMessage("Employee restored: " + (data.user?.name || ""));
         fetchEmployees();
+        toastSuccess("Employee restored.");
       } else {
         if (res.status === 401) {
           setMessage("Session expired. Please sign in again.");
@@ -407,9 +418,19 @@ export default function AdminDashboard() {
   };
 
   const permanentlyDeleteEmployee = async (employeeId, employeeName) => {
-    if (!window.confirm(`Permanently delete "${employeeName}"?\n\nThis action cannot be undone.`)) return;
-    const password = window.prompt("Enter Manager password to confirm permanent deletion:");
-    if (!password) return;
+    const ok = await toastConfirm({
+      message: `Permanently delete "${employeeName}"?\n\nThis action cannot be undone.`,
+    });
+    if (!ok) return;
+    const password = await toastPrompt({
+      message: "Enter Manager password to confirm permanent deletion:",
+      inputType: "password",
+    });
+    if (password === null) return;
+    if (!String(password).trim()) {
+      toastWarning("Password is required.");
+      return;
+    }
     try {
       const token = localStorage.getItem("authToken");
 
@@ -436,6 +457,7 @@ export default function AdminDashboard() {
       if (res.ok && data.status === "success") {
         setMessage("✅ Permanently deleted: " + employeeName);
         fetchEmployees();
+        toastSuccess("Employee permanently deleted.");
       } else {
         if (res.status === 401) {
           setMessage("Session expired. Please sign in again.");
@@ -679,11 +701,12 @@ export default function AdminDashboard() {
                         .map((f) => `- ${f.name} (${f.employeeCode}): ${f.reason}`)
                         .join("\n");
                       const moreFailed = failCount > 5 ? `\n... and ${failCount - 5} more errors` : "";
-                      alert(
-                        `Import completed!\n\n✅ Success: ${successCount}\n❌ Failed: ${failCount}\n\n${failedDetails}${moreFailed}`
+                      toastWarning(
+                        `Import completed.\nSuccess: ${successCount}\nFailed: ${failCount}\n\n${failedDetails}${moreFailed}`
                       );
                     } else {
                       setMessage(`✅ Import success: ${successCount} employees`);
+                      toastSuccess(`Import success: ${successCount} employees.`);
                     }
                     fetchEmployees();
                   } else {
@@ -692,7 +715,7 @@ export default function AdminDashboard() {
                 } catch (err) {
                   console.error("Import error:", err);
                   setMessage(`❌ Import error: ${err.message}`);
-                  alert(`Import error: ${err.message}`);
+                  toastError(`Import error: ${err.message}`);
                 } finally {
                   setLoading(false);
                   e.target.value = "";

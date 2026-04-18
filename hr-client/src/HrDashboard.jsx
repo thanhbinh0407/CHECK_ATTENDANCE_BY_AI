@@ -188,7 +188,7 @@ export default function HrDashboard({ token, onNavigate }) {
           <span className="hr-kpi-deco" aria-hidden>📬</span>
           <div className="hr-kpi-label">Other pending</div>
           <div className="hr-kpi-value" style={{ fontSize: '1.35rem' }}>
-            OT {dash.pendingOt} · CT {dash.pendingTrip} · Ứng {dash.pendingAdvance}
+            OT {dash.pendingOt} · Trip {dash.pendingTrip} · Advance {dash.pendingAdvance}
           </div>
           <div className="hr-kpi-hint">Overtime · Business trip · Advance</div>
         </div>

@@ -59,6 +59,7 @@ const NAV_GROUPS = [
     items: [
       { to: '/reports', label: 'Reports', icon: '📊' },
       { to: '/analytics', label: 'Analytics', icon: '📉' },
+      { to: '/approval-audit', label: 'Approval Responsibility Log', icon: '🧾' },
     ],
   },
   {

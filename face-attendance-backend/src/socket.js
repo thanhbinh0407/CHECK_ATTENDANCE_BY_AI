@@ -12,6 +12,7 @@ export function initSocket(httpServer) {
       origin: [
         'http://localhost:3000',
         'http://localhost:5172', // hr-client
+        'http://localhost:5173', // supervisor-client
         'http://localhost:5174',
         'http://localhost:5175',
         'http://localhost:5176',

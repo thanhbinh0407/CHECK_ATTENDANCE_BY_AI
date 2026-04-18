@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { calculateCompleteSalary, formatCurrency } from "../utils/salaryCalculation.js";
 import { exportSalariesToExcel } from "../utils/exportUtils.js";
+import { toastConfirm } from "../lib/notify.jsx";
 
 export default function SalaryManagement() {
   const [rules, setRules] = useState([]);
@@ -243,7 +244,8 @@ export default function SalaryManagement() {
   };
 
   const handleDeleteRule = async (ruleId) => {
-    if (!window.confirm("Are you sure you want to delete this rule?")) return;
+    const ok = await toastConfirm({ message: "Are you sure you want to delete this rule?" });
+    if (!ok) return;
 
     try {
       setLoading(true);
@@ -682,7 +684,10 @@ export default function SalaryManagement() {
                 </select>
                 <button
                   onClick={async () => {
-                    if (!window.confirm(`Calculate payroll for all ${employees.length} employees?`)) return;
+                    const ok = await toastConfirm({
+                      message: `Calculate payroll for all ${employees.length} employees?`,
+                    });
+                    if (!ok) return;
                     setLoading(true);
                     try {
                       const token = localStorage.getItem("authToken");

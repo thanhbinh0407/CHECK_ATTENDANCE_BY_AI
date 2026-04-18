@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, Fragment } from 'react';
+import { AppToastContainer } from '../lib/notify.jsx';
 
 /**
  * Global Payroll Context for managing application state
@@ -88,7 +89,10 @@ export const PayrollProvider = ({ children }) => {
 
   return (
     <PayrollContext.Provider value={value}>
-      {children}
+      <Fragment>
+        {children}
+        <AppToastContainer />
+      </Fragment>
     </PayrollContext.Provider>
   );
 };

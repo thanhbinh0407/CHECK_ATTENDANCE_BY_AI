@@ -1,6 +1,43 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { theme } from "../theme.js";
+import EmployeeDetailView from "./EmployeeDetailView.jsx";
 import "./EmployeeManagement.css";
+
+function rowEmployeeId(employee) {
+  if (!employee || typeof employee !== "object") return null;
+  return (
+    employee.id ??
+    employee.userId ??
+    employee.userID ??
+    null
+  );
+}
+
+/** Standalone profile trigger — avoids shared `.emp-btn-view` styles and keeps a large hit target. */
+function ProfileViewButton({ employee, onOpen }) {
+  const eid = rowEmployeeId(employee);
+  const label = employee?.name || employee?.employeeCode || "Employee";
+  const blocked = eid == null;
+
+  return (
+    <button
+      type="button"
+      className="emp-view-profile-btn"
+      disabled={blocked}
+      title={blocked ? "Cannot open profile (missing id)" : `Open full profile — ${label}`}
+      aria-label={blocked ? "View profile unavailable" : `Open full profile for ${label}`}
+      onClick={() => {
+        if (!blocked) onOpen(employee);
+      }}
+    >
+      <span className="emp-view-profile-btn__icon" aria-hidden>
+        👁
+      </span>
+      <span className="emp-view-profile-btn__label">View</span>
+    </button>
+  );
+}
 
 export default function EmployeeManagement() {
   const [employees, setEmployees] = useState([]);
@@ -10,6 +47,7 @@ export default function EmployeeManagement() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [detailEmployeeId, setDetailEmployeeId] = useState(null);
   const [tempPassword, setTempPassword] = useState("");
   const [showTempPassword, setShowTempPassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -19,6 +57,27 @@ export default function EmployeeManagement() {
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  const closeDetailPanel = useCallback(() => {
+    setDetailEmployeeId(null);
+    setSelectedEmployee(null);
+    setTempPassword("");
+    setShowTempPassword(false);
+  }, []);
+
+  useEffect(() => {
+    if (detailEmployeeId == null) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e) => {
+      if (e.key === "Escape") closeDetailPanel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [detailEmployeeId, closeDetailPanel]);
 
   const fetchEmployees = async () => {
     try {
@@ -43,50 +102,28 @@ export default function EmployeeManagement() {
     }
   };
 
-  const viewDetails = async (employee) => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("authToken");
-      
-      // First, set the employee data we already have
-      setSelectedEmployee(employee);
-      
-      // Then try to fetch full details
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+  const resolveEmployeeId = (employee) => rowEmployeeId(employee);
 
-      const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}/details`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        // Merge fetched details with existing employee data
-        setSelectedEmployee(data.employee || employee);
-        setTempPassword("");
-        setShowTempPassword(false);
-      } else {
-        // If API fails, keep the employee data we already have
-        setSelectedEmployee(employee);
-      }
-    } catch (error) {
-      console.error("Error fetching details:", error);
-      // On error, still show the employee data
-      setSelectedEmployee(employee);
-      setMessage("⚠ Loaded basic employee information");
-    } finally {
-      setLoading(false);
+  const viewDetails = (employee) => {
+    const eid = resolveEmployeeId(employee);
+    if (eid == null) {
+      setMessage("✗ Cannot open profile: missing employee id");
+      return;
     }
+    setDetailEmployeeId(eid);
+    setSelectedEmployee(employee);
+    setTempPassword("");
+    setShowTempPassword(false);
+    setMessage("");
   };
 
   const resetAndRevealPassword = async () => {
-    if (!selectedEmployee?.id) return;
+    const sid = rowEmployeeId(selectedEmployee);
+    if (sid == null) return;
     try {
       setPasswordLoading(true);
       const token = localStorage.getItem("authToken");
-      const res = await fetch(`${apiBase}/api/admin/employees/${selectedEmployee.id}/reset-password`, {
+      const res = await fetch(`${apiBase}/api/admin/employees/${sid}/reset-password`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -320,33 +357,8 @@ export default function EmployeeManagement() {
     fontWeight: "600"
   };
 
-  const detailsModalStyle = {
-    ...modalStyle,
-    maxWidth: "700px"
-  };
-
-  const detailSectionStyle = {
-    marginBottom: "20px",
-    paddingBottom: "15px",
-    borderBottom: `1px solid ${theme.colors.border}`
-  };
-
-  const detailTitleStyle = {
-    color: theme.colors.primary,
-    fontWeight: "700",
-    marginBottom: "10px",
-    fontSize: "16px"
-  };
-
-  const detailItemStyle = {
-    display: "grid",
-    gridTemplateColumns: "150px 1fr",
-    gap: "10px",
-    marginBottom: "8px",
-    fontSize: "14px"
-  };
-
   return (
+    <>
     <div className="emp-container">
       {/* Header Section */}
       <div className="emp-header">
@@ -394,7 +406,7 @@ export default function EmployeeManagement() {
 
       {/* Table Section */}
       {!loading && filteredEmployees.length > 0 && (
-        <div className="emp-table-wrapper">
+        <div className="emp-table-wrapper" ref={tableSectionRef}>
           <table className="emp-table">
             <thead>
               <tr>
@@ -410,7 +422,14 @@ export default function EmployeeManagement() {
             </thead>
             <tbody>
               {filteredEmployees.map((employee) => (
-                <tr key={employee.id} className="emp-table-row">
+                <tr
+                  key={resolveEmployeeId(employee) ?? employee.employeeCode}
+                  className={
+                    detailEmployeeId != null && detailEmployeeId === resolveEmployeeId(employee)
+                      ? "emp-table-row emp-table-row--active"
+                      : "emp-table-row"
+                  }
+                >
                   <td className="emp-id">{employee.employeeCode}</td>
                   <td className="emp-name">{employee.name}</td>
                   <td>{employee.Department?.name || "—"}</td>
@@ -435,20 +454,18 @@ export default function EmployeeManagement() {
                       : "—"}
                   </td>
                   <td className="emp-actions">
-                    <button
-                      onClick={() => viewDetails(employee)}
-                      className="emp-btn emp-btn-view"
-                      title="View Details"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => handleEdit(employee)}
-                      className="emp-btn emp-btn-edit"
-                      title="Edit Employee"
-                    >
-                      Edit
-                    </button>
+                    <div className="emp-action-group" role="group" aria-label="Row actions">
+                      <ProfileViewButton employee={employee} onOpen={viewDetails} />
+                      <button
+                        type="button"
+                        className="emp-btn emp-btn-edit"
+                        title="Edit employee"
+                        aria-label={`Edit ${employee.name || employee.employeeCode || "employee"}`}
+                        onClick={() => handleEdit(employee)}
+                      >
+                        Edit
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -466,10 +483,11 @@ export default function EmployeeManagement() {
         </div>
       )}
 
-      {/* Edit Modal */}
-      <div 
-        className={`emp-modal-overlay ${showEditModal ? "emp-modal-active" : ""}`}
+      {showEditModal && (
+      <div
+        className="emp-modal-overlay"
         onClick={() => setShowEditModal(false)}
+        role="presentation"
       >
         <div
           className="emp-modal"
@@ -623,245 +641,68 @@ export default function EmployeeManagement() {
           </div>
         </div>
       </div>
-
-      {/* Details Modal */}
-      <div
-        className={`emp-modal-overlay ${selectedEmployee ? "emp-modal-active" : ""}`}
-        onClick={() => setSelectedEmployee(null)}
-      >
-        <div
-          className="emp-modal emp-modal-details"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="emp-modal-header">
-            <h2>Employee Details: {selectedEmployee?.name}</h2>
-            <button 
-              className="emp-modal-close"
-              onClick={() => setSelectedEmployee(null)}
-            >
-              ×
-            </button>
-          </div>
-
-          <div className="emp-modal-body">
-            {/* Personal Information Section */}
-            <div className="emp-detail-section">
-              <h3 className="emp-detail-title">Personal Information</h3>
-              <div className="emp-detail-grid">
-                <div className="emp-detail-item">
-                  <span className="emp-detail-label">Employee ID:</span>
-                  <span>{selectedEmployee?.employeeCode}</span>
-                </div>
-                <div className="emp-detail-item">
-                  <span className="emp-detail-label">Email:</span>
-                  <span>{selectedEmployee?.email}</span>
-                </div>
-                <div className="emp-detail-item">
-                  <span className="emp-detail-label">Phone:</span>
-                  <span>{selectedEmployee?.phone || "—"}</span>
-                </div>
-                <div className="emp-detail-item">
-                  <span className="emp-detail-label">Date of Birth:</span>
-                  <span>
-                    {selectedEmployee?.dateOfBirth
-                      ? new Date(selectedEmployee.dateOfBirth).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric"
-                        })
-                      : "—"}
-                  </span>
-                </div>
-                <div className="emp-detail-item">
-                  <span className="emp-detail-label">Gender:</span>
-                  <span>{selectedEmployee?.gender || "—"}</span>
-                </div>
-                <div className="emp-detail-item">
-                  <span className="emp-detail-label">Password:</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span style={{ fontFamily: "monospace", letterSpacing: "0.5px" }}>
-                      {showTempPassword && tempPassword ? tempPassword : "••••••••••"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={resetAndRevealPassword}
-                      className="emp-btn emp-btn-view"
-                      disabled={passwordLoading}
-                      title="Reset & reveal temporary password"
-                      style={{ padding: "4px 10px" }}
-                    >
-                      {passwordLoading ? "..." : "👁"}
-                    </button>
-                    {showTempPassword && tempPassword && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(tempPassword);
-                            setMessage("✓ Copied temporary password to clipboard");
-                          } catch {
-                            setMessage("✗ Cannot copy to clipboard");
-                          }
-                        }}
-                        className="emp-btn emp-btn-edit"
-                        title="Copy"
-                        style={{ padding: "4px 10px" }}
-                      >
-                        Copy
-                      </button>
-                    )}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Job Information Section */}
-            <div className="emp-detail-section">
-              <h3 className="emp-detail-title">Job Information</h3>
-              <div className="emp-detail-grid">
-                <div className="emp-detail-item">
-                  <span className="emp-detail-label">Department:</span>
-                  <span>{selectedEmployee?.Department?.name || "—"}</span>
-                </div>
-                <div className="emp-detail-item">
-                  <span className="emp-detail-label">Job Title:</span>
-                  <span>{selectedEmployee?.JobTitle?.name || "—"}</span>
-                </div>
-                <div className="emp-detail-item">
-                  <span className="emp-detail-label">Start Date:</span>
-                  <span>
-                    {selectedEmployee?.startDate
-                      ? new Date(selectedEmployee.startDate).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric"
-                        })
-                      : "—"}
-                  </span>
-                </div>
-                <div className="emp-detail-item">
-                  <span className="emp-detail-label">Salary Grade:</span>
-                  <span>{selectedEmployee?.SalaryGrade?.code || "—"}</span>
-                </div>
-                <div className="emp-detail-item">
-                  <span className="emp-detail-label">Base Salary:</span>
-                  <span>
-                    {selectedEmployee?.baseSalary
-                      ? new Intl.NumberFormat("en-US", {
-                          style: "currency",
-                          currency: "USD",
-                          minimumFractionDigits: 0
-                        }).format(selectedEmployee.baseSalary)
-                      : "—"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Dependents Section */}
-            {selectedEmployee?.dependents && selectedEmployee.dependents.length > 0 && (
-              <div className="emp-detail-section">
-                <h3 className="emp-detail-title">
-                  Dependents ({selectedEmployee.dependents.length})
-                </h3>
-                <div className="emp-detail-list">
-                  {selectedEmployee.dependents.map((dep, idx) => (
-                    <div key={idx} className="emp-detail-card">
-                      <div className="emp-detail-card-name">{dep.fullName}</div>
-                      <div className="emp-detail-card-info">
-                        Relationship: {dep.relationship}
-                      </div>
-                      <div className="emp-detail-card-info">
-                        Date of Birth: {new Date(dep.dateOfBirth).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric"
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Qualifications Section */}
-            {selectedEmployee?.qualifications && selectedEmployee.qualifications.length > 0 && (
-              <div className="emp-detail-section">
-                <h3 className="emp-detail-title">
-                  Qualifications and Certificates ({selectedEmployee.qualifications.length})
-                </h3>
-                <div className="emp-detail-list">
-                  {selectedEmployee.qualifications.map((qual, idx) => (
-                    <div key={idx} className="emp-detail-card">
-                      <div className="emp-detail-card-name">{qual.name}</div>
-                      <div className="emp-detail-card-info">Type: {qual.type}</div>
-                      <div className="emp-detail-card-info">Issued By: {qual.issuedBy}</div>
-                      <div className="emp-detail-card-info">
-                        Issue Date: {new Date(qual.issuedDate).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric"
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Job History Section */}
-            {selectedEmployee?.jobHistory && selectedEmployee.jobHistory.length > 0 && (
-              <div className="emp-detail-section">
-                <h3 className="emp-detail-title">Job History ({selectedEmployee.jobHistory.length})</h3>
-                <div className="emp-detail-list">
-                  {selectedEmployee.jobHistory.map((history) => (
-                    <div key={history.id} className="emp-detail-card">
-                      <div className="emp-detail-card-name">{history.changeType} - {history.effectiveDate}</div>
-                      <div className="emp-detail-card-info">
-                        Department: {history.changeType === "other"
-                          ? `${history.fromDepartmentName || "-"} -> ${history.toDepartmentName || "-"}`
-                          : (history.toDepartmentName || history.fromDepartmentName || "-")}
-                      </div>
-                      <div className="emp-detail-card-info">
-                        Job Title: {history.changeType === "other"
-                          ? `${history.fromJobTitleName || "-"} -> ${history.toJobTitleName || "-"}`
-                          : (history.toJobTitleName || history.fromJobTitleName || "-")}
-                      </div>
-                      <div className="emp-detail-card-info">Note: {history.notes || "-"}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Salary Change History Section */}
-            {selectedEmployee?.salaryChangeHistory && selectedEmployee.salaryChangeHistory.length > 0 && (
-              <div className="emp-detail-section">
-                <h3 className="emp-detail-title">Salary Change History ({selectedEmployee.salaryChangeHistory.length})</h3>
-                <div className="emp-detail-list">
-                  {selectedEmployee.salaryChangeHistory.map((history) => (
-                    <div key={history.id} className="emp-detail-card">
-                      <div className="emp-detail-card-name">{history.changeType} - {history.effectiveDate}</div>
-                      <div className="emp-detail-card-info">Lương cơ bản: {formatVnd(history.previousBaseSalary)} → {formatVnd(history.newBaseSalary)}</div>
-                      <div className="emp-detail-card-info">Phụ cấp: {formatVnd(history.previousTotalAllowance)} → {formatVnd(history.newTotalAllowance)}</div>
-                      <div className="emp-detail-card-info">Reason: {history.reason || "-"}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="emp-modal-footer">
-            <button
-              onClick={() => setSelectedEmployee(null)}
-              className="emp-btn emp-btn-close"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
+
+    {detailEmployeeId != null &&
+      createPortal(
+        <div
+          className="emp-profile-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="emp-profile-dialog-title"
+        >
+          <div
+            className="emp-profile-overlay__backdrop"
+            onClick={closeDetailPanel}
+            aria-hidden="true"
+          />
+          <div className="emp-profile-overlay__panel">
+            <div className="emp-profile-overlay__header">
+              <h2 id="emp-profile-dialog-title" className="emp-profile-overlay__title">
+                Chi tiết nhân viên
+              </h2>
+              <div className="emp-profile-overlay__header-actions">
+                <button
+                  type="button"
+                  className="emp-btn emp-btn-edit emp-profile-overlay__toolbar-btn"
+                  onClick={resetAndRevealPassword}
+                  disabled={passwordLoading || rowEmployeeId(selectedEmployee) == null}
+                  title="Reset mật khẩu tạm"
+                >
+                  {passwordLoading ? "…" : "Reset mật khẩu tạm"}
+                </button>
+                <button
+                  type="button"
+                  className="emp-profile-overlay__close"
+                  onClick={closeDetailPanel}
+                  aria-label="Đóng"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className="emp-profile-overlay__subbar">
+              <button type="button" className="emp-btn emp-btn-view" onClick={closeDetailPanel}>
+                ← Về danh sách
+              </button>
+              {showTempPassword && tempPassword ? (
+                <span className="emp-profile-overlay__temp-pw">
+                  Mật khẩu tạm: <strong>{tempPassword}</strong>
+                </span>
+              ) : null}
+            </div>
+            <div className="emp-profile-overlay__body">
+              <EmployeeDetailView
+                embedded
+                initialEmployeeId={detailEmployeeId}
+                onClose={closeDetailPanel}
+              />
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }

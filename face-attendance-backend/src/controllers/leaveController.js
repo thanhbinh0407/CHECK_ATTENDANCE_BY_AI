@@ -1,7 +1,7 @@
 import LeaveRequest from "../models/pg/LeaveRequest.js";
 import User from "../models/pg/User.js";
 import { Op } from "sequelize";
-import { notifyLeaveStatusChange, sendNotification } from "./notificationController.js";
+import { notifyLeaveStatusChange, createNotification } from "./notificationController.js";
 
 // Create leave request
 export const createLeaveRequest = async (req, res) => {
@@ -217,10 +217,13 @@ export const approveLeaveRequest = async (req, res) => {
     // Send notification
     await notifyLeaveStatusChange(leaveRequest.id, 'approved', approvedBy);
 
-    // Send broadcast notification for approval
-    await sendNotification(null, 'system', 'Leave Request Approved', 
-      `Leave request for ${leaveRequest.User?.name || 'employee'} has been approved.`, 
-      { leaveRequestId: leaveRequest.id, action: 'approved' });
+    await createNotification(
+      null,
+      'system',
+      'Leave Request Approved',
+      `Leave request #${leaveRequest.id} has been approved.`,
+      { leaveRequestId: leaveRequest.id, action: 'approved' }
+    );
 
     return res.json({
       status: "success",

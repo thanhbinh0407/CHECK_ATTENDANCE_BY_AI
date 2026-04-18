@@ -59,3 +59,12 @@ input, select, textarea {
   background: #a1a1a1;
 }
 
+/* Let clicks pass through empty toast viewport; toasts stay interactive */
+.Toastify__toast-container {
+  pointer-events: none !important;
+}
+
+.Toastify__toast {
+  pointer-events: auto !important;
+}
+

@@ -3,6 +3,7 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
 import { theme } from "../styles/theme.js";
+import { toastError } from "../lib/notify.jsx";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff7300'];
 
@@ -36,7 +37,7 @@ export default function AnalyticsDashboard() {
     } catch (err) {
       console.error("Error fetching analytics:", err);
       setAnalytics(null);
-      alert(`Error loading analytics: ${err.message}`);
+      toastError(`Error loading analytics: ${err.message}`);
     } finally {
       setLoading(false);
     }
