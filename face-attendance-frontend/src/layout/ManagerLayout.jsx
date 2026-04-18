@@ -5,6 +5,9 @@ import './managerShell.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
+// Các nhóm nav bị ẩn khỏi sidebar của Manager (do Accountant xử lý)
+const HIDDEN_GROUPS_FOR_MANAGER = new Set(['Payroll & Insurance']);
+
 const NAV_GROUPS = [
   {
     label: 'Overview',
@@ -192,7 +195,7 @@ export default function ManagerLayout() {
           )}
         </div>
         <nav className="mgr-nav">
-          {NAV_GROUPS.map((group) => (
+          {NAV_GROUPS.filter((group) => !HIDDEN_GROUPS_FOR_MANAGER.has(group.label)).map((group) => (
             <div key={group.label}>
               <div className="mgr-nav-group-label">{group.label}</div>
               {group.items.map((item) => (

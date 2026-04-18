@@ -3,7 +3,7 @@ import { theme } from "../theme.js";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import html2canvas from "html2canvas";
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel } from "docx";
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, UnderlineType, BorderStyle, PageBreak } from "docx";
 import { saveAs } from "file-saver";
 import { countries, vietnamProvinces } from "../data/countries.js";
 
@@ -460,6 +460,26 @@ export default function TK1TSForm() {
     }));
   };
 
+  // Helpers chuyển dữ liệu sang tiếng Việt cho file xuất (UI vẫn dùng tiếng Anh)
+  const viGender = (g) => (g === "Male" ? "Nam" : g === "Female" ? "Nữ" : g || "");
+  const viCountry = (c) => {
+    if (!c) return "";
+    if (/^vietnam$/i.test(c) || c === "VN") return "Việt Nam";
+    return c;
+  };
+  const splitDateParts = (d) => {
+    if (!d) return { day: "", month: "", year: "" };
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return { day: "", month: "", year: "" };
+    return {
+      day: String(dt.getDate()).padStart(2, "0"),
+      month: String(dt.getMonth() + 1).padStart(2, "0"),
+      year: String(dt.getFullYear())
+    };
+  };
+  const escapeHtml = (s) => String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
   const exportToPDF = async () => {
     if (!validateForm()) return;
     try {
@@ -472,126 +492,158 @@ export default function TK1TSForm() {
       printDiv.style.left = '-9999px';
       printDiv.style.width = '210mm'; // A4 width
       printDiv.style.padding = '20mm';
-      printDiv.style.fontFamily = 'Arial, sans-serif';
-      printDiv.style.fontSize = '11pt';
+      printDiv.style.fontFamily = "'Times New Roman', Times, serif";
+      printDiv.style.fontSize = '13pt';
+      printDiv.style.lineHeight = '1.5';
       printDiv.style.backgroundColor = 'white';
       printDiv.style.color = 'black';
-      
-      // Build HTML content
+
+      const dob = splitDateParts(formData.dateOfBirth);
+      const idIssue = splitDateParts(formData.idIssueDate);
+      const decl = splitDateParts(formData.declarationDate);
+      const dots = (n = 10) => "…".repeat(n);
+
+      // Build HTML content — mẫu TK1-TS (ban hành kèm QĐ 888/QĐ-BHXH ngày 16/7/2017)
       let htmlContent = `
-        <div style="text-align: center; margin-bottom: 20px;">
-          <div style="font-size: 14pt; font-weight: bold; margin-bottom: 5px;">VIETNAM SOCIAL SECURITY</div>
-          <div style="font-size: 11pt; margin-bottom: 3px;">SOCIALIST REPUBLIC OF VIETNAM</div>
-          <div style="font-size: 10pt;">Independence - Freedom - Happiness</div>
-        </div>
-        <div style="text-align: center; margin-bottom: 20px;">
-          <div style="font-size: 12pt; font-weight: bold; margin-bottom: 5px;">DECLARATION</div>
-          <div style="font-size: 10pt; margin-bottom: 3px;">SOCIAL INSURANCE &amp; HEALTH INSURANCE PARTICIPATION / INFORMATION UPDATE</div>
-          <div style="font-size: 9pt;">(For participants who have not been issued a social insurance number and for information changes)</div>
+        <table style="width:100%; border-collapse:collapse; margin-bottom: 10px;">
+          <tr>
+            <td style="width:50%; vertical-align:top; text-align:center; font-size:13pt;">
+              <div style="font-weight:bold;"><u>BẢO HIỂM XÃ HỘI VIỆT NAM</u></div>
+            </td>
+            <td style="width:50%; vertical-align:top; text-align:right; font-size:12pt;">
+              <div style="font-weight:bold;">Mẫu TK1-TS</div>
+              <div style="font-style:italic; font-size:11pt;">(Ban hành kèm theo QĐ số: 888/QĐ-BHXH</div>
+              <div style="font-style:italic; font-size:11pt;">ngày 16/7/2017 của BHXH Việt Nam)</div>
+            </td>
+          </tr>
+          <tr>
+            <td></td>
+            <td style="text-align:center; padding-top:14px; font-size:13pt;">
+              <div style="font-weight:bold;">CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+              <div style="font-weight:bold;"><u>Độc lập - Tự do - Hạnh phúc</u></div>
+            </td>
+          </tr>
+        </table>
+
+        <div style="text-align:center; margin: 14px 0 6px 0;">
+          <div style="font-size:16pt; font-weight:bold;">TỜ KHAI</div>
+          <div style="font-size:13pt; font-weight:bold;">THAM GIA, ĐIỀU CHỈNH THÔNG TIN BẢO HIỂM XÃ HỘI, BẢO HIỂM Y TẾ</div>
+          <div style="font-size:12pt; font-style:italic;">(Áp dụng đối với người tham gia chưa được cấp mã số BHXH và thay đổi thông tin)</div>
         </div>
       `;
-      
+
       if (formType === "new") {
         htmlContent += `
-          <div style="margin-bottom: 15px;">
-            <div style="font-weight: bold; margin-bottom: 10px;">I. For participants without a Social Insurance number</div>
-            <div style="margin-bottom: 8px;"><strong>[01].</strong> Full name (UPPERCASE): <strong>${formData.name || "_________________"}</strong></div>
-            <div style="margin-bottom: 8px;"><strong>[02].</strong> Date of birth: ${formData.dateOfBirth || "___/___/_____"} <strong>[03].</strong> Gender: ${formData.gender || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[04].</strong> Nationality: ${formData.nationality || "_____"} <strong>[05].</strong> Ethnicity: ${formData.ethnicity || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[06].</strong> Birth certificate registration place:</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[06.1].</strong> Hamlet: ${formData.birthPlaceWard || "_____"}</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[06.2].</strong> Commune: ${formData.birthPlaceDistrict || "_____"}</div>
-            <div style="margin-left: 20px; margin-bottom: 8px;"><strong>[06.3].</strong> Province/City: ${formData.birthPlaceProvince || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[07].</strong> Address to receive results:</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.1].</strong> House no./Street/Hamlet: ${formData.addressStreet || "_____"}</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.2].</strong> Hamlet: ${formData.addressWard || "_____"}</div>
-            <div style="margin-left: 20px; margin-bottom: 5px;"><strong>[07.3].</strong> Commune: ${formData.addressDistrict || "_____"}</div>
-            <div style="margin-left: 20px; margin-bottom: 8px;"><strong>[07.4].</strong> Province/City: ${formData.addressProvince || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[08].</strong> ID card / passport: ${formData.idNumber || "_____"} </div>
-            <div style="margin-bottom: 8px; margin-left: 20px;"><strong>[08.1].</strong> Date issued: ${formData.idIssueDate ? formatDateDDMMYYYY(formData.idIssueDate) : "_____/_____/_____"} <strong>[08.2].</strong> Place issued: ${formData.idIssuePlace || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[09].</strong> Phone number: ${formData.phoneNumber || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[10].</strong> Parent/guardian name (for children under 6): ${formData.parentGuardianName || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[11].</strong> Contribution amount: ${formData.contributionAmount || "_____"} <strong>[12].</strong> Contribution method: ${formData.contributionMethod || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[13].</strong> Initial health care provider: ${formData.healthInsuranceProvider || "_____"}</div>
-            ${formData.householdMembers.length > 0 ? '<div style="margin-bottom: 8px;"><strong>[14].</strong> Appendix: household members (see next page)</div>' : ''}
+          <div style="margin-top:14px;">
+            <div style="margin-bottom:8px;"><strong>I. Đối với người chưa được cấp mã số BHXH</strong> <em>(người tham gia chỉ kê khai từ chỉ tiêu [01] đến chỉ tiêu [13] dưới đây).</em></div>
+            <div style="margin-bottom:6px;"><strong>[01].</strong> Họ và tên <em>(viết chữ in hoa)</em>: ${escapeHtml(formData.name) || dots(60)}</div>
+            <div style="margin-bottom:6px;"><strong>[02].</strong> Ngày, tháng, năm sinh: ${dob.day || "……"}/${dob.month || "……"}/${dob.year || "………"} &nbsp;&nbsp;&nbsp; <strong>[03].</strong> Giới tính: ${escapeHtml(viGender(formData.gender)) || dots(10)}</div>
+            <div style="margin-bottom:6px;"><strong>[04].</strong> Quốc tịch: ${escapeHtml(viCountry(formData.nationalityName || formData.nationality)) || dots(15)} &nbsp;&nbsp;&nbsp; <strong>[05].</strong> Dân tộc: ${escapeHtml(formData.ethnicity) || dots(15)}</div>
+            <div style="margin-bottom:6px;"><strong>[06].</strong> Nơi đăng ký giấy khai sinh: <strong>[06.1].</strong> Xã <em>(phường, thị trấn)</em>: ${escapeHtml(formData.birthPlaceWard) || dots(25)}</div>
+            <div style="margin-bottom:6px;"><strong>[06.2].</strong> Huyện <em>(quận, thị xã, Tp thuộc tỉnh)</em>: ${escapeHtml(formData.birthPlaceDistrict) || dots(25)} &nbsp; <strong>[06.3].</strong> Tỉnh <em>(Tp)</em>: ${escapeHtml(formData.birthPlaceProvince) || dots(18)}</div>
+            <div style="margin-bottom:6px;"><strong>[07].</strong> Địa chỉ nhận kết quả: <strong>[07.1].</strong> Số nhà, đường phố, thôn xóm: ${escapeHtml(formData.addressStreet) || dots(35)}</div>
+            <div style="margin-bottom:6px;"><strong>[07.2].</strong> Xã <em>(phường, thị trấn)</em>: ${escapeHtml(formData.addressWard) || dots(20)} &nbsp; <strong>[07.3].</strong> Huyện <em>(quận, thị xã, Tp thuộc tỉnh)</em>: ${escapeHtml(formData.addressDistrict) || dots(18)}</div>
+            <div style="margin-bottom:6px;"><strong>[07.4].</strong> Tỉnh <em>(Tp)</em>: ${escapeHtml(formData.addressProvince) || dots(25)}</div>
+            <div style="margin-bottom:6px;"><strong>[08].</strong> Số CMND/ Hộ chiếu/ Thẻ căn cước: ${escapeHtml(formData.idNumber) || dots(20)} &nbsp; <strong>[09].</strong> Số điện thoại liên hệ: ${escapeHtml(formData.phoneNumber) || dots(18)}</div>
+            ${(formData.idIssueDate || formData.idIssuePlace) ? `<div style="margin-bottom:6px; padding-left:18px; font-style:italic; font-size:12pt;">Ngày cấp: ${idIssue.day || "……"}/${idIssue.month || "……"}/${idIssue.year || "………"} &nbsp; Nơi cấp: ${escapeHtml(formData.idIssuePlace) || dots(25)}</div>` : ""}
+            <div style="margin-bottom:6px;"><strong>[10].</strong> Họ tên cha/ mẹ/ người giám hộ <em>(đối với trẻ em dưới 6 tuổi)</em>: ${escapeHtml(formData.parentGuardianName) || dots(35)}</div>
+            <div style="margin-bottom:6px;"><strong>[11].</strong> Mức tiền đóng: ${escapeHtml(formData.contributionAmount) || dots(18)} &nbsp; <strong>[12].</strong> Phương thức đóng: ${escapeHtml(formData.contributionMethod) || dots(18)}</div>
+            <div style="margin-bottom:6px; font-style:italic; font-size:12pt;">(Chỉ tiêu [11], [12] chỉ áp dụng đối với người tham gia BHXH tự nguyện)</div>
+            <div style="margin-bottom:6px;"><strong>[13].</strong> Nơi đăng ký khám bệnh, chữa bệnh ban đầu <em>(không áp dụng đối với người tham gia BHXH tự nguyện)</em>: ${escapeHtml(formData.healthInsuranceProvider) || dots(35)}</div>
+            <div style="margin-bottom:6px;"><strong>[14].</strong> Trường hợp người tham gia BHYT theo hộ gia đình được giảm trừ mức đóng thì kê khai thêm Phụ lục <em>(Phụ lục kèm theo)</em> và không phải nộp, xuất trình sổ hộ khẩu, chứng minh thư, thẻ căn cước.</div>
           </div>
         `;
       } else {
         htmlContent += `
-          <div style="margin-bottom: 15px;">
-            <div style="font-weight: bold; margin-bottom: 10px;">II. For participants with a Social Insurance number (information change)</div>
-            <div style="margin-bottom: 8px;"><strong>[01].</strong> Full name (UPPERCASE): <strong>${formData.name || "_________________"}</strong></div>
-            <div style="margin-bottom: 8px;"><strong>[02].</strong> Date of birth: ${formData.dateOfBirth || "___/___/_____"} <strong>[03].</strong> Social Insurance number: ${formData.socialInsuranceNumber || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[04].</strong> Requested changes:</div>
-            <div style="margin-left: 20px; margin-bottom: 8px; white-space: pre-wrap;">${formData.changeContent || "_____"}</div>
-            <div style="margin-bottom: 8px;"><strong>[05].</strong> Supporting documents (if any):</div>
-            <div style="margin-left: 20px; margin-bottom: 8px; white-space: pre-wrap;">${formData.attachedDocuments || "_____"}</div>
+          <div style="margin-top:14px;">
+            <div style="margin-bottom:8px;"><strong>II. Đối với người đã được cấp mã số BHXH thay đổi thông tin ghi trên sổ BHXH, thẻ BHYT</strong> <em>(người tham gia chỉ kê khai từ chỉ tiêu [01] đến chỉ tiêu [05] dưới đây)</em></div>
+            <div style="margin-bottom:6px;"><strong>[01].</strong> Họ và tên <em>(viết chữ in hoa)</em>: ${escapeHtml(formData.name) || dots(60)}</div>
+            <div style="margin-bottom:6px;"><strong>[02].</strong> Ngày, tháng, năm sinh: ${dob.day || "……"}/${dob.month || "……"}/${dob.year || "………"} &nbsp;&nbsp;&nbsp; <strong>[03].</strong> Mã số BHXH: ${escapeHtml(formData.socialInsuranceNumber) || dots(25)}</div>
+            <div style="margin-bottom:6px;"><strong>[04].</strong> Nội dung thay đổi, yêu cầu:</div>
+            <div style="margin-bottom:6px; min-height:40px; white-space:pre-wrap; padding-left:18px;">${escapeHtml(formData.changeContent) || dots(90)}</div>
+            <div style="margin-bottom:6px;"><strong>[05].</strong> Hồ sơ kèm theo <em>(nếu có)</em>:</div>
+            <div style="margin-bottom:6px; min-height:30px; white-space:pre-wrap; padding-left:18px;">${escapeHtml(formData.attachedDocuments) || dots(90)}</div>
           </div>
         `;
       }
-      
+
+      // Khu vực chữ ký: 2 cột — Trái "XÁC NHẬN CỦA ĐƠN VỊ", Phải "Người kê khai"
       htmlContent += `
-        <div style="margin-top: 30px; margin-bottom: 20px;">
-          <div style="margin-bottom: 15px;">I hereby declare that the above information is true and I take full legal responsibility for this declaration.</div>
-          <div style="text-align: right; margin-top: 20px;">
-            <div>${formData.declarationPlace || ".........." }, ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}</div>
-            <div style="margin-top: 15px; font-weight: bold;">Declarant</div>
-            <div style="margin-top: 5px;">(Sign, print full name)</div>
-          </div>
-        </div>
+        <table style="width:100%; border-collapse:collapse; margin-top: 26px;">
+          <tr>
+            <td style="width:50%; vertical-align:top; text-align:center; font-size:12pt;">
+              <div style="font-weight:bold; text-transform:uppercase;">Xác nhận của đơn vị</div>
+              <div style="font-style:italic;">(chỉ áp dụng đối với người lao động đang tham gia BHXH bắt buộc thay đổi họ, tên đệm, tên; ngày, tháng, năm sinh)</div>
+            </td>
+            <td style="width:50%; vertical-align:top; text-align:center; font-size:12pt;">
+              <div>Tôi cam đoan những nội dung kê khai là đúng và chịu trách nhiệm trước pháp luật về những nội dung đã kê khai.</div>
+              <div style="font-style:italic; margin-top:10px;">${escapeHtml(formData.declarationPlace) || "…………"}, ngày ${decl.day || "……"} tháng ${decl.month || "……"} năm ${decl.year || "………"}</div>
+              <div style="margin-top:14px; font-weight:bold;">Người kê khai</div>
+              <div style="font-style:italic;">(Ký, ghi rõ họ tên)</div>
+            </td>
+          </tr>
+        </table>
       `;
-      
-      // Phụ lục thành viên hộ gia đình
+
+      // Phụ lục thành viên hộ gia đình (Vietnamese)
       if (formData.householdMembers.length > 0) {
         htmlContent += `
-          <div style="page-break-before: always; margin-top: 30px;">
-            <div style="text-align: center; font-size: 12pt; font-weight: bold; margin-bottom: 20px;">APPENDIX: HOUSEHOLD MEMBERS</div>
-            <div style="margin-bottom: 15px;">
-              <div><strong>Household head full name:</strong> ${formData.householdHeadName || "_____"} <strong>Phone (optional):</strong> ${formData.householdHeadPhone || "_____"}</div>
-              <div style="margin-top: 10px;"><strong>Address:</strong></div>
-              <div style="margin-left: 20px;">
-                <div><strong>Hamlet/Residential group:</strong> ${formData.householdAddressWard || "_____"} <strong>Hamlet:</strong> ${formData.householdAddressWard || "_____"}</div>
-                <div><strong>Commune:</strong> ${formData.householdAddressDistrict || "_____"} <strong>Province/City:</strong> ${formData.householdAddressProvince || "_____"}</div>
-              </div>
+          <div style="page-break-before: always; margin-top: 10px; font-family:'Times New Roman', Times, serif;">
+            <div style="text-align:center; margin-bottom: 12px;">
+              <div style="font-size:14pt; font-weight:bold; text-transform:uppercase;">Phụ lục thành viên hộ gia đình</div>
+              <div style="font-size:11pt; font-style:italic;">(Kèm theo Tờ khai TK1-TS)</div>
             </div>
-            <table style="width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 9pt;">
+            <div style="margin-bottom:8px;"><strong>Họ và tên chủ hộ:</strong> ${escapeHtml(formData.householdHeadName) || dots(35)} &nbsp; <strong>Số điện thoại <em>(nếu có)</em>:</strong> ${escapeHtml(formData.householdHeadPhone) || dots(18)}</div>
+            <div style="margin-bottom:8px;"><strong>Địa chỉ:</strong> ${escapeHtml(formData.householdAddressWard) || "……"} - ${escapeHtml(formData.householdAddressDistrict) || "……"} - ${escapeHtml(formData.householdAddressProvince) || "……"}</div>
+
+            <table style="width:100%; border-collapse: collapse; margin-top: 10px; font-size: 11pt;">
               <thead>
-                <tr style="background-color: #667eea; color: white;">
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">No.</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Full name</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Social Insurance No.</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Date of birth</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Gender</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Birth certificate place</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Relationship to head</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">ID/Passport/Citizen ID</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Notes</th>
+                <tr>
+                  <th style="border:1px solid #000; padding:5px; text-align:center; background-color:#f3f4f6;">STT</th>
+                  <th style="border:1px solid #000; padding:5px; text-align:center; background-color:#f3f4f6;">Họ và tên</th>
+                  <th style="border:1px solid #000; padding:5px; text-align:center; background-color:#f3f4f6;">Mã số BHXH</th>
+                  <th style="border:1px solid #000; padding:5px; text-align:center; background-color:#f3f4f6;">Ngày, tháng, năm sinh</th>
+                  <th style="border:1px solid #000; padding:5px; text-align:center; background-color:#f3f4f6;">Giới tính</th>
+                  <th style="border:1px solid #000; padding:5px; text-align:center; background-color:#f3f4f6;">Nơi đăng ký khai sinh</th>
+                  <th style="border:1px solid #000; padding:5px; text-align:center; background-color:#f3f4f6;">Mối quan hệ với chủ hộ</th>
+                  <th style="border:1px solid #000; padding:5px; text-align:center; background-color:#f3f4f6;">Số CMND/ Hộ chiếu/ Thẻ căn cước</th>
+                  <th style="border:1px solid #000; padding:5px; text-align:center; background-color:#f3f4f6;">Ghi chú</th>
+                </tr>
+                <tr>
+                  ${Array.from({ length: 9 }, (_, i) => `<th style="border:1px solid #000; padding:3px; text-align:center; font-style:italic; font-weight:500; background-color:#f9fafb;">(${i + 1})</th>`).join('')}
                 </tr>
               </thead>
               <tbody>
                 ${formData.householdMembers.map((member, idx) => `
                   <tr>
-                    <td style="border: 1px solid #ddd; padding: 8px;">${idx + 1}</td>
-                    <td style="border: 1px solid #ddd; padding: 8px;">${member.name || ""}</td>
-                    <td style="border: 1px solid #ddd; padding: 8px;">${member.socialInsuranceNumber || ""}</td>
-                    <td style="border: 1px solid #ddd; padding: 8px;">${member.dateOfBirth || ""}</td>
-                    <td style="border: 1px solid #ddd; padding: 8px;">${member.gender || ""}</td>
-                    <td style="border: 1px solid #ddd; padding: 8px;">${member.birthPlace || ""}</td>
-                    <td style="border: 1px solid #ddd; padding: 8px;">${member.relationship || ""}</td>
-                    <td style="border: 1px solid #ddd; padding: 8px;">${member.idNumber || ""}</td>
-                    <td style="border: 1px solid #ddd; padding: 8px;">${member.note || ""}</td>
+                    <td style="border:1px solid #000; padding:5px; text-align:center;">${idx + 1}</td>
+                    <td style="border:1px solid #000; padding:5px;">${escapeHtml(member.name)}</td>
+                    <td style="border:1px solid #000; padding:5px; text-align:center;">${escapeHtml(member.socialInsuranceNumber)}</td>
+                    <td style="border:1px solid #000; padding:5px; text-align:center;">${escapeHtml(formatDateDDMMYYYY(member.dateOfBirth) || member.dateOfBirth)}</td>
+                    <td style="border:1px solid #000; padding:5px; text-align:center;">${escapeHtml(viGender(member.gender))}</td>
+                    <td style="border:1px solid #000; padding:5px;">${escapeHtml(member.birthPlace)}</td>
+                    <td style="border:1px solid #000; padding:5px; text-align:center;">${escapeHtml(member.relationship)}</td>
+                    <td style="border:1px solid #000; padding:5px; text-align:center;">${escapeHtml(member.idNumber)}</td>
+                    <td style="border:1px solid #000; padding:5px;">${escapeHtml(member.note)}</td>
                   </tr>
                 `).join('')}
               </tbody>
             </table>
-            <div style="margin-top: 30px;">
-              <div style="margin-bottom: 15px;">I hereby declare that the above information is true and I take full legal responsibility for this declaration.</div>
-              <div style="text-align: right; margin-top: 20px;">
-                <div>${formData.declarationPlace || ".........." }, ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}</div>
-                <div style="margin-top: 15px; font-weight: bold;">Declarant</div>
-                <div style="margin-top: 5px;">(Sign, print full name)</div>
-              </div>
-            </div>
+
+            <table style="width:100%; border-collapse:collapse; margin-top: 26px;">
+              <tr>
+                <td style="width:50%; vertical-align:top; text-align:center; font-size:12pt;">
+                  <div style="font-weight:bold; text-transform:uppercase;">Xác nhận của đơn vị</div>
+                  <div style="font-style:italic;">(nếu có)</div>
+                </td>
+                <td style="width:50%; vertical-align:top; text-align:center; font-size:12pt;">
+                  <div>Tôi cam đoan những nội dung kê khai là đúng và chịu trách nhiệm trước pháp luật về những nội dung đã kê khai.</div>
+                  <div style="font-style:italic; margin-top:10px;">${escapeHtml(formData.declarationPlace) || "…………"}, ngày ${decl.day || "……"} tháng ${decl.month || "……"} năm ${decl.year || "………"}</div>
+                  <div style="margin-top:14px; font-weight:bold;">Người kê khai</div>
+                  <div style="font-style:italic;">(Ký, ghi rõ họ tên)</div>
+                </td>
+              </tr>
+            </table>
           </div>
         `;
       }
@@ -649,406 +701,477 @@ export default function TK1TSForm() {
       setMessage("Generating Word file...");
 
       const children = [];
+      const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
+      const noBorders = {
+        top: noBorder, bottom: noBorder, left: noBorder, right: noBorder,
+        insideH: noBorder, insideV: noBorder
+      };
 
-      // Header
+      const dob = splitDateParts(formData.dateOfBirth);
+      const idIssue = splitDateParts(formData.idIssueDate);
+      const decl = splitDateParts(formData.declarationDate);
+
+      // ===== Header 2 cột: Trái = BẢO HIỂM XÃ HỘI VIỆT NAM, Phải = Mẫu TK1-TS + Quốc hiệu =====
+      const headerTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: noBorders,
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: noBorders,
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [
+                      new TextRun({ text: "BẢO HIỂM XÃ HỘI VIỆT NAM", bold: true, size: 26, underline: { type: UnderlineType.SINGLE } })
+                    ],
+                    spacing: { after: 120 }
+                  })
+                ]
+              }),
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: noBorders,
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    children: [new TextRun({ text: "Mẫu TK1-TS", bold: true, size: 24 })],
+                    spacing: { after: 80 }
+                  }),
+                  new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    children: [new TextRun({ text: "(Ban hành kèm theo QĐ số: 888/QĐ-BHXH", italics: true, size: 22 })],
+                    spacing: { after: 40 }
+                  }),
+                  new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    children: [new TextRun({ text: "ngày 16/7/2017 của BHXH Việt Nam)", italics: true, size: 22 })],
+                    spacing: { after: 200 }
+                  }),
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [new TextRun({ text: "CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM", bold: true, size: 24 })],
+                    spacing: { after: 80 }
+                  }),
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [
+                      new TextRun({ text: "Độc lập - Tự do - Hạnh phúc", bold: true, size: 24, underline: { type: UnderlineType.SINGLE } })
+                    ],
+                    spacing: { after: 120 }
+                  })
+                ]
+              })
+            ]
+          })
+        ]
+      });
+      children.push(headerTable);
+
+      // Tiêu đề chính
       children.push(
         new Paragraph({
-          children: [
-            new TextRun({
-              text: "VIETNAM SOCIAL SECURITY",
-              bold: true,
-              size: 28
-            })
-          ],
           alignment: AlignmentType.CENTER,
-          spacing: { after: 200 }
+          children: [new TextRun({ text: "TỜ KHAI", bold: true, size: 32 })],
+          spacing: { before: 280, after: 140 }
         }),
         new Paragraph({
-          children: [
-            new TextRun({
-              text: "SOCIALIST REPUBLIC OF VIETNAM",
-              size: 22
-            })
-          ],
           alignment: AlignmentType.CENTER,
-          spacing: { after: 100 }
+          children: [new TextRun({ text: "THAM GIA, ĐIỀU CHỈNH THÔNG TIN BẢO HIỂM XÃ HỘI, BẢO HIỂM Y TẾ", bold: true, size: 26 })],
+          spacing: { after: 80 }
         }),
         new Paragraph({
-          children: [
-            new TextRun({
-              text: "Independence - Freedom - Happiness",
-              size: 20
-            })
-          ],
           alignment: AlignmentType.CENTER,
-          spacing: { after: 400 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: "DECLARATION",
-              bold: true,
-              size: 24
-            })
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 200 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: "SOCIAL INSURANCE & HEALTH INSURANCE PARTICIPATION / INFORMATION UPDATE",
-              size: 20
-            })
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 100 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: "(For participants who have not been issued a social insurance number and for information changes)",
-              size: 18,
-              italics: true
-            })
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 400 }
+          children: [new TextRun({ text: "(Áp dụng đối với người tham gia chưa được cấp mã số BHXH và thay đổi thông tin)", italics: true, size: 22 })],
+          spacing: { after: 300 }
         })
       );
 
       if (formType === "new") {
-        // Phần I: Người chưa có mã số BHXH
+        // Phần I: Người chưa được cấp mã số BHXH
         children.push(
           new Paragraph({
             children: [
-              new TextRun({
-                text: "I. For participants without a Social Insurance number",
-                bold: true,
-                size: 22
-              })
+              new TextRun({ text: "I. Đối với người chưa được cấp mã số BHXH ", bold: true, size: 24 }),
+              new TextRun({ text: "(người tham gia chỉ kê khai từ chỉ tiêu [01] đến chỉ tiêu [13] dưới đây).", italics: true, size: 22 })
             ],
-            spacing: { after: 300 }
+            spacing: { after: 200 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[01]. ", bold: true }),
-              new TextRun({ text: "Full name (UPPERCASE): " }),
-              new TextRun({ text: formData.name || "_________________", bold: true })
+              new TextRun({ text: "Họ và tên " }),
+              new TextRun({ text: "(viết chữ in hoa)", italics: true }),
+              new TextRun({ text: ": " }),
+              new TextRun({ text: formData.name || "……………………………………………", bold: true })
             ],
-            spacing: { after: 200 }
+            spacing: { after: 160 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[02]. ", bold: true }),
-              new TextRun({ text: "Date of birth: " }),
-              new TextRun({ text: formData.dateOfBirth || "___/___/_____" }),
-              new TextRun({ text: "  [03]. ", bold: true }),
-              new TextRun({ text: "Gender: " }),
-              new TextRun({ text: formData.gender || "_____" })
+              new TextRun({ text: "Ngày, tháng, năm sinh: " }),
+              new TextRun({ text: `${dob.day || "……"}/${dob.month || "……"}/${dob.year || "………"}` }),
+              new TextRun({ text: "     [03]. ", bold: true }),
+              new TextRun({ text: "Giới tính: " }),
+              new TextRun({ text: viGender(formData.gender) || "…………" })
             ],
-            spacing: { after: 200 }
+            spacing: { after: 160 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[04]. ", bold: true }),
-              new TextRun({ text: "Nationality: " }),
-              new TextRun({ text: formData.nationality || "_____" }),
-              new TextRun({ text: "  [05]. ", bold: true }),
-              new TextRun({ text: "Ethnicity: " }),
-              new TextRun({ text: formData.ethnicity || "_____" })
+              new TextRun({ text: "Quốc tịch: " }),
+              new TextRun({ text: viCountry(formData.nationalityName || formData.nationality) || "…………………" }),
+              new TextRun({ text: "     [05]. ", bold: true }),
+              new TextRun({ text: "Dân tộc: " }),
+              new TextRun({ text: formData.ethnicity || "…………………" })
             ],
-            spacing: { after: 200 }
+            spacing: { after: 160 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[06]. ", bold: true }),
-              new TextRun({ text: "Birth certificate registration place:" })
-            ],
-            spacing: { after: 200 }
-          }),
-          new Paragraph({
-            children: [
+              new TextRun({ text: "Nơi đăng ký giấy khai sinh: " }),
               new TextRun({ text: "[06.1]. ", bold: true }),
-              new TextRun({ text: "Hamlet: " }),
-              new TextRun({ text: formData.birthPlaceWard || "_____" })
+              new TextRun({ text: "Xã " }),
+              new TextRun({ text: "(phường, thị trấn)", italics: true }),
+              new TextRun({ text: ": " }),
+              new TextRun({ text: formData.birthPlaceWard || "……………………………" })
             ],
-            indent: { left: 400 },
-            spacing: { after: 150 }
+            spacing: { after: 160 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[06.2]. ", bold: true }),
-              new TextRun({ text: "District: " }),
-              new TextRun({ text: formData.birthPlaceDistrict || "_____" })
+              new TextRun({ text: "Huyện " }),
+              new TextRun({ text: "(quận, thị xã, Tp thuộc tỉnh)", italics: true }),
+              new TextRun({ text: ": " }),
+              new TextRun({ text: formData.birthPlaceDistrict || "………………" }),
+              new TextRun({ text: "   [06.3]. ", bold: true }),
+              new TextRun({ text: "Tỉnh " }),
+              new TextRun({ text: "(Tp)", italics: true }),
+              new TextRun({ text: ": " }),
+              new TextRun({ text: formData.birthPlaceProvince || "………………" })
             ],
-            indent: { left: 400 },
-            spacing: { after: 150 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: "[06.3]. ", bold: true }),
-              new TextRun({ text: "Province/City: " }),
-              new TextRun({ text: formData.birthPlaceProvince || "_____" })
-            ],
-            indent: { left: 400 },
-            spacing: { after: 200 }
+            spacing: { after: 160 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[07]. ", bold: true }),
-              new TextRun({ text: "Address to receive results:" })
-            ],
-            spacing: { after: 200 }
-          }),
-          new Paragraph({
-            children: [
+              new TextRun({ text: "Địa chỉ nhận kết quả: " }),
               new TextRun({ text: "[07.1]. ", bold: true }),
-              new TextRun({ text: "House no./Street/Hamlet: " }),
-              new TextRun({ text: formData.addressStreet || "_____" })
+              new TextRun({ text: "Số nhà, đường phố, thôn xóm: " }),
+              new TextRun({ text: formData.addressStreet || "……………………………" })
             ],
-            indent: { left: 400 },
-            spacing: { after: 150 }
+            spacing: { after: 160 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[07.2]. ", bold: true }),
-              new TextRun({ text: "Hamlet: " }),
-              new TextRun({ text: formData.addressWard || "_____" })
+              new TextRun({ text: "Xã " }),
+              new TextRun({ text: "(phường, thị trấn)", italics: true }),
+              new TextRun({ text: ": " }),
+              new TextRun({ text: formData.addressWard || "…………………" }),
+              new TextRun({ text: "   [07.3]. ", bold: true }),
+              new TextRun({ text: "Huyện " }),
+              new TextRun({ text: "(quận, thị xã, Tp thuộc tỉnh)", italics: true }),
+              new TextRun({ text: ": " }),
+              new TextRun({ text: formData.addressDistrict || "………………" })
             ],
-            indent: { left: 400 },
-            spacing: { after: 150 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: "[07.3]. ", bold: true }),
-              new TextRun({ text: "District: " }),
-              new TextRun({ text: formData.addressDistrict || "_____" })
-            ],
-            indent: { left: 400 },
-            spacing: { after: 150 }
+            spacing: { after: 160 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[07.4]. ", bold: true }),
-              new TextRun({ text: "Province/City: " }),
-              new TextRun({ text: formData.addressProvince || "_____" })
+              new TextRun({ text: "Tỉnh " }),
+              new TextRun({ text: "(Tp)", italics: true }),
+              new TextRun({ text: ": " }),
+              new TextRun({ text: formData.addressProvince || "………………………………" })
             ],
-            indent: { left: 400 },
-            spacing: { after: 200 }
+            spacing: { after: 160 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[08]. ", bold: true }),
-              new TextRun({ text: "ID/Passport/Citizen ID: " }),
-              new TextRun({ text: formData.idNumber || "_____" }),
-              new TextRun({ text: "  [09]. ", bold: true }),
-              new TextRun({ text: "Phone number: " }),
-              new TextRun({ text: formData.phoneNumber || "_____" })
+              new TextRun({ text: "Số CMND/ Hộ chiếu/ Thẻ căn cước: " }),
+              new TextRun({ text: formData.idNumber || "…………………………" }),
+              new TextRun({ text: "   [09]. ", bold: true }),
+              new TextRun({ text: "Số điện thoại liên hệ: " }),
+              new TextRun({ text: formData.phoneNumber || "……………………" })
             ],
-            spacing: { after: 200 }
-          }),
+            spacing: { after: (formData.idIssueDate || formData.idIssuePlace) ? 80 : 160 }
+          })
+        );
+
+        if (formData.idIssueDate || formData.idIssuePlace) {
+          children.push(
+            new Paragraph({
+              indent: { left: 400 },
+              children: [
+                new TextRun({
+                  text: `Ngày cấp: ${idIssue.day || "……"}/${idIssue.month || "……"}/${idIssue.year || "………"}   Nơi cấp: ${formData.idIssuePlace || "……………………"}`,
+                  italics: true
+                })
+              ],
+              spacing: { after: 160 }
+            })
+          );
+        }
+
+        children.push(
           new Paragraph({
             children: [
               new TextRun({ text: "[10]. ", bold: true }),
-              new TextRun({ text: "Parent/guardian name (for children under 6): " }),
-              new TextRun({ text: formData.parentGuardianName || "_____" })
+              new TextRun({ text: "Họ tên cha/ mẹ/ người giám hộ " }),
+              new TextRun({ text: "(đối với trẻ em dưới 6 tuổi)", italics: true }),
+              new TextRun({ text: ": " }),
+              new TextRun({ text: formData.parentGuardianName || "………………………………" })
             ],
-            spacing: { after: 200 }
+            spacing: { after: 160 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[11]. ", bold: true }),
-              new TextRun({ text: "Contribution amount: " }),
-              new TextRun({ text: formData.contributionAmount || "_____" }),
-              new TextRun({ text: "  [12]. ", bold: true }),
-              new TextRun({ text: "Contribution method: " }),
-              new TextRun({ text: formData.contributionMethod || "_____" })
+              new TextRun({ text: "Mức tiền đóng: " }),
+              new TextRun({ text: formData.contributionAmount || "…………………" }),
+              new TextRun({ text: "   [12]. ", bold: true }),
+              new TextRun({ text: "Phương thức đóng: " }),
+              new TextRun({ text: formData.contributionMethod || "…………………" })
             ],
-            spacing: { after: 200 }
+            spacing: { after: 80 }
+          }),
+          new Paragraph({
+            children: [new TextRun({ text: "(Chỉ tiêu [11], [12] chỉ áp dụng đối với người tham gia BHXH tự nguyện)", italics: true, size: 22 })],
+            spacing: { after: 160 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[13]. ", bold: true }),
-              new TextRun({ text: "Initial health care provider: " }),
-              new TextRun({ text: formData.healthInsuranceProvider || "_____" })
+              new TextRun({ text: "Nơi đăng ký khám bệnh, chữa bệnh ban đầu " }),
+              new TextRun({ text: "(không áp dụng đối với người tham gia BHXH tự nguyện)", italics: true }),
+              new TextRun({ text: ": " }),
+              new TextRun({ text: formData.healthInsuranceProvider || "………………………………" })
+            ],
+            spacing: { after: 160 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "[14]. ", bold: true }),
+              new TextRun({ text: "Trường hợp người tham gia BHYT theo hộ gia đình được giảm trừ mức đóng thì kê khai thêm Phụ lục " }),
+              new TextRun({ text: "(Phụ lục kèm theo)", italics: true }),
+              new TextRun({ text: " và không phải nộp, xuất trình sổ hộ khẩu, chứng minh thư, thẻ căn cước." })
             ],
             spacing: { after: 200 }
           })
         );
-
-        if (formData.householdMembers.length > 0) {
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({ text: "[14]. ", bold: true }),
-                new TextRun({ text: "Appendix: household members (see next page)" })
-              ],
-              spacing: { after: 200 }
-            })
-          );
-        }
       } else {
         // Phần II: Người đã có mã số BHXH
         children.push(
           new Paragraph({
             children: [
-              new TextRun({
-                text: "II. For participants with a Social Insurance number (information change)",
-                bold: true,
-                size: 22
-              })
+              new TextRun({ text: "II. Đối với người đã được cấp mã số BHXH thay đổi thông tin ghi trên sổ BHXH, thẻ BHYT ", bold: true, size: 24 }),
+              new TextRun({ text: "(người tham gia chỉ kê khai từ chỉ tiêu [01] đến chỉ tiêu [05] dưới đây)", italics: true, size: 22 })
             ],
-            spacing: { after: 300 }
+            spacing: { after: 200 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[01]. ", bold: true }),
-              new TextRun({ text: "Full name (UPPERCASE): " }),
-              new TextRun({ text: formData.name || "_________________", bold: true })
+              new TextRun({ text: "Họ và tên " }),
+              new TextRun({ text: "(viết chữ in hoa)", italics: true }),
+              new TextRun({ text: ": " }),
+              new TextRun({ text: formData.name || "……………………………………………", bold: true })
             ],
-            spacing: { after: 200 }
+            spacing: { after: 160 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[02]. ", bold: true }),
-              new TextRun({ text: "Date of birth: " }),
-              new TextRun({ text: formData.dateOfBirth || "___/___/_____" }),
-              new TextRun({ text: "  [03]. ", bold: true }),
-              new TextRun({ text: "Social Insurance number: " }),
-              new TextRun({ text: formData.socialInsuranceNumber || "_____" })
+              new TextRun({ text: "Ngày, tháng, năm sinh: " }),
+              new TextRun({ text: `${dob.day || "……"}/${dob.month || "……"}/${dob.year || "………"}` }),
+              new TextRun({ text: "     [03]. ", bold: true }),
+              new TextRun({ text: "Mã số BHXH: " }),
+              new TextRun({ text: formData.socialInsuranceNumber || "………………………" })
             ],
-            spacing: { after: 200 }
+            spacing: { after: 160 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[04]. ", bold: true }),
-              new TextRun({ text: "Requested changes:" })
+              new TextRun({ text: "Nội dung thay đổi, yêu cầu:" })
             ],
-            spacing: { after: 200 }
+            spacing: { after: 120 }
           }),
           new Paragraph({
-            children: [
-              new TextRun({ text: formData.changeContent || "_____" })
-            ],
             indent: { left: 400 },
+            children: [new TextRun({ text: formData.changeContent || "…………………………………………………………………………………" })],
             spacing: { after: 200 }
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "[05]. ", bold: true }),
-              new TextRun({ text: "Attached documents (if any):" })
+              new TextRun({ text: "Hồ sơ kèm theo " }),
+              new TextRun({ text: "(nếu có)", italics: true }),
+              new TextRun({ text: ":" })
             ],
-            spacing: { after: 200 }
+            spacing: { after: 120 }
           }),
           new Paragraph({
-            children: [
-              new TextRun({ text: formData.attachedDocuments || "_____" })
-            ],
             indent: { left: 400 },
+            children: [new TextRun({ text: formData.attachedDocuments || "…………………………………………………………………………………" })],
             spacing: { after: 200 }
           })
         );
       }
 
-      // Signature section
+      // Khu vực chữ ký: 2 cột (Xác nhận của đơn vị | Người kê khai)
+      const signatureTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: noBorders,
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: noBorders,
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [new TextRun({ text: "XÁC NHẬN CỦA ĐƠN VỊ", bold: true })],
+                    spacing: { after: 80 }
+                  }),
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [
+                      new TextRun({
+                        text: "(chỉ áp dụng đối với người lao động đang tham gia BHXH bắt buộc thay đổi họ, tên đệm, tên; ngày, tháng, năm sinh)",
+                        italics: true,
+                        size: 20
+                      })
+                    ]
+                  })
+                ]
+              }),
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: noBorders,
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [new TextRun({ text: "Tôi cam đoan những nội dung kê khai là đúng và chịu trách nhiệm trước pháp luật về những nội dung đã kê khai." })],
+                    spacing: { after: 160 }
+                  }),
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [
+                      new TextRun({
+                        text: `${formData.declarationPlace || "…………"}, ngày ${decl.day || "……"} tháng ${decl.month || "……"} năm ${decl.year || "………"}`,
+                        italics: true
+                      })
+                    ],
+                    spacing: { after: 200 }
+                  }),
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [new TextRun({ text: "Người kê khai", bold: true })],
+                    spacing: { after: 80 }
+                  }),
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [new TextRun({ text: "(Ký, ghi rõ họ tên)", italics: true })]
+                  })
+                ]
+              })
+            ]
+          })
+        ]
+      });
       children.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: "I hereby declare that the above information is true and I take full legal responsibility for this declaration."
-            })
-          ],
-          spacing: { before: 600, after: 400 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: `${formData.declarationPlace || ".........." }, ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}` })
-          ],
-          alignment: AlignmentType.RIGHT,
-          spacing: { after: 300 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: "Declarant", bold: true })
-          ],
-          alignment: AlignmentType.RIGHT,
-          spacing: { after: 150 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: "(Sign, print full name)" })
-          ],
-          alignment: AlignmentType.RIGHT,
-          spacing: { after: 400 }
-        })
+        new Paragraph({ children: [new TextRun({ text: "" })], spacing: { before: 240 } }),
+        signatureTable
       );
 
-      // Phụ lục thành viên hộ gia đình
+      // Phụ lục thành viên hộ gia đình (tiếng Việt)
       if (formData.householdMembers.length > 0) {
         children.push(
           new Paragraph({
+            children: [new PageBreak()]
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: "PHỤ LỤC THÀNH VIÊN HỘ GIA ĐÌNH", bold: true, size: 28 })],
+            spacing: { after: 80 }
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: "(Kèm theo Tờ khai TK1-TS)", italics: true, size: 22 })],
+            spacing: { after: 300 }
+          }),
+          new Paragraph({
             children: [
+              new TextRun({ text: "Họ và tên chủ hộ: ", bold: true }),
+              new TextRun({ text: formData.householdHeadName || "……………………………" }),
+              new TextRun({ text: "     Số điện thoại ", bold: true }),
+              new TextRun({ text: "(nếu có)", italics: true }),
+              new TextRun({ text: ": ", bold: true }),
+              new TextRun({ text: formData.householdHeadPhone || "………………" })
+            ],
+            spacing: { after: 160 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Địa chỉ: ", bold: true }),
               new TextRun({
-                text: "APPENDIX: HOUSEHOLD MEMBERS",
-                bold: true,
-                size: 24
+                text: `${formData.householdAddressWard || "……"} - ${formData.householdAddressDistrict || "……"} - ${formData.householdAddressProvince || "……"}`
               })
             ],
-            alignment: AlignmentType.CENTER,
-            spacing: { before: 800, after: 400 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: "Household head full name: ", bold: true }),
-              new TextRun({ text: formData.householdHeadName || "_____" }),
-              new TextRun({ text: "  Phone (optional): ", bold: true }),
-              new TextRun({ text: formData.householdHeadPhone || "_____" })
-            ],
-            spacing: { after: 200 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: "Address:", bold: true })
-            ],
-            spacing: { after: 200 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: "Hamlet/Residential group: ", bold: true }),
-              new TextRun({ text: formData.householdAddressWard || "_____" }),
-              new TextRun({ text: "  Hamlet: ", bold: true }),
-              new TextRun({ text: formData.householdAddressWard || "_____" })
-            ],
-            indent: { left: 400 },
-            spacing: { after: 150 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: "Commune: ", bold: true }),
-              new TextRun({ text: formData.householdAddressDistrict || "_____" }),
-              new TextRun({ text: "  Province/City: ", bold: true }),
-              new TextRun({ text: formData.householdAddressProvince || "_____" })
-            ],
-            indent: { left: 400 },
-            spacing: { after: 400 }
+            spacing: { after: 240 }
           })
         );
 
-        // Table for household members
+        // Helpers cho table phụ lục
+        const thCell = (text) => new TableCell({
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text, bold: true, size: 20 })]
+          })],
+          verticalAlign: "center"
+        });
+        const numCell = (text) => new TableCell({
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text, italics: true, size: 18 })]
+          })]
+        });
+        const tdCell = (text, { left = false } = {}) => new TableCell({
+          children: [new Paragraph({
+            alignment: left ? AlignmentType.LEFT : AlignmentType.CENTER,
+            children: [new TextRun({ text: text || "", size: 20 })]
+          })],
+          verticalAlign: "center"
+        });
+
         const tableRows = [
           new TableRow({
+            tableHeader: true,
             children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "No.", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Full name", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Social Insurance No.", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Date of birth", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Gender", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Birth certificate place", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Relationship to head", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "ID/Passport/Citizen ID", bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Notes", bold: true })] })] })
+              thCell("STT"),
+              thCell("Họ và tên"),
+              thCell("Mã số BHXH"),
+              thCell("Ngày, tháng, năm sinh"),
+              thCell("Giới tính"),
+              thCell("Nơi đăng ký khai sinh"),
+              thCell("Mối quan hệ với chủ hộ"),
+              thCell("Số CMND/ Hộ chiếu/ Thẻ căn cước"),
+              thCell("Ghi chú")
             ]
+          }),
+          new TableRow({
+            tableHeader: true,
+            children: Array.from({ length: 9 }, (_, i) => numCell(`(${i + 1})`))
           })
         ];
 
@@ -1056,15 +1179,15 @@ export default function TK1TSForm() {
           tableRows.push(
             new TableRow({
               children: [
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(idx + 1) })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.name || "" })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.socialInsuranceNumber || "" })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.dateOfBirth || "" })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.gender || "" })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.birthPlace || "" })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.relationship || "" })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.idNumber || "" })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: member.note || "" })] })] })
+                tdCell(String(idx + 1)),
+                tdCell(member.name, { left: true }),
+                tdCell(member.socialInsuranceNumber),
+                tdCell(formatDateDDMMYYYY(member.dateOfBirth) || member.dateOfBirth),
+                tdCell(viGender(member.gender)),
+                tdCell(member.birthPlace, { left: true }),
+                tdCell(member.relationship),
+                tdCell(member.idNumber),
+                tdCell(member.note, { left: true })
               ]
             })
           );
@@ -1074,41 +1197,86 @@ export default function TK1TSForm() {
           new Table({
             rows: tableRows,
             width: { size: 100, type: WidthType.PERCENTAGE }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: "I hereby declare that the above information is true and I take full legal responsibility for this declaration."
-              })
-            ],
-            spacing: { before: 600, after: 400 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: `${formData.declarationPlace || ".........." }, ${formatDateDDMMYYYY(formData.declarationDate) || "....../....../........"}` })
-            ],
-            alignment: AlignmentType.RIGHT,
-            spacing: { after: 300 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: "Declarant", bold: true })
-            ],
-            alignment: AlignmentType.RIGHT,
-            spacing: { after: 150 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: "(Sign, print full name)" })
-            ],
-            alignment: AlignmentType.RIGHT
           })
+        );
+
+        // Signature block for appendix
+        const appendixSignature = new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          borders: noBorders,
+          rows: [
+            new TableRow({
+              children: [
+                new TableCell({
+                  width: { size: 50, type: WidthType.PERCENTAGE },
+                  borders: noBorders,
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [new TextRun({ text: "XÁC NHẬN CỦA ĐƠN VỊ", bold: true })],
+                      spacing: { after: 80 }
+                    }),
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [new TextRun({ text: "(nếu có)", italics: true, size: 20 })]
+                    })
+                  ]
+                }),
+                new TableCell({
+                  width: { size: 50, type: WidthType.PERCENTAGE },
+                  borders: noBorders,
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [new TextRun({ text: "Tôi cam đoan những nội dung kê khai là đúng và chịu trách nhiệm trước pháp luật về những nội dung đã kê khai." })],
+                      spacing: { after: 160 }
+                    }),
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [
+                        new TextRun({
+                          text: `${formData.declarationPlace || "…………"}, ngày ${decl.day || "……"} tháng ${decl.month || "……"} năm ${decl.year || "………"}`,
+                          italics: true
+                        })
+                      ],
+                      spacing: { after: 200 }
+                    }),
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [new TextRun({ text: "Người kê khai", bold: true })],
+                      spacing: { after: 80 }
+                    }),
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [new TextRun({ text: "(Ký, ghi rõ họ tên)", italics: true })]
+                    })
+                  ]
+                })
+              ]
+            })
+          ]
+        });
+        children.push(
+          new Paragraph({ children: [new TextRun({ text: "" })], spacing: { before: 240 } }),
+          appendixSignature
         );
       }
 
-      // Create document
+      // Create document with Times New Roman default font
       const doc = new Document({
+        styles: {
+          default: {
+            document: {
+              run: { font: "Times New Roman", size: 24 }
+            }
+          }
+        },
         sections: [{
+          properties: {
+            page: {
+              margin: { top: "2cm", right: "1.8cm", bottom: "2cm", left: "2.2cm" }
+            }
+          },
           children: children
         }]
       });
