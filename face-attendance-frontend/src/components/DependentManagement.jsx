@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { theme } from "../styles/theme.js";
+import { toastConfirm } from "../lib/notify.jsx";
 
 export default function DependentManagement() {
   const [dependents, setDependents] = useState([]);
@@ -45,10 +46,10 @@ export default function DependentManagement() {
       if (res.ok) {
         setDependents(data.dependents || []);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể tải danh sách người phụ thuộc"));
+        setMessage("Error: " + (data.message || "Unable to load dependents"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -94,16 +95,16 @@ export default function DependentManagement() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage(editingId ? "Cập nhật người phụ thuộc thành công!" : "Tạo người phụ thuộc thành công!");
+        setMessage(editingId ? "Dependent updated successfully!" : "Dependent created successfully!");
         setShowForm(false);
         setEditingId(null);
         setFormData({ userId: "", fullName: "", relationship: "", dateOfBirth: "", gender: "", idNumber: "", address: "", phoneNumber: "", email: "", occupation: "", notes: "", isDependent: true });
         fetchDependents();
       } else {
-        setMessage("Lỗi: " + (data.message || "Unknown error"));
+        setMessage("Error: " + (data.message || "Unknown error"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -129,7 +130,8 @@ export default function DependentManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Bạn chắc chắn muốn xóa người phụ thuộc này?")) return;
+    const ok = await toastConfirm({ message: "Are you sure you want to delete this dependent?" });
+    if (!ok) return;
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
@@ -139,13 +141,13 @@ export default function DependentManagement() {
       });
       const data = await res.json();
       if (res.ok) {
-        setMessage("Xóa người phụ thuộc thành công!");
+        setMessage("Dependent deleted successfully!");
         fetchDependents();
       } else {
-        setMessage("Lỗi: " + (data.message || "Unknown error"));
+        setMessage("Error: " + (data.message || "Unknown error"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -153,12 +155,12 @@ export default function DependentManagement() {
 
   const getRelationshipLabel = (rel) => {
     const labels = {
-      parent: "Cha/Mẹ",
-      spouse: "Vợ/Chồng",
+      parent: "Parent",
+      spouse: "Spouse",
       child: "Con",
-      grandparent: "Ông/Bà",
-      sibling: "Anh/Chị/Em",
-      other: "Khác"
+      grandparent: "Grandparent",
+      sibling: "Sibling",
+      other: "Other"
     };
     return labels[rel] || rel;
   };
@@ -166,7 +168,7 @@ export default function DependentManagement() {
   return (
     <div style={{ padding: "20px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <h2 style={{ color: theme.primary.main }}>👨‍👩‍👧‍👦 Quản Lý Người Phụ Thuộc</h2>
+        <h2 style={{ color: theme.primary.main }}>👨‍👩‍👧‍👦 Dependent Management</h2>
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <select
             value={filterUserId}
@@ -177,7 +179,7 @@ export default function DependentManagement() {
               borderRadius: theme.radius.sm
             }}
           >
-            <option value="">Tất cả nhân viên</option>
+            <option value="">All employees</option>
             {employees.map(emp => (
               <option key={emp.id} value={emp.id}>{emp.name} ({emp.employeeCode})</option>
             ))}
@@ -198,7 +200,7 @@ export default function DependentManagement() {
               fontWeight: "600"
             }}
           >
-            + Thêm Người Phụ Thuộc
+            + Add Dependent
           </button>
         </div>
       </div>
@@ -207,8 +209,8 @@ export default function DependentManagement() {
         <div style={{
           padding: "12px",
           marginBottom: "20px",
-          backgroundColor: message.includes("thành công") ? theme.success.bg : theme.error.bg,
-          color: message.includes("thành công") ? theme.success.text : theme.error.text,
+          backgroundColor: message.toLowerCase().includes("success") ? theme.success.bg : theme.error.bg,
+          color: message.toLowerCase().includes("success") ? theme.success.text : theme.error.text,
           borderRadius: theme.radius.md
         }}>
           {message}
@@ -224,13 +226,13 @@ export default function DependentManagement() {
           boxShadow: theme.shadows.md
         }}>
           <h3 style={{ marginTop: 0, color: theme.primary.main }}>
-            {editingId ? "Chỉnh Sửa Người Phụ Thuộc" : "Thêm Người Phụ Thuộc Mới"}
+            {editingId ? "Edit Dependent" : "Add New Dependent"}
           </h3>
           <form onSubmit={handleSubmit}>
             <div style={{ display: "grid", gridTemplateColumns: editingId ? "1fr 1fr" : "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
               {!editingId && (
                 <div>
-                  <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Nhân viên *</label>
+                  <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Employee *</label>
                   <select
                     required={!editingId}
                     value={formData.userId}
@@ -242,7 +244,7 @@ export default function DependentManagement() {
                       borderRadius: theme.radius.sm
                     }}
                   >
-                    <option value="">Chọn nhân viên</option>
+                    <option value="">Select employee</option>
                     {employees.map(emp => (
                       <option key={emp.id} value={emp.id}>{emp.name} ({emp.employeeCode})</option>
                     ))}
@@ -250,7 +252,7 @@ export default function DependentManagement() {
                 </div>
               )}
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Họ và tên *</label>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Full Name *</label>
                 <input
                   type="text"
                   required
@@ -265,7 +267,7 @@ export default function DependentManagement() {
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Quan hệ *</label>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Relationship *</label>
                 <select
                   required
                   value={formData.relationship}
@@ -277,17 +279,17 @@ export default function DependentManagement() {
                     borderRadius: theme.radius.sm
                   }}
                 >
-                  <option value="">Chọn quan hệ</option>
-                  <option value="parent">Cha/Mẹ</option>
-                  <option value="spouse">Vợ/Chồng</option>
+                  <option value="">Select relationship</option>
+                  <option value="parent">Parent</option>
+                  <option value="spouse">Spouse</option>
                   <option value="child">Con</option>
-                  <option value="grandparent">Ông/Bà</option>
-                  <option value="sibling">Anh/Chị/Em</option>
-                  <option value="other">Khác</option>
+                  <option value="grandparent">Grandparent</option>
+                  <option value="sibling">Sibling</option>
+                  <option value="other">Other</option>
                 </select>
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Ngày sinh</label>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Date of Birth</label>
                 <input
                   type="date"
                   value={formData.dateOfBirth}
@@ -301,7 +303,7 @@ export default function DependentManagement() {
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Giới tính</label>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Gender</label>
                 <select
                   value={formData.gender}
                   onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
@@ -312,10 +314,10 @@ export default function DependentManagement() {
                     borderRadius: theme.radius.sm
                   }}
                 >
-                  <option value="">Chọn giới tính</option>
+                  <option value="">Select gender</option>
                   <option value="male">Nam</option>
-                  <option value="female">Nữ</option>
-                  <option value="other">Khác</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
                 </select>
               </div>
               <div>
@@ -333,7 +335,7 @@ export default function DependentManagement() {
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Địa chỉ</label>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Address</label>
                 <input
                   type="text"
                   value={formData.address}
@@ -347,7 +349,7 @@ export default function DependentManagement() {
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Số điện thoại</label>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Phone Number</label>
                 <input
                   type="text"
                   value={formData.phoneNumber}
@@ -375,7 +377,7 @@ export default function DependentManagement() {
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Nghề nghiệp</label>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Occupation</label>
                 <input
                   type="text"
                   value={formData.occupation}
@@ -390,7 +392,7 @@ export default function DependentManagement() {
               </div>
             </div>
             <div style={{ marginBottom: "16px" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Ghi chú</label>
+              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Notes</label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -417,7 +419,7 @@ export default function DependentManagement() {
                   opacity: loading ? 0.6 : 1
                 }}
               >
-                {loading ? "Đang lưu..." : (editingId ? "Cập nhật" : "Tạo mới")}
+                {loading ? "Saving..." : (editingId ? "Update" : "Create")}
               </button>
               <button
                 type="button"
@@ -435,7 +437,7 @@ export default function DependentManagement() {
                   cursor: "pointer"
                 }}
               >
-                Hủy
+                Cancel
               </button>
             </div>
           </form>
@@ -443,19 +445,19 @@ export default function DependentManagement() {
       )}
 
       {loading && !showForm ? (
-        <div style={{ textAlign: "center", padding: "40px" }}>Đang tải...</div>
+        <div style={{ textAlign: "center", padding: "40px" }}>Loading...</div>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse", backgroundColor: "white", borderRadius: theme.radius.md, overflow: "hidden" }}>
           <thead>
             <tr style={{ backgroundColor: theme.primary.main, color: "white" }}>
-              <th style={{ padding: "12px", textAlign: "left" }}>Nhân viên</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Họ tên</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Quan hệ</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Ngày sinh</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Giới tính</th>
+              <th style={{ padding: "12px", textAlign: "left" }}>Employee</th>
+              <th style={{ padding: "12px", textAlign: "left" }}>Full Name</th>
+              <th style={{ padding: "12px", textAlign: "left" }}>Relationship</th>
+              <th style={{ padding: "12px", textAlign: "left" }}>Date of Birth</th>
+              <th style={{ padding: "12px", textAlign: "left" }}>Gender</th>
               <th style={{ padding: "12px", textAlign: "left" }}>CMND/CCCD</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Số điện thoại</th>
-              <th style={{ padding: "12px", textAlign: "center" }}>Thao tác</th>
+              <th style={{ padding: "12px", textAlign: "left" }}>Phone Number</th>
+              <th style={{ padding: "12px", textAlign: "center" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -470,7 +472,7 @@ export default function DependentManagement() {
                   {dep.dateOfBirth ? new Date(dep.dateOfBirth).toLocaleDateString("vi-VN") : "-"}
                 </td>
                 <td style={{ padding: "12px" }}>
-                  {dep.gender === "male" ? "Nam" : dep.gender === "female" ? "Nữ" : dep.gender || "-"}
+                  {dep.gender === "male" ? "Male" : dep.gender === "female" ? "Female" : dep.gender || "-"}
                 </td>
                 <td style={{ padding: "12px" }}>{dep.idNumber || "-"}</td>
                 <td style={{ padding: "12px" }}>{dep.phoneNumber || "-"}</td>
@@ -488,7 +490,7 @@ export default function DependentManagement() {
                       fontSize: "12px"
                     }}
                   >
-                    Sửa
+                    Edit
                   </button>
                   <button
                     onClick={() => handleDelete(dep.id)}
@@ -502,7 +504,7 @@ export default function DependentManagement() {
                       fontSize: "12px"
                     }}
                   >
-                    Xóa
+                    Delete
                   </button>
                 </td>
               </tr>

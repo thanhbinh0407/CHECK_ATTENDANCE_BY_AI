@@ -480,6 +480,35 @@ export default function D02LTReport() {
     }
   };
 
+  // Vietnamese translations for export (UI remains in English)
+  const viTranslate = {
+    gender: (g) => (g === "Male" ? "Nam" : g === "Female" ? "Nữ" : g || ""),
+    shortGender: (g) => (g === "Male" ? "Nam" : g === "Female" ? "Nữ" : g || ""),
+    seniority: (s) => {
+      if (!s) return "";
+      if (s === "< 1 year") return "Dưới 1 năm";
+      return String(s).replace(/\s*yr$/i, " năm").replace(/\s*year(s)?$/i, " năm");
+    },
+    otherAllowances: (a) => {
+      if (!a) return "";
+      return String(a)
+        .replace(/Lunch:/gi, "Ăn trưa:")
+        .replace(/Transport:/gi, "Xăng xe:")
+        .replace(/Phone:/gi, "Điện thoại:");
+    },
+    note: (n) => {
+      if (!n) return "";
+      return String(n)
+        .replace(/Contract:\s*indefinite/gi, "HĐ: Không xác định thời hạn")
+        .replace(/Contract:\s*1_year/gi, "HĐ: Xác định thời hạn 1 năm")
+        .replace(/Contract:\s*3_year/gi, "HĐ: Xác định thời hạn 3 năm")
+        .replace(/Contract:\s*probation/gi, "HĐ: Thử việc")
+        .replace(/Contract:\s*other/gi, "HĐ: Khác")
+        .replace(/Clinic:/gi, "Nơi KCB:")
+        .replace(/Data processing error/gi, "Lỗi xử lý dữ liệu");
+    }
+  };
+
   const exportToPDF = async () => {
     try {
       console.log("exportToPDF called, employeeList length:", employeeList.length);
@@ -495,110 +524,135 @@ export default function D02LTReport() {
       container.style.backgroundColor = '#ffffff';
       container.style.fontFamily = 'Arial, sans-serif';
       
-      // Build HTML content
+      const escapeHtml = (s) => String(s ?? "")
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+      const thBase = "border:1px solid #000; padding:3px; text-align:center; vertical-align:middle; background-color:#f3f4f6; font-weight:600; color:#111;";
+      const tdBase = "border:1px solid #000; padding:3px; vertical-align:middle;";
+      const tdCenter = tdBase + " text-align:center;";
+      const tdRight = tdBase + " text-align:right;";
+
+      // Build HTML content — Vietnamese format theo Mẫu D02-LT chuẩn BHXH Việt Nam
       container.innerHTML = `
-        <div style="margin-bottom: 20px;">
-          <div style="text-align: center; font-size: 11px; font-weight: bold; margin-bottom: 10px;">Form D02-LT</div>
-          <div style="text-align: center; font-size: 8px; margin-bottom: 15px; font-style: italic;">
-            (Issued with Decision No. 1040/QĐ-BHXH dated 18/08/2020 of Vietnam Social Security)
-          </div>
-          
-          <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
-            <div style="flex: 1; font-size: 9px;">
-              <div style="margin-bottom: 3px;"><strong>EMPLOYER NAME:</strong> ${companyInfo.name || "_________________"}</div>
-              <div style="margin-bottom: 3px;">No.: ${companyInfo.reportNumber || "_____"} /………</div>
-              <div style="margin-bottom: 3px;">Unit code: ${companyInfo.code || "_____"}; Tax code: ${companyInfo.taxCode || "_____"}</div>
-              <div style="margin-bottom: 3px;">Address: ${companyInfo.address || "_____"}</div>
-              <div>Phone: ${companyInfo.phone || "_____"}; Email: ${companyInfo.email || "_____"}</div>
+        <div style="margin-bottom: 18px; font-family: 'Times New Roman', Times, serif;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+            <div style="flex: 1; font-size: 11px; line-height: 1.5;">
+              <div style="margin-bottom: 2px;"><strong>TÊN ĐƠN VỊ SỬ DỤNG LAO ĐỘNG:</strong> ${escapeHtml(companyInfo.name) || "……………………………………"}</div>
+              <div style="margin-bottom: 2px;">Số: &nbsp;${escapeHtml(companyInfo.reportNumber) || "……"} /………</div>
+              <div style="margin-bottom: 2px;">Mã đơn vị: ${escapeHtml(companyInfo.code) || "…………………"};</div>
+              <div style="margin-bottom: 2px;">Mã số thuế: ${escapeHtml(companyInfo.taxCode) || "…………………"}</div>
+              <div style="margin-bottom: 2px;">Địa chỉ: ${escapeHtml(companyInfo.address) || "………………………………"}</div>
+              <div>Điện thoại: ${escapeHtml(companyInfo.phone) || "…………………"}; Email: ${escapeHtml(companyInfo.email) || "…………………"}</div>
             </div>
-            
-            <div style="flex: 0 0 250px; text-align: center; font-size: 9px;">
-              <div style="font-weight: bold; margin-bottom: 3px;">SOCIALIST REPUBLIC OF VIETNAM</div>
-              <div style="font-weight: bold; margin-bottom: 8px;">Independence - Freedom - Happiness</div>
-              <div>…., … / … / …</div>
+
+            <div style="flex: 0 0 340px; text-align: center; font-size: 11px; line-height: 1.5;">
+              <div style="text-align: right; font-weight: bold; margin-bottom: 2px;">Mẫu D02-LT</div>
+              <div style="text-align: right; font-style: italic; font-size: 10px; margin-bottom: 10px;">
+                (Ban hành kèm theo Quyết định số 1040/QĐ-BHXH<br/>
+                ngày 18/8/2020 của BHXH Việt Nam)
+              </div>
+              <div style="font-weight: bold;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+              <div style="font-weight: bold; text-decoration: underline; margin-bottom: 4px;">Độc lập - Tự do - Hạnh phúc</div>
+              <div style="font-style: italic;">……, ngày …… tháng …… năm ………</div>
             </div>
           </div>
-          
-          <div style="text-align: center; font-size: 11px; font-weight: bold; margin: 20px 0;">
-            EMPLOYMENT STATUS REPORT AND LIST OF PARTICIPATION IN SI, HI, UI
+
+          <div style="text-align: center; font-size: 13px; font-weight: bold; margin: 16px 0 12px 0; text-transform: uppercase;">
+            Báo cáo tình hình sử dụng lao động<br/>và danh sách tham gia BHXH, BHYT, BHTN
           </div>
         </div>
-        
-        <table style="width: 100%; border-collapse: collapse; font-size: 7px;">
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 8px; font-family: 'Times New Roman', Times, serif;">
           <thead>
-            <tr style="background-color: #dbeafe; color: #1e40af; font-weight: 600;">
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 25px;">No.</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 80px;">Full name</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 60px;">SI No.</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">DoB</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">Gender</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 60px;">ID</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 100px;">Position</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">Mgr</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">High</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">Mid</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 30px;">Oth</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 60px;">Salary</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 40px;">Pos Allow</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 35px;">Sen VK</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 35px;">Sen Job</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 40px;">Sal Allow</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 80px;">Other Allow</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 45px;">Haz Start</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 45px;">Haz End</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Indef Start</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Fixed Start</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Fixed End</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Other Start</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">Other End</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">SI Start</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 50px;">SI End</th>
-              <th style="border: 1px solid #93c5fd; padding: 3px; text-align: center; min-width: 80px;">Notes</th>
+            <tr>
+              <th rowspan="3" style="${thBase} min-width:22px;">STT</th>
+              <th rowspan="3" style="${thBase} min-width:90px;">Họ và tên</th>
+              <th rowspan="3" style="${thBase} min-width:60px;">Mã số BHXH</th>
+              <th rowspan="3" style="${thBase} min-width:55px;">Ngày tháng năm sinh</th>
+              <th rowspan="3" style="${thBase} min-width:35px;">Giới tính</th>
+              <th rowspan="3" style="${thBase} min-width:60px;">Số CCCD/ CMND/ Hộ chiếu</th>
+              <th rowspan="3" style="${thBase} min-width:95px;">Cấp bậc, chức vụ, chức danh nghề, nơi làm việc</th>
+              <th colspan="4" style="${thBase}">Vị trí việc làm</th>
+              <th colspan="6" style="${thBase}">Tiền lương</th>
+              <th colspan="2" style="${thBase}">Ngành/nghề nặng nhọc, độc hại</th>
+              <th colspan="5" style="${thBase}">Loại và hiệu lực hợp đồng lao động</th>
+              <th rowspan="3" style="${thBase} min-width:58px;">Thời điểm đơn vị bắt đầu đóng BHXH</th>
+              <th rowspan="3" style="${thBase} min-width:58px;">Thời điểm đơn vị kết thúc đóng BHXH</th>
+              <th rowspan="3" style="${thBase} min-width:70px;">Ghi chú</th>
+            </tr>
+            <tr>
+              <th rowspan="2" style="${thBase} min-width:32px;">Nhà quản lý</th>
+              <th rowspan="2" style="${thBase} min-width:40px;">Chuyên môn kỹ thuật bậc cao</th>
+              <th rowspan="2" style="${thBase} min-width:40px;">Chuyên môn kỹ thuật bậc trung</th>
+              <th rowspan="2" style="${thBase} min-width:30px;">Khác</th>
+              <th rowspan="2" style="${thBase} min-width:48px;">Hệ số/ Mức lương</th>
+              <th colspan="5" style="${thBase}">Phụ cấp</th>
+              <th rowspan="2" style="${thBase} min-width:45px;">Ngày bắt đầu</th>
+              <th rowspan="2" style="${thBase} min-width:45px;">Ngày kết thúc</th>
+              <th rowspan="2" style="${thBase} min-width:55px;">Ngày bắt đầu HĐLĐ Không xác định thời hạn</th>
+              <th colspan="2" style="${thBase}">Hiệu lực HĐLĐ Xác định thời hạn</th>
+              <th colspan="2" style="${thBase}">Hiệu lực HĐLĐ Khác (Dưới 1 tháng, thử việc)</th>
+            </tr>
+            <tr>
+              <th style="${thBase} min-width:38px;">Chức vụ</th>
+              <th style="${thBase} min-width:42px;">Thâm niên VK (%)</th>
+              <th style="${thBase} min-width:42px;">Thâm niên nghề (%)</th>
+              <th style="${thBase} min-width:45px;">Phụ cấp lương</th>
+              <th style="${thBase} min-width:55px;">Các khoản bổ sung</th>
+              <th style="${thBase} min-width:45px;">Ngày bắt đầu</th>
+              <th style="${thBase} min-width:45px;">Ngày kết thúc</th>
+              <th style="${thBase} min-width:45px;">Ngày bắt đầu</th>
+              <th style="${thBase} min-width:45px;">Ngày kết thúc</th>
+            </tr>
+            <tr>
+              ${Array.from({ length: 27 }, (_, i) => `<th style="${thBase} font-style:italic; font-weight:500;">(${i + 1})</th>`).join('')}
             </tr>
           </thead>
           <tbody>
-            ${employeeList.map((emp, idx) => `
-              <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f0f9ff'};">
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.stt}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px;">${emp.name}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.socialInsuranceNumber || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.dateOfBirth}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.gender === 'Male' ? 'M' : emp.gender === 'Female' ? 'F' : ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.idNumber || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px;">${emp.position}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionCategory.manager ? 'X' : ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionCategory.highTech ? 'X' : ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionCategory.midTech ? 'X' : ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionCategory.other ? 'X' : ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: right;">${emp.salary}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.positionAllowance || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.seniorityVK || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.seniorityJob || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.salaryAllowance || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; font-size: 6px;">${emp.otherAllowances || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.hazardousStartDate || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.hazardousEndDate || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.indefiniteContractStart || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.fixedTermContractStart || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.fixedTermContractEnd || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.otherContractStart || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.otherContractEnd || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.insuranceStartDate || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; text-align: center;">${emp.insuranceEndDate || ''}</td>
-                <td style="border: 1px solid #e0e7ff; padding: 3px; font-size: 6px;">${emp.note || ''}</td>
+            ${employeeList.map((emp) => `
+              <tr>
+                <td style="${tdCenter}">${emp.stt}</td>
+                <td style="${tdBase}">${escapeHtml(emp.name)}</td>
+                <td style="${tdCenter}">${escapeHtml(emp.socialInsuranceNumber)}</td>
+                <td style="${tdCenter}">${escapeHtml(emp.dateOfBirth)}</td>
+                <td style="${tdCenter}">${escapeHtml(viTranslate.shortGender(emp.gender))}</td>
+                <td style="${tdCenter}">${escapeHtml(emp.idNumber)}</td>
+                <td style="${tdBase}">${escapeHtml(emp.position)}</td>
+                <td style="${tdCenter}">${emp.positionCategory?.manager ? 'x' : ''}</td>
+                <td style="${tdCenter}">${emp.positionCategory?.highTech ? 'x' : ''}</td>
+                <td style="${tdCenter}">${emp.positionCategory?.midTech ? 'x' : ''}</td>
+                <td style="${tdCenter}">${emp.positionCategory?.other ? 'x' : ''}</td>
+                <td style="${tdRight}">${escapeHtml(emp.salary)}</td>
+                <td style="${tdRight}">${escapeHtml(emp.positionAllowance)}</td>
+                <td style="${tdCenter}">${escapeHtml(emp.seniorityVK)}</td>
+                <td style="${tdCenter}">${escapeHtml(viTranslate.seniority(emp.seniorityJob))}</td>
+                <td style="${tdRight}">${escapeHtml(emp.salaryAllowance)}</td>
+                <td style="${tdBase} font-size:7px;">${escapeHtml(viTranslate.otherAllowances(emp.otherAllowances))}</td>
+                <td style="${tdCenter}">${escapeHtml(emp.hazardousStartDate)}</td>
+                <td style="${tdCenter}">${escapeHtml(emp.hazardousEndDate)}</td>
+                <td style="${tdCenter}">${escapeHtml(emp.indefiniteContractStart)}</td>
+                <td style="${tdCenter}">${escapeHtml(emp.fixedTermContractStart)}</td>
+                <td style="${tdCenter}">${escapeHtml(emp.fixedTermContractEnd)}</td>
+                <td style="${tdCenter}">${escapeHtml(emp.otherContractStart)}</td>
+                <td style="${tdCenter}">${escapeHtml(emp.otherContractEnd)}</td>
+                <td style="${tdCenter}">${escapeHtml(emp.insuranceStartDate)}</td>
+                <td style="${tdCenter}">${escapeHtml(emp.insuranceEndDate)}</td>
+                <td style="${tdBase} font-size:7px;">${escapeHtml(viTranslate.note(emp.note))}</td>
               </tr>
             `).join('')}
-            <tr style="background-color: #dbeafe;">
-              <td colspan="27" style="border: 1px solid #93c5fd; padding: 5px; text-align: center; font-weight: bold; color: #1e40af;">
-                Total: ${employeeList.length} employees
-              </td>
+            <tr>
+              <td style="${tdBase} text-align:right; font-weight:bold;" colspan="11">Tổng</td>
+              <td style="${tdBase}" colspan="16">&nbsp;</td>
             </tr>
           </tbody>
         </table>
-        
-        <div style="margin-top: 30px; text-align: right; font-size: 9px;">
-          <div style="font-weight: bold; margin-bottom: 5px;">EMPLOYER REPRESENTATIVE</div>
-          <div style="font-size: 8px;">(Signature, full name, and seal)</div>
+
+        <div style="margin-top: 28px; font-family: 'Times New Roman', Times, serif; font-size: 11px;">
+          <div style="float: right; text-align: center; min-width: 320px;">
+            <div style="font-weight: bold; text-transform: uppercase;">Đại diện đơn vị sử dụng lao động</div>
+            <div style="font-style: italic;">(Ký, ghi rõ họ tên, đóng dấu)</div>
+          </div>
+          <div style="clear: both;"></div>
         </div>
       `;
       
@@ -678,89 +732,102 @@ export default function D02LTReport() {
           new TableRow({
             children: [
               new TableCell({
-                width: { size: 50, type: WidthType.PERCENTAGE },
+                width: { size: 55, type: WidthType.PERCENTAGE },
                 borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
                 children: [
                   new Paragraph({
-                    children: [new TextRun({ text: "NAME OF THE LABOR-USING UNIT / EMPLOYER:", bold: true })],
-                    spacing: { after: 80 }
-                  }),
-                  new Paragraph({
-                    children: [new TextRun({ text: companyInfo.name || "................................................................................." })],
-                    spacing: { after: 120 }
-                  }),
-                  new Paragraph({
                     children: [
-                      new TextRun({ text: "No.: ", bold: true }),
-                      new TextRun({ text: companyInfo.reportNumber || "............" }),
-                      new TextRun({ text: " / ............." })
+                      new TextRun({ text: "TÊN ĐƠN VỊ SỬ DỤNG LAO ĐỘNG: ", bold: true }),
+                      new TextRun({ text: companyInfo.name || "……………………………………………" })
                     ],
                     spacing: { after: 100 }
                   }),
                   new Paragraph({
                     children: [
-                      new TextRun({ text: "Unit code: ", bold: true }),
-                      new TextRun({ text: (companyInfo.code || "........................").padEnd(24) }),
-                      new TextRun({ text: " ; Tax code: ", bold: true }),
-                      new TextRun({ text: companyInfo.taxCode || "................." })
+                      new TextRun({ text: "Số: ", bold: true }),
+                      new TextRun({ text: (companyInfo.reportNumber || "………") + " /………" })
                     ],
                     spacing: { after: 100 }
                   }),
                   new Paragraph({
                     children: [
-                      new TextRun({ text: "Address: ", bold: true }),
-                      new TextRun({ text: (companyInfo.address || "...................................................................").slice(0, 65) })
+                      new TextRun({ text: "Mã đơn vị: ", bold: true }),
+                      new TextRun({ text: (companyInfo.code || "………………") + ";" })
                     ],
                     spacing: { after: 100 }
                   }),
                   new Paragraph({
                     children: [
-                      new TextRun({ text: "Phone: ", bold: true }),
-                      new TextRun({ text: (companyInfo.phone || ".................................").slice(0, 33) }),
+                      new TextRun({ text: "Mã số thuế: ", bold: true }),
+                      new TextRun({ text: companyInfo.taxCode || "…………………………" })
+                    ],
+                    spacing: { after: 100 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "Địa chỉ: ", bold: true }),
+                      new TextRun({ text: companyInfo.address || "…………………………………" })
+                    ],
+                    spacing: { after: 100 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "Điện thoại: ", bold: true }),
+                      new TextRun({ text: companyInfo.phone || "………………………" }),
                       new TextRun({ text: "; Email: ", bold: true }),
-                      new TextRun({ text: (companyInfo.email || ".................................").slice(0, 33) })
+                      new TextRun({ text: companyInfo.email || "………………………" })
                     ],
                     spacing: { after: 0 }
                   })
                 ]
               }),
               new TableCell({
-                width: { size: 50, type: WidthType.PERCENTAGE },
+                width: { size: 45, type: WidthType.PERCENTAGE },
                 borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
                 children: [
                   new Paragraph({
-                    children: [new TextRun({ text: "Form D02-LT", bold: true })],
+                    children: [new TextRun({ text: "Mẫu D02-LT", bold: true })],
+                    alignment: AlignmentType.RIGHT,
+                    spacing: { after: 80 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: "(Ban hành kèm theo Quyết định số 1040/QĐ-BHXH",
+                        italics: true
+                      })
+                    ],
+                    alignment: AlignmentType.RIGHT,
+                    spacing: { after: 40 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: "ngày 18/8/2020 của BHXH Việt Nam)",
+                        italics: true
+                      })
+                    ],
+                    alignment: AlignmentType.RIGHT,
+                    spacing: { after: 240 }
+                  }),
+                  new Paragraph({
+                    children: [new TextRun({ text: "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM", bold: true })],
                     alignment: AlignmentType.CENTER,
                     spacing: { after: 80 }
                   }),
                   new Paragraph({
                     children: [
                       new TextRun({
-                        text: "(Issued together with Decision No. 1040/QĐ-BHXH dated 18/8/2020 of Vietnam Social Security)",
-                        italics: true
-                      })
-                    ],
-                    alignment: AlignmentType.CENTER,
-                    spacing: { after: 200 }
-                  }),
-                  new Paragraph({
-                    children: [new TextRun({ text: "SOCIALIST REPUBLIC OF VIETNAM", bold: true })],
-                    alignment: AlignmentType.CENTER,
-                    spacing: { after: 100 }
-                  }),
-                  new Paragraph({
-                    children: [
-                      new TextRun({
-                        text: "Independence - Freedom - Happiness",
+                        text: "Độc lập - Tự do - Hạnh phúc",
                         bold: true,
                         underline: { type: UnderlineType.SINGLE }
                       })
                     ],
                     alignment: AlignmentType.CENTER,
-                    spacing: { after: 120 }
+                    spacing: { after: 160 }
                   }),
                   new Paragraph({
-                    children: [new TextRun({ text: "... day ... month ... year ...", italics: true })],
+                    children: [new TextRun({ text: "……, ngày …… tháng …… năm ………", italics: true })],
                     alignment: AlignmentType.CENTER,
                     spacing: { after: 0 }
                   })
@@ -772,61 +839,111 @@ export default function D02LTReport() {
       });
       children.push(headerTable);
 
-      // Main title (centered)
+      // Tiêu đề chính (căn giữa) — theo mẫu
       children.push(
         new Paragraph({
           children: [
             new TextRun({
-              text: "EMPLOYMENT STATUS REPORT AND LIST OF PARTICIPANTS IN SOCIAL INSURANCE, HEALTH INSURANCE, UNEMPLOYMENT INSURANCE",
-              bold: true
+              text: "BÁO CÁO TÌNH HÌNH SỬ DỤNG LAO ĐỘNG VÀ DANH SÁCH THAM GIA BHXH, BHYT, BHTN",
+              bold: true,
+              size: 26
             })
           ],
           alignment: AlignmentType.CENTER,
-          spacing: { before: 280, after: 320 }
+          spacing: { before: 320, after: 320 }
         })
       );
 
-      // Helper: ô tiêu đề căn giữa
-      const th = (text) => new TableCell({
-        children: [new Paragraph({ children: [new TextRun({ text, bold: true })], alignment: AlignmentType.CENTER })]
+      // Helpers cho table dữ liệu: có viền đầy đủ, căn giữa
+      const th = (text, opts = {}) => new TableCell({
+        children: [new Paragraph({
+          children: [new TextRun({ text, bold: true, size: 16 })],
+          alignment: AlignmentType.CENTER
+        })],
+        verticalAlign: "center",
+        ...opts
       });
-      // Helper: ô dữ liệu căn giữa
-      const td = (text) => new TableCell({
-        children: [new Paragraph({ children: [new TextRun({ text: text || "" })], alignment: AlignmentType.CENTER })]
+      const tn = (text) => new TableCell({
+        children: [new Paragraph({
+          children: [new TextRun({ text, italics: true, size: 14 })],
+          alignment: AlignmentType.CENTER
+        })]
+      });
+      const td = (text, opts = {}) => new TableCell({
+        children: [new Paragraph({
+          children: [new TextRun({ text: text || "", size: 14 })],
+          alignment: AlignmentType.CENTER
+        })],
+        verticalAlign: "center",
+        ...opts
+      });
+      const tdLeft = (text, opts = {}) => new TableCell({
+        children: [new Paragraph({
+          children: [new TextRun({ text: text || "", size: 14 })],
+          alignment: AlignmentType.LEFT
+        })],
+        verticalAlign: "center",
+        ...opts
       });
 
-      // Table — header và dữ liệu đều căn giữa
+      // Table với header phân cấp theo đúng mẫu D02-LT (27 cột)
       const tableRows = [
+        // Hàng 1 của header
         new TableRow({
+          tableHeader: true,
           children: [
-            th("No."),
-            th("Full name"),
-            th("Social Insurance No."),
-            th("Date of birth"),
-            th("Gender"),
-            th("Citizen ID/ID"),
-            th("Position/Title"),
-            th("Manager"),
-            th("High-skilled"),
-            th("Mid-skilled"),
-            th("Other"),
-            th("Salary"),
-            th("Position allowance"),
-            th("Seniority VK"),
-            th("Job seniority"),
-            th("Salary allowance"),
-            th("Other allowances"),
-            th("Hazard start"),
-            th("Hazard end"),
-            th("Indefinite contract start"),
-            th("Fixed-term contract start"),
-            th("Fixed-term contract end"),
-            th("Other contract start"),
-            th("Other contract end"),
-            th("SI start"),
-            th("SI end"),
-            th("Notes")
+            th("STT", { rowSpan: 3 }),
+            th("Họ và tên", { rowSpan: 3 }),
+            th("Mã số BHXH", { rowSpan: 3 }),
+            th("Ngày tháng năm sinh", { rowSpan: 3 }),
+            th("Giới tính", { rowSpan: 3 }),
+            th("Số CCCD/ CMND/ Hộ chiếu", { rowSpan: 3 }),
+            th("Cấp bậc, chức vụ, chức danh nghề, nơi làm việc", { rowSpan: 3 }),
+            th("Vị trí việc làm", { columnSpan: 4 }),
+            th("Tiền lương", { columnSpan: 6 }),
+            th("Ngành/nghề nặng nhọc, độc hại", { columnSpan: 2 }),
+            th("Loại và hiệu lực hợp đồng lao động", { columnSpan: 5 }),
+            th("Thời điểm đơn vị bắt đầu đóng BHXH", { rowSpan: 3 }),
+            th("Thời điểm đơn vị kết thúc đóng BHXH", { rowSpan: 3 }),
+            th("Ghi chú", { rowSpan: 3 })
           ]
+        }),
+        // Hàng 2 của header
+        new TableRow({
+          tableHeader: true,
+          children: [
+            th("Nhà quản lý", { rowSpan: 2 }),
+            th("Chuyên môn kỹ thuật bậc cao", { rowSpan: 2 }),
+            th("Chuyên môn kỹ thuật bậc trung", { rowSpan: 2 }),
+            th("Khác", { rowSpan: 2 }),
+            th("Hệ số/ Mức lương", { rowSpan: 2 }),
+            th("Phụ cấp", { columnSpan: 5 }),
+            th("Ngày bắt đầu", { rowSpan: 2 }),
+            th("Ngày kết thúc", { rowSpan: 2 }),
+            th("Ngày bắt đầu HĐLĐ Không xác định thời hạn", { rowSpan: 2 }),
+            th("Hiệu lực HĐLĐ Xác định thời hạn", { columnSpan: 2 }),
+            th("Hiệu lực HĐLĐ Khác (Dưới 1 tháng, thử việc)", { columnSpan: 2 })
+          ]
+        }),
+        // Hàng 3 của header (các ô con)
+        new TableRow({
+          tableHeader: true,
+          children: [
+            th("Chức vụ"),
+            th("Thâm niên VK (%)"),
+            th("Thâm niên nghề (%)"),
+            th("Phụ cấp lương"),
+            th("Các khoản bổ sung"),
+            th("Ngày bắt đầu"),
+            th("Ngày kết thúc"),
+            th("Ngày bắt đầu"),
+            th("Ngày kết thúc")
+          ]
+        }),
+        // Hàng đánh số cột (1)..(27)
+        new TableRow({
+          tableHeader: true,
+          children: Array.from({ length: 27 }, (_, i) => tn(`(${i + 1})`))
         })
       ];
 
@@ -835,22 +952,22 @@ export default function D02LTReport() {
           new TableRow({
             children: [
               td(String(emp.stt)),
-              td(emp.name),
+              tdLeft(emp.name),
               td(emp.socialInsuranceNumber),
               td(emp.dateOfBirth),
-              td(emp.gender),
+              td(viTranslate.gender(emp.gender)),
               td(emp.idNumber),
-              td(emp.position),
-              td(emp.positionCategory?.manager ? "X" : ""),
-              td(emp.positionCategory?.highTech ? "X" : ""),
-              td(emp.positionCategory?.midTech ? "X" : ""),
-              td(emp.positionCategory?.other ? "X" : ""),
+              tdLeft(emp.position),
+              td(emp.positionCategory?.manager ? "x" : ""),
+              td(emp.positionCategory?.highTech ? "x" : ""),
+              td(emp.positionCategory?.midTech ? "x" : ""),
+              td(emp.positionCategory?.other ? "x" : ""),
               td(emp.salary),
               td(emp.positionAllowance),
               td(emp.seniorityVK),
-              td(emp.seniorityJob),
+              td(viTranslate.seniority(emp.seniorityJob)),
               td(emp.salaryAllowance),
-              td(emp.otherAllowances),
+              tdLeft(viTranslate.otherAllowances(emp.otherAllowances)),
               td(emp.hazardousStartDate),
               td(emp.hazardousEndDate),
               td(emp.indefiniteContractStart),
@@ -860,42 +977,73 @@ export default function D02LTReport() {
               td(emp.otherContractEnd),
               td(emp.insuranceStartDate),
               td(emp.insuranceEndDate),
-              td(emp.note)
+              tdLeft(viTranslate.note(emp.note))
             ]
           })
         );
       });
 
-      // Total row — căn giữa
+      // Hàng "Tổng" theo mẫu
       tableRows.push(
         new TableRow({
           children: [
             new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: `Total: ${employeeList.length}`, bold: true })], alignment: AlignmentType.CENTER })],
-              columnSpan: 27
+              children: [new Paragraph({
+                children: [new TextRun({ text: "Tổng", bold: true, size: 16 })],
+                alignment: AlignmentType.CENTER
+              })],
+              columnSpan: 11
+            }),
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun({ text: "" })] })],
+              columnSpan: 16
             })
           ]
         })
       );
+
+      // Footer chữ ký nằm bên phải, căn giữa trong vùng phải
+      const signatureTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: {
+          top: noBorder, left: noBorder, right: noBorder, bottom: noBorder,
+          insideH: noBorder, insideV: noBorder
+        },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+                children: [new Paragraph({ children: [new TextRun({ text: "" })] })]
+              }),
+              new TableCell({
+                width: { size: 50, type: WidthType.PERCENTAGE },
+                borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+                children: [
+                  new Paragraph({
+                    children: [new TextRun({ text: "ĐẠI DIỆN ĐƠN VỊ SỬ DỤNG LAO ĐỘNG", bold: true })],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 80 }
+                  }),
+                  new Paragraph({
+                    children: [new TextRun({ text: "(Ký, ghi rõ họ tên, đóng dấu)", italics: true })],
+                    alignment: AlignmentType.CENTER
+                  })
+                ]
+              })
+            ]
+          })
+        ]
+      });
 
       children.push(
         new Table({
           rows: tableRows,
           width: { size: 100, type: WidthType.PERCENTAGE }
         }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: "REPRESENTATIVE OF THE LABOR-USING UNIT", bold: true })
-          ],
-          alignment: AlignmentType.RIGHT,
-          spacing: { before: 600, after: 120 }
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: "(Signature, full name, and seal)" })
-          ],
-          alignment: AlignmentType.RIGHT
-        })
+        new Paragraph({ children: [new TextRun({ text: "" })], spacing: { before: 320 } }),
+        signatureTable
       );
 
       // A4 landscape, kích thước và lề gần giống mẫu chuẩn D02-LT

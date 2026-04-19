@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { theme } from "../styles/theme.js";
+import { toastPrompt, toastSuccess } from "../lib/notify.jsx";
 
 export default function OvertimeManagement() {
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
@@ -39,7 +40,10 @@ export default function OvertimeManagement() {
   }, [status]);
 
   const handleAction = async (id, action) => {
-    const comments = action === "reject" ? window.prompt("Reason (optional):") : window.prompt("Comments (optional):");
+    const promptMsg = action === "reject" ? "Reason (optional):" : "Comments (optional):";
+    const commentsRaw = await toastPrompt({ message: promptMsg });
+    if (commentsRaw === null) return;
+    const comments = commentsRaw;
     try {
       setLoading(true);
       setMessage("");
@@ -55,6 +59,7 @@ export default function OvertimeManagement() {
       if (!res.ok) throw new Error(data?.message || "Action failed");
       await fetchRequests();
       setMessage(`✅ Request ${action}d.`);
+      toastSuccess(`Request ${action}d.`);
     } catch (err) {
       console.error(err);
       setMessage(err.message);

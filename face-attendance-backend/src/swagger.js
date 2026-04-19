@@ -7,7 +7,7 @@ export const swaggerDoc = {
   paths: {
     "/api/enroll": {
       post: {
-        summary: "Enroll a user with face descriptor",
+        summary: "Register user and optionally enroll face descriptor",
         requestBody: {
           required: true,
           content: {
@@ -22,13 +22,37 @@ export const swaggerDoc = {
                   imageBase64: { type: "string" },
                   modelVersion: { type: "string" }
                 },
-                required: ["name", "email", "descriptor"]
+                required: ["name", "email", "employeeCode"]
               }
             }
           }
         },
         responses: {
           200: { description: "Enroll success" }
+        }
+      }
+    },
+    "/api/enroll/face": {
+      put: {
+        summary: "Update or create face profile for existing employee",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  employeeCode: { type: "string" },
+                  userId: { type: "number" },
+                  descriptor: { type: "array", items: { type: "number" } }
+                },
+                required: ["descriptor"]
+              }
+            }
+          }
+        },
+        responses: {
+          200: { description: "Face profile updated" }
         }
       }
     },

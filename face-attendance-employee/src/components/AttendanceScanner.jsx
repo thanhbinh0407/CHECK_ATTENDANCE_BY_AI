@@ -48,7 +48,7 @@ function AttendanceScanner() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [loadingStatus, setLoadingStatus] = useState("Đang tải các mô hình nhận dạng...");
+  const [loadingStatus, setLoadingStatus] = useState("Loading recognition models...");
   const [isScanning, setIsScanning] = useState(false);
   const [detectedFaces, setDetectedFaces] = useState(null);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
@@ -95,12 +95,12 @@ function AttendanceScanner() {
   useEffect(() => {
     const loadFaceApi = async () => {
       try {
-        setLoadingStatus("Đang tải thư viện face-api...");
+        setLoadingStatus("Loading face-api library...");
         const script = document.createElement("script");
         script.src = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@latest/dist/face-api.min.js";
         script.onload = async () => {
           console.log("✓ face-api.js loaded");
-          setLoadingStatus("Đang tải các mô hình nhận dạng khuôn mặt...");
+          setLoadingStatus("Loading facial recognition models...");
           try {
             await Promise.all([
               faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL),
@@ -113,18 +113,18 @@ function AttendanceScanner() {
             startScanning();
           } catch (err) {
             console.error("Model loading error:", err);
-            setErrorMsg("Lỗi tải mô hình: " + err.message);
+            setErrorMsg("Model loading error: " + err.message);
             setIsLoading(false);
           }
         };
         script.onerror = () => {
-          setErrorMsg("Không thể tải face-api.js");
+          setErrorMsg("Unable to load face-api.js");
           setIsLoading(false);
         };
         document.body.appendChild(script);
       } catch (error) {
         console.error("Load face-api error:", error);
-        setErrorMsg("Lỗi khi tải face-api: " + error.message);
+        setErrorMsg("Face-api loading error: " + error.message);
         setIsLoading(false);
       }
     };
@@ -150,7 +150,7 @@ function AttendanceScanner() {
       if (data.status === "success" && Array.isArray(data.logs)) {
         const mapped = data.logs.map((log) => ({
           id: log.id,
-          time: log.timestamp ? new Date(log.timestamp).toLocaleTimeString("vi-VN") : "",
+          time: log.timestamp ? new Date(log.timestamp).toLocaleTimeString("en-US") : "",
           name: log.detectedName || "Unknown",
           status: "✓",
           type: log.type || "IN",
@@ -178,7 +178,7 @@ function AttendanceScanner() {
       }
     } catch (error) {
       console.error("Camera error:", error);
-      setErrorMsg("Không thể truy cập camera: " + error.message);
+      setErrorMsg("Cannot access camera: " + error.message);
     }
   };
 
@@ -700,9 +700,9 @@ function AttendanceScanner() {
 
           // Show success or finished toast for 3 seconds
           if (result.finished) {
-            setSuccessMsg(`Bạn đã kết thúc 1 ngày công`);
+            setSuccessMsg("Workday completed successfully");
           } else {
-            setSuccessMsg(`Điểm danh thành công: ${result.detectedName}`);
+            setSuccessMsg(`Attendance recorded: ${result.detectedName}`);
           }
           setSuccessAvatar(
             result.avatarUrl
@@ -717,11 +717,11 @@ function AttendanceScanner() {
           // Keep camera visible but stopped - user can click to scan again
         } else {
           console.error("Log error:", result);
-          setErrorMsg("Lỗi: " + (result.message || "Không thể ghi nhận"));
+          setErrorMsg("Error: " + (result.message || "Unable to record attendance"));
         }
       } catch (error) {
         console.error("Attendance log error:", error);
-        setErrorMsg("Lỗi kết nối: " + error.message);
+        setErrorMsg("Connection error: " + error.message);
       } finally {
         console.log("Attendance submission complete");
         setIsSubmitting(false);

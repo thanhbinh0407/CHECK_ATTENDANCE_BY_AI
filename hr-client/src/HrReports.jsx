@@ -7,12 +7,12 @@ function authHeaders(token) {
 }
 
 const REPORTS = [
-  { key: 'structure', label: 'Workforce Structure', path: '/reports/structure' },
-  { key: 'attendance', label: 'Attendance Summary', path: '/reports/attendance', needsMonth: true },
-  { key: 'leave-status', label: 'Leave Status', path: '/reports/leave-status', needsYear: true },
-  { key: 'turnover', label: 'Turnover / Resignation', path: '/reports/turnover', needsRange: true },
-  { key: 'education-skills', label: 'Education & Skills', path: '/reports/education-skills' },
-  { key: 'seniority-age', label: 'Seniority & Age', path: '/reports/seniority-age' },
+  { key: 'structure', label: 'Workforce structure', path: '/reports/structure' },
+  { key: 'attendance', label: 'Attendance summary', path: '/reports/attendance', needsMonth: true },
+  { key: 'leave-status', label: 'Leave status', path: '/reports/leave-status', needsYear: true },
+  { key: 'turnover', label: 'Turnover / resignation', path: '/reports/turnover', needsRange: true },
+  { key: 'education-skills', label: 'Education & skills', path: '/reports/education-skills' },
+  { key: 'seniority-age', label: 'Seniority & age', path: '/reports/seniority-age' },
 ];
 
 function ReportBody({ selected, payload }) {
@@ -27,10 +27,10 @@ function ReportBody({ selected, payload }) {
   if (selected === 'structure' && rep) {
     return (
       <div className="card">
-        <p className="card-title">Total Active Employees: <strong>{rep.total ?? '—'}</strong></p>
+        <p className="card-title">Total active employees: <strong>{rep.total ?? '—'}</strong></p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
           <div>
-            <div className="hr-mini-title" style={{ marginTop: 0 }}>By Department</div>
+            <div className="hr-mini-title" style={{ marginTop: 0 }}>By department</div>
             <div className="hr-table-wrap">
               <table>
                 <thead>
@@ -48,11 +48,11 @@ function ReportBody({ selected, payload }) {
             </div>
           </div>
           <div>
-            <div className="hr-mini-title" style={{ marginTop: 0 }}>By Job Title</div>
+            <div className="hr-mini-title" style={{ marginTop: 0 }}>By job title</div>
             <div className="hr-table-wrap">
               <table>
                 <thead>
-                  <tr><th>Job Title</th><th>Count</th></tr>
+                  <tr><th>Job title</th><th>Count</th></tr>
                 </thead>
                 <tbody>
                   {(rep.byJobTitle || []).map((row, i) => (
@@ -74,19 +74,19 @@ function ReportBody({ selected, payload }) {
     const rows = rep.report;
     return (
       <div className="card">
-        <p className="card-title">Attendance — Month {rep.month}/{rep.year} · {rep.totalEmployees} employees</p>
+        <p className="card-title">Attendance — {rep.month}/{rep.year} · {rep.totalEmployees} employees</p>
         <div className="hr-table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Emp. Code</th>
-                <th>Full Name</th>
+                <th>Emp code</th>
+                <th>Full name</th>
                 <th>Department</th>
                 <th>Present</th>
                 <th>Leave</th>
                 <th>Absent</th>
                 <th>Late</th>
-                <th>OT Hours</th>
+                <th>OT hours</th>
                 <th>Rate %</th>
               </tr>
             </thead>
@@ -116,22 +116,22 @@ function ReportBody({ selected, payload }) {
     const sum = rep.summary;
     return (
       <div className="card">
-        <p className="card-title">Leave Status — Year {rep.year}</p>
+        <p className="card-title">Leave status — year {rep.year}</p>
         {sum && (
           <div className="hr-stat-grid" style={{ marginBottom: 16 }}>
-            <div className="hr-stat-box"><div className="lbl">Total Leave Days Used</div><div className="val">{sum.totalLeaveDaysUsed}</div></div>
-            <div className="hr-stat-box"><div className="lbl">Remaining Leave Days (est.)</div><div className="val">{sum.totalRemainingLeaveDays}</div></div>
-            <div className="hr-stat-box"><div className="lbl">Avg. Utilization Rate %</div><div className="val">{sum.averageUtilizationRate}</div></div>
+            <div className="hr-stat-box"><div className="lbl">Total leave used</div><div className="val">{sum.totalLeaveDaysUsed}</div></div>
+            <div className="hr-stat-box"><div className="lbl">Remaining leave (est.)</div><div className="val">{sum.totalRemainingLeaveDays}</div></div>
+            <div className="hr-stat-box"><div className="lbl">Avg utilization %</div><div className="val">{sum.averageUtilizationRate}</div></div>
           </div>
         )}
         <div className="hr-table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Emp. Code</th>
-                <th>Full Name</th>
+                <th>Emp code</th>
+                <th>Full name</th>
                 <th>Department</th>
-                <th>Days Taken</th>
+                <th>Days used</th>
                 <th>Remaining</th>
                 <th>Quota</th>
               </tr>
@@ -158,16 +158,16 @@ function ReportBody({ selected, payload }) {
     const det = rep.details || {};
     return (
       <div className="card">
-        <p className="card-title">Workforce Turnover</p>
+        <p className="card-title">Workforce turnover</p>
         <div className="hr-stat-grid" style={{ marginBottom: 16 }}>
-          <div className="hr-stat-box"><div className="lbl">New Hires</div><div className="val">{rep.newEmployees}</div></div>
+          <div className="hr-stat-box"><div className="lbl">New hires</div><div className="val">{rep.newEmployees}</div></div>
           <div className="hr-stat-box"><div className="lbl">Terminated</div><div className="val">{rep.terminatedEmployees}</div></div>
-          <div className="hr-stat-box"><div className="lbl">Turnover Rate %</div><div className="val">{rep.turnoverRate}</div></div>
+          <div className="hr-stat-box"><div className="lbl">Turnover %</div><div className="val">{rep.turnoverRate}</div></div>
         </div>
-        <div className="hr-mini-title">New Hires (Details)</div>
+        <div className="hr-mini-title">New hires (details)</div>
         <div className="hr-table-wrap" style={{ marginBottom: 16 }}>
           <table>
-            <thead><tr><th>Code</th><th>Full Name</th><th>Start Date</th></tr></thead>
+            <thead><tr><th>Code</th><th>Full name</th><th>Start date</th></tr></thead>
             <tbody>
               {(det.newEmployees || []).map((e) => (
                 <tr key={e.id}><td>{e.employeeCode}</td><td>{e.name}</td><td>{e.startDate}</td></tr>
@@ -175,10 +175,10 @@ function ReportBody({ selected, payload }) {
             </tbody>
           </table>
         </div>
-        <div className="hr-mini-title">Terminated Employees</div>
+        <div className="hr-mini-title">Terminated employees</div>
         <div className="hr-table-wrap">
           <table>
-            <thead><tr><th>Code</th><th>Full Name</th><th>Status</th><th>Updated</th></tr></thead>
+            <thead><tr><th>Code</th><th>Full name</th><th>Status</th><th>Updated</th></tr></thead>
             <tbody>
               {(det.terminatedEmployees || []).map((e) => (
                 <tr key={e.id}><td>{e.employeeCode}</td><td>{e.name}</td><td>{e.employmentStatus}</td><td>{e.updatedAt}</td></tr>
@@ -194,11 +194,11 @@ function ReportBody({ selected, payload }) {
     return (
       <div className="card">
         <p className="card-title">
-          Education &amp; Skills · {rep.total} employees · with qualifications: {rep.employeesWithQualifications ?? '—'}
+          Education &amp; skills · {rep.total} employees · with qualifications: {rep.employeesWithQualifications ?? '—'}
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
           <div>
-            <div className="hr-mini-title" style={{ marginTop: 0 }}>Education Level</div>
+            <div className="hr-mini-title" style={{ marginTop: 0 }}>Education levels</div>
             <div className="hr-table-wrap">
               <table>
                 <thead><tr><th>Level</th><th>Count</th><th>%</th></tr></thead>
@@ -211,7 +211,7 @@ function ReportBody({ selected, payload }) {
             </div>
           </div>
           <div>
-            <div className="hr-mini-title" style={{ marginTop: 0 }}>Qualification Types</div>
+            <div className="hr-mini-title" style={{ marginTop: 0 }}>Qualification types</div>
             <div className="hr-table-wrap">
               <table>
                 <thead><tr><th>Type</th><th>Count</th><th>%</th></tr></thead>
@@ -232,10 +232,10 @@ function ReportBody({ selected, payload }) {
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
         <div className="card">
-          <p className="card-title">Age Distribution</p>
+          <p className="card-title">Age distribution</p>
           <div className="hr-table-wrap">
             <table>
-              <thead><tr><th>Age Group</th><th>Count</th></tr></thead>
+              <thead><tr><th>Age group</th><th>Count</th></tr></thead>
               <tbody>
                 {(rep.ageDistribution || []).map((row, i) => (
                   <tr key={i}><td>{row.ageGroup}</td><td>{row.count}</td></tr>
@@ -263,7 +263,7 @@ function ReportBody({ selected, payload }) {
 
   return (
     <div className="card">
-      <p className="card-title">Raw Data (no custom table for this report type)</p>
+      <p className="card-title">Raw data (no custom table for this report type)</p>
       <div className="hr-table-wrap" style={{ padding: 12, fontSize: 12, fontFamily: 'ui-monospace, monospace', overflow: 'auto', maxHeight: 400 }}>
         <pre style={{ margin: 0 }}>{JSON.stringify(payload, null, 2)}</pre>
       </div>
@@ -351,7 +351,7 @@ export default function HrReports({ token }) {
             </label>
           )}
           <button type="button" className="btn btn-primary" onClick={run} disabled={loading}>
-            {loading ? 'Loading…' : 'Generate Report'}
+            {loading ? 'Loading…' : 'Generate report'}
           </button>
         </div>
         {err && <p className="error-msg" style={{ marginTop: 12 }}>{err}</p>}

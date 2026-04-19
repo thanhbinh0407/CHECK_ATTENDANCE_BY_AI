@@ -1,5 +1,25 @@
 import React, { useCallback, useState } from 'react';
 
+function authJsonHeaders() {
+  const token = localStorage.getItem('authToken');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+function formatShiftError(status, apiMessage) {
+  if (status === 401) {
+    if (apiMessage === 'No token provided' || !localStorage.getItem('authToken')) {
+      return 'You are not signed in or your session expired. Please log in again (via the login portal).';
+    }
+    return apiMessage || 'Session invalid. Please log in again.';
+  }
+  if (status === 403) {
+    return apiMessage || 'Only HR or Manager can create or update the work schedule.';
+  }
+  return apiMessage || 'Unknown error';
+}
+
 export default function ShiftAdmin() {
   const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
   const [shift, setShift] = useState(null);
@@ -10,10 +30,22 @@ export default function ShiftAdmin() {
   const fetchShift = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${apiBase}/api/shifts`);
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        setShift(null);
+        setMessage(formatShiftError(401, 'No token provided'));
+        return;
+      }
+      const res = await fetch(`${apiBase}/api/shifts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       if (res.ok && data.shifts && data.shifts.length > 0) {
         setShift(data.shifts[0]);
+        setMessage('');
+      } else if (!res.ok) {
+        setShift(null);
+        setMessage('Error loading configuration: ' + formatShiftError(res.status, data.message));
       } else {
         setShift(null);
       }
@@ -39,13 +71,19 @@ export default function ShiftAdmin() {
       return;
     }
 
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setMessage(formatShiftError(401, 'No token provided'));
+      return;
+    }
+
     try {
       setLoading(true);
       const method = shift ? 'PUT' : 'POST';
       const endpoint = shift ? `${apiBase}/api/shifts/${shift.id}` : `${apiBase}/api/shifts`;
       const res = await fetch(endpoint, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: authJsonHeaders(),
         body: JSON.stringify({ 
           startTime, 
           endTime, 
@@ -61,7 +99,7 @@ export default function ShiftAdmin() {
         setEditing(false);
         setTimeout(() => setMessage(''), 3000);
       } else {
-        setMessage('Error: ' + (data.message || 'Unknown error'));
+        setMessage('Error: ' + formatShiftError(res.status, data.message));
       }
     } catch (e) {
       setMessage('Error: ' + e.message);
@@ -100,7 +138,7 @@ export default function ShiftAdmin() {
         <p style={{ color: '#666', fontSize: '14px' }}>Configure start and end work times for the entire company</p>
       </div>
 
-      {message && <div style={(message.includes('successfully') || message.includes('thành công')) ? messageSuccess : messageError}>{message}</div>}
+      {message && <div style={(message.includes('successfully') || message.toLowerCase().includes('success')) ? messageSuccess : messageError}>{message}</div>}
 
       {/* Display Current Settings */}
       {shift && !editing && (

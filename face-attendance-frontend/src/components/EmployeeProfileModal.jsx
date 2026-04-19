@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { theme } from "../styles/theme.js";
+import "./employeeProfileModal.css";
+import { toastConfirm } from "../lib/notify.jsx";
 
 export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   const [loading, setLoading] = useState(false);
@@ -382,9 +384,11 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   };
 
   const handleResetPassword = async () => {
-    if (!window.confirm("Are you sure you want to reset the password for this employee? The new password will be: Password123!")) {
-      return;
-    }
+    const ok = await toastConfirm({
+      message:
+        "Reset password for this employee? The new password will be: Password123!",
+    });
+    if (!ok) return;
 
     try {
       setResettingPassword(true);
@@ -480,9 +484,8 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   };
 
   const handleDeleteWorkExp = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this work experience?")) {
-      return;
-    }
+    const ok = await toastConfirm({ message: "Delete this work experience?" });
+    if (!ok) return;
 
     try {
       setSavingWorkExp(true);
@@ -537,64 +540,22 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
-    boxShadow: theme.shadows.xl
+    boxShadow: theme.shadows.xl,
+    "--epm-accent": theme.primary.main
   };
 
   const headerStyle = {
     background: theme.gradients.primary,
     color: theme.neutral.white,
-    padding: theme.spacing.xl,
+    padding: "16px 22px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center"
   };
 
-  const tabsStyle = {
-    display: "flex",
-    borderBottom: `2px solid ${theme.neutral.gray200}`,
-    backgroundColor: theme.neutral.gray50
-  };
-
-  const tabButtonStyle = (isActive) => ({
-    flex: 1,
-    padding: theme.spacing.md,
-    border: "none",
-    backgroundColor: isActive ? theme.neutral.white : "transparent",
-    color: isActive ? theme.primary.main : theme.neutral.gray600,
-    cursor: "pointer",
-    fontWeight: isActive ? 600 : 400,
-    borderBottom: isActive ? `3px solid ${theme.primary.main}` : "none",
-    transition: "all 0.2s"
-  });
-
   const contentStyle = {
     flex: 1,
-    overflowY: "auto",
-    padding: theme.spacing.xl
-  };
-
-  const infoGridStyle = {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, 1fr)",
-    gap: theme.spacing.lg,
-    marginBottom: theme.spacing.xl
-  };
-
-  const infoCardStyle = {
-    padding: theme.spacing.md,
-    backgroundColor: theme.neutral.gray50,
-    borderRadius: theme.radius.md,
-    border: `1px solid ${theme.neutral.gray200}`
-  };
-
-  const labelStyle = {
-    display: "block",
-    fontSize: "12px",
-    fontWeight: 600,
-    color: theme.neutral.gray600,
-    marginBottom: theme.spacing.xs,
-    textTransform: "uppercase",
-    letterSpacing: "0.5px"
+    overflowY: "auto"
   };
 
   const valueStyle = {
@@ -665,8 +626,8 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
           <div style={{
             padding: theme.spacing.md,
             margin: theme.spacing.md,
-            backgroundColor: (message.includes("successfully") || message.includes("thành công")) ? "#d4edda" : "#f8d7da",
-            color: (message.includes("successfully") || message.includes("thành công")) ? "#155724" : "#721c24",
+            backgroundColor: (message.includes("successfully") || message.toLowerCase().includes("success")) ? "#d4edda" : "#f8d7da",
+            color: (message.includes("successfully") || message.toLowerCase().includes("success")) ? "#155724" : "#721c24",
             borderRadius: theme.radius.md,
             fontSize: "14px"
           }}>
@@ -675,29 +636,67 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         )}
 
         {/* Tabs */}
-        <div style={tabsStyle}>
-          <button style={tabButtonStyle(activeTab === "info")} onClick={() => setActiveTab("info")}>
-            📋 Personal Info
-          </button>
-          <button style={tabButtonStyle(activeTab === "work")} onClick={() => setActiveTab("work")}>
-            💼 Work Info
-          </button>
-          <button style={tabButtonStyle(activeTab === "family")} onClick={() => setActiveTab("family")}>
-            👨‍👩‍👧‍👦 Family
-          </button>
-          <button style={tabButtonStyle(activeTab === "qualifications")} onClick={() => setActiveTab("qualifications")}>
-            🎓 Qualifications
-          </button>
-          <button style={tabButtonStyle(activeTab === "experience")} onClick={() => setActiveTab("experience")}>
-            💼 Work Experience
-          </button>
-          <button style={tabButtonStyle(activeTab === "attendance")} onClick={() => setActiveTab("attendance")}>
-            📍 Attendance
-          </button>
+        <div className="epm-tabs-scroll">
+          <div className="epm-tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "info"}
+              className={activeTab === "info" ? "epm-tab epm-tab--active" : "epm-tab"}
+              onClick={() => setActiveTab("info")}
+            >
+              Personal
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "work"}
+              className={activeTab === "work" ? "epm-tab epm-tab--active" : "epm-tab"}
+              onClick={() => setActiveTab("work")}
+            >
+              Work
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "family"}
+              className={activeTab === "family" ? "epm-tab epm-tab--active" : "epm-tab"}
+              onClick={() => setActiveTab("family")}
+            >
+              Family
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "qualifications"}
+              className={activeTab === "qualifications" ? "epm-tab epm-tab--active" : "epm-tab"}
+              onClick={() => setActiveTab("qualifications")}
+            >
+              Qualifications
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "experience"}
+              className={activeTab === "experience" ? "epm-tab epm-tab--active" : "epm-tab"}
+              onClick={() => setActiveTab("experience")}
+            >
+              Experience
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "attendance"}
+              className={activeTab === "attendance" ? "epm-tab epm-tab--active" : "epm-tab"}
+              onClick={() => setActiveTab("attendance")}
+            >
+              Attendance
+            </button>
+          </div>
         </div>
 
         {/* Content */}
-        <div style={contentStyle}>
+        <div style={contentStyle} className="epm-body">
           {loading && !employeeDetails ? (
             <div style={{ textAlign: "center", padding: theme.spacing.xxl }}>
               Loading...
@@ -707,112 +706,65 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
               {/* Tab: Thông tin cá nhân */}
               {activeTab === "info" && (
                 <div>
-                  <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
-                    Personal Information
-                  </h3>
-
                   {/* Face Profiles Section */}
                   {employeeDetails?.FaceProfiles && employeeDetails.FaceProfiles.length > 0 && (
-                    <div style={{
-                      backgroundColor: "#f8f9fa",
-                      borderRadius: "12px",
-                      padding: "20px",
-                      marginBottom: theme.spacing.xl,
-                      border: "1px solid #e0e0e0"
-                    }}>
-                      <div style={{
-                        fontSize: "14px",
-                        fontWeight: "700",
-                        color: "#333",
-                        marginBottom: "16px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px"
-                      }}>
-                        📸 <span>Registered Face Profiles ({employeeDetails.FaceProfiles.length})</span>
-                      </div>
-                      <div style={{ 
-                        display: "grid", 
-                        gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", 
-                        gap: "16px" 
-                      }}>
-                        {employeeDetails.FaceProfiles.map((profile, idx) => (
-                          profile.imageUrl ? (
-                            <div 
-                              key={profile.id}
-                              style={{
-                                position: "relative",
-                                aspectRatio: "1/1",
-                                borderRadius: "12px",
-                                overflow: "hidden",
-                                border: "2px solid #e0e0e0",
-                                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                                transition: "all 0.3s ease"
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = "scale(1.05)";
-                                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
-                                e.currentTarget.style.borderColor = "#667eea";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = "scale(1)";
-                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
-                                e.currentTarget.style.borderColor = "#e0e0e0";
-                              }}
-                            >
-                              <img 
-                                src={`${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${profile.imageUrl}`}
-                                alt={`Face Profile ${idx + 1}`}
-                                style={{
-                                  width: "100%",
-                                  height: "100%",
-                                  objectFit: "cover"
-                                }}
-onError={(e) => {
-                                  e.target.parentElement.style.display = 'none';
-                                }}
-                              />
-                              <div style={{
-                                position: "absolute",
-                                bottom: "4px",
-                                right: "4px",
-                                backgroundColor: "rgba(0,0,0,0.7)",
-                                color: "white",
-                                padding: "2px 6px",
-                                borderRadius: "4px",
-                                fontSize: "10px",
-                                fontWeight: "600"
-                              }}>
-                                #{idx + 1}
+                    <div className="epm-section" style={{ marginBottom: 18 }}>
+                      <h4 className="epm-section-title">Face enrollment</h4>
+                      <div className="epm-face">
+                        <div className="epm-face-head">
+                          Registered ({employeeDetails.FaceProfiles.length})
+                        </div>
+                        <div className="epm-face-grid">
+                          {employeeDetails.FaceProfiles.map((profile, idx) => (
+                            profile.imageUrl ? (
+                              <div key={profile.id} className="epm-face-thumb">
+                                <img
+                                  src={`${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${profile.imageUrl}`}
+                                  alt={`Face ${idx + 1}`}
+                                  onError={(e) => {
+                                    e.target.parentElement.style.display = "none";
+                                  }}
+                                />
+                                <div style={{
+                                  position: "absolute",
+                                  bottom: "4px",
+                                  right: "4px",
+                                  backgroundColor: "rgba(0,0,0,0.65)",
+                                  color: "white",
+                                  padding: "2px 6px",
+                                  borderRadius: "4px",
+                                  fontSize: "10px",
+                                  fontWeight: "600"
+                                }}>
+                                  #{idx + 1}
+                                </div>
                               </div>
-                            </div>
-                          ) : null
-                        ))}
-                      </div>
-                      <div style={{
-                        marginTop: "12px",
-                        fontSize: "11px",
-                        color: "#999",
-                        fontStyle: "italic"
-                      }}>
-                        Registered on: {new Date(employeeDetails.FaceProfiles[0].createdAt).toLocaleDateString("en-US", { 
-                          month: "short", 
-                          day: "numeric", 
-                          year: "numeric" 
-                        })}
+                            ) : null
+                          ))}
+                        </div>
+                        <div className="epm-face-meta">
+                          Registered on:{" "}
+                          {new Date(employeeDetails.FaceProfiles[0].createdAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric"
+                          })}
+                        </div>
                       </div>
                     </div>
                   )}
-                  <div style={infoGridStyle} onClick={(e) => e.stopPropagation()}>
+                  <div className="epm-section">
+                    <h4 className="epm-section-title">Contact & profile</h4>
+                    <div className="epm-fields" onClick={(e) => e.stopPropagation()}>
                     {/* Employee ID - Read-only */}
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Employee ID</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Employee ID</label>
                       <div style={valueStyle}>{employeeDetails?.employeeCode || employee?.employeeCode || "-"}</div>
                     </div>
 
                     {/* Full Name */}
-                    <div style={infoCardStyle} data-field="name">
-                      <label style={labelStyle}>Full Name *</label>
+                    <div className="epm-field" data-field="name">
+                      <label className="epm-label">Full Name *</label>
                       {isEditing ? (
                         <>
                           <input
@@ -852,8 +804,8 @@ onError={(e) => {
                     </div>
 
                     {/* Company Email (Login) - Read-only */}
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Company Email (Login) *</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Company Email (Login) *</label>
                       {isEditing ? (
                         <input
                           type="email"
@@ -871,22 +823,42 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Personal Email</label>
+                    <div className="epm-field" data-field="personalEmail">
+                      <label className="epm-label">Personal Email *</label>
                       {isEditing ? (
-                        <input
-                          type="email"
-                          value={editForm.personalEmail}
-                          onChange={(e) => setEditForm({ ...editForm, personalEmail: e.target.value })}
-                          style={inputStyle}
-                        />
+                        <>
+                          <input
+                            type="email"
+                            value={editForm.personalEmail}
+                            onChange={(e) => {
+                              setEditForm({ ...editForm, personalEmail: e.target.value });
+                              const error = validateField("personalEmail", e.target.value);
+                              setValidationErrors({ ...validationErrors, personalEmail: error });
+                            }}
+                            onBlur={(e) => {
+                              const error = validateField("personalEmail", e.target.value);
+                              setValidationErrors({ ...validationErrors, personalEmail: error });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              ...inputStyle,
+                              borderColor: validationErrors.personalEmail ? theme.error.main : inputStyle.border
+                            }}
+                            placeholder="Enter personal email"
+                          />
+                          {validationErrors.personalEmail && (
+                            <div style={{ color: theme.error.main, fontSize: "12px", marginTop: "4px" }}>
+                              {validationErrors.personalEmail}
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <div style={valueStyle}>{employeeDetails?.personalEmail || "-"}</div>
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Phone Number</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Phone Number</label>
                       {isEditing ? (
                         <input
                           type="text"
@@ -899,8 +871,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Date of Birth</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Date of Birth</label>
                       {isEditing ? (
                         <input
                           type="date"
@@ -915,8 +887,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Gender</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Gender</label>
                       {isEditing ? (
                         <select
                           value={editForm.gender}
@@ -936,10 +908,14 @@ onError={(e) => {
                         </div>
                       )}
                     </div>
-
+                    </div>
+                  </div>
+                  <div className="epm-section">
+                    <h4 className="epm-section-title">Identity documents</h4>
+                    <div className="epm-fields" onClick={(e) => e.stopPropagation()}>
                     {/* ID Number CCCD */}
-                    <div style={infoCardStyle} data-field="idNumber">
-                      <label style={labelStyle}>ID Number CCCD *</label>
+                    <div className="epm-field" data-field="idNumber">
+                      <label className="epm-label">ID Number CCCD *</label>
                       {isEditing ? (
                         <>
                           <input
@@ -974,8 +950,8 @@ onError={(e) => {
                     </div>
 
                     {/* ID Issue Date */}
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>ID Issue Date</label>
+                    <div className="epm-field">
+                      <label className="epm-label">ID Issue Date</label>
                       {isEditing ? (
                         <input
                           type="date"
@@ -992,8 +968,8 @@ onError={(e) => {
                     </div>
 
                     {/* ID Issue Place */}
-                    <div style={infoCardStyle} data-field="idIssuePlace">
-                      <label style={labelStyle}>ID Issue Place *</label>
+                    <div className="epm-field" data-field="idIssuePlace">
+                      <label className="epm-label">ID Issue Place *</label>
                       {isEditing ? (
                         <>
                           <input
@@ -1025,9 +1001,13 @@ onError={(e) => {
                         <div style={valueStyle}>{employeeDetails?.idIssuePlace || "-"}</div>
                       )}
                     </div>
-
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Education Level</label>
+                    </div>
+                  </div>
+                  <div className="epm-section">
+                    <h4 className="epm-section-title">Education</h4>
+                    <div className="epm-fields" onClick={(e) => e.stopPropagation()}>
+                    <div className="epm-field">
+                      <label className="epm-label">Education Level</label>
                       {isEditing ? (
                         <select
                           value={editForm.educationLevel || ""}
@@ -1057,24 +1037,28 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Major / Specialization</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Major / Specialization</label>
                       {isEditing ? (
                         <input
                           type="text"
                           value={editForm.major}
                           onChange={(e) => setEditForm({ ...editForm, major: e.target.value })}
                           style={inputStyle}
-                          placeholder="Chuyên ngành đào tạo"
+                          placeholder="Training major"
                         />
                       ) : (
                         <div style={valueStyle}>{employeeDetails?.major || "-"}</div>
                       )}
                     </div>
-
+                    </div>
+                  </div>
+                  <div className="epm-section">
+                    <h4 className="epm-section-title">Addresses</h4>
+                    <div className="epm-fields" onClick={(e) => e.stopPropagation()}>
                     {/* Permanent Address */}
-                    <div style={{ ...infoCardStyle, gridColumn: "1 / -1" }} data-field="permanentAddress">
-                      <label style={labelStyle}>Permanent Address *</label>
+                    <div className="epm-field epm-field--full" data-field="permanentAddress">
+                      <label className="epm-label">Permanent Address *</label>
                       {isEditing ? (
                         <>
                           <textarea
@@ -1108,8 +1092,8 @@ onError={(e) => {
                     </div>
 
                     {/* Temporary Address */}
-                    <div style={{ ...infoCardStyle, gridColumn: "1 / -1" }} data-field="temporaryAddress">
-                      <label style={labelStyle}>Temporary Address *</label>
+                    <div className="epm-field epm-field--full" data-field="temporaryAddress">
+                      <label className="epm-label">Temporary Address *</label>
                       {isEditing ? (
                         <>
                           <textarea
@@ -1142,50 +1126,15 @@ onError={(e) => {
                       )}
                     </div>
 
-                    {/* Personal Email */}
-                    <div style={infoCardStyle} data-field="personalEmail">
-                      <label style={labelStyle}>Personal Email *</label>
-                      {isEditing ? (
-                        <>
-                          <input
-                            type="email"
-                            value={editForm.personalEmail}
-                            onChange={(e) => {
-                              setEditForm({ ...editForm, personalEmail: e.target.value });
-                              const error = validateField("personalEmail", e.target.value);
-                              setValidationErrors({ ...validationErrors, personalEmail: error });
-                            }}
-                            onBlur={(e) => {
-                              const error = validateField("personalEmail", e.target.value);
-                              setValidationErrors({ ...validationErrors, personalEmail: error });
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            style={{
-                              ...inputStyle,
-                              borderColor: validationErrors.personalEmail ? theme.error.main : inputStyle.border
-                            }}
-                            placeholder="Enter personal email"
-                          />
-                          {validationErrors.personalEmail && (
-                            <div style={{ color: theme.error.main, fontSize: "12px", marginTop: "4px" }}>
-                              {validationErrors.personalEmail}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div style={valueStyle}>{employeeDetails?.personalEmail || "-"}</div>
-                      )}
-                    </div>
 
                   </div>
+                </div>
 
-                  {/* Emergency Contact Section */}
-                  <h3 style={{ marginTop: theme.spacing.xl, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
-                    🚨 Emergency Contact
-                  </h3>
-                  <div style={infoGridStyle} onClick={(e) => e.stopPropagation()}>
-                    <div style={infoCardStyle} data-field="emergencyContactName">
-                      <label style={labelStyle}>Emergency Contact Name *</label>
+                  <div className="epm-section">
+                    <h4 className="epm-section-title">Emergency contact</h4>
+                    <div className="epm-fields" onClick={(e) => e.stopPropagation()}>
+                    <div className="epm-field" data-field="emergencyContactName">
+                      <label className="epm-label">Emergency Contact Name *</label>
                       {isEditing ? (
                         <>
                           <input
@@ -1224,8 +1173,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Relationship</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Relationship</label>
                       {isEditing ? (
                         <select
                           value={editForm.emergencyContactRelationship || ""}
@@ -1254,8 +1203,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle} data-field="emergencyContactPhone">
-                      <label style={labelStyle}>Emergency Contact Phone *</label>
+                    <div className="epm-field" data-field="emergencyContactPhone">
+                      <label className="epm-label">Emergency Contact Phone *</label>
                       {isEditing ? (
                         <>
                           <input
@@ -1297,11 +1246,12 @@ onError={(e) => {
                       )}
                     </div>
                   </div>
+                </div>
 
                   {!isEditing && (
-                    <div style={{ ...infoCardStyle, gridColumn: "1 / -1", backgroundColor: newPassword ? "#d4edda" : "#fff3cd", border: `2px solid ${newPassword ? "#28a745" : "#ffc107"}` }}>
+                    <div className={`epm-password-panel ${newPassword ? "epm-password-panel--ok" : ""}`}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing.xs }}>
-                        <label style={labelStyle}>Password</label>
+                        <label className="epm-label">Password</label>
                         <button
                           onClick={handleResetPassword}
                           disabled={resettingPassword}
@@ -1421,17 +1371,16 @@ onError={(e) => {
               {/* Tab: Work Info */}
               {activeTab === "work" && (
                 <div>
-                  <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
-                    Work Information
-                  </h3>
-                  <div style={infoGridStyle}>
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Employee Code</label>
+                  <div className="epm-section">
+                    <h4 className="epm-section-title">Job, contract & banking</h4>
+                    <div className="epm-fields">
+                    <div className="epm-field">
+                      <label className="epm-label">Employee Code</label>
                       <div style={valueStyle}>{employeeDetails?.employeeCode || "-"}</div>
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Department</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Department</label>
                       {isEditing ? (
                         <select
                           value={editForm.departmentId || ""}
@@ -1448,8 +1397,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Job Title</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Job Title</label>
                       {isEditing ? (
                         <select
                           value={editForm.jobTitleId || ""}
@@ -1466,8 +1415,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Base Salary (VND)</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Base Salary (VND)</label>
                       {isEditing ? (
                         <input
                           type="number"
@@ -1482,8 +1431,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Start Date</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Start Date</label>
                       {isEditing ? (
                         <input
                           type="date"
@@ -1498,8 +1447,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Status</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Status</label>
                       {isEditing ? (
                         <label style={{ display: "flex", alignItems: "center", gap: theme.spacing.sm }}>
                           <input
@@ -1525,8 +1474,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Contract Type</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Contract Type</label>
                       {isEditing ? (
                         <select
                           value={editForm.contractType || ""}
@@ -1551,8 +1500,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Employment Status</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Employment Status</label>
                       {isEditing ? (
                         <select
                           value={editForm.employmentStatus || "active"}
@@ -1578,8 +1527,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Direct Manager</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Direct Manager</label>
                       {isEditing ? (
                         <select
                           value={editForm.managerId || ""}
@@ -1600,8 +1549,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Branch/Office</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Branch/Office</label>
                       {isEditing ? (
                         <input
                           type="text"
@@ -1615,8 +1564,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Bank Account</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Bank Account</label>
                       {isEditing ? (
                         <input
                           type="text"
@@ -1629,8 +1578,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Bank Name</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Bank Name</label>
                       {isEditing ? (
                         <input
                           type="text"
@@ -1643,8 +1592,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Tax Code</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Tax Code</label>
                       {isEditing ? (
                         <input
                           type="text"
@@ -1657,8 +1606,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Bank Branch</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Bank Branch</label>
                       {isEditing ? (
                         <input
                           type="text"
@@ -1673,13 +1622,13 @@ onError={(e) => {
                     </div>
                   </div>
 
-                  {/* Payroll & Compliance Section */}
-                  <h3 style={{ marginTop: theme.spacing.xl, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
-                    💰 Payroll & Compliance
-                  </h3>
-                  <div style={infoGridStyle}>
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Lunch Allowance (VND)</label>
+                </div>
+
+                  <div className="epm-section">
+                    <h4 className="epm-section-title">Payroll, allowances & insurance</h4>
+                    <div className="epm-fields">
+                    <div className="epm-field">
+                      <label className="epm-label">Lunch Allowance (VND)</label>
                       {isEditing ? (
                         <input
                           type="number"
@@ -1695,8 +1644,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Transport Allowance (VND)</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Transport Allowance (VND)</label>
                       {isEditing ? (
                         <input
                           type="number"
@@ -1712,8 +1661,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Phone Allowance (VND)</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Phone Allowance (VND)</label>
                       {isEditing ? (
                         <input
                           type="number"
@@ -1729,8 +1678,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Responsibility Allowance (VND)</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Responsibility Allowance (VND)</label>
                       {isEditing ? (
                         <input
                           type="number"
@@ -1746,8 +1695,8 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Social Insurance Number (BHXH)</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Social Insurance Number (BHXH)</label>
                       {isEditing ? (
                         <input
                           type="text"
@@ -1761,23 +1710,23 @@ onError={(e) => {
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Health Insurance Provider (BHYT)</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Health Insurance Provider (BHYT)</label>
                       {isEditing ? (
                         <input
                           type="text"
                           value={editForm.healthInsuranceProvider}
                           onChange={(e) => setEditForm({ ...editForm, healthInsuranceProvider: e.target.value })}
                           style={inputStyle}
-                          placeholder="Nơi đăng ký KCB ban đầu"
+                          placeholder="Initial healthcare registration place"
                         />
                       ) : (
                         <div style={valueStyle}>{employeeDetails?.healthInsuranceProvider || "-"}</div>
                       )}
                     </div>
 
-                    <div style={infoCardStyle}>
-                      <label style={labelStyle}>Dependent Count</label>
+                    <div className="epm-field">
+                      <label className="epm-label">Dependent Count</label>
                       {isEditing ? (
                         <input
                           type="number"
@@ -1801,6 +1750,7 @@ onError={(e) => {
                       )}
                     </div>
                   </div>
+                </div>
 
                   {isEditing && (
                     <div style={{ display: "flex", gap: theme.spacing.md, marginTop: theme.spacing.xl }}>
@@ -2410,9 +2360,9 @@ onError={(e) => {
 
                   {employeeDetails?.attendanceStats ? (
                     <>
-                    <div style={infoGridStyle}>
-                      <div style={infoCardStyle}>
-                        <label style={labelStyle}>Total Days Worked</label>
+                    <div className="epm-fields">
+                      <div className="epm-field">
+                        <label className="epm-label">Total Days Worked</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.primary.main }}>
                           {employeeDetails.attendanceStats.totalDaysWorked || 0}
                           {employeeDetails.attendanceStats.totalDays ? (
@@ -2422,20 +2372,20 @@ onError={(e) => {
                           ) : null}
                         </div>
                       </div>
-                      <div style={infoCardStyle}>
-                        <label style={labelStyle}>Late Days</label>
+                      <div className="epm-field">
+                        <label className="epm-label">Late Days</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.warning.main }}>
                           {employeeDetails.attendanceStats.totalLate || 0}
                         </div>
                       </div>
-                      <div style={infoCardStyle}>
-                        <label style={labelStyle}>Early Leave Days</label>
+                      <div className="epm-field">
+                        <label className="epm-label">Early Leave Days</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.warning.main }}>
                           {employeeDetails.attendanceStats.totalEarlyLeave || 0}
                         </div>
                       </div>
-                      <div style={infoCardStyle}>
-                        <label style={labelStyle}>Absent Days</label>
+                      <div className="epm-field">
+                        <label className="epm-label">Absent Days</label>
                         <div style={{ ...valueStyle, fontSize: "24px", fontWeight: 700, color: theme.error.main }}>
                           {employeeDetails.attendanceStats.totalAbsent || 0}
                         </div>

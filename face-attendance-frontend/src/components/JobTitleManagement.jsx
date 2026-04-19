@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { theme } from "../styles/theme.js";
+import { toastConfirm } from "../lib/notify.jsx";
 
 // Icon Components
 const PlusIcon = ({ size = 20 }) => (
@@ -165,7 +166,8 @@ export default function JobTitleManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this job title?")) return;
+    const ok = await toastConfirm({ message: "Are you sure you want to delete this job title?" });
+    if (!ok) return;
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");

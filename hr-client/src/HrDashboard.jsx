@@ -150,7 +150,7 @@ export default function HrDashboard({ token, onNavigate }) {
         <div className="hr-dash-hero-v2-inner">
           <h1>HR Hub</h1>
           <p>
-            Monitor workforce size, pending requests, and recent attendance — use the left menu for detailed actions.
+            Monitor workforce size, pending requests, and recent attendance activity from one place.
           </p>
           <div className="hr-dash-hero-meta">
             <span className="hr-dash-pill">{today}</span>
@@ -171,7 +171,7 @@ export default function HrDashboard({ token, onNavigate }) {
           <span className="hr-kpi-deco" aria-hidden>🏢</span>
           <div className="hr-kpi-label">Departments</div>
           <div className="hr-kpi-value">{dash.departments}</div>
-          <div className="hr-kpi-hint">Job Titles: {dash.jobTitles}</div>
+          <div className="hr-kpi-hint">Job titles: {dash.jobTitles}</div>
         </div>
         <button
           type="button"
@@ -180,25 +180,25 @@ export default function HrDashboard({ token, onNavigate }) {
           style={{ cursor: 'pointer', textAlign: 'left', border: '1px solid rgba(148, 163, 184, 0.35)', font: 'inherit' }}
         >
           <span className="hr-kpi-deco" aria-hidden>✅</span>
-          <div className="hr-kpi-label">Pending Leave</div>
+          <div className="hr-kpi-label">Pending leave</div>
           <div className="hr-kpi-value hr-kpi-value--accent">{dash.pendingLeave}</div>
-          <div className="hr-kpi-hint">Go to Leave Approvals →</div>
+          <div className="hr-kpi-hint">Open leave approvals →</div>
         </button>
         <div className="hr-kpi-card">
           <span className="hr-kpi-deco" aria-hidden>📬</span>
-          <div className="hr-kpi-label">Other Pending</div>
+          <div className="hr-kpi-label">Other pending</div>
           <div className="hr-kpi-value" style={{ fontSize: '1.35rem' }}>
             OT {dash.pendingOt} · Trip {dash.pendingTrip} · Advance {dash.pendingAdvance}
           </div>
-          <div className="hr-kpi-hint">Overtime · Business Trip · Salary Advance</div>
+          <div className="hr-kpi-hint">Overtime · Business trip · Advance</div>
         </div>
       </div>
 
       <div className="hr-dash-split">
         <div className="hr-dash-panel">
-          <h3>Recent Attendance Activity</h3>
+          <h3>Recent attendance activity</h3>
           {dash.recentLogs.length === 0 ? (
-            <p style={{ color: '#94a3b8', fontSize: 14 }}>No attendance logs available.</p>
+            <p style={{ color: '#94a3b8', fontSize: 14 }}>No attendance log data available.</p>
           ) : (
             dash.recentLogs.map((log) => (
               <div key={log.id} className="hr-dash-log-row">
@@ -212,20 +212,20 @@ export default function HrDashboard({ token, onNavigate }) {
           )}
         </div>
         <div className="hr-dash-panel">
-          <h3>Quick Summary</h3>
+          <h3>Quick summary</h3>
           <div className="hr-mini-kpis">
             <div className="hr-mini-kpi">
-              <div className="lbl">Active Rate</div>
+              <div className="lbl">Active rate</div>
               <div className="val">
                 {dash.empTotal ? Math.round((dash.empActive / dash.empTotal) * 100) : 0}%
               </div>
             </div>
             <div className="hr-mini-kpi">
-              <div className="lbl">Job Titles</div>
+              <div className="lbl">Job titles</div>
               <div className="val">{dash.jobTitles}</div>
             </div>
             <div className="hr-mini-kpi">
-              <div className="lbl">Total Pending</div>
+              <div className="lbl">Total pending</div>
               <div className="val">{totalPending}</div>
             </div>
             <div className="hr-mini-kpi">
@@ -237,7 +237,7 @@ export default function HrDashboard({ token, onNavigate }) {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <p className="card-title" style={{ marginBottom: 12 }}>Latest Pending Requests</p>
+        <p className="card-title" style={{ marginBottom: 12 }}>Latest pending requests</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
           <div className="hr-dash-mini" style={{ padding: 14, borderRadius: 14, background: "#fff", border: "1px solid rgba(148,163,184,0.35)" }}>
             <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Leave</div>
@@ -260,7 +260,7 @@ export default function HrDashboard({ token, onNavigate }) {
           </div>
 
           <div className="hr-dash-mini" style={{ padding: 14, borderRadius: 14, background: "#fff", border: "1px solid rgba(148,163,184,0.35)" }}>
-            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Business Trip</div>
+            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Business trip</div>
             {dash.pendingTripList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Empty</div> : dash.pendingTripList.map((r) => (
               <div key={r.id} style={{ marginBottom: 10 }}>
                 <div style={{ fontWeight: 700 }}>{r.User?.name || r.userId || "—"}</div>
@@ -270,7 +270,7 @@ export default function HrDashboard({ token, onNavigate }) {
           </div>
 
           <div className="hr-dash-mini" style={{ padding: 14, borderRadius: 14, background: "#fff", border: "1px solid rgba(148,163,184,0.35)" }}>
-            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Salary Advance</div>
+            <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 8 }}>Advance</div>
             {dash.pendingAdvanceList.length === 0 ? <div style={{ color: "#94a3b8", fontStyle: "italic" }}>Empty</div> : dash.pendingAdvanceList.map((a) => (
               <div key={a.id} style={{ marginBottom: 10 }}>
                 <div style={{ fontWeight: 700 }}>{a.User?.name || a.userId || "—"}</div>
@@ -282,16 +282,16 @@ export default function HrDashboard({ token, onNavigate }) {
       </div>
 
       <div className="card" style={{ marginBottom: 0 }}>
-        <p className="card-title" style={{ marginBottom: 12 }}>Quick Access</p>
+        <p className="card-title" style={{ marginBottom: 12 }}>Quick access</p>
         <div className="hr-bento-actions">
           {[
-            ['employees', '👥', 'Employee Management'],
+            ['employees', '👥', 'Employee management'],
             ['departments', '🏢', 'Departments'],
-            ['job-titles', '📋', 'Job Titles'],
+            ['job-titles', '📋', 'Job titles'],
             ['attendance', '📅', 'Attendance'],
-            ['leave', '🏖️', 'Leave Approvals'],
+            ['leave', '🏖️', 'Leave approvals'],
             ['analytics', '📉', 'Analytics'],
-            ['reports', '📑', 'HR Reports'],
+            ['reports', '📑', 'HR reports'],
           ].map(([tab, icon, label]) => (
             <button
               key={tab}

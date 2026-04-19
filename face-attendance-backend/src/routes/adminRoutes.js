@@ -14,7 +14,8 @@ import {
   createEmployee,
   bulkCreateEmployees,
   updateUserRole,
-  getRoleAuditLogs
+  getRoleAuditLogs,
+  getApprovalAuditLogs
 } from "../controllers/adminController.js";
 import {
   authMiddleware,
@@ -184,6 +185,14 @@ router.get(
   managerOnly,
   requirePermission(PERMISSIONS["audit:view"]),
   getRoleAuditLogs
+);
+
+// GET approval workflow audit logs - Manager only
+router.get(
+  "/audits/approval-actions",
+  managerOnly,
+  requirePermission(PERMISSIONS["audit:view"]),
+  getApprovalAuditLogs
 );
 
 export default router;

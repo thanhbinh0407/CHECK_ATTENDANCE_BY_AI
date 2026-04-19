@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import "./personalProfileModal.css";
 
-const ROLE_LABEL_VI = {
-  manager: "Giám đốc / Quản trị",
-  hr: "Nhân sự",
-  accountant: "Kế toán",
-  supervisor: "Quản lý",
-  employee: "Nhân viên",
+const ROLE_LABEL = {
+  manager: "Director / Administrator",
+  hr: "HR Staff",
+  accountant: "Accountant",
+  supervisor: "Supervisor",
+  employee: "Employee",
 };
 
 function resolveAvatarUrl(apiBase, avatarUrl) {
@@ -40,7 +40,7 @@ export default function PersonalProfileModal({ open, onClose, apiBase, onSession
       });
       const data = await res.json();
       if (!res.ok || data.status !== "success") {
-        setMessage({ type: "err", text: data.message || "Không tải được hồ sơ" });
+        setMessage({ type: "err", text: data.message || "Failed to load profile" });
         setUser(null);
         return;
       }
@@ -66,7 +66,7 @@ export default function PersonalProfileModal({ open, onClose, apiBase, onSession
         major: u.major || "",
       });
     } catch (e) {
-      setMessage({ type: "err", text: e.message || "Lỗi mạng" });
+      setMessage({ type: "err", text: e.message || "Network error" });
     } finally {
       setLoading(false);
     }
@@ -99,11 +99,11 @@ export default function PersonalProfileModal({ open, onClose, apiBase, onSession
       });
       const data = await res.json();
       if (!res.ok || data.status !== "success") {
-        setMessage({ type: "err", text: data.message || "Lưu thất bại" });
+        setMessage({ type: "err", text: data.message || "Save failed" });
         return;
       }
       setUser(data.user);
-      setMessage({ type: "ok", text: "Đã lưu hồ sơ." });
+      setMessage({ type: "ok", text: "Profile saved." });
       if (onSessionUserPatch && data.user) {
         onSessionUserPatch({
           name: data.user.name,
@@ -121,11 +121,11 @@ export default function PersonalProfileModal({ open, onClose, apiBase, onSession
     e.preventDefault();
     if (!token) return;
     if (pwd.next.length < 8) {
-      setMessage({ type: "err", text: "Mật khẩu mới tối thiểu 8 ký tự." });
+      setMessage({ type: "err", text: "New password must be at least 8 characters." });
       return;
     }
     if (pwd.next !== pwd.confirm) {
-      setMessage({ type: "err", text: "Mật khẩu mới và xác nhận không khớp." });
+      setMessage({ type: "err", text: "New password and confirmation do not match." });
       return;
     }
     setPwdSaving(true);
@@ -141,11 +141,11 @@ export default function PersonalProfileModal({ open, onClose, apiBase, onSession
       });
       const data = await res.json();
       if (!res.ok || data.status !== "success") {
-        setMessage({ type: "err", text: data.message || "Đổi mật khẩu thất bại" });
+        setMessage({ type: "err", text: data.message || "Password change failed" });
         return;
       }
       setPwd({ current: "", next: "", confirm: "" });
-      setMessage({ type: "ok", text: "Đã đổi mật khẩu thành công." });
+      setMessage({ type: "ok", text: "Password changed successfully." });
     } catch (err) {
       setMessage({ type: "err", text: err.message });
     } finally {
@@ -169,11 +169,11 @@ export default function PersonalProfileModal({ open, onClose, apiBase, onSession
       });
       const data = await res.json();
       if (!res.ok || data.status !== "success") {
-        setMessage({ type: "err", text: data.message || "Tải ảnh thất bại" });
+        setMessage({ type: "err", text: data.message || "Avatar upload failed" });
         return;
       }
       if (data.user) setUser(data.user);
-      setMessage({ type: "ok", text: "Đã cập nhật ảnh đại diện." });
+      setMessage({ type: "ok", text: "Avatar updated." });
       if (onSessionUserPatch) {
         onSessionUserPatch({ avatarUrl: data.avatarUrl || data.user?.avatarUrl });
       }
@@ -193,8 +193,8 @@ export default function PersonalProfileModal({ open, onClose, apiBase, onSession
       <div className="ppm-backdrop" onClick={onClose} />
       <div className="ppm-panel">
         <div className="ppm-head">
-          <h2 id="ppm-title">Hồ sơ cá nhân</h2>
-          <button type="button" className="ppm-close" onClick={onClose} aria-label="Đóng">
+          <h2 id="ppm-title">Personal Profile</h2>
+          <button type="button" className="ppm-close" onClick={onClose} aria-label="Close">
             ×
           </button>
         </div>
@@ -205,14 +205,14 @@ export default function PersonalProfileModal({ open, onClose, apiBase, onSession
             className={tab === "profile" ? "ppm-tab active" : "ppm-tab"}
             onClick={() => setTab("profile")}
           >
-            Thông tin & ảnh
+            Information & Avatar
           </button>
           <button
             type="button"
             className={tab === "password" ? "ppm-tab active" : "ppm-tab"}
             onClick={() => setTab("password")}
           >
-            Đổi mật khẩu
+            Change Password
           </button>
         </div>
 
@@ -221,7 +221,7 @@ export default function PersonalProfileModal({ open, onClose, apiBase, onSession
         ) : null}
 
         {loading ? (
-          <div className="ppm-loading">Đang tải…</div>
+          <div className="ppm-loading">Loading...</div>
         ) : tab === "profile" ? (
           <form className="ppm-body" onSubmit={saveProfile}>
             <div className="ppm-avatar-row">
@@ -235,151 +235,151 @@ export default function PersonalProfileModal({ open, onClose, apiBase, onSession
               <div>
                 <label className="ppm-file-label">
                   <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onPickAvatar} disabled={avatarUploading} />
-                  {avatarUploading ? "Đang tải lên…" : "Chọn ảnh đại diện"}
+                  {avatarUploading ? "Uploading..." : "Choose avatar"}
                 </label>
-                <p className="ppm-hint">JPEG, PNG hoặc WebP · tối đa 2MB</p>
+                <p className="ppm-hint">JPEG, PNG, or WebP · max 2MB</p>
               </div>
             </div>
 
             <div className="ppm-readonly-grid">
               <div>
-                <span className="ppm-label">Email đăng nhập</span>
+                <span className="ppm-label">Login Email</span>
                 <div className="ppm-ro">{user?.email || "—"}</div>
               </div>
               <div>
-                <span className="ppm-label">Mã nhân viên</span>
+                <span className="ppm-label">Employee Code</span>
                 <div className="ppm-ro">{user?.employeeCode || "—"}</div>
               </div>
               <div>
-                <span className="ppm-label">Vai trò</span>
-                <div className="ppm-ro">{ROLE_LABEL_VI[user?.role] || user?.role || "—"}</div>
+                <span className="ppm-label">Role</span>
+                <div className="ppm-ro">{ROLE_LABEL[user?.role] || user?.role || "—"}</div>
               </div>
               <div>
-                <span className="ppm-label">Phòng ban</span>
+                <span className="ppm-label">Department</span>
                 <div className="ppm-ro">{user?.Department?.name || "—"}</div>
               </div>
               <div>
-                <span className="ppm-label">Chức danh</span>
+                <span className="ppm-label">Job Title</span>
                 <div className="ppm-ro">{user?.JobTitle?.name || "—"}</div>
               </div>
             </div>
 
-            <h3 className="ppm-section-title">Chỉnh sửa thông tin</h3>
+            <h3 className="ppm-section-title">Edit Information</h3>
             <div className="ppm-grid">
               <label className="ppm-field">
-                <span>Họ tên *</span>
+                <span>Full Name *</span>
                 <input value={form.name} onChange={(e) => onField("name", e.target.value)} required />
               </label>
               <label className="ppm-field">
-                <span>Số điện thoại</span>
+                <span>Phone Number</span>
                 <input value={form.phoneNumber} onChange={(e) => onField("phoneNumber", e.target.value)} />
               </label>
               <label className="ppm-field ppm-field--full">
-                <span>Địa chỉ</span>
+                <span>Address</span>
                 <input value={form.address} onChange={(e) => onField("address", e.target.value)} />
               </label>
               <label className="ppm-field ppm-field--full">
-                <span>Địa chỉ thường trú</span>
+                <span>Permanent Address</span>
                 <input value={form.permanentAddress} onChange={(e) => onField("permanentAddress", e.target.value)} />
               </label>
               <label className="ppm-field ppm-field--full">
-                <span>Địa chỉ tạm trú</span>
+                <span>Temporary Address</span>
                 <input value={form.temporaryAddress} onChange={(e) => onField("temporaryAddress", e.target.value)} />
               </label>
               <label className="ppm-field">
-                <span>Email cá nhân</span>
+                <span>Personal Email</span>
                 <input type="email" value={form.personalEmail} onChange={(e) => onField("personalEmail", e.target.value)} />
               </label>
               <label className="ppm-field">
-                <span>Email công ty</span>
+                <span>Company Email</span>
                 <input type="email" value={form.companyEmail} onChange={(e) => onField("companyEmail", e.target.value)} />
               </label>
               <label className="ppm-field">
-                <span>Ngày sinh</span>
+                <span>Date of Birth</span>
                 <input type="date" value={form.dateOfBirth} onChange={(e) => onField("dateOfBirth", e.target.value)} />
               </label>
               <label className="ppm-field">
-                <span>Giới tính</span>
+                <span>Gender</span>
                 <select value={form.gender} onChange={(e) => onField("gender", e.target.value)}>
                   <option value="">—</option>
-                  <option value="male">Nam</option>
-                  <option value="female">Nữ</option>
-                  <option value="other">Khác</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
                 </select>
               </label>
               <label className="ppm-field">
-                <span>CMND / CCCD</span>
+                <span>ID Number</span>
                 <input value={form.idNumber} onChange={(e) => onField("idNumber", e.target.value)} />
               </label>
               <label className="ppm-field">
-                <span>Ngày cấp</span>
+                <span>Issue Date</span>
                 <input type="date" value={form.idIssueDate} onChange={(e) => onField("idIssueDate", e.target.value)} />
               </label>
               <label className="ppm-field ppm-field--full">
-                <span>Nơi cấp</span>
+                <span>Issue Place</span>
                 <input value={form.idIssuePlace} onChange={(e) => onField("idIssuePlace", e.target.value)} />
               </label>
               <label className="ppm-field">
-                <span>Trình độ</span>
+                <span>Education Level</span>
                 <select value={form.educationLevel} onChange={(e) => onField("educationLevel", e.target.value)}>
                   <option value="">—</option>
-                  <option value="high_school">THPT</option>
-                  <option value="vocational">Trung cấp nghề</option>
-                  <option value="college">Cao đẳng</option>
-                  <option value="university">Đại học</option>
-                  <option value="master">Thạc sĩ</option>
-                  <option value="phd">Tiến sĩ</option>
-                  <option value="other">Khác</option>
+                  <option value="high_school">High School</option>
+                  <option value="vocational">Vocational</option>
+                  <option value="college">College</option>
+                  <option value="university">University</option>
+                  <option value="master">Master</option>
+                  <option value="phd">PhD</option>
+                  <option value="other">Other</option>
                 </select>
               </label>
               <label className="ppm-field">
-                <span>Chuyên ngành</span>
+                <span>Major</span>
                 <input value={form.major} onChange={(e) => onField("major", e.target.value)} />
               </label>
               <label className="ppm-field">
-                <span>Liên hệ khẩn cấp — tên</span>
+                <span>Emergency Contact - Name</span>
                 <input value={form.emergencyContactName} onChange={(e) => onField("emergencyContactName", e.target.value)} />
               </label>
               <label className="ppm-field">
-                <span>Quan hệ</span>
+                <span>Relationship</span>
                 <input value={form.emergencyContactRelationship} onChange={(e) => onField("emergencyContactRelationship", e.target.value)} />
               </label>
               <label className="ppm-field">
-                <span>SĐT liên hệ khẩn cấp</span>
+                <span>Emergency Contact Phone</span>
                 <input value={form.emergencyContactPhone} onChange={(e) => onField("emergencyContactPhone", e.target.value)} />
               </label>
             </div>
 
             <div className="ppm-actions">
               <button type="button" className="ppm-btn secondary" onClick={onClose}>
-                Đóng
+                Close
               </button>
               <button type="submit" className="ppm-btn primary" disabled={saving}>
-                {saving ? "Đang lưu…" : "Lưu thay đổi"}
+                {saving ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </form>
         ) : (
           <form className="ppm-body" onSubmit={changePassword}>
-            <p className="ppm-hint">Mật khẩu mới tối thiểu 8 ký tự.</p>
+            <p className="ppm-hint">New password must be at least 8 characters.</p>
             <label className="ppm-field ppm-field--full">
-              <span>Mật khẩu hiện tại</span>
+              <span>Current Password</span>
               <input type="password" autoComplete="current-password" value={pwd.current} onChange={(e) => setPwd((p) => ({ ...p, current: e.target.value }))} required />
             </label>
             <label className="ppm-field ppm-field--full">
-              <span>Mật khẩu mới</span>
+              <span>New Password</span>
               <input type="password" autoComplete="new-password" value={pwd.next} onChange={(e) => setPwd((p) => ({ ...p, next: e.target.value }))} required minLength={8} />
             </label>
             <label className="ppm-field ppm-field--full">
-              <span>Xác nhận mật khẩu mới</span>
+              <span>Confirm New Password</span>
               <input type="password" autoComplete="new-password" value={pwd.confirm} onChange={(e) => setPwd((p) => ({ ...p, confirm: e.target.value }))} required minLength={8} />
             </label>
             <div className="ppm-actions">
               <button type="button" className="ppm-btn secondary" onClick={onClose}>
-                Đóng
+                Close
               </button>
               <button type="submit" className="ppm-btn primary" disabled={pwdSaving}>
-                {pwdSaving ? "Đang xử lý…" : "Đổi mật khẩu"}
+                {pwdSaving ? "Processing..." : "Change Password"}
               </button>
             </div>
           </form>

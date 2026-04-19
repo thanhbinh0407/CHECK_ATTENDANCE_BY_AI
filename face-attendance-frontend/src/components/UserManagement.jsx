@@ -2,7 +2,15 @@
  * UserManagement.jsx
  * Quản lý tài khoản người dùng và phân quyền - dành riêng cho Manager (Giám đốc)
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import * as faceapi from "face-api.js";
+import {
+  toastConfirm,
+  toastError,
+  toastSuccess,
+  toastWarning,
+  toastPrompt,
+} from "../lib/notify.jsx";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
@@ -41,6 +49,21 @@ function getHeaders() {
   return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 }
 
+function getActorIdFromToken() {
+  try {
+    const t = localStorage.getItem("authToken");
+    if (!t) return null;
+    const part = t.split(".")[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
+    return payload.userId ?? payload.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -75,6 +98,22 @@ export default function UserManagement() {
   const [auditFilterUserId, setAuditFilterUserId] = useState("");
   const [auditPage, setAuditPage] = useState(1);
   const [auditMeta, setAuditMeta] = useState({ page: 1, pageSize: 10, totalPages: 1, total: 0 });
+  const [showFaceModal, setShowFaceModal] = useState(false);
+  const [faceTargetUser, setFaceTargetUser] = useState(null);
+  const [faceModelsLoaded, setFaceModelsLoaded] = useState(false);
+  const [faceCameraActive, setFaceCameraActive] = useState(false);
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [capturedDescriptor, setCapturedDescriptor] = useState(null);
+  const [faceLoading, setFaceLoading] = useState(false);
+  const [faceMessage, setFaceMessage] = useState("");
+
+  const actorUserId = getActorIdFromToken();
+  const managerMayLifecycleMutate = (u) =>
+    u && actorUserId != null && Number(u.id) !== Number(actorUserId);
+
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const faceDetectionIntervalRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,6 +129,33 @@ export default function UserManagement() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        const modelUrls = [
+          "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@latest/model/",
+          "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/models/"
+        ];
+        for (const modelUrl of modelUrls) {
+          try {
+            await Promise.all([
+              faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
+              faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl),
+              faceapi.nets.faceRecognitionNet.loadFromUri(modelUrl)
+            ]);
+            setFaceModelsLoaded(true);
+            return;
+          } catch {
+            // try fallback URL
+          }
+        }
+      } catch {
+        // keep false, handled in UI
+      }
+    };
+    loadModels();
+  }, []);
 
   const openCreate = () => {
     setEditing(null);
@@ -136,12 +202,13 @@ export default function UserManagement() {
         });
       }
     } else {
-      alert(data.message || "Lỗi khi lưu tài khoản");
+      toastError(data.message || "Failed to save account");
     }
   };
 
   const resetPassword = async (userId, userName) => {
-    if (!confirm(`Reset mật khẩu ngẫu nhiên cho "${userName}"?`)) return;
+    const ok = await toastConfirm({ message: `Reset random password for "${userName}"?` });
+    if (!ok) return;
     const res = await fetch(`${API_BASE}/api/admin/employees/${userId}/reset-password`, {
       method: "POST",
       headers: getHeaders(),
@@ -154,38 +221,221 @@ export default function UserManagement() {
         employeeCode: data.employeeCode || "—",
         password: data.newPassword,
       });
+      toastSuccess("Password reset. Check the dialog for the new password.");
     } else {
-      alert(data.message || "Lỗi khi reset mật khẩu");
+      toastError(data.message || "Failed to reset password");
     }
   };
 
-  const deactivate = async (user) => {
-    if (!confirm(`Deactivate account "${user.name}"?`)) return;
-    const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}`, {
+  const deactivate = async (userRow) => {
+    const ok = await toastConfirm({ message: `Deactivate account "${userRow.name}"?` });
+    if (!ok) return;
+    const password = await toastPrompt({
+      message: "Enter your password to confirm deactivation:",
+      inputType: "password",
+    });
+    if (password === null) return;
+    if (!String(password).trim()) {
+      toastWarning("Password is required.");
+      return;
+    }
+    const res = await fetch(`${API_BASE}/api/admin/employees/${userRow.id}`, {
       method: "DELETE",
       headers: getHeaders(),
+      body: JSON.stringify({ password }),
     });
     const data = await res.json();
-    if (res.ok && data.status === "success") load();
-    else alert(data.message || "Lỗi");
+    if (res.ok && data.status === "success") {
+      load();
+      toastSuccess("Account deactivated.");
+    } else toastError(data.message || "Error");
   };
 
   const restore = async (user) => {
-    if (!confirm(`Restore account "${user.name}"?`)) return;
+    const ok = await toastConfirm({ message: `Restore account "${user.name}"?` });
+    if (!ok) return;
     const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}/restore`, {
       method: "PATCH",
       headers: getHeaders(),
       body: JSON.stringify({}),
     });
     const data = await res.json();
-    if (res.ok && data.status === "success") load();
-    else alert(data.message || "Lỗi");
+    if (res.ok && data.status === "success") {
+      load();
+      toastSuccess("Account restored.");
+    } else toastError(data.message || "Error");
+  };
+
+  const openFaceModal = (user) => {
+    setFaceTargetUser(user);
+    setCapturedDescriptor(null);
+    setFaceMessage("");
+    setShowFaceModal(true);
+  };
+
+  const closeFaceModal = () => {
+    if (faceDetectionIntervalRef.current) {
+      clearInterval(faceDetectionIntervalRef.current);
+      faceDetectionIntervalRef.current = null;
+    }
+    if (videoRef.current?.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+    }
+    setFaceCameraActive(false);
+    setFaceDetected(false);
+    setShowFaceModal(false);
+    setFaceTargetUser(null);
+    setCapturedDescriptor(null);
+  };
+
+  const startFaceCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 }
+      });
+      videoRef.current.srcObject = stream;
+      videoRef.current.onloadedmetadata = () => {
+        videoRef.current.play();
+        setFaceCameraActive(true);
+        setFaceMessage("Camera is on. Please look straight at the camera.");
+      };
+    } catch (err) {
+      setFaceMessage("Cannot start camera: " + err.message);
+    }
+  };
+
+  const captureFace = async () => {
+    if (!faceCameraActive || !faceModelsLoaded || !videoRef.current) return;
+    try {
+      setFaceLoading(true);
+      const detection = await faceapi
+        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        setFaceMessage("No face detected. Please try again.");
+        return;
+      }
+
+      setCapturedDescriptor(Array.from(detection.descriptor));
+      setFaceMessage("Face captured. Ready to update.");
+    } catch (err) {
+      setFaceMessage("Error while capturing face: " + err.message);
+    } finally {
+      setFaceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showFaceModal || !faceCameraActive || !faceModelsLoaded || !videoRef.current || !canvasRef.current) {
+      if (faceDetectionIntervalRef.current) {
+        clearInterval(faceDetectionIntervalRef.current);
+        faceDetectionIntervalRef.current = null;
+      }
+      return;
+    }
+
+    faceDetectionIntervalRef.current = setInterval(async () => {
+      try {
+        const detections = await faceapi
+          .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+          .withFaceLandmarks();
+
+        setFaceDetected(detections.length > 0);
+
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        detections.forEach((detection) => {
+          const box = detection.detection.box;
+          ctx.strokeStyle = "#22c55e";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+          if (detection.landmarks) {
+            ctx.strokeStyle = "#22c55e";
+            ctx.lineWidth = 1.5;
+            const drawPath = (points, closePath = false) => {
+              ctx.beginPath();
+              points.forEach((point, idx) => {
+                if (idx === 0) ctx.moveTo(point.x, point.y);
+                else ctx.lineTo(point.x, point.y);
+              });
+              if (closePath) ctx.closePath();
+              ctx.stroke();
+            };
+
+            drawPath(detection.landmarks.getJawOutline());
+            drawPath(detection.landmarks.getLeftEye(), true);
+            drawPath(detection.landmarks.getRightEye(), true);
+            drawPath(detection.landmarks.getNose());
+            drawPath(detection.landmarks.getMouth(), true);
+          }
+        });
+      } catch {
+        // keep silent to avoid noisy UI while camera feed is initializing
+      }
+    }, 120);
+
+    return () => {
+      if (faceDetectionIntervalRef.current) {
+        clearInterval(faceDetectionIntervalRef.current);
+        faceDetectionIntervalRef.current = null;
+      }
+    };
+  }, [showFaceModal, faceCameraActive, faceModelsLoaded]);
+
+  const updateFaceForUser = async () => {
+    if (!faceTargetUser?.employeeCode) {
+      setFaceMessage("Employee code not found.");
+      return;
+    }
+    if (!capturedDescriptor) {
+      setFaceMessage("Please capture a face before updating.");
+      return;
+    }
+
+    try {
+      setFaceLoading(true);
+      const res = await fetch(`${API_BASE}/api/enroll/face`, {
+        method: "PUT",
+        headers: getHeaders(),
+        body: JSON.stringify({
+          employeeCode: faceTargetUser.employeeCode,
+          descriptor: capturedDescriptor
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== "success") {
+        setFaceMessage(data.message || "Failed to update face");
+        return;
+      }
+      setFaceMessage("Face updated successfully");
+      setTimeout(() => closeFaceModal(), 500);
+    } catch (err) {
+      setFaceMessage("Failed to update face: " + err.message);
+    } finally {
+      setFaceLoading(false);
+    }
   };
 
   const permanentlyDeleteUser = async (user) => {
-    if (!confirm(`Permanently delete "${user.name}"?\n\nThis cannot be undone.`)) return;
-    const password = window.prompt("Nhập mật khẩu Manager để xác nhận xóa vĩnh viễn:");
-    if (!password) return;
+    const ok = await toastConfirm({
+      message: `Permanently delete "${user.name}"?\n\nThis cannot be undone.`,
+    });
+    if (!ok) return;
+    const password = await toastPrompt({
+      message: "Enter Manager password to confirm permanent deletion:",
+      inputType: "password",
+    });
+    if (password === null) return;
+    if (!String(password).trim()) {
+      toastWarning("Password is required.");
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}/permanent`, {
         method: "DELETE",
@@ -196,11 +446,12 @@ export default function UserManagement() {
       if (res.ok && data.status === "success") {
         load();
         window.dispatchEvent(new CustomEvent("hrms-admin-refresh"));
+        toastSuccess("Account permanently deleted.");
       } else {
-        alert(data.message || "Lỗi xóa vĩnh viễn");
+        toastError(data.message || "Failed to permanently delete");
       }
     } catch (e) {
-      alert(e.message || "Lỗi kết nối");
+      toastError(e.message || "Connection error");
     }
   };
 
@@ -248,7 +499,7 @@ export default function UserManagement() {
     e.preventDefault();
     if (!roleTarget?.id) return;
     if (!roleForm.role) {
-      alert("Vui lòng chọn role mới.");
+      toastWarning("Please select a new role.");
       return;
     }
     setUpdatingRole(true);
@@ -260,11 +511,11 @@ export default function UserManagement() {
       });
       const data = await res.json();
       if (!res.ok || data.status !== "success") {
-        let msg = data.message || "Đổi role thất bại";
+        let msg = data.message || "Failed to change role";
         if (Array.isArray(data.missingFields) && data.missingFields.length) {
-          msg += `\nThiếu trường: ${data.missingFields.join(", ")}`;
+          msg += `\nMissing fields: ${data.missingFields.join(", ")}`;
         }
-        alert(msg);
+        toastError(msg);
         return;
       }
       setShowRoleModal(false);
@@ -274,9 +525,9 @@ export default function UserManagement() {
         setDetailUser((prev) => (prev ? { ...prev, role: roleForm.role } : prev));
       }
       window.dispatchEvent(new CustomEvent("hrms-admin-refresh"));
-      alert("Đổi role thành công");
+      toastSuccess("Role changed successfully.");
     } catch (err) {
-      alert(`Đổi role thất bại: ${err.message}`);
+      toastError(`Failed to change role: ${err.message}`);
     } finally {
       setUpdatingRole(false);
     }
@@ -329,14 +580,14 @@ export default function UserManagement() {
       });
       const data = await res.json();
       if (!res.ok || data.status !== "success") {
-        setAuditError(data.message || "Không thể tải audit logs");
+        setAuditError(data.message || "Cannot load audit logs");
         return;
       }
       setAuditLogs(data.logs || []);
       setAuditMeta(data.pagination || { page, pageSize: 10, totalPages: 1, total: 0 });
       setAuditPage((data.pagination?.page) || page);
     } catch (err) {
-      setAuditError(`Không thể tải audit logs: ${err.message}`);
+      setAuditError(`Cannot load audit logs: ${err.message}`);
     } finally {
       setAuditLoading(false);
     }
@@ -451,7 +702,7 @@ export default function UserManagement() {
               whiteSpace: "nowrap",
             }}
           >
-            Danh sách tài khoản
+            Account List
           </button>
           <button
             onClick={() => setListMode("inactive")}
@@ -467,7 +718,7 @@ export default function UserManagement() {
               whiteSpace: "nowrap",
             }}
           >
-            Danh sách vô hiệu hóa
+            Disabled List
           </button>
         </div>
         <input
@@ -577,43 +828,53 @@ export default function UserManagement() {
                           >
                             Reset Password
                           </button>
+                          <button
+                            onClick={() => openFaceModal(user)}
+                            style={{ padding: "4px 10px", background: "#dcfce7", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12, color: "#166534" }}
+                          >
+                            Update Face
+                          </button>
                           {listMode === "active" ? (
-                            <button
-                              onClick={() => deactivate(user)}
-                              style={{
-                                padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
-                                background: "#fed7d7",
-                                color: "#9b2c2c",
-                              }}
-                            >
-                              Deactivate
-                            </button>
+                            managerMayLifecycleMutate(user) && (
+                              <button
+                                onClick={() => deactivate(user)}
+                                style={{
+                                  padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
+                                  background: "#fed7d7",
+                                  color: "#9b2c2c",
+                                }}
+                              >
+                                Deactivate
+                              </button>
+                            )
                           ) : (
-                            <>
-                              <button
-                                onClick={() => restore(user)}
-                                style={{
-                                  padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
-                                  background: "#c6f6d5",
-                                  color: "#276749",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                Restore
-                              </button>
-                              <button
-                                onClick={() => permanentlyDeleteUser(user)}
-                                style={{
-                                  padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
-                                  background: "#7f1d1d",
-                                  color: "#fff",
-                                  fontWeight: 700,
-                                }}
-                                title="Permanent delete (requires Manager password)"
-                              >
-                                Delete Forever
-                              </button>
-                            </>
+                            managerMayLifecycleMutate(user) && (
+                              <>
+                                <button
+                                  onClick={() => restore(user)}
+                                  style={{
+                                    padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
+                                    background: "#c6f6d5",
+                                    color: "#276749",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  Restore
+                                </button>
+                                <button
+                                  onClick={() => permanentlyDeleteUser(user)}
+                                  style={{
+                                    padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
+                                    background: "#7f1d1d",
+                                    color: "#fff",
+                                    fontWeight: 700,
+                                  }}
+                                  title="Permanent delete (requires Manager password)"
+                                >
+                                  Delete Forever
+                                </button>
+                              </>
+                            )
                           )}
                         </div>
                       </td>
@@ -737,7 +998,7 @@ export default function UserManagement() {
             <form onSubmit={save}>
               {!editing && (
                 <div style={{ marginBottom: 14, padding: "10px 14px", background: "#ebf8ff", border: "1px solid #bee3f8", borderRadius: 8, fontSize: 13, color: "#2c5282" }}>
-                  🔐 Mật khẩu ngẫu nhiên sẽ được tự động tạo (ví dụ: <strong>HMA#9940</strong>) và hiển thị sau khi tạo tài khoản.
+                  🔐 A random password will be auto-generated (e.g. <strong>HMA#9940</strong>) and shown after account creation.
                 </div>
               )}
               {[
@@ -758,7 +1019,7 @@ export default function UserManagement() {
               ))}
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#4a5568", marginBottom: 5 }}>
-                  🔑 Vai trò (Role / Phân quyền) *
+                  🔑 Role (Permissions) *
                 </label>
                 <select
                   value={form.role}
@@ -794,13 +1055,13 @@ export default function UserManagement() {
                   onClick={() => setShowModal(false)}
                   style={{ padding: "9px 18px", background: "#e2e8f0", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14 }}
                 >
-                  Hủy
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   style={{ padding: "9px 18px", background: "#667eea", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600 }}
                 >
-                  Lưu tài khoản
+                  Save Account
                 </button>
               </div>
             </form>
@@ -822,7 +1083,7 @@ export default function UserManagement() {
               <button onClick={() => setDetailUser(null)} style={{ border: "none", background: "transparent", fontSize: 22, cursor: "pointer" }}>×</button>
             </div>
 
-            {detailLoading && <p>Đang tải chi tiết...</p>}
+            {detailLoading && <p>Loading details...</p>}
             {!detailLoading && (
               <div style={{ display: "grid", gap: 14 }}>
                 <div style={{ background: "#f8fafc", borderRadius: 8, padding: 12 }}>
@@ -981,7 +1242,7 @@ export default function UserManagement() {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 17, color: "#1a365d" }}>Đổi role người dùng</h3>
+              <h3 style={{ margin: 0, fontSize: 17, color: "#1a365d" }}>Change User Role</h3>
               <button onClick={() => setShowRoleModal(false)} style={{ border: "none", background: "transparent", fontSize: 22, cursor: "pointer" }}>×</button>
             </div>
 
@@ -989,13 +1250,13 @@ export default function UserManagement() {
               <div><strong>{roleTarget.name}</strong> ({roleTarget.employeeCode || "-"})</div>
               <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>{roleTarget.email}</div>
               <div style={{ marginTop: 4, fontSize: 13 }}>
-                Role hiện tại: <strong>{roleTarget.role || "employee"}</strong>
+                Current role: <strong>{roleTarget.role || "employee"}</strong>
               </div>
             </div>
 
             <form onSubmit={submitRoleChange}>
               <div style={{ marginBottom: 10 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Role mới</label>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>New role</label>
                 <select
                   value={roleForm.role}
                   onChange={(e) => setRoleForm((prev) => ({ ...prev, role: e.target.value }))}
@@ -1008,12 +1269,12 @@ export default function UserManagement() {
               </div>
 
               <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Lý do thay đổi role</label>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Reason for role change</label>
                 <textarea
                   value={roleForm.reason}
                   onChange={(e) => setRoleForm((prev) => ({ ...prev, reason: e.target.value }))}
                   rows={3}
-                  placeholder="Ví dụ: điều chuyển nhân sự, bổ nhiệm tạm thời..."
+                  placeholder="Example: internal transfer, temporary assignment..."
                   style={{ width: "100%", ...historyInputStyle, resize: "vertical" }}
                 />
               </div>
@@ -1024,14 +1285,14 @@ export default function UserManagement() {
                   onClick={() => setShowRoleModal(false)}
                   style={{ ...historyInputStyle, background: "#f1f5f9", cursor: "pointer" }}
                 >
-                  Hủy
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={updatingRole}
                   style={{ ...historyInputStyle, background: "#ede9fe", color: "#5b21b6", fontWeight: 700, cursor: updatingRole ? "not-allowed" : "pointer" }}
                 >
-                  {updatingRole ? "Đang cập nhật..." : "Xác nhận đổi role"}
+                  {updatingRole ? "Updating..." : "Confirm role change"}
                 </button>
               </div>
             </form>
@@ -1049,7 +1310,7 @@ export default function UserManagement() {
             onClick={e => e.stopPropagation()}
           >
             <div style={{ fontSize: 36, marginBottom: 8 }}>🔐</div>
-            <h3 style={{ fontSize: 17, color: "#1a365d", marginBottom: 4 }}>Mật khẩu mới</h3>
+            <h3 style={{ fontSize: 17, color: "#1a365d", marginBottom: 4 }}>New Password</h3>
             <p style={{ fontSize: 13, color: "#718096", marginBottom: 18 }}>
               <strong>{newPwModal.name}</strong> ({newPwModal.employeeCode})
             </p>
@@ -1063,20 +1324,119 @@ export default function UserManagement() {
               {newPwModal.password}
             </div>
             <p style={{ fontSize: 12, color: "#e53e3e", marginBottom: 20 }}>
-              ⚠️ Ghi lại mật khẩu này ngay — sẽ không hiển thị lại sau khi đóng.
+              ⚠️ Save this password now - it will not be shown again after closing.
             </p>
             <button
               onClick={() => { navigator.clipboard?.writeText(newPwModal.password); }}
               style={{ padding: "8px 18px", background: "#ebf8ff", border: "1px solid #90cdf4", borderRadius: 6, cursor: "pointer", fontSize: 13, marginRight: 8 }}
             >
-              📋 Sao chép
+              📋 Copy
             </button>
             <button
               onClick={() => setNewPwModal(null)}
               style={{ padding: "8px 18px", background: "#667eea", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 }}
             >
-              Đã ghi lại ✓
+              Saved ✓
             </button>
+          </div>
+        </div>
+      )}
+
+      {showFaceModal && faceTargetUser && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 2200, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={closeFaceModal}
+        >
+          <div
+            style={{ background: "#fff", borderRadius: 12, padding: 20, width: 760, maxWidth: "96vw" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h3 style={{ margin: 0, color: "#1a365d" }}>
+                Update Face: {faceTargetUser.name} ({faceTargetUser.employeeCode})
+              </h3>
+              <button onClick={closeFaceModal} style={{ border: "none", background: "transparent", fontSize: 22, cursor: "pointer" }}>×</button>
+            </div>
+
+            {!faceModelsLoaded && (
+              <div style={{ marginBottom: 12, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: 10 }}>
+                Loading face models, please wait...
+              </div>
+            )}
+            {faceMessage && (
+              <div style={{ marginBottom: 12, color: "#334155", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: 10 }}>
+                {faceMessage}
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "1.2fr .8fr", gap: 14 }}>
+              <div style={{ background: "#000", borderRadius: 8, overflow: "hidden", aspectRatio: "4/3", position: "relative" }}>
+                <video ref={videoRef} style={{ width: "100%", height: "100%", objectFit: "cover" }} autoPlay muted playsInline />
+                <canvas
+                  ref={canvasRef}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    pointerEvents: "none",
+                    zIndex: 4,
+                  }}
+                  width={640}
+                  height={480}
+                />
+                {faceCameraActive && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      width: "62%",
+                      height: "78%",
+                      transform: "translate(-50%, -50%)",
+                      border: "2px dashed rgba(255,255,255,0.85)",
+                      borderRadius: "50%",
+                      boxShadow: "0 0 0 9999px rgba(0,0,0,0.2)",
+                      zIndex: 3,
+                      pointerEvents: "none",
+                    }}
+                  />
+                )}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={startFaceCamera}
+                  disabled={!faceModelsLoaded || faceCameraActive || faceLoading}
+                  style={{ padding: "10px 12px", border: "none", borderRadius: 8, background: "#2563eb", color: "#fff", cursor: "pointer" }}
+                >
+                  Start Camera
+                </button>
+                <button
+                  type="button"
+                  onClick={captureFace}
+                  disabled={!faceCameraActive || !faceModelsLoaded || faceLoading}
+                  style={{ padding: "10px 12px", border: "none", borderRadius: 8, background: "#059669", color: "#fff", cursor: "pointer" }}
+                >
+                  {faceLoading ? "Processing..." : "Capture Face"}
+                </button>
+                <button
+                  type="button"
+                  onClick={updateFaceForUser}
+                  disabled={!capturedDescriptor || faceLoading}
+                  style={{ padding: "10px 12px", border: "none", borderRadius: 8, background: "#7c3aed", color: "#fff", cursor: "pointer", fontWeight: 700 }}
+                >
+                  Update Face
+                </button>
+                <div style={{ fontSize: 13, color: capturedDescriptor ? "#166534" : "#92400e", marginTop: 4 }}>
+                  {capturedDescriptor ? "Face data captured." : "Face not captured yet."}
+                </div>
+                <div style={{ fontSize: 12, color: faceDetected ? "#166534" : "#b45309" }}>
+                  {faceDetected ? "Live face detected in frame." : "Align one face inside the guide frame."}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

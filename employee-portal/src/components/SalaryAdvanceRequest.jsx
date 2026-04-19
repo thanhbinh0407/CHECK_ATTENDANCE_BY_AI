@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 
-// Chỉ cho chọn: tháng hiện tại, hoặc 1–2 tháng kế tiếp (không quá khứ, không xa hơn 2 tháng)
+// Allow only current month and next 2 months (no past and no farther than +2 months)
 function getAllowedMonthYearOptions() {
   const now = new Date();
   const currentMonth = now.getMonth() + 1;

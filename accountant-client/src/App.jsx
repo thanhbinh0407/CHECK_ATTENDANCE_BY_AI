@@ -4,7 +4,6 @@ import SalaryManagement from "./components/SalaryManagement.jsx";
 import SalaryCalculation from "./components/SalaryCalculation.jsx";
 import SalaryApprovalDashboard from "./components/SalaryApprovalDashboard.jsx";
 import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
-import EmployeeDetailView from "./components/EmployeeDetailView.jsx";
 import EmployeeManagement from "./components/EmployeeManagement.jsx";
 import D02LTReport from "./components/D02LTReport.jsx";
 import TK1TSForm from "./components/TK1TSForm.jsx";
@@ -13,6 +12,7 @@ import socket from "./socket.js";
 import "./App.css";
 import "./accountantShell.css";
 import PersonalProfileModal from "./components/PersonalProfileModal.jsx";
+import { toastInfo } from "./lib/notify.jsx";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:5000").replace(/\/$/, "");
 
@@ -135,7 +135,7 @@ function App() {
 
     socket.on('new-notification', (data) => {
       console.log('Real-time notification:', data);
-      alert(`New notification: ${data.title}`);
+      toastInfo(`New notification: ${data.title}`);
     });
 
     return () => {
@@ -147,6 +147,10 @@ function App() {
 
   useEffect(() => {
     if (currentView === "approvals") setCurrentView("dashboard");
+  }, [currentView]);
+
+  useEffect(() => {
+    if (currentView === "employee-details") setCurrentView("employee-management");
   }, [currentView]);
 
   const handleLogout = () => {
@@ -180,6 +184,16 @@ function App() {
         }
         to {
           opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Main shell only: avoid opacity in "backwards" phase blocking clicks on tables/buttons */
+      @keyframes accShellIn {
+        from {
+          transform: translateY(12px);
+        }
+        to {
           transform: translateY(0);
         }
       }
@@ -288,10 +302,7 @@ function App() {
       ]
     : [];
 
-  const navPeople = [
-    { id: "employee-details", label: "Employee details", icon: "👤" },
-    { id: "employee-management", label: "Employees", icon: "🏢" },
-  ];
+  const navPeople = [{ id: "employee-management", label: "Employees", icon: "🏢" }];
 
   const viewTitles = {
     dashboard: "Overview",
@@ -301,8 +312,7 @@ function App() {
     rules: "Salary rules",
     "d02-lt-report": "D02-LT report",
     "tk1-ts-form": "TK1-TS form",
-    "employee-details": "Employee details",
-    "employee-management": "Employee management",
+    "employee-management": "Employees",
   };
 
   return (
@@ -398,7 +408,7 @@ function App() {
             </span>
           </div>
         </header>
-        <div className="acc-content" style={{ animation: "fadeInUp 0.45s ease-out 0.05s backwards" }}>
+        <div className="acc-content" style={{ animation: "accShellIn 0.45s ease-out" }}>
           {currentView === "dashboard" && <AccountantDashboard onNavigate={setCurrentView} />}
           {currentView === "salary-calculation" && <SalaryCalculation />}
           {currentView === "salary-management" && <SalaryManagement />}
@@ -406,7 +416,6 @@ function App() {
           {currentView === "rules" && <SalaryRulesManagement />}
           {currentView === "d02-lt-report" && <D02LTReport />}
           {currentView === "tk1-ts-form" && <TK1TSForm />}
-          {currentView === "employee-details" && <EmployeeDetailView />}
           {currentView === "employee-management" && <EmployeeManagement />}
         </div>
       </div>

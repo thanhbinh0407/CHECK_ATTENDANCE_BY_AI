@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { theme } from "../styles/theme.js";
+import { toastConfirm } from "../lib/notify.jsx";
 
 export default function InsuranceConfigManagement() {
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
@@ -123,7 +124,8 @@ export default function InsuranceConfigManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this insurance config?")) return;
+    const ok = await toastConfirm({ message: "Are you sure you want to delete this insurance config?" });
+    if (!ok) return;
     
     try {
       setLoading(true);

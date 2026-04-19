@@ -17,11 +17,11 @@ function badgeColor(changeType) {
 
 function formatDate(date) {
   if (!date) return "-";
-  return new Date(date).toLocaleDateString("vi-VN");
+  return new Date(date).toLocaleDateString("en-US");
 }
 
 function formatCurrency(value) {
-  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(Number(value || 0));
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "VND" }).format(Number(value || 0));
 }
 
 function formatTransition(fromValue, toValue, noChange = false) {
@@ -57,7 +57,7 @@ export default function JobHistoryTimeline() {
         const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
         const token = localStorage.getItem("authToken");
         if (!token) {
-          setError("Không tìm thấy phiên đăng nhập");
+          setError("No active login session found");
           return;
         }
 
@@ -78,14 +78,14 @@ export default function JobHistoryTimeline() {
         });
         const data = await res.json();
         if (!res.ok) {
-          setError(data.message || "Không thể tải lịch sử công việc");
+          setError(data.message || "Could not load job history");
           return;
         }
 
         setJobHistory(data.jobHistory || []);
         setJobPagination((prev) => ({ ...prev, ...(data.jobPagination || prev) }));
       } catch (err) {
-        setError(err.message || "Lỗi tải lịch sử công việc");
+        setError(err.message || "Failed to load job history");
       } finally {
         setLoadingJob(false);
       }
@@ -101,7 +101,7 @@ export default function JobHistoryTimeline() {
         const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
         const token = localStorage.getItem("authToken");
         if (!token) {
-          setError("Không tìm thấy phiên đăng nhập");
+          setError("No active login session found");
           return;
         }
 
@@ -122,14 +122,14 @@ export default function JobHistoryTimeline() {
         });
         const data = await res.json();
         if (!res.ok) {
-          setError(data.message || "Không thể tải lịch sử lương");
+          setError(data.message || "Could not load salary history");
           return;
         }
 
         setSalaryChangeHistory(data.salaryChangeHistory || []);
         setSalaryPagination((prev) => ({ ...prev, ...(data.salaryPagination || prev) }));
       } catch (err) {
-        setError(err.message || "Lỗi tải lịch sử lương");
+        setError(err.message || "Failed to load salary history");
       } finally {
         setLoadingSalary(false);
       }
@@ -199,31 +199,31 @@ export default function JobHistoryTimeline() {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div style={historyCardStyle}>
-        <h3 style={{ marginTop: 0, marginBottom: 10 }}>Lịch sử công việc</h3>
-        {loadingJob && <p>Đang tải...</p>}
+        <h3 style={{ marginTop: 0, marginBottom: 10 }}>Job history</h3>
+        {loadingJob && <p>Loading...</p>}
         {error && <p style={{ color: "#b91c1c" }}>{error}</p>}
         {!loadingJob && !error && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
             <input type="date" value={jobFilter.fromDate} onChange={(e) => { setJobFilter({ ...jobFilter, fromDate: e.target.value }); setJobPagination((p) => ({ ...p, page: 1 })); }} style={inputStyle} />
             <input type="date" value={jobFilter.toDate} onChange={(e) => { setJobFilter({ ...jobFilter, toDate: e.target.value }); setJobPagination((p) => ({ ...p, page: 1 })); }} style={inputStyle} />
             <select value={jobFilter.changeType} onChange={(e) => { setJobFilter({ ...jobFilter, changeType: e.target.value }); setJobPagination((p) => ({ ...p, page: 1 })); }} style={inputStyle}>
-              <option value="">Tất cả loại</option>
+              <option value="">All types</option>
               {jobTypes.map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
             <button onClick={resetJobFilter} style={{ ...inputStyle, cursor: "pointer", backgroundColor: "#eef2ff" }}>Reset filter</button>
           </div>
         )}
-        {!loadingJob && !error && jobHistory.length === 0 && <p>Không có dữ liệu phù hợp bộ lọc.</p>}
+        {!loadingJob && !error && jobHistory.length === 0 && <p>No records match the current filters.</p>}
         {!loadingJob && !error && jobHistory.length > 0 && (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th style={tableHeaderStyle}>Ngày hiệu lực</th>
-                  <th style={tableHeaderStyle}>Loại thay đổi</th>
-                  <th style={tableHeaderStyle}>Phòng ban</th>
-                  <th style={tableHeaderStyle}>Chức danh</th>
-                  <th style={tableHeaderStyle}>Ghi chú</th>
+                  <th style={tableHeaderStyle}>Effective date</th>
+                  <th style={tableHeaderStyle}>Change type</th>
+                  <th style={tableHeaderStyle}>Department</th>
+                  <th style={tableHeaderStyle}>Job title</th>
+                  <th style={tableHeaderStyle}>Notes</th>
                 </tr>
               </thead>
               <tbody>
@@ -266,30 +266,30 @@ export default function JobHistoryTimeline() {
       </div>
 
       <div style={historyCardStyle}>
-        <h3 style={{ marginTop: 0, marginBottom: 10 }}>Lịch sử thay đổi lương</h3>
-        {loadingSalary && <p>Đang tải...</p>}
+        <h3 style={{ marginTop: 0, marginBottom: 10 }}>Salary change history</h3>
+        {loadingSalary && <p>Loading...</p>}
         {!loadingSalary && !error && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
             <input type="date" value={salaryFilter.fromDate} onChange={(e) => { setSalaryFilter({ ...salaryFilter, fromDate: e.target.value }); setSalaryPagination((p) => ({ ...p, page: 1 })); }} style={inputStyle} />
             <input type="date" value={salaryFilter.toDate} onChange={(e) => { setSalaryFilter({ ...salaryFilter, toDate: e.target.value }); setSalaryPagination((p) => ({ ...p, page: 1 })); }} style={inputStyle} />
             <select value={salaryFilter.changeType} onChange={(e) => { setSalaryFilter({ ...salaryFilter, changeType: e.target.value }); setSalaryPagination((p) => ({ ...p, page: 1 })); }} style={inputStyle}>
-              <option value="">Tất cả loại</option>
+              <option value="">All types</option>
               {salaryTypes.map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
             <button onClick={resetSalaryFilter} style={{ ...inputStyle, cursor: "pointer", backgroundColor: "#eef2ff" }}>Reset filter</button>
           </div>
         )}
-        {!loadingSalary && !error && salaryChangeHistory.length === 0 && <p>Không có dữ liệu phù hợp bộ lọc.</p>}
+        {!loadingSalary && !error && salaryChangeHistory.length === 0 && <p>No records match the current filters.</p>}
         {!loadingSalary && !error && salaryChangeHistory.length > 0 && (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th style={tableHeaderStyle}>Ngày hiệu lực</th>
-                  <th style={tableHeaderStyle}>Loại thay đổi</th>
-                  <th style={tableHeaderStyle}>Lương cơ bản</th>
-                  <th style={tableHeaderStyle}>Tổng phụ cấp</th>
-                  <th style={tableHeaderStyle}>Lý do</th>
+                  <th style={tableHeaderStyle}>Effective date</th>
+                  <th style={tableHeaderStyle}>Change type</th>
+                  <th style={tableHeaderStyle}>Base salary</th>
+                  <th style={tableHeaderStyle}>Total allowance</th>
+                  <th style={tableHeaderStyle}>Reason</th>
                 </tr>
               </thead>
               <tbody>

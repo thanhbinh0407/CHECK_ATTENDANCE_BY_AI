@@ -9,20 +9,21 @@ import {
   SalaryAdvance, Dependent, Qualification, WorkExperience, ShiftSetting, InsuranceConfig, ApprovalWorkflow, RoleChangeAudit
 } from './src/models/pg/index.js';
 import bcrypt from 'bcryptjs';
+import { canTransitionSalaryStatus, SALARY_STATUS } from './src/services/salaryStatusRBAC.js';
 
-const REFERENCE_DATE = new Date('2026-02-28T00:00:00.000Z');
+const REFERENCE_DATE = new Date('2026-03-31T00:00:00.000Z');
 const PERIOD_START = new Date('2025-01-01T00:00:00.000Z');
 
 const REQUIRED_COUNTS = {
-  totalEmployees: 50,
-  dependentEmployees: 10,
-  withJobTitle: 30,
-  withoutJobTitle: 20,
+  totalEmployees: 150,
+  dependentEmployees: 60,
+  withJobTitle: 90,
+  withoutJobTitle: 60,
   seniority: {
-    ten_years: 10,
-    five_years: 15,
-    three_years: 15,
-    new_joiner: 10
+    ten_years: 25,
+    five_years: 45,
+    three_years: 40,
+    new_joiner: 40
   }
 };
 
@@ -67,6 +68,7 @@ const TITLE_CODES_FOR_FIRST_30 = [
   'NVC', 'NVC', 'NV', 'NV', 'NVC', 'NV', 'NV', 'NVC', 'NV', 'NV',
   'NV', 'NV', 'TTS', 'NV', 'NV', 'NV', 'TTS', 'NV', 'NV', 'TTS'
 ];
+const TITLE_CODE_POOL = ['TP', 'PTP', 'NVC', 'NV', 'NV', 'NVC', 'NV', 'TTS', 'NV', 'NV'];
 
 const DEPENDENT_INDEX_MAP = {
   1: [
@@ -170,15 +172,15 @@ function getWorkingDaysInMonth(year, month) {
 
 function createStartDateByBand(band, indexInBand) {
   if (band === 'ten_years') {
-    return addDays(new Date('2015-01-15T00:00:00.000Z'), indexInBand * 40);
+    return addDays(new Date('2012-01-10T00:00:00.000Z'), indexInBand * 45);
   }
   if (band === 'five_years') {
-    return addDays(new Date('2020-01-10T00:00:00.000Z'), indexInBand * 26);
+    return addDays(new Date('2018-01-15T00:00:00.000Z'), indexInBand * 20);
   }
   if (band === 'three_years') {
-    return addDays(new Date('2022-01-10T00:00:00.000Z'), indexInBand * 28);
+    return addDays(new Date('2021-04-01T00:00:00.000Z'), indexInBand * 17);
   }
-  return addDays(new Date('2025-06-10T00:00:00.000Z'), indexInBand * 25);
+  return addDays(new Date('2025-04-01T00:00:00.000Z'), indexInBand * 7);
 }
 
 // Salary grade definitions (must match what's seeded into SalaryGrade table)
@@ -205,25 +207,52 @@ function baseSalaryFromGradeCode(gradeCode) {
   return found ? found.baseSalary : 9000000;
 }
 
+function getProgressiveTax(incomeAfterDeduction) {
+  const brackets = [
+    { min: 0, max: 5000000, rate: 0.05 },
+    { min: 5000000, max: 10000000, rate: 0.10 },
+    { min: 10000000, max: 18000000, rate: 0.15 },
+    { min: 18000000, max: 32000000, rate: 0.20 },
+    { min: 32000000, max: 52000000, rate: 0.25 },
+    { min: 52000000, max: 80000000, rate: 0.30 },
+    { min: 80000000, max: Infinity, rate: 0.35 }
+  ];
+  let taxAmount = 0;
+  let remainingIncome = Math.max(0, incomeAfterDeduction);
+  for (let i = brackets.length - 1; i >= 0; i -= 1) {
+    const bracket = brackets[i];
+    if (remainingIncome > bracket.min) {
+      const taxableInBracket = Math.min(remainingIncome, bracket.max) - bracket.min;
+      taxAmount += taxableInBracket * bracket.rate;
+      remainingIncome = bracket.min;
+    }
+  }
+  return Math.round(taxAmount);
+}
+
 function buildEmployeeProfiles() {
   const profiles = [];
   let tenIdx = 0;
   let fiveIdx = 0;
   let threeIdx = 0;
   let newIdx = 0;
+  let dependentEmployeesGenerated = 0;
 
   for (let i = 1; i <= REQUIRED_COUNTS.totalEmployees; i += 1) {
     let seniorityBand;
     let indexInBand;
-    if (i <= 10) {
+    const tenLimit = REQUIRED_COUNTS.seniority.ten_years;
+    const fiveLimit = tenLimit + REQUIRED_COUNTS.seniority.five_years;
+    const threeLimit = fiveLimit + REQUIRED_COUNTS.seniority.three_years;
+    if (i <= tenLimit) {
       seniorityBand = 'ten_years';
       indexInBand = tenIdx;
       tenIdx += 1;
-    } else if (i <= 25) {
+    } else if (i <= fiveLimit) {
       seniorityBand = 'five_years';
       indexInBand = fiveIdx;
       fiveIdx += 1;
-    } else if (i <= 40) {
+    } else if (i <= threeLimit) {
       seniorityBand = 'three_years';
       indexInBand = threeIdx;
       threeIdx += 1;
@@ -236,7 +265,9 @@ function buildEmployeeProfiles() {
     const startDate = createStartDateByBand(seniorityBand, indexInBand);
     const code = `EMP${pad3(i)}`;
     const dept = (i - 1) % 5;
-    const jobTitleCode = i <= TITLE_CODES_FOR_FIRST_30.length ? TITLE_CODES_FOR_FIRST_30[i - 1] : null;
+    const jobTitleCode = i <= TITLE_CODES_FOR_FIRST_30.length
+      ? TITLE_CODES_FOR_FIRST_30[i - 1]
+      : (i <= REQUIRED_COUNTS.withJobTitle ? TITLE_CODE_POOL[(i - TITLE_CODES_FOR_FIRST_30.length - 1) % TITLE_CODE_POOL.length] : null);
 
     let salaryGradeCode = gradeCodeBySeniority(startDate);
 
@@ -244,6 +275,19 @@ function buildEmployeeProfiles() {
     if (seniorityBand === 'ten_years') contractType = ['indefinite', 'indefinite', 'indefinite', '3_year', 'indefinite', '3_year', '3_year', '1_year', '1_year', '1_year'][indexInBand];
     if (seniorityBand === 'five_years') contractType = ['3_year', '3_year', '3_year', '1_year', '3_year', '1_year', '1_year', '3_year', '1_year', '1_year', '1_year', '1_year', '1_year', '1_year', '1_year'][indexInBand];
     if (seniorityBand === 'new_joiner') contractType = 'probation';
+
+    const dependents = DEPENDENT_INDEX_MAP[i]
+      ? DEPENDENT_INDEX_MAP[i]
+      : (dependentEmployeesGenerated < REQUIRED_COUNTS.dependentEmployees
+        ? [{
+          fullName: `${deterministicName(i + 200)} Relative`,
+          relationship: i % 3 === 0 ? 'child' : (i % 3 === 1 ? 'spouse' : 'parent'),
+          gender: i % 2 === 0 ? 'female' : 'male',
+          dateOfBirth: i % 3 === 0 ? '2017-08-10' : '1991-04-10',
+          occupation: i % 3 === 0 ? 'Student' : 'Office staff'
+        }]
+        : []);
+    if (dependents.length > 0) dependentEmployeesGenerated += 1;
 
     profiles.push({
       index: i,
@@ -256,7 +300,7 @@ function buildEmployeeProfiles() {
       jobTitleCode,
       salaryGradeCode,
       contractType,
-      dependents: DEPENDENT_INDEX_MAP[i] || [],
+      dependents,
       hasOvertime: dept === 0 || dept === 1 || ['TP', 'PTP', 'NVC'].includes(jobTitleCode || ''),
       hasBusinessTrip: dept === 0 || dept === 1 || ['TP', 'PTP'].includes(jobTitleCode || ''),
       hasSalaryAdvance: seniorityBand !== 'new_joiner' && (seniorityBand === 'ten_years' || i % 3 === 0)
@@ -1117,7 +1161,7 @@ async function seedDB() {
     let advanceCount = 0;
 
     const seedRefYear = REFERENCE_DATE.getUTCFullYear(); // 2026
-    const seedRefMonth = REFERENCE_DATE.getUTCMonth() + 1; // 2
+    const seedRefMonth = REFERENCE_DATE.getUTCMonth() + 1; // 3
 
     for (let i = 0; i < employees.length; i += 1) {
       const emp = employees[i];
@@ -1188,46 +1232,9 @@ async function seedDB() {
     }
     console.log(`   Created ${advanceCount} salary advances`);
 
-    // Create edge cases for workflow robustness
-    console.log('19.1 Creating edge-case scenarios...');
+    // Keep role-change audit as realistic governance trace
+    console.log('19.1 Creating governance audit scenarios...');
     let edgeCaseCount = 0;
-
-    // Edge case 1: employee without manager assignment (org gap)
-    const unassignedManagerEmployee = employees.find((emp) => emp.employeeCode === 'EMP050');
-    if (unassignedManagerEmployee) {
-      await unassignedManagerEmployee.update({ managerId: null });
-      edgeCaseCount += 1;
-    }
-
-    // Edge case 2: rejected then resubmitted salary advance
-    const resubmitEmployee = employees.find((emp) => emp.employeeCode === 'EMP049');
-    if (resubmitEmployee) {
-      await SalaryAdvance.create({
-        userId: resubmitEmployee.id,
-        month: 3,
-        year: 2026,
-        amount: 2200000,
-        reason: 'Emergency expense (initial request)',
-        requestDate: new Date('2026-03-01T00:00:00.000Z'),
-        approvalStatus: 'rejected',
-        approvedBy: accountant.id,
-        approvedAt: new Date('2026-03-02T00:00:00.000Z'),
-        rejectionReason: 'Insufficient justification',
-        isDeducted: false,
-      });
-
-      await SalaryAdvance.create({
-        userId: resubmitEmployee.id,
-        month: 4,
-        year: 2026,
-        amount: 2200000,
-        reason: 'Emergency expense (resubmitted with documents)',
-        requestDate: new Date('2026-04-01T00:00:00.000Z'),
-        approvalStatus: 'pending',
-        isDeducted: false,
-      });
-      edgeCaseCount += 2;
-    }
 
     // Edge case 3: role change audits
     if (employees[0]) {
@@ -1321,10 +1328,8 @@ async function seedDB() {
           const finalSalary = Math.round(base + totalBonus - totalDeduction);
 
           // Seed salary statuses to cover the full workflow (pending -> approved -> paid)
-          // - Feb/2026: mix pending/approved/paid
-          // - EMP049 in Apr/2026: keep it pending because we seed a pending salary-advance there (edge case)
+          // - Mar/2026: mix pending/approved/paid for workflow testing
           const isRefMonth = year === refYear && month === refMonth;
-          const isEmp049Apr = emp.employeeCode === 'EMP049' && year === 2026 && month === 4;
 
           let salaryStatus = 'paid';
           let calculatedAt = new Date(REFERENCE_DATE);
@@ -1345,10 +1350,6 @@ async function seedDB() {
               calculatedAt = null;
               paidAt = null;
             }
-          } else if (isEmp049Apr) {
-            salaryStatus = 'pending';
-            calculatedAt = null;
-            paidAt = null;
           }
 
           await Salary.create({
@@ -1470,6 +1471,76 @@ async function seedDB() {
       }
     }
 
+    console.log('22. Running payroll reconciliation report (Track A vs Track B)...');
+    const reconciliationRows = [];
+    const reconciliationThreshold = 50000;
+    let exceedThresholdCount = 0;
+    for (const emp of employees) {
+      const salaries = await Salary.findAll({
+        where: {
+          userId: emp.id,
+          year: { [Op.in]: [2025, 2026] }
+        },
+        attributes: ['id', 'month', 'year', 'grossSalary', 'advanceDeduction', 'finalSalary']
+      });
+      const dependentDeduction = 11000000 + ((Number(emp.dependentCount) || 0) * 4400000);
+      for (const s of salaries) {
+        const gross = Number(s.grossSalary || 0);
+        const insuranceEmployee = Math.round(Number(emp.insuranceBaseSalary || emp.baseSalary || 0) * 0.105);
+        const advanceDeduction = Number(s.advanceDeduction || 0);
+        const taxTrackA = getProgressiveTax(gross - dependentDeduction);
+        const taxTrackB = getProgressiveTax(gross - insuranceEmployee - dependentDeduction);
+        const deductionTrackA = insuranceEmployee + taxTrackA + advanceDeduction;
+        const deductionTrackB = insuranceEmployee + taxTrackB + advanceDeduction;
+        const netTrackA = Math.round(gross - deductionTrackA);
+        const netTrackB = Math.round(gross - deductionTrackB);
+        const diff = Math.abs(netTrackA - netTrackB);
+        if (diff > reconciliationThreshold) exceedThresholdCount += 1;
+        reconciliationRows.push({
+          userId: emp.id,
+          employeeCode: emp.employeeCode,
+          month: s.month,
+          year: s.year,
+          gross,
+          insuranceEmployee,
+          advanceDeduction,
+          taxTrackA,
+          taxTrackB,
+          netTrackA,
+          netTrackB,
+          diff
+        });
+      }
+    }
+    const totalDiff = reconciliationRows.reduce((sum, row) => sum + row.diff, 0);
+    const avgDiff = reconciliationRows.length > 0 ? Math.round(totalDiff / reconciliationRows.length) : 0;
+    console.log(`   Reconciliation rows: ${reconciliationRows.length}`);
+    console.log(`   Total net difference (A vs B): ${totalDiff.toLocaleString('en-US')} VND`);
+    console.log(`   Average net difference: ${avgDiff.toLocaleString('en-US')} VND`);
+    console.log(`   Records above threshold (${reconciliationThreshold.toLocaleString('en-US')}): ${exceedThresholdCount}`);
+
+    console.log('23. Validating salary RBAC transition matrix...');
+    const transitionChecks = [
+      { fromStatus: SALARY_STATUS.PENDING, toStatus: SALARY_STATUS.APPROVED, role: 'supervisor', expected: true },
+      { fromStatus: SALARY_STATUS.PENDING, toStatus: SALARY_STATUS.APPROVED, role: 'manager', expected: true },
+      { fromStatus: SALARY_STATUS.PENDING, toStatus: SALARY_STATUS.APPROVED, role: 'accountant', expected: false },
+      { fromStatus: SALARY_STATUS.APPROVED, toStatus: SALARY_STATUS.PAID, role: 'accountant', expected: true },
+      { fromStatus: SALARY_STATUS.APPROVED, toStatus: SALARY_STATUS.PAID, role: 'manager', expected: false },
+      { fromStatus: SALARY_STATUS.PAID, toStatus: SALARY_STATUS.PENDING, role: 'manager', expected: true },
+      { fromStatus: SALARY_STATUS.PAID, toStatus: SALARY_STATUS.PENDING, role: 'supervisor', expected: false }
+    ];
+    for (const check of transitionChecks) {
+      const actual = canTransitionSalaryStatus({
+        fromStatus: check.fromStatus,
+        toStatus: check.toStatus,
+        role: check.role
+      });
+      if (actual !== check.expected) {
+        throw new Error(`RBAC transition mismatch: ${check.role} ${check.fromStatus}->${check.toStatus}`);
+      }
+    }
+    console.log('   RBAC transition validation passed');
+
     const employeeCredentials = await User.findAll({
       where: { role: 'employee' },
       attributes: ['employeeCode', 'email'],
@@ -1512,7 +1583,7 @@ async function seedDB() {
     console.log('   HR Staff:   hr@company.com / HR@12345');
     console.log('   Supervisor: supervisor@company.com / Supervisor@12345');
     console.log('   Accountant: accountant@company.com / Accountant@12345');
-    console.log('   Employees:  emp001@company.com to emp050@company.com / Password123!');
+    console.log('   Employees:  emp001@company.com to emp150@company.com / Password123!');
     console.log('\nAll employees have diverse deterministic data covering key system features.');
 
     process.exit(0);

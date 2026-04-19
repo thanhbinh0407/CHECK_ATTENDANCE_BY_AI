@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { theme } from "../styles/theme.js";
+import { toastPrompt } from "../lib/notify.jsx";
 
 export default function ApprovalManagement() {
   // Icon Components
@@ -471,9 +472,9 @@ export default function ApprovalManagement() {
                           <CheckIcon size={18} />
                         </button>
                         <button
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            const reason = prompt("Rejection reason:");
+                            const reason = await toastPrompt({ message: "Rejection reason:" });
                             if (reason) handleRejectLeave(req.id, reason);
                           }}
                           title="Reject"
@@ -648,9 +649,9 @@ export default function ApprovalManagement() {
                           <CheckIcon size={18} />
                         </button>
                         <button
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            const reason = prompt("Rejection reason:");
+                            const reason = await toastPrompt({ message: "Rejection reason:" });
                             if (reason) handleRejectDependent(dep.id, reason);
                           }}
                           title="Reject"
@@ -855,9 +856,9 @@ export default function ApprovalManagement() {
                           <CheckIcon size={18} />
                         </button>
                         <button
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            const reason = prompt("Rejection reason:");
+                            const reason = await toastPrompt({ message: "Rejection reason:" });
                             if (reason) handleRejectQualification(qual.id, reason);
                           }}
                           title="Reject"
@@ -1693,8 +1694,8 @@ export default function ApprovalManagement() {
                   <CheckIcon size={18} />
                 </button>
                 <button
-                  onClick={() => {
-                    const reason = prompt("Rejection reason:");
+                  onClick={async () => {
+                    const reason = await toastPrompt({ message: "Rejection reason:" });
                     if (reason) handleRejectFromDetail(reason);
                   }}
                   title="Reject"

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
+import { toastError, toastSuccess } from "../lib/notify.jsx";
 
 /** Sequelize DECIMAL / JSON can arrive as string — avoid string concatenation in + */
 function num(value) {
@@ -398,12 +399,12 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
           setSalaryRecord(updatedSalary);
         }
         setEditMode(false);
-        alert("Payroll version updated successfully");
+        toastSuccess("Payroll version updated successfully.");
       } else {
-        alert("Error updating");
+        toastError("Error updating payroll.");
       }
     } catch (error) {
-      alert("Error: " + error.message);
+      toastError("Error: " + error.message);
     } finally {
       setSaving(false);
     }

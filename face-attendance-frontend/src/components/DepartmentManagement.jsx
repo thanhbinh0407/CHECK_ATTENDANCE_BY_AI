@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { theme } from "../styles/theme.js";
+import { toastConfirm } from "../lib/notify.jsx";
 
 // Icon Components
 const PlusIcon = ({ size = 20 }) => (
@@ -133,7 +134,8 @@ export default function DepartmentManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Are you sure you want to delete this department?")) return;
+    const ok = await toastConfirm({ message: "Are you sure you want to delete this department?" });
+    if (!ok) return;
     try {
       const token = localStorage.getItem("authToken");
       const res = await fetch(`${apiBase}/api/departments/${id}`, {

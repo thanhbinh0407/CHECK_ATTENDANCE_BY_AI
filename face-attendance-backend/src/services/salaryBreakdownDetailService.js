@@ -7,6 +7,7 @@ import { Op } from "sequelize";
 import { calculateSeniority } from "./senioritySalaryService.js";
 import { calculateInsurance } from "./insuranceService.js";
 import { calculatePersonalIncomeTax } from "./taxService.js";
+import LeaveRequest from "../models/pg/LeaveRequest.js";
 
 function getWorkingDaysInMonth(year, month) {
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -19,6 +20,34 @@ function getWorkingDaysInMonth(year, month) {
     }
   }
   return workingDays;
+}
+
+async function getApprovedLeaveDayNumbersInMonth(userId, month, year) {
+  const startOfMonth = `${year}-${String(month).padStart(2, "0")}-01`;
+  const endOfMonth = `${year}-${String(month).padStart(2, "0")}-${new Date(year, month, 0).getDate()}`;
+
+  const leaves = await LeaveRequest.findAll({
+    where: {
+      userId,
+      status: "approved",
+      startDate: { [Op.lte]: endOfMonth },
+      endDate: { [Op.gte]: startOfMonth }
+    },
+    attributes: ["startDate", "endDate"]
+  });
+
+  const dayNumbers = new Set();
+  for (const lr of leaves) {
+    const start = new Date(`${lr.startDate}T00:00:00`);
+    const end = new Date(`${lr.endDate}T00:00:00`);
+    const clampStart = new Date(Math.max(start.getTime(), new Date(`${startOfMonth}T00:00:00`).getTime()));
+    const clampEnd = new Date(Math.min(end.getTime(), new Date(`${endOfMonth}T00:00:00`).getTime()));
+    for (let d = new Date(clampStart); d <= clampEnd; d.setDate(d.getDate() + 1)) {
+      const dow = d.getDay();
+      if (dow !== 0 && dow !== 6) dayNumbers.add(d.getDate());
+    }
+  }
+  return dayNumbers;
 }
 
 /**
@@ -89,7 +118,9 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
       presentDaysSet.add(logDate);
     }
   });
-  const absentDays = Math.max(0, totalWorkingDays - presentDaysSet.size);
+  const approvedLeaveDayNumbers = await getApprovedLeaveDayNumbersInMonth(userId, parseInt(month, 10), parseInt(year, 10));
+  const coveredDayNumbers = new Set([...presentDaysSet, ...approvedLeaveDayNumbers]);
+  const absentDays = Math.max(0, totalWorkingDays - coveredDayNumbers.size);
 
   const baseSalary = parseFloat(user.baseSalary) || 0;
   const bonusBreakdown = [];
@@ -173,7 +204,7 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
         break;
       case "full_attendance": {
         const hasFullAttendance =
-          presentDaysSet.size >= totalWorkingDays && lateCount === 0 && earlyLeaveCount === 0 && absentDays === 0;
+          coveredDayNumbers.size >= totalWorkingDays && lateCount === 0 && earlyLeaveCount === 0 && absentDays === 0;
         if (hasFullAttendance && (!rule.threshold || totalWorkingDays >= rule.threshold)) {
           shouldApply = true;
           quantity = totalWorkingDays;
@@ -319,7 +350,7 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
     totalDeduction,
     attendance: {
       totalDays: totalWorkingDays,
-      presentDays: presentDaysSet.size,
+      presentDays: coveredDayNumbers.size,
       absentDays,
       lateCount,
       earlyLeaveCount,

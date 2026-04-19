@@ -40,9 +40,9 @@ export default function EnrollmentForm() {
     email: "",
     employeeCode: "",
     password: "",
-    jobTitle: "Nhân viên",
+    jobTitle: "Employee",
     jobTitleId: null,
-    educationLevel: "Đại học",
+    educationLevel: "University",
     baseSalary: 1800000
   });
   const [useCustomPassword, setUseCustomPassword] = useState(false);
@@ -51,6 +51,7 @@ export default function EnrollmentForm() {
   const [passwordGenerated, setPasswordGenerated] = useState(false);
   const detectionIntervalRef = useRef(null);
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  const normalizedEmployeeCode = String(formData.employeeCode || "").trim().toUpperCase();
 
   // Validation errors state
   const [errors, setErrors] = useState({
@@ -392,7 +393,7 @@ export default function EnrollmentForm() {
       const antiScore = Number.isFinite(anti?.score) ? anti.score : 100;
       const ANTI_PHOTO_THRESHOLD = 28;
       if (antiScore < ANTI_PHOTO_THRESHOLD) {
-        setMessage("Không chấp nhận ảnh. Vui lòng dùng khuôn mặt thật trước camera (đảm bảo ánh sáng tốt).");
+        setMessage("Photo spoofing is not accepted. Please use a real face in front of the camera (with good lighting).");
         setErrors((prev) => ({ ...prev, faceCapture: "Photo not allowed" }));
         setLoading(false);
         return;
@@ -424,21 +425,21 @@ export default function EnrollmentForm() {
     // Validate all fields
     const nameValid = validateField("name", formData.name);
     const emailValid = validateField("email", formData.email);
-    const codeValid = validateField("employeeCode", formData.employeeCode);
+    const codeValid = validateField("employeeCode", normalizedEmployeeCode);
     const passwordValid = useCustomPassword ? validateField("password", formData.password) : true;
     const salaryValid = validateField("baseSalary", formData.baseSalary);
     const jobTitleValid = validateField("jobTitle", formData.jobTitle);
 
-    if (!capturedDescriptor) {
-      setErrors(prev => ({ ...prev, faceCapture: "Please capture your face before submitting" }));
-      setMessage("❌ Please capture your face before submitting");
-      return;
-    } else {
-      setErrors(prev => ({ ...prev, faceCapture: "" }));
-    }
+    setErrors(prev => ({ ...prev, faceCapture: "" }));
     
     if (!nameValid || !emailValid || !codeValid || !passwordValid || !salaryValid || !jobTitleValid) {
       setMessage("❌ Please fix all validation errors before submitting");
+      return;
+    }
+    if (!normalizedEmployeeCode) {
+      setErrors((prev) => ({ ...prev, employeeCode: "Employee code has not been generated yet" }));
+      setTouched((prev) => ({ ...prev, employeeCode: true }));
+      setMessage("❌ Employee code is not ready. Please select Job Title to auto-generate code.");
       return;
     }
 
@@ -446,28 +447,37 @@ export default function EnrollmentForm() {
       setLoading(true);
       const token = localStorage.getItem("authToken");
       
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        employeeCode: normalizedEmployeeCode,
+        password: useCustomPassword ? formData.password : undefined,
+        jobTitleId: formData.jobTitleId,
+        jobTitle: formData.jobTitle,
+        educationLevel: formData.educationLevel,
+        baseSalary: formData.baseSalary
+      };
+      if (capturedDescriptor) {
+        payload.descriptor = capturedDescriptor;
+      }
+
       const res = await fetch(`${apiBase}/api/enroll/register`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          employeeCode: formData.employeeCode,
-          descriptor: capturedDescriptor,
-          password: useCustomPassword ? formData.password : undefined,
-          jobTitleId: formData.jobTitleId,
-          jobTitle: formData.jobTitle,
-          educationLevel: formData.educationLevel,
-          baseSalary: formData.baseSalary
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("✅ Employee registered successfully!");
+        const persistedCode =
+          data?.employee?.employeeCode ||
+          data?.user?.employeeCode ||
+          data?.employeeCode ||
+          normalizedEmployeeCode;
+        setMessage(`✅ Employee registered successfully! Employee Code: ${persistedCode}`);
         setGeneratedPassword(data.password);
         setPasswordGenerated(data.passwordGenerated || false);
         setFormData({ 
@@ -475,9 +485,9 @@ export default function EnrollmentForm() {
           email: "", 
           employeeCode: "", 
           password: "",
-          jobTitle: "Nhân viên",
+          jobTitle: "Employee",
           jobTitleId: null,
-          educationLevel: "Đại học",
+          educationLevel: "University",
           baseSalary: 1800000
         });
         setUseCustomPassword(false);
@@ -643,7 +653,7 @@ export default function EnrollmentForm() {
           New Employee Registration
         </h1>
         <p style={{ margin: 0, fontSize: "15px", opacity: 0.95, color: "#fff" }}>
-          Fill in the form below and capture your face to complete registration. Fields marked with * are required.
+          Fill in the form below to create employee information first. Face can be captured now or updated later. Fields marked with * are required.
         </p>
       </div>
 
@@ -652,10 +662,10 @@ export default function EnrollmentForm() {
         {message && (
           <div style={{
             padding: "16px 20px",
-            backgroundColor: /success|captured successfully/i.test(message) ? theme.success.bg : /failed|error|denied|required|cannot|invalid|please enter|Không chấp nhận ảnh/i.test(message) ? theme.error.bg : theme.info.bg,
-            border: `2px solid ${/success|captured successfully/i.test(message) ? theme.success.border : /failed|error|denied|required|cannot|invalid|please enter|Không chấp nhận ảnh/i.test(message) ? theme.error.border : theme.info.border}`,
+            backgroundColor: /success|captured successfully/i.test(message) ? theme.success.bg : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted/i.test(message) ? theme.error.bg : theme.info.bg,
+            border: `2px solid ${/success|captured successfully/i.test(message) ? theme.success.border : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted/i.test(message) ? theme.error.border : theme.info.border}`,
             borderRadius: "10px",
-            color: /success|captured successfully/i.test(message) ? theme.success.text : /failed|error|denied|required|cannot|invalid|please enter|Không chấp nhận ảnh/i.test(message) ? theme.error.text : theme.info.text,
+            color: /success|captured successfully/i.test(message) ? theme.success.text : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted/i.test(message) ? theme.error.text : theme.info.text,
             marginBottom: "24px",
             fontSize: "14px",
             fontWeight: "500",
@@ -682,7 +692,7 @@ export default function EnrollmentForm() {
                 value={formData.name}
                 onChange={(e) => handleFieldChange("name", filterNumbersFromName(e.target.value))}
                 onBlur={(e) => { handleBlur("name"); Object.assign(e.target.style, getInputStyle("name")); }}
-                placeholder="Nguyễn Văn A"
+                placeholder="John Doe"
                 onFocus={(e) => Object.assign(e.target.style, getInputFocusStyle("name"))}
                 onMouseEnter={(e) => { if (e.target !== document.activeElement && !errors.name) Object.assign(e.target.style, inputHoverStyle) }}
                 onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, getInputStyle("name")) }}
@@ -728,13 +738,14 @@ export default function EnrollmentForm() {
                 type="text"
                 style={getInputStyle("employeeCode")}
                 value={formData.employeeCode}
-                onChange={(e) => handleFieldChange("employeeCode", e.target.value)}
-                onBlur={(e) => { handleBlur("employeeCode"); Object.assign(e.target.style, getInputStyle("employeeCode")); }}
-                placeholder="EMP001"
-                onFocus={(e) => Object.assign(e.target.style, getInputFocusStyle("employeeCode"))}
-                onMouseEnter={(e) => { if (e.target !== document.activeElement && !errors.employeeCode) Object.assign(e.target.style, inputHoverStyle) }}
-                onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, getInputStyle("employeeCode")) }}
+                readOnly
+                placeholder="Auto-generated from Job Title"
               />
+              {!errors.employeeCode && (
+                <div style={{ fontSize: "12px", color: theme.neutral.gray600, marginTop: "6px", fontWeight: "500" }}>
+                  🔒 Auto-generated from Job Title (cannot be edited)
+                </div>
+              )}
               {touched.employeeCode && errors.employeeCode && (
                 <div style={errorMessageStyle}>
                   <span>⚠️</span>
@@ -828,13 +839,9 @@ export default function EnrollmentForm() {
                 type="number"
                 style={getInputStyle("baseSalary")}
                 value={formData.baseSalary}
-                onChange={(e) => handleFieldChange("baseSalary", parseInt(e.target.value) || 0)}
-                onBlur={(e) => { handleBlur("baseSalary"); Object.assign(e.target.style, getInputStyle("baseSalary")); }}
+                readOnly
                 min="0"
                 placeholder="1800000"
-                onFocus={(e) => Object.assign(e.target.style, getInputFocusStyle("baseSalary"))}
-                onMouseEnter={(e) => { if (e.target !== document.activeElement && !errors.baseSalary) Object.assign(e.target.style, inputHoverStyle) }}
-                onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, getInputStyle("baseSalary")) }}
               />
               {touched.baseSalary && errors.baseSalary && (
                 <div style={errorMessageStyle}>
@@ -844,7 +851,7 @@ export default function EnrollmentForm() {
               )}
               {!errors.baseSalary && (
                 <div style={{ fontSize: "12px", color: theme.neutral.gray600, marginTop: "6px", fontWeight: "500" }}>
-                  💡 Default: 1,800,000 VND (state base salary)
+                  💡 Auto from selected Job Title (view only)
                 </div>
               )}
             </div>
@@ -931,7 +938,7 @@ export default function EnrollmentForm() {
                   backgroundColor: capturedDescriptor ? "#28a745" : (errors.faceCapture ? "#ef4444" : "#ffc107"),
                   display: "inline-block"
                 }}></span>
-                {capturedDescriptor ? "✅ Face captured - Ready to enroll" : (errors.faceCapture ? "❌ " + errors.faceCapture : "⚠️ Capture your face to proceed")}
+                {capturedDescriptor ? "✅ Face captured - Ready to enroll" : "⚠️ Face not captured yet (you can update later)"}
               </div>
             </div>
 
@@ -939,10 +946,10 @@ export default function EnrollmentForm() {
               type="submit"
               style={{
                 ...successButtonStyle,
-                opacity: !capturedDescriptor || loading ? 0.6 : 1,
-                cursor: !capturedDescriptor || loading ? "not-allowed" : "pointer"
+                opacity: loading ? 0.6 : 1,
+                cursor: loading ? "not-allowed" : "pointer"
               }}
-              disabled={!capturedDescriptor || loading}
+              disabled={loading}
             >
               {loading ? "Enrolling..." : "Complete Enrollment"}
             </button>
@@ -1105,14 +1112,14 @@ export default function EnrollmentForm() {
             color: theme.warning.text,
             border: `2px solid ${theme.warning.border}`
           }}>
-            <strong>Lưu ý quan trọng:</strong> Vui lòng ghi lại mật khẩu này và cung cấp cho nhân viên. Mật khẩu sẽ không được hiển thị lại sau khi bạn rời khỏi trang này.
+            <strong>Important:</strong> Please save this password and provide it to the employee. It will not be shown again after you leave this page.
           </div>
           <button
             onClick={(e) => {
               navigator.clipboard.writeText(generatedPassword);
               const btn = e.target;
               const originalText = btn.textContent;
-              btn.textContent = "Đã copy!";
+              btn.textContent = "Copied!";
               btn.style.backgroundColor = "#28a745";
               setTimeout(() => {
                 btn.textContent = originalText;

@@ -45,6 +45,7 @@ const shortcutGroups = [
       { to: "/insurance-tk1", label: "TK1-TS", icon: "📝" },
       { to: "/reports", label: "Reports", icon: "📊" },
       { to: "/analytics", label: "Analytics", icon: "📉" },
+      { to: "/approval-audit", label: "Approval Responsibility Log", icon: "🧾" },
     ],
   },
   {

@@ -5,6 +5,9 @@ import './managerShell.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
+// Các nhóm nav bị ẩn khỏi sidebar của Manager (do Accountant xử lý)
+const HIDDEN_GROUPS_FOR_MANAGER = new Set(['Payroll & Insurance']);
+
 const NAV_GROUPS = [
   {
     label: 'Overview',
@@ -59,6 +62,7 @@ const NAV_GROUPS = [
     items: [
       { to: '/reports', label: 'Reports', icon: '📊' },
       { to: '/analytics', label: 'Analytics', icon: '📉' },
+      { to: '/approval-audit', label: 'Approval Responsibility Log', icon: '🧾' },
     ],
   },
   {
@@ -84,12 +88,12 @@ function titleFromPath(pathname) {
   return 'HRMS Manager';
 }
 
-const ROLE_LABEL_VI = {
-  manager: 'Giám đốc / Quản trị',
-  hr: 'Nhân sự',
-  accountant: 'Kế toán',
-  supervisor: 'Quản lý',
-  employee: 'Nhân viên',
+const ROLE_LABEL = {
+  manager: 'Director / Administrator',
+  hr: 'HR Staff',
+  accountant: 'Accountant',
+  supervisor: 'Supervisor',
+  employee: 'Employee',
 };
 
 function resolveAvatarUrl(apiBase, avatarUrl) {
@@ -191,7 +195,7 @@ export default function ManagerLayout() {
           )}
         </div>
         <nav className="mgr-nav">
-          {NAV_GROUPS.map((group) => (
+          {NAV_GROUPS.filter((group) => !HIDDEN_GROUPS_FOR_MANAGER.has(group.label)).map((group) => (
             <div key={group.label}>
               <div className="mgr-nav-group-label">{group.label}</div>
               {group.items.map((item) => (
@@ -212,7 +216,7 @@ export default function ManagerLayout() {
           {!collapsed && (
             <>
               <strong style={{ color: '#cbd5e1' }}>{user?.name}</strong>
-              <div>{ROLE_LABEL_VI[user?.role] || 'Tài khoản'}</div>
+              <div>{ROLE_LABEL[user?.role] || 'Account'}</div>
             </>
           )}
         </div>
@@ -230,8 +234,8 @@ export default function ManagerLayout() {
               type="button"
               className="mgr-topbar-avatar-btn"
               onClick={() => setProfileOpen(true)}
-              title="Hồ sơ cá nhân"
-              aria-label="Mở hồ sơ cá nhân"
+              title="Personal profile"
+              aria-label="Open personal profile"
             >
               {resolveAvatarUrl(API_BASE, user?.avatarUrl) ? (
                 <img

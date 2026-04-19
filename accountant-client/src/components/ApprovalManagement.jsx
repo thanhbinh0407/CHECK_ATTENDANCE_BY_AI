@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { toastWarning } from "../lib/notify.jsx";
 
 export default function ApprovalManagement() {
   const [activeTab, setActiveTab] = useState("dependents");
@@ -62,7 +63,7 @@ export default function ApprovalManagement() {
 
   const rejectItem = async (id) => {
     if (!rejectReasons[id]) {
-      alert("Please enter rejection reason");
+      toastWarning("Please enter a rejection reason.");
       return;
     }
 

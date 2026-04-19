@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { io } from 'socket.io-client';
+import { toastConfirm, toastError, toastSuccess, toastWarning, toastPrompt } from './lib/notify.jsx';
 
 const CHANGE_TYPE_BADGE = {
   hire:               { bg: '#dcfce7', color: '#166534' },
@@ -20,7 +21,7 @@ const SALARY_CHANGE_TYPES = ['initial_salary','increase','decrease','correction'
 const API         = 'http://localhost:5000/api';
 const SOCKET_URL  = 'http://localhost:5000';
 
-// Các changeType khi nhận được sẽ trigger reload danh sách NV
+// Change types that should trigger employee list reload
 const RELOAD_CHANGE_TYPES = new Set(['role', 'job', 'salary']);
 
 function authHeaders(token) {
@@ -37,7 +38,7 @@ const EMPTY_FORM = {
 // ─── Password Reveal Modal (UC-07.4) ──────────────────────────────────────────
 function PasswordRevealModal({ info, onClose }) {
   const copy = () =>
-    navigator.clipboard.writeText(info.password).then(() => alert('Đã sao chép!'));
+    navigator.clipboard.writeText(info.password).then(() => toastSuccess('Copied to clipboard.'));
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -73,6 +74,118 @@ function PasswordRevealModal({ info, onClose }) {
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button className="btn btn-primary" onClick={onClose}>Got it</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Create Modal (server generates initial password) ─────────────────────────
+function CreateEmployeeModal({ form, setField, onClose, onSave, saving, departments, jobTitles }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Add employee</h3>
+          <button type="button" className="close-btn" onClick={onClose}>×</button>
+        </div>
+        <p style={{ fontSize: 12, color: '#718096', marginBottom: 14 }}>
+          Employee code and email must be unique. Initial login password will be shown after successful creation.
+        </p>
+        <form onSubmit={onSave}>
+          <p className="form-section-label">Basic information</p>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Full name *</label>
+              <input required value={form.name} onChange={e => setField('name', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Email *</label>
+              <input required type="email" value={form.email} onChange={e => setField('email', e.target.value)} />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Employee code *</label>
+              <input required value={form.employeeCode} onChange={e => setField('employeeCode', e.target.value)} placeholder="Ex: EMP001" />
+            </div>
+            <div className="form-group">
+              <label>Phone number</label>
+              <input value={form.phoneNumber} onChange={e => setField('phoneNumber', e.target.value)} />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Gender</label>
+              <select value={form.gender} onChange={e => setField('gender', e.target.value)}>
+                <option value="">— Select —</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Date of birth</label>
+              <input type="date" value={form.dateOfBirth} onChange={e => setField('dateOfBirth', e.target.value)} />
+            </div>
+          </div>
+          <p className="form-section-label" style={{ marginTop: 8 }}>Organization</p>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Department</label>
+              <select value={form.departmentId} onChange={e => setField('departmentId', e.target.value)}>
+                <option value="">— Select Department —</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Job title</label>
+              <select value={form.jobTitleId} onChange={e => setField('jobTitleId', e.target.value)}>
+                <option value="">— Select Job Title —</option>
+                {jobTitles.map(j => <option key={j.id} value={j.id}>{j.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Contract type</label>
+              <select value={form.contractType} onChange={e => setField('contractType', e.target.value)}>
+                <option value="">— Select —</option>
+                <option value="probation">Probation</option>
+                <option value="1_year">1 year</option>
+                <option value="3_year">3 years</option>
+                <option value="indefinite">Indefinite</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Start date</label>
+              <input type="date" value={form.startDate} onChange={e => setField('startDate', e.target.value)} />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Base salary (VND)</label>
+              <input type="number" min="0" value={form.baseSalary} onChange={e => setField('baseSalary', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Effective date (history)</label>
+              <input type="date" value={form.effectiveDate} onChange={e => setField('effectiveDate', e.target.value)} />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Salary adjustment reason</label>
+              <input value={form.salaryChangeReason} onChange={e => setField('salaryChangeReason', e.target.value)} />
+            </div>
+            <div className="form-group" style={{ flex: 2, minWidth: 280 }}>
+              <label>Change notes</label>
+              <textarea rows={2} value={form.historyNote} onChange={e => setField('historyNote', e.target.value)} style={{ resize: 'vertical' }} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Creating...' : 'Create employee'}</button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -264,13 +377,20 @@ export default function EmployeeManagement({ token, user }) {
   const [error, setError]           = useState('');
   const [search, setSearch]         = useState('');
   const [filterDept, setFilterDept] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+  const [filterJobTitle, setFilterJobTitle] = useState('');
+  const [filterContract, setFilterContract] = useState('');
   const [listMode, setListMode] = useState('active'); // active | inactive
 
   // ── modal ──
   const [editing, setEditing]       = useState(null);
+  const [creating, setCreating]     = useState(false);
   const [form, setForm]             = useState(EMPTY_FORM);
   const [saving, setSaving]         = useState(false);
   const [newPwInfo, setNewPwInfo]   = useState(null);
+  /** { message: string, tone: 'deny' | 'warn' } — toast tự tắt sau 4s */
+  const [actionToast, setActionToast] = useState(null);
+  const toastTimerRef = useRef(null);
 
   // ── detail panel ──
   const [detailUser, setDetailUser]         = useState(null);
@@ -285,6 +405,27 @@ export default function EmployeeManagement({ token, user }) {
   const [detailSalaryPage, setDetailSalaryPage] = useState(1);
 
   const isManager = user?.role === 'manager';
+  const actorId = user?.id ?? user?.userId ?? null;
+
+  const canShowAccountLifecycleActions = (emp) => {
+    if (actorId == null || Number(emp.id) === Number(actorId)) return false;
+    if (user?.role === 'hr' && emp.role !== 'employee') return false;
+    return true;
+  };
+
+  const pushActionToast = (message, tone = 'warn') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setActionToast({ message, tone });
+    toastTimerRef.current = setTimeout(() => {
+      setActionToast(null);
+      toastTimerRef.current = null;
+    }, 4000);
+  };
+
+  useEffect(() => () => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+  }, []);
+
   const setField = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
   // ── load ──
@@ -345,11 +486,17 @@ export default function EmployeeManagement({ token, user }) {
         emp.employeeCode?.toLowerCase().includes(q);
       const matchDept =
         !filterDept || String(emp.departmentId) === filterDept;
+      const matchRole =
+        !filterRole || emp.role === filterRole;
+      const matchJt =
+        !filterJobTitle || String(emp.jobTitleId) === filterJobTitle;
+      const matchContract =
+        !filterContract || emp.contractType === filterContract;
       const matchList =
         listMode === 'active' ? emp.isActive !== false : emp.isActive === false;
-      return matchSearch && matchDept && matchList;
+      return matchSearch && matchDept && matchRole && matchJt && matchContract && matchList;
     });
-  }, [employees, search, filterDept, listMode]);
+  }, [employees, search, filterDept, filterRole, filterJobTitle, filterContract, listMode]);
 
   // ── actions ──
   const openEdit = (emp) => {
@@ -375,12 +522,65 @@ export default function EmployeeManagement({ token, user }) {
 
   const closeEdit = () => { setEditing(null); };
 
+  const openCreate = () => {
+    setForm({ ...EMPTY_FORM });
+    setCreating(true);
+  };
+
+  const closeCreate = () => { setCreating(false); };
+
+  const saveCreate = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const body = {
+        name: form.name,
+        email: form.email,
+        employeeCode: form.employeeCode,
+        departmentId: form.departmentId || null,
+        jobTitleId: form.jobTitleId || null,
+        phoneNumber: form.phoneNumber || null,
+        gender: form.gender || null,
+        dateOfBirth: form.dateOfBirth || null,
+        contractType: form.contractType || null,
+        startDate: form.startDate || null,
+        baseSalary: form.baseSalary === '' ? undefined : form.baseSalary,
+        effectiveDate: form.effectiveDate || null,
+        historyNote: form.historyNote || null,
+        salaryChangeReason: form.salaryChangeReason || null,
+      };
+      const res = await fetch(`${API}/admin/employees`, {
+        method: 'POST',
+        headers: authHeaders(token),
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok && (data.status === 'success' || data.employee)) {
+        closeCreate();
+        if (data.newPassword) {
+          setNewPwInfo({
+            name: data.employee?.name || form.name,
+            employeeCode: data.employee?.employeeCode || form.employeeCode,
+            password: data.newPassword,
+          });
+        }
+        load();
+      } else {
+        toastError(data.message || 'Cannot create employee');
+      }
+    } catch (err) {
+      toastError('Cannot connect to server: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const save = async (e) => {
     e.preventDefault();
     if (!editing) return;
     setSaving(true);
     try {
-      // HR không được đổi role — loại khỏi body để backend không block
+      // HR cannot change role, remove from body to avoid backend rejection
       const body = { ...form };
       if (!isManager) delete body.role;
 
@@ -394,32 +594,52 @@ export default function EmployeeManagement({ token, user }) {
         closeEdit();
         load();
       } else {
-        alert(data.message || 'Error saving');
+        toastError(data.message || 'Error saving');
       }
     } catch (err) {
-      alert('Cannot connect to server: ' + err.message);
+      toastError('Cannot connect to server: ' + err.message);
     } finally {
       setSaving(false);
     }
   };
 
   const deleteEmployee = async (emp) => {
-    if (!confirm(`Deactivate "${emp.name}" (${emp.employeeCode})?`)) return;
+    const ok = await toastConfirm({ message: `Deactivate "${emp.name}" (${emp.employeeCode})?` });
+    if (!ok) return;
+    const roleLabel = user?.role === 'manager' ? 'Manager' : 'HR';
+    const password = await toastPrompt({
+      message: `Enter ${roleLabel} password to confirm deactivation:`,
+      inputType: 'password',
+    });
+    if (password === null) return;
+    if (!String(password).trim()) {
+      toastWarning('Password is required.');
+      return;
+    }
     try {
-      const res  = await fetch(`${API}/admin/employees/${emp.id}`, { method: 'DELETE', headers: authHeaders(token) });
+      const res  = await fetch(`${API}/admin/employees/${emp.id}`, {
+        method: 'DELETE',
+        headers: authHeaders(token),
+        body: JSON.stringify({ password }),
+      });
       const data = await res.json();
       if (data.status === 'success') {
         load();
+        toastSuccess('Employee deactivated.');
       } else {
-        alert(data.message || 'Error deactivating employee');
+        const msg = data.message || 'Error deactivating employee';
+        if (data.code === 'NO_PERMISSION_ADMIN') pushActionToast(msg, 'deny');
+        else if (data.code === 'HR_EMPLOYEE_ONLY') pushActionToast(msg, 'warn');
+        else toastError(msg);
       }
     } catch (err) {
-      alert('Cannot connect to server: ' + err.message);
+      toastError('Cannot connect to server: ' + err.message);
     }
   };
 
   const restoreEmployee = async (emp) => {
-    if (!confirm(`Restore "${emp.name}" (${emp.employeeCode})?`)) return;
+    const ok = await toastConfirm({ message: `Restore "${emp.name}" (${emp.employeeCode})?` });
+    if (!ok) return;
     try {
       const res = await fetch(`${API}/admin/employees/${emp.id}/restore`, {
         method: 'PATCH',
@@ -427,18 +647,35 @@ export default function EmployeeManagement({ token, user }) {
         body: JSON.stringify({}),
       });
       const data = await res.json();
-      if (data.status === 'success') load();
-      else alert(data.message || 'Error restoring employee');
+      if (data.status === 'success') {
+        load();
+        toastSuccess('Employee restored.');
+      } else {
+        const msg = data.message || 'Error restoring employee';
+        if (data.code === 'NO_PERMISSION_ADMIN') pushActionToast(msg, 'deny');
+        else if (data.code === 'HR_EMPLOYEE_ONLY') pushActionToast(msg, 'warn');
+        else toastError(msg);
+      }
     } catch (err) {
-      alert('Cannot connect to server: ' + err.message);
+      toastError('Cannot connect to server: ' + err.message);
     }
   };
 
   const permanentlyDeleteEmployee = async (emp) => {
-    if (!confirm(`Permanently delete "${emp.name}" (${emp.employeeCode})?\n\nThis cannot be undone.`)) return;
+    const ok = await toastConfirm({
+      message: `Permanently delete "${emp.name}" (${emp.employeeCode})?\n\nThis cannot be undone.`,
+    });
+    if (!ok) return;
     const roleLabel = user?.role === 'manager' ? 'Manager' : 'HR';
-    const password = prompt(`Enter ${roleLabel} password to confirm permanent delete:`);
-    if (!password) return;
+    const password = await toastPrompt({
+      message: `Enter ${roleLabel} password to confirm permanent delete:`,
+      inputType: 'password',
+    });
+    if (password === null) return;
+    if (!String(password).trim()) {
+      toastWarning('Password is required.');
+      return;
+    }
     try {
       const res = await fetch(`${API}/admin/employees/${emp.id}/permanent`, {
         method: 'DELETE',
@@ -446,15 +683,23 @@ export default function EmployeeManagement({ token, user }) {
         body: JSON.stringify({ password }),
       });
       const data = await res.json();
-      if (res.ok && data.status === 'success') load();
-      else alert(data.message || 'Error permanently deleting employee');
+      if (res.ok && data.status === 'success') {
+        load();
+        toastSuccess('Employee permanently deleted.');
+      } else {
+        const msg = data.message || 'Error permanently deleting employee';
+        if (data.code === 'NO_PERMISSION_ADMIN') pushActionToast(msg, 'deny');
+        else if (data.code === 'HR_EMPLOYEE_ONLY') pushActionToast(msg, 'warn');
+        else toastError(msg);
+      }
     } catch (err) {
-      alert('Cannot connect to server: ' + err.message);
+      toastError('Cannot connect to server: ' + err.message);
     }
   };
 
   const resetPassword = async (emp) => {
-    if (!confirm(`Reset password for "${emp.name}" (${emp.employeeCode})?`)) return;
+    const ok = await toastConfirm({ message: `Reset password for "${emp.name}" (${emp.employeeCode})?` });
+    if (!ok) return;
     try {
       const res  = await fetch(`${API}/admin/employees/${emp.id}/reset-password`, {
         method: 'POST',
@@ -468,11 +713,12 @@ export default function EmployeeManagement({ token, user }) {
           employeeCode: data.employeeCode  || emp.employeeCode,
           password:     data.newPassword,
         });
+        toastSuccess('Password reset. New password shown in the dialog.');
       } else {
-        alert(data.message || 'Error resetting password');
+        toastError(data.message || 'Error resetting password');
       }
     } catch (err) {
-      alert('Cannot connect to server: ' + err.message);
+      toastError('Cannot connect to server: ' + err.message);
     }
   };
 
@@ -544,7 +790,7 @@ export default function EmployeeManagement({ token, user }) {
             onClick={() => setListMode('active')}
             type="button"
           >
-            Danh sách nhân viên
+            Employee list
           </button>
           <button
             className={`btn ${listMode === 'inactive' ? 'btn-primary' : 'btn-secondary'}`}
@@ -552,7 +798,7 @@ export default function EmployeeManagement({ token, user }) {
             onClick={() => setListMode('inactive')}
             type="button"
           >
-            Danh sách vô hiệu hóa
+            Inactive list
           </button>
         </div>
         <input
@@ -565,9 +811,34 @@ export default function EmployeeManagement({ token, user }) {
           <option value="">All Departments</option>
           {departments.map(d => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
         </select>
+        <button className="btn btn-primary" style={{ fontSize: 13, padding: '8px 14px', flexShrink: 0 }} onClick={openCreate} type="button">
+          + Add employee
+        </button>
         <button className="btn btn-secondary" style={{ fontSize: 13, padding: '8px 14px', flexShrink: 0 }} onClick={load} title="Reload">
           ↻ Reload
         </button>
+      </div>
+
+      <div className="emp-toolbar" style={{ marginTop: 0, marginBottom: 8 }}>
+        <select className="emp-filter-select" value={filterRole} onChange={e => setFilterRole(e.target.value)} aria-label="Filter by role">
+          <option value="">All roles</option>
+          <option value="employee">Employee</option>
+          <option value="hr">HR Staff</option>
+          <option value="accountant">Accountant</option>
+          <option value="supervisor">Supervisor</option>
+          <option value="manager">Manager</option>
+        </select>
+        <select className="emp-filter-select" value={filterJobTitle} onChange={e => setFilterJobTitle(e.target.value)} aria-label="Filter by job title">
+          <option value="">All job titles</option>
+          {jobTitles.map(j => <option key={j.id} value={String(j.id)}>{j.name}</option>)}
+        </select>
+        <select className="emp-filter-select" value={filterContract} onChange={e => setFilterContract(e.target.value)} aria-label="Filter by contract type">
+          <option value="">All contract types</option>
+          <option value="probation">Probation</option>
+          <option value="1_year">1 year</option>
+          <option value="3_year">3 years</option>
+          <option value="indefinite">Indefinite</option>
+        </select>
       </div>
 
       {error && <div className="error-msg">{error}</div>}
@@ -576,17 +847,23 @@ export default function EmployeeManagement({ token, user }) {
         {/* Summary bar */}
         <div className="emp-summary-bar">
           <span>
-            {listMode === 'active' ? 'Đang hoạt động' : 'Vô hiệu hóa'}: <strong>{filtered.length}</strong> /
+            {listMode === 'active' ? 'Active' : 'Inactive'}: <strong>{filtered.length}</strong> /
             {' '}
-            {employees.length} nhân viên
+            {employees.length} employees
           </span>
-          {(search || filterDept) && (
+          {(search || filterDept || filterRole || filterJobTitle || filterContract) && (
             <button
               className="btn btn-secondary"
               style={{ fontSize: 12, padding: '3px 10px' }}
-              onClick={() => { setSearch(''); setFilterDept(''); }}
+              onClick={() => {
+                setSearch('');
+                setFilterDept('');
+                setFilterRole('');
+                setFilterJobTitle('');
+                setFilterContract('');
+              }}
             >
-              Clear Filters
+              Clear filters
             </button>
           )}
         </div>
@@ -610,7 +887,12 @@ export default function EmployeeManagement({ token, user }) {
               </thead>
               <tbody>
                 {filtered.map(emp => (
-                  <tr key={emp.id}>
+                  <tr
+                    key={emp.id}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => viewDetails(emp)}
+                    title="Click to view details"
+                  >
                     <td>
                       <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#2b6cb0', fontSize: 13 }}>
                         {emp.employeeCode || '—'}
@@ -626,39 +908,45 @@ export default function EmployeeManagement({ token, user }) {
                         {emp.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td>
+                    <td onClick={e => e.stopPropagation()}>
                       <div className="emp-actions">
                         <button
+                          type="button"
                           className="btn-tbl btn-tbl-details"
                           onClick={() => viewDetails(emp)}
-                          title="Xem chi tiết lịch sử"
+                          title="View details and history"
                         >
                           Details
                         </button>
                         <button
+                          type="button"
                           className="btn-tbl btn-tbl-edit"
                           onClick={() => openEdit(emp)}
-                          title="Chỉnh sửa thông tin (UC-07.2)"
+                          title="Edit employee information (UC-07.2)"
                         >
-                          Edit /<br />Info
+                          Edit
                         </button>
                         <button
+                          type="button"
                           className="btn-tbl btn-tbl-reset"
                           onClick={() => resetPassword(emp)}
-                          title="Đặt lại mật khẩu (UC-07.4)"
+                          title="Reset password (UC-07.4)"
                         >
-                          Reset<br />Password
+                          Reset PW
                         </button>
-                        {emp.isActive ? (
+                        {canShowAccountLifecycleActions(emp) && emp.isActive && (
                           <button
+                            type="button"
                             className="btn-tbl btn-tbl-delete"
                             onClick={() => deleteEmployee(emp)}
-                            title="Deactivate (soft delete)"
+                            title="Deactivate account"
                           >
                             Deactivate
                           </button>
-                        ) : (
+                        )}
+                        {canShowAccountLifecycleActions(emp) && !emp.isActive && (
                           <button
+                            type="button"
                             className="btn-tbl btn-tbl-restore"
                             onClick={() => restoreEmployee(emp)}
                             title="Restore account"
@@ -666,14 +954,15 @@ export default function EmployeeManagement({ token, user }) {
                             Restore
                           </button>
                         )}
-                        {!emp.isActive && (
+                        {canShowAccountLifecycleActions(emp) && !emp.isActive && (
                           <button
+                            type="button"
                             className="btn-tbl btn-tbl-delete"
                             onClick={() => permanentlyDeleteEmployee(emp)}
-                            title="Permanent delete (requires password)"
-                            style={{ background: "#7f1d1d" }}
+                            title="Permanently delete (password required)"
+                            style={{ background: '#7f1d1d' }}
                           >
-                            Delete<br />Forever
+                            Delete Forever
                           </button>
                         )}
                       </div>
@@ -690,6 +979,18 @@ export default function EmployeeManagement({ token, user }) {
           </div>
         )}
       </div>
+
+      {creating && (
+        <CreateEmployeeModal
+          form={form}
+          setField={setField}
+          onClose={closeCreate}
+          onSave={saveCreate}
+          saving={saving}
+          departments={departments}
+          jobTitles={jobTitles}
+        />
+      )}
 
       {/* UC-07.2 — Edit modal */}
       {editing && (
@@ -856,6 +1157,44 @@ export default function EmployeeManagement({ token, user }) {
               )}
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {actionToast && (
+        <div
+          role="alert"
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+            zIndex: 10000,
+            maxWidth: 380,
+            padding: '14px 18px',
+            borderRadius: 12,
+            boxShadow: '0 10px 40px rgba(15, 23, 42, 0.18)',
+            borderLeft: `4px solid ${actionToast.tone === 'deny' ? '#dc2626' : '#ca8a04'}`,
+            background: actionToast.tone === 'deny'
+              ? 'linear-gradient(135deg, #fef2f2 0%, #ffffff 100%)'
+              : 'linear-gradient(135deg, #fffbeb 0%, #ffffff 100%)',
+            color: '#1e293b',
+            fontSize: 14,
+            lineHeight: 1.45,
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 20, lineHeight: 1 }} aria-hidden>{actionToast.tone === 'deny' ? '⛔' : '⚠️'}</span>
+          <div>
+            <div style={{
+              fontWeight: 700,
+              marginBottom: 4,
+              color: actionToast.tone === 'deny' ? '#991b1b' : '#854d0e',
+            }}>
+              {actionToast.tone === 'deny' ? 'Không đủ quyền' : 'Lưu ý'}
+            </div>
+            <div>{actionToast.message}</div>
           </div>
         </div>
       )}

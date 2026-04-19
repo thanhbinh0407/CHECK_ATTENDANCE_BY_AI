@@ -40,11 +40,11 @@ export default function SalaryManagementAdmin() {
       if (res.ok) {
         setSalaries(data.salaries || []);
       } else {
-        setMessage("Lỗi khi tải dữ liệu lương: " + (data.message || "Unknown error"));
+        setMessage("Failed to load payroll data: " + (data.message || "Unknown error"));
       }
     } catch (error) {
       console.error("Error fetching salaries:", error);
-      setMessage("Lỗi khi tải dữ liệu lương");
+      setMessage("Failed to load payroll data");
     } finally {
       setLoading(false);
     }
@@ -89,14 +89,14 @@ export default function SalaryManagementAdmin() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Tính lương thành công!");
+        setMessage("Payroll calculated successfully!");
         fetchSalaries();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể tính lương"));
+        setMessage("Error: " + (data.message || "Unable to calculate payroll"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -118,14 +118,14 @@ export default function SalaryManagementAdmin() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Lương đã được duyệt!");
+        setMessage("Payroll approved!");
         fetchSalaries();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể duyệt lương"));
+        setMessage("Error: " + (data.message || "Unable to approve payroll"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -148,14 +148,14 @@ export default function SalaryManagementAdmin() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Đã hoàn lại về trạng thái chờ duyệt!");
+        setMessage("Reverted back to pending approval!");
         fetchSalaries();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể hoàn lại trạng thái"));
+        setMessage("Error: " + (data.message || "Unable to revert status"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -178,21 +178,21 @@ export default function SalaryManagementAdmin() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("Đã thanh toán lương!");
+        setMessage("Payroll marked as paid!");
         fetchSalaries();
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("Lỗi: " + (data.message || "Không thể thanh toán lương"));
+        setMessage("Error: " + (data.message || "Unable to mark payroll as paid"));
       }
     } catch (error) {
-      setMessage("Lỗi: " + error.message);
+      setMessage("Error: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("vi-VN", {
+    return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "VND"
     }).format(amount || 0);
@@ -205,24 +205,24 @@ export default function SalaryManagementAdmin() {
       paid: { background: theme.success.bg, color: theme.success.text }
     };
     const labels = {
-      pending: "Chờ duyệt",
-      approved: "Đã duyệt",
-      paid: "Đã thanh toán"
+      pending: "Pending",
+      approved: "Approved",
+      paid: "Paid"
     };
     return { style: styles[status] || styles.pending, label: labels[status] || status };
   };
 
   return (
     <div style={{ padding: theme.spacing.xl, backgroundColor: theme.neutral.gray50 }}>
-      <h1 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>📊 Quản lý Bảng Lương</h1>
+      <h1 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>📊 Payroll Management</h1>
 
       {message && (
         <div style={{
           padding: theme.spacing.md,
-          background: message.includes("thành công") ? "#d4edda" : "#f8d7da",
-          border: `1px solid ${message.includes("thành công") ? "#c3e6cb" : "#f5c6cb"}`,
+          background: message.toLowerCase().includes("success") ? "#d4edda" : "#f8d7da",
+          border: `1px solid ${message.toLowerCase().includes("success") ? "#c3e6cb" : "#f5c6cb"}`,
           borderRadius: theme.radius.md,
-          color: message.includes("thành công") ? "#155724" : "#721c24",
+          color: message.toLowerCase().includes("success") ? "#155724" : "#721c24",
           marginBottom: theme.spacing.lg,
         }}>
           {message}
@@ -232,7 +232,7 @@ export default function SalaryManagementAdmin() {
       <div style={{ display: "flex", gap: theme.spacing.md, marginBottom: theme.spacing.lg, alignItems: "flex-end", flexWrap: "wrap" }}>
         <div>
           <label style={{ display: "block", marginBottom: theme.spacing.sm, fontWeight: "600", fontSize: theme.typography.small.fontSize }}>
-            Tháng
+            Month
           </label>
           <select
             style={{
@@ -245,14 +245,14 @@ export default function SalaryManagementAdmin() {
             onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
           >
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
-              <option key={m} value={m}>Tháng {m}</option>
+              <option key={m} value={m}>Month {m}</option>
             ))}
           </select>
         </div>
 
         <div>
           <label style={{ display: "block", marginBottom: theme.spacing.sm, fontWeight: "600", fontSize: theme.typography.small.fontSize }}>
-            Năm
+            Year
           </label>
           <select
             style={{
@@ -273,11 +273,11 @@ export default function SalaryManagementAdmin() {
 
       {loading ? (
         <div style={{ textAlign: "center", padding: theme.spacing.xxl }}>
-          <div>Đang tải...</div>
+          <div>Loading...</div>
         </div>
       ) : salaries.length === 0 ? (
         <div style={{ textAlign: "center", padding: theme.spacing.xxl, color: theme.neutral.gray500 }}>
-          <div>Chưa có dữ liệu lương cho tháng {selectedMonth}/{selectedYear}</div>
+          <div>No payroll data for {selectedMonth}/{selectedYear}</div>
         </div>
       ) : (
         <div style={{ backgroundColor: theme.neutral.white, borderRadius: theme.radius.lg, overflow: "hidden", boxShadow: theme.shadows.md }}>
@@ -333,7 +333,7 @@ export default function SalaryManagementAdmin() {
                               fontWeight: "600"
                             }}
                           >
-                            Duyệt
+                            Approve
                           </button>
                         )}
                         {salary.status === "approved" && currentRole === "accountant" && (
@@ -350,7 +350,7 @@ export default function SalaryManagementAdmin() {
                               fontWeight: "600"
                             }}
                           >
-                            Thanh toán
+                            Mark Paid
                           </button>
                         )}
                         {salary.status === "paid" && currentRole === "manager" && (
@@ -367,7 +367,7 @@ export default function SalaryManagementAdmin() {
                               fontWeight: "600"
                             }}
                           >
-                            Hoàn lại
+                            Revert
                           </button>
                         )}
                         <button
@@ -383,7 +383,7 @@ export default function SalaryManagementAdmin() {
                             fontWeight: "600"
                           }}
                         >
-                          Tính lại
+                          Recalculate
                         </button>
                       </div>
                     </td>

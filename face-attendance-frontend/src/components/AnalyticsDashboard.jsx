@@ -3,6 +3,7 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
 import { theme } from "../styles/theme.js";
+import { toastError } from "../lib/notify.jsx";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff7300'];
 
@@ -36,7 +37,7 @@ export default function AnalyticsDashboard() {
     } catch (err) {
       console.error("Error fetching analytics:", err);
       setAnalytics(null);
-      alert(`Error loading analytics: ${err.message}`);
+      toastError(`Error loading analytics: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -145,7 +146,7 @@ export default function AnalyticsDashboard() {
         {/* Structure by Department */}
         {analytics.charts?.structureByDepartment && analytics.charts.structureByDepartment.length > 0 && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Cơ cấu theo Phòng ban</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Department Distribution</div>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -171,7 +172,7 @@ export default function AnalyticsDashboard() {
         {/* Age Distribution */}
         {analytics.charts?.ageDistribution && analytics.charts.ageDistribution.length > 0 && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Phân bổ theo Độ tuổi</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Age Distribution</div>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -200,7 +201,7 @@ export default function AnalyticsDashboard() {
         {/* Turnover Trend */}
         {analytics.charts?.turnoverTrend && analytics.charts.turnoverTrend.length > 0 && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Xu hướng Tỷ lệ Luân chuyển (6 tháng)</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Turnover Trend (6 months)</div>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={analytics.charts.turnoverTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -208,9 +209,9 @@ export default function AnalyticsDashboard() {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="turnoverRate" stroke="#8884d8" name="Tỷ lệ luân chuyển (%)" />
-                <Line type="monotone" dataKey="newEmployees" stroke="#82ca9d" name="Nhân viên mới" />
-                <Line type="monotone" dataKey="terminatedEmployees" stroke="#ff7300" name="Nhân viên nghỉ" />
+                <Line type="monotone" dataKey="turnoverRate" stroke="#8884d8" name="Turnover rate (%)" />
+                <Line type="monotone" dataKey="newEmployees" stroke="#82ca9d" name="New employees" />
+                <Line type="monotone" dataKey="terminatedEmployees" stroke="#ff7300" name="Resigned employees" />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -219,7 +220,7 @@ export default function AnalyticsDashboard() {
         {/* Payroll Cost Trend */}
         {analytics.charts?.payrollTrend && analytics.charts.payrollTrend.length > 0 && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Xu hướng Chi phí Lương (6 tháng)</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Payroll Cost Trend (6 months)</div>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={analytics.charts.payrollTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -227,9 +228,9 @@ export default function AnalyticsDashboard() {
                 <YAxis />
                 <Tooltip formatter={(value) => new Intl.NumberFormat('vi-VN').format(value) + ' VND'} />
                 <Legend />
-                <Line type="monotone" dataKey="totalCost" stroke="#8884d8" name="Tổng chi phí" />
-                <Line type="monotone" dataKey="totalGrossSalary" stroke="#82ca9d" name="Lương gộp" />
-                <Line type="monotone" dataKey="totalInsurance" stroke="#ff7300" name="Bảo hiểm" />
+                <Line type="monotone" dataKey="totalCost" stroke="#8884d8" name="Total cost" />
+                <Line type="monotone" dataKey="totalGrossSalary" stroke="#82ca9d" name="Gross salary" />
+                <Line type="monotone" dataKey="totalInsurance" stroke="#ff7300" name="Insurance" />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -241,7 +242,7 @@ export default function AnalyticsDashboard() {
         {/* Overtime by Department */}
         {analytics.charts?.overtimeByDepartment && analytics.charts.overtimeByDepartment.length > 0 && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Giờ làm thêm theo Phòng ban</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Overtime Hours by Department</div>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={analytics.charts.overtimeByDepartment}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -249,7 +250,7 @@ export default function AnalyticsDashboard() {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="hours" fill="#8884d8" name="Tổng giờ" />
+                <Bar dataKey="hours" fill="#8884d8" name="Total hours" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -258,7 +259,7 @@ export default function AnalyticsDashboard() {
         {/* Top 10 Overtime Employees */}
         {analytics.charts?.topOvertimeEmployees && analytics.charts.topOvertimeEmployees.length > 0 && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Top 10 Nhân viên Làm thêm giờ</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Top 10 Overtime Employees</div>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={analytics.charts.topOvertimeEmployees} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" />
@@ -266,7 +267,7 @@ export default function AnalyticsDashboard() {
                 <YAxis dataKey="name" type="category" width={150} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="hours" fill="#82ca9d" name="Giờ làm thêm" />
+                <Bar dataKey="hours" fill="#82ca9d" name="Overtime hours" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -276,7 +277,7 @@ export default function AnalyticsDashboard() {
       {/* Attendance Trend */}
       {analytics.charts?.attendanceTrend && analytics.charts.attendanceTrend.length > 0 && (
         <div style={cardStyle}>
-          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Xu hướng Chấm công (6 tháng)</div>
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Attendance Trend (6 months)</div>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={analytics.charts.attendanceTrend}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -284,9 +285,9 @@ export default function AnalyticsDashboard() {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="averageAttendanceRate" stroke="#8884d8" name="Tỷ lệ chấm công (%)" />
-              <Line type="monotone" dataKey="totalLate" stroke="#ff7300" name="Tổng đi muộn" />
-              <Line type="monotone" dataKey="totalAbsent" stroke="#ffc658" name="Tổng vắng mặt" />
+              <Line type="monotone" dataKey="averageAttendanceRate" stroke="#8884d8" name="Attendance rate (%)" />
+              <Line type="monotone" dataKey="totalLate" stroke="#ff7300" name="Total late arrivals" />
+              <Line type="monotone" dataKey="totalAbsent" stroke="#ffc658" name="Total absences" />
             </LineChart>
           </ResponsiveContainer>
         </div>

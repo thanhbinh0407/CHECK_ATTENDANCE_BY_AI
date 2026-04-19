@@ -8,8 +8,9 @@ import SalaryGrade from "../models/pg/SalaryGrade.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import ShiftSetting from "../models/pg/ShiftSetting.js";
 import SalaryAdvance from "../models/pg/SalaryAdvance.js";
+import SalaryHistory from "../models/pg/SalaryHistory.js";
 import { Op } from "sequelize";
-import { sendNotification } from "./notificationController.js";
+import { createNotification } from "./notificationController.js";
 import { getSalaryTransitionError, SALARY_STATUS } from "../services/salaryStatusRBAC.js";
 import { getSalaryBreakdownDetail } from "../services/salaryBreakdownDetailService.js";
 
@@ -437,11 +438,14 @@ export const approveSalary = async (req, res) => {
       calculatedAt: new Date()
     });
 
-    // Send broadcast notification
     const employee = await User.findByPk(salary.userId, { attributes: ['name', 'employeeCode'] });
-    await sendNotification(null, 'system', 'Salary Approved', 
-      `Salary for ${employee?.name || 'employee'} (${employee?.employeeCode || salary.userId}) for ${salary.month}/${salary.year} has been approved.`, 
-      { salaryId: salary.id, action: 'approved' });
+    await createNotification(
+      null,
+      'system',
+      'Salary Approved',
+      `Salary for ${employee?.name || 'employee'} (${employee?.employeeCode || salary.userId}) for ${salary.month}/${salary.year} has been approved.`,
+      { salaryId: salary.id, action: 'approved' }
+    );
 
     return res.json({
       status: "success",
@@ -563,6 +567,25 @@ export const adjustSalary = async (req, res) => {
     const adjustedDeduction = ded + da;
     const adjustedGrossSalary = adjustedBaseSalary + adjustedBonus;
     const adjustedFinalSalary = adjustedGrossSalary - adjustedDeduction;
+
+    if (Math.abs(adjustedBaseSalary - b) > 0.0001) {
+      let changeType = "correction";
+      if (adjustedBaseSalary > b) changeType = "increase";
+      if (adjustedBaseSalary < b) changeType = "decrease";
+
+      await SalaryHistory.create({
+        userId: salary.userId,
+        previousBaseSalary: b,
+        newBaseSalary: adjustedBaseSalary,
+        previousTotalAllowance: bon,
+        newTotalAllowance: adjustedBonus,
+        changeType,
+        // Store effective date tied to this payroll month
+        effectiveDate: `${salary.year}-${String(salary.month).padStart(2, "0")}-01`,
+        reason: notes || "Adjusted from monthly salary detail edit",
+        changedBy: req.user?.id || null
+      });
+    }
 
     await salary.update({
       baseSalary: adjustedBaseSalary,

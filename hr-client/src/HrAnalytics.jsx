@@ -34,7 +34,7 @@ function BarList({ items, valueKey = 'value', labelKey = 'name', max }) {
 }
 
 function TrendBars({ points, valueKey, labelKey }) {
-  if (!points?.length) return <div className="hr-empty">No trend data available</div>;
+  if (!points?.length) return <div className="hr-empty">No trend data</div>;
   const m = Math.max(1, ...points.map((p) => Math.abs(Number(p[valueKey]) || 0)));
   return (
     <div>
@@ -72,7 +72,7 @@ export default function HrAnalytics({ token }) {
       .then((r) => r.json())
       .then((j) => {
         if (j.status === 'success' && j.analytics) setData(j.analytics);
-        else setErr(j.message || 'Failed to load analytics data');
+        else setErr(j.message || 'Could not load analytics data');
         setLoading(false);
       })
       .catch((e) => {
@@ -119,7 +119,7 @@ export default function HrAnalytics({ token }) {
         <>
           <div className="hr-stat-grid">
             <div className="hr-stat-box">
-              <div className="lbl">Total Employees (Active)</div>
+              <div className="lbl">Total employees (active)</div>
               <div className="val">{summary?.totalEmployees ?? '—'}</div>
             </div>
             <div className="hr-stat-box">
@@ -127,57 +127,57 @@ export default function HrAnalytics({ token }) {
               <div className="val">{summary?.totalDepartments ?? '—'}</div>
             </div>
             <div className="hr-stat-box">
-              <div className="lbl">Job Titles</div>
+              <div className="lbl">Job titles</div>
               <div className="val">{summary?.totalJobTitles ?? '—'}</div>
             </div>
             <div className="hr-stat-box">
-              <div className="lbl">Avg. Attendance Rate (Month)</div>
+              <div className="lbl">Avg attendance rate (month)</div>
               <div className="val">{summary?.currentMonthAttendance?.averageAttendanceRate ?? '—'}%</div>
             </div>
             <div className="hr-stat-box">
-              <div className="lbl">Payroll Cost (Month)</div>
+              <div className="lbl">Payroll cost (month)</div>
               <div className="val" style={{ fontSize: '1rem' }}>{formatVnd(summary?.currentMonthPayroll?.totalCost)}</div>
             </div>
             <div className="hr-stat-box">
-              <div className="lbl">Overtime Hours (Month)</div>
+              <div className="lbl">Overtime hours (month)</div>
               <div className="val">{summary?.currentMonthOvertime?.totalHours ?? '—'}</div>
             </div>
           </div>
 
           <div className="card">
-            <p className="card-title">Structure by Department</p>
+            <p className="card-title">Workforce by department</p>
             <BarList items={charts?.structureByDepartment || []} max={deptMax} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
             <div className="card">
-              <p className="card-title">Contract Types</p>
+              <p className="card-title">Contract types</p>
               <BarList items={charts?.structureByContractType || []} />
             </div>
             <div className="card">
-              <p className="card-title">Education Level</p>
+              <p className="card-title">Education levels</p>
               <BarList items={charts?.educationLevel || []} />
             </div>
           </div>
 
-          <div className="hr-mini-title">6-Month Trends</div>
+          <div className="hr-mini-title">6-month trends</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
             <div className="card">
-              <p className="card-title">Avg. Attendance Rate</p>
+              <p className="card-title">Avg attendance rate</p>
               <TrendBars points={charts?.attendanceTrend || []} valueKey="averageAttendanceRate" labelKey="label" />
             </div>
             <div className="card">
-              <p className="card-title">Turnover Rate (%)</p>
+              <p className="card-title">Turnover rate (%)</p>
               <TrendBars points={charts?.turnoverTrend || []} valueKey="turnoverRate" labelKey="label" />
             </div>
             <div className="card">
-              <p className="card-title">Total Payroll Cost</p>
+              <p className="card-title">Total payroll cost</p>
               <TrendBars points={charts?.payrollTrend || []} valueKey="totalCost" labelKey="label" />
             </div>
           </div>
 
           <div className="card" style={{ marginTop: 14 }}>
-            <p className="card-title">Overtime by Department (Hours)</p>
+            <p className="card-title">Overtime by department (hours)</p>
             <BarList
               items={(charts?.overtimeByDepartment || []).map((d) => ({ name: d.name, value: d.hours }))}
               valueKey="value"

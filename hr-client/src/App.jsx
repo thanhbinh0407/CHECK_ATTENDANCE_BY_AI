@@ -1,49 +1,35 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { toastConfirm, toastError } from './lib/notify.jsx';
 import './hrDashboardExtras.css';
-import './index.css';
-import EmployeeManagement from './EmployeeManagement.jsx';
 import HrDashboard from './HrDashboard.jsx';
 import HrLeaveApprovals from './HrLeaveApprovals.jsx';
 import HrAnalytics from './HrAnalytics.jsx';
 import HrReports from './HrReports.jsx';
-import PersonalProfileModal from './PersonalProfileModal.jsx';
+import HrShiftAdmin from './HrShiftAdmin.jsx';
+import EmployeeManagement from './EmployeeManagement.jsx';
+import './index.css';
 
-const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:5000').replace(/\/$/, '');
-const API = `${API_BASE}/api`;
+const API = 'http://localhost:5000/api';
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
 function authHeaders(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-}
-
-function portalAvatarSrc(apiBase, avatarUrl) {
-  if (!avatarUrl) return null;
-  if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
-  const base = (apiBase || '').replace(/\/$/, '');
-  const path = avatarUrl.startsWith('/') ? avatarUrl : `/${avatarUrl}`;
-  return `${base}${path}`;
 }
 
 // ─── DEPARTMENT MANAGEMENT ─────────────────────────────────────────────────────
 function DepartmentManagement({ token }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '', description: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
-    try {
-      const res = await fetch(`${API}/departments`, { headers: authHeaders(token) });
-      const data = await res.json();
-      setItems(data.departments || data.data || []);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+    const res = await fetch(`${API}/departments`, { headers: authHeaders(token) });
+    const data = await res.json();
+    setItems(data.departments || data.data || []);
+    setLoading(false);
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
@@ -58,28 +44,28 @@ function DepartmentManagement({ token }) {
     const res = await fetch(url, { method, headers: authHeaders(token), body: JSON.stringify(form) });
     const data = await res.json();
     if (data.status === 'success' || data.department || data.data) { setShowModal(false); load(); }
-    else alert(data.message || 'Error saving');
+    else toastError(data.message || 'Error saving department');
   };
 
   const remove = async (id) => {
-    if (!confirm('Confirm delete this department?')) return;
+    const ok = await toastConfirm({ message: 'Delete this department?' });
+    if (!ok) return;
     const res = await fetch(`${API}/departments/${id}`, { method: 'DELETE', headers: authHeaders(token) });
     const data = await res.json();
     if (data.status === 'success') load();
-    else alert(data.message || 'Error deleting');
+    else toastError(data.message || 'Error deleting department');
   };
 
   return (
     <div>
       <div className="search-bar" style={{ justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary" onClick={openCreate}>+ Add Department</button>
+        <button className="btn btn-primary" onClick={openCreate}>+ Add department</button>
       </div>
-      {error && <div className="error-msg">{error}</div>}
       <div className="card">
         {loading ? <div className="loading">Loading...</div> : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>ID</th><th>Department Name</th><th>Description</th><th></th></tr></thead>
+              <thead><tr><th>ID</th><th>Department name</th><th>Description</th><th></th></tr></thead>
               <tbody>
                 {items.map(item => (
                   <tr key={item.id}>
@@ -99,12 +85,12 @@ function DepartmentManagement({ token }) {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" style={{ width: 420 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{editing ? 'Update Department' : 'Add Department'}</h3>
+              <h3>{editing ? 'Update department' : 'Add department'}</h3>
               <button className="close-btn" onClick={() => setShowModal(false)}>×</button>
             </div>
             <form onSubmit={save}>
               <div className="form-group" style={{ marginBottom: 14 }}>
-                <label>Department Name *</label>
+                <label>Department name *</label>
                 <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
               </div>
               <div className="form-group" style={{ marginBottom: 20 }}>
@@ -127,23 +113,16 @@ function DepartmentManagement({ token }) {
 function JobTitleManagement({ token }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '', description: '', level: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
-    try {
-      const res = await fetch(`${API}/job-titles`, { headers: authHeaders(token) });
-      const data = await res.json();
-      setItems(data.jobTitles || data.data || []);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+    const res = await fetch(`${API}/job-titles`, { headers: authHeaders(token) });
+    const data = await res.json();
+    setItems(data.jobTitles || data.data || []);
+    setLoading(false);
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
@@ -158,20 +137,19 @@ function JobTitleManagement({ token }) {
     const res = await fetch(url, { method, headers: authHeaders(token), body: JSON.stringify(form) });
     const data = await res.json();
     if (data.status === 'success' || data.jobTitle || data.data) { setShowModal(false); load(); }
-    else alert(data.message || 'Error saving');
+    else toastError(data.message || 'Error saving job title');
   };
 
   return (
     <div>
       <div className="search-bar" style={{ justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary" onClick={openCreate}>+ Add Job Title</button>
+        <button className="btn btn-primary" onClick={openCreate}>+ Add job title</button>
       </div>
-      {error && <div className="error-msg">{error}</div>}
       <div className="card">
         {loading ? <div className="loading">Loading...</div> : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>ID</th><th>Job Title</th><th>Level</th><th>Description</th><th></th></tr></thead>
+              <thead><tr><th>ID</th><th>Job title</th><th>Level</th><th>Description</th><th></th></tr></thead>
               <tbody>
                 {items.map(item => (
                   <tr key={item.id}>
@@ -188,12 +166,12 @@ function JobTitleManagement({ token }) {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" style={{ width: 420 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{editing ? 'Update Job Title' : 'Add Job Title'}</h3>
+              <h3>{editing ? 'Update job title' : 'Add job title'}</h3>
               <button className="close-btn" onClick={() => setShowModal(false)}>×</button>
             </div>
             <form onSubmit={save}>
               <div className="form-group" style={{ marginBottom: 14 }}>
-                <label>Job Title Name *</label>
+                <label>Job title name *</label>
                 <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
               </div>
               <div className="form-group" style={{ marginBottom: 14 }}>
@@ -217,188 +195,53 @@ function JobTitleManagement({ token }) {
 }
 
 // ─── ATTENDANCE OVERVIEW ───────────────────────────────────────────────────────
-const TYPE_BADGE = {
-  IN:  { background: '#c6f6d5', color: '#276749' },
-  OUT: { background: '#fed7d7', color: '#9b2c2c' },
-};
-
 function AttendanceOverview({ token }) {
-  const [logs, setLogs]         = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState('');
-  const [search, setSearch]     = useState('');
-  const [filterType, setFilterType]   = useState('');
-  const [filterDate, setFilterDate]   = useState('');
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const res  = await fetch(`${API}/admin/logs`, { headers: authHeaders(token) });
-      const data = await res.json();
-      setLogs(data.logs || []);
-    } catch (e) {
-      setError('Failed to load attendance logs: ' + e.message);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    fetch(`${API}/admin/logs`, { headers: authHeaders(token) })
+      .then(r => r.json())
+      .then(d => { setLogs(d.logs || []); setLoading(false); })
+      .catch(() => setLoading(false));
   }, [token]);
 
-  useEffect(() => { load(); }, [load]);
-
-  // unique types from data
-  const logTypes = useMemo(() => {
-    const s = new Set(logs.map(l => (l.type || l.status || '').toUpperCase()).filter(Boolean));
-    return [...s].sort();
-  }, [logs]);
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return logs.filter(log => {
-      const matchSearch =
-        !q ||
-        (log.User?.name || '').toLowerCase().includes(q) ||
-        (log.User?.employeeCode || '').toLowerCase().includes(q) ||
-        String(log.userId || '').includes(q);
-      const logType = (log.type || log.status || '').toUpperCase();
-      const matchType = !filterType || logType === filterType;
-      const matchDate = !filterDate ||
-        (log.timestamp && log.timestamp.slice(0, 10) === filterDate);
-      return matchSearch && matchType && matchDate;
-    });
-  }, [logs, search, filterType, filterDate]);
-
-  const hasFilter = search || filterType || filterDate;
-  const clearFilters = () => { setSearch(''); setFilterType(''); setFilterDate(''); };
-
   return (
-    <div>
-      {/* Toolbar */}
-      <div className="emp-toolbar">
-        <input
-          className="emp-search"
-          placeholder="Search by name or employee code..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-        <select
-          className="emp-filter-select"
-          value={filterType}
-          onChange={e => setFilterType(e.target.value)}
-        >
-          <option value="">All Types</option>
-          {logTypes.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <input
-          type="date"
-          className="emp-filter-select"
-          style={{ minWidth: 150 }}
-          value={filterDate}
-          onChange={e => setFilterDate(e.target.value)}
-          title="Filter by date"
-        />
-        <button
-          className="btn btn-secondary"
-          style={{ fontSize: 13, padding: '8px 14px', flexShrink: 0 }}
-          onClick={load}
-          title="Reload"
-        >
-          ↻ Reload
-        </button>
-      </div>
-
-      {error && <div className="error-msg">{error}</div>}
-
-      <div className="card" style={{ padding: 0 }}>
-        {/* Summary bar */}
-        <div className="emp-summary-bar">
-          <span>
-            Showing <strong>{filtered.length}</strong> / {logs.length} logs
-          </span>
-          {hasFilter && (
-            <button
-              className="btn btn-secondary"
-              style={{ fontSize: 12, padding: '3px 10px' }}
-              onClick={clearFilters}
-            >
-              Clear Filters
-            </button>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="loading">Loading attendance logs...</div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>Emp. Code</th>
-                  <th>Name</th>
-                  <th>Department</th>
-                  <th>Type</th>
-                  <th>IP</th>
+    <div className="card">
+      <p className="card-title">Latest attendance logs</p>
+      {loading ? <div className="loading">Loading...</div> : (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Time</th><th>Employee code</th><th>Full name</th><th>Type</th><th>IP</th></tr></thead>
+            <tbody>
+              {logs.slice(0, 50).map(log => (
+                <tr key={log.id}>
+                  <td>{new Date(log.timestamp).toLocaleString('vi-VN')}</td>
+                  <td>{log.User?.employeeCode || log.userId}</td>
+                  <td>{log.User?.name || '—'}</td>
+                  <td>{log.type || log.status}</td>
+                  <td>{log.ipAddress || '—'}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {filtered.map(log => {
-                  const logType = (log.type || log.status || '').toUpperCase();
-                  const badge   = TYPE_BADGE[logType];
-                  return (
-                    <tr key={log.id}>
-                      <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>
-                        {log.timestamp ? new Date(log.timestamp).toLocaleString('en-US') : '—'}
-                      </td>
-                      <td>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#2b6cb0', fontSize: 13 }}>
-                          {log.User?.employeeCode || log.userId || '—'}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: 500 }}>{log.User?.name || '—'}</td>
-                      <td style={{ color: '#718096', fontSize: 13 }}>{log.User?.Department?.name || '—'}</td>
-                      <td>
-                        {badge ? (
-                          <span style={{
-                            ...badge, padding: '2px 10px', borderRadius: 999,
-                            fontSize: 12, fontWeight: 600,
-                          }}>
-                            {logType}
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: 13, color: '#4a5568' }}>{logType || '—'}</span>
-                        )}
-                      </td>
-                      <td style={{ color: '#94a3b8', fontSize: 13 }}>{log.ipAddress || '—'}</td>
-                    </tr>
-                  );
-                })}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>
-                      {logs.length === 0 ? 'No attendance logs available.' : 'No logs match the current filters.'}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── APP ROOT ──────────────────────────────────────────────────────────────────
 const TABS = [
-  { key: 'dashboard',   label: 'Overview',       icon: '📊' },
-  { key: 'employees',   label: 'Employees',      icon: '👥' },
-  { key: 'departments', label: 'Departments',    icon: '🏢' },
-  { key: 'job-titles',  label: 'Job Titles',     icon: '📋' },
-  { key: 'attendance',  label: 'Attendance',     icon: '📅' },
-  { key: 'leave',       label: 'Leave Approvals',icon: '✅' },
-  { key: 'analytics',   label: 'Analytics',      icon: '📉' },
-  { key: 'reports',     label: 'HR Reports',     icon: '📑' },
+  { key: 'dashboard',   label: 'Overview',      icon: '📊' },
+  { key: 'employees',   label: 'Employees',     icon: '👥' },
+  { key: 'departments', label: 'Departments',   icon: '🏢' },
+  { key: 'job-titles',  label: 'Job titles',    icon: '📋' },
+  { key: 'shifts',      label: 'Work shifts',   icon: '🕐' },
+  { key: 'attendance',  label: 'Attendance',    icon: '📅' },
+  { key: 'leave',       label: 'Leave approval', icon: '✅' },
+  { key: 'analytics',   label: 'Analytics',     icon: '📉' },
+  { key: 'reports',     label: 'HR reports',    icon: '📑' },
 ];
 
 export default function App() {
@@ -406,16 +249,6 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
-  const [profileOpen, setProfileOpen] = useState(false);
-
-  const patchSessionUser = useCallback((patch) => {
-    setUser((prev) => {
-      if (!prev) return prev;
-      const next = { ...prev, ...patch };
-      localStorage.setItem('user', JSON.stringify(next));
-      return next;
-    });
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -475,24 +308,6 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!token) return;
-    fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.status === 'success' && data.user) {
-          setUser(data.user);
-          localStorage.setItem('user', JSON.stringify(data.user));
-        } else {
-          // Token invalidated (e.g. role changed) => force logout
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('user');
-          window.location.href = 'http://localhost:3000/';
-        }
-      })
-      .catch(() => {});
-  }, [token]);
-
   const logout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
@@ -501,27 +316,29 @@ export default function App() {
 
   if (!token) return <div className="loading">Authenticating...</div>;
 
+  // Verify HR or Manager access
   if (user?.role !== 'hr' && user?.role !== 'manager') {
     return (
       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh' }}>
         <div className="card" style={{ textAlign:'center' }}>
-          <p style={{ fontSize:18, marginBottom:12 }}>⛔ Access Denied</p>
-          <p style={{ color:'#718096', marginBottom:20 }}>This page is only accessible to HR Staff or Managers</p>
-          <button className="btn btn-primary" onClick={logout}>Back to Login</button>
+          <p style={{ fontSize:18, marginBottom:12 }}>⛔ Access denied</p>
+          <p style={{ color:'#718096', marginBottom:20 }}>This page is only for HR staff or managers.</p>
+          <button className="btn btn-primary" onClick={logout}>Back to login</button>
         </div>
       </div>
     );
   }
 
   const tabTitles = {
-    dashboard:   'HR Overview',
-    employees:   'Employee Management',
-    departments: 'Department Management',
-    'job-titles':'Job Title Management',
-    attendance:  'Attendance Tracking',
-    leave:       'Leave Approvals',
-    analytics:   'HR Analytics',
-    reports:     'HR Reports',
+    dashboard: 'HR overview',
+    employees: 'Employee management',
+    departments: 'Department management',
+    'job-titles': 'Job title management',
+    shifts: 'Work shifts',
+    attendance: 'Attendance tracking',
+    leave: 'Leave approvals',
+    analytics: 'HR analytics',
+    reports: 'HR reports',
   };
 
   return (
@@ -549,57 +366,33 @@ export default function App() {
             <strong>{user?.name}</strong><br />
             <span style={{ opacity: 0.65 }}>{user?.role === 'manager' ? 'Manager' : 'HR Staff'}</span>
           </div>
-          <button className="logout-btn" onClick={logout}>Log Out</button>
+          <button className="logout-btn" onClick={logout}>Log out</button>
         </div>
       </nav>
 
       {/* Main */}
       <div className="main-content">
         <div className="topbar">
-          <h1 style={{ margin: 0 }}>{tabTitles[activeTab]}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <button
-              type="button"
-              className="portal-avatar-btn"
-              onClick={() => setProfileOpen(true)}
-              title="Hồ sơ cá nhân"
-              aria-label="Mở hồ sơ cá nhân"
-            >
-              {portalAvatarSrc(API_BASE, user?.avatarUrl) ? (
-                <img className="portal-avatar-img" src={portalAvatarSrc(API_BASE, user?.avatarUrl)} alt="" />
-              ) : (
-                <span className="portal-avatar-fallback" aria-hidden>
-                  {(user?.name || '?').charAt(0).toUpperCase()}
-                </span>
-              )}
-            </button>
-            <span className="portal-topbar-email">{user?.email}</span>
-            <button
-              type="button"
-              onClick={() => setCollapsed(!collapsed)}
-              style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}
-            >
-              {collapsed ? '→' : '←'}
-            </button>
-          </div>
+          <h1>{tabTitles[activeTab]}</h1>
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}
+          >
+            {collapsed ? '→' : '←'}
+          </button>
         </div>
         <div className="page-content">
           {activeTab === 'dashboard'   && <HrDashboard token={token} onNavigate={setActiveTab} />}
           {activeTab === 'employees'   && <EmployeeManagement token={token} user={user} />}
           {activeTab === 'departments' && <DepartmentManagement token={token} />}
           {activeTab === 'job-titles'  && <JobTitleManagement token={token} />}
+          {activeTab === 'shifts'      && <HrShiftAdmin token={token} />}
           {activeTab === 'attendance'  && <AttendanceOverview token={token} />}
           {activeTab === 'leave'       && <HrLeaveApprovals token={token} />}
           {activeTab === 'analytics'   && <HrAnalytics token={token} />}
           {activeTab === 'reports'     && <HrReports token={token} />}
         </div>
       </div>
-      <PersonalProfileModal
-        open={profileOpen}
-        onClose={() => setProfileOpen(false)}
-        apiBase={API_BASE}
-        onSessionUserPatch={patchSessionUser}
-      />
     </div>
   );
 }
