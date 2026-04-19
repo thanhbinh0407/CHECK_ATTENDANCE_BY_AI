@@ -11,12 +11,14 @@ export const getOvertimeRequests = async (req, res) => {
     const { userId: queryUserId, status, month, year } = req.query;
     // Token contains userId, not id
     const tokenUserId = req.user?.userId ?? req.user?.id;
+    const isStaff = req.user?.role && req.user.role !== "employee";
 
     const where = {};
-    // If userId is provided in query, use it (for admin), otherwise use token userId (for employee)
-    if (queryUserId) {
-      where.userId = queryUserId;
-    } else if (tokenUserId) {
+    // Employee: only own rows. Manager / supervisor / HR / accountant: list all (same as leave requests).
+    if (queryUserId != null && queryUserId !== "") {
+      const parsed = parseInt(queryUserId, 10);
+      if (!Number.isNaN(parsed)) where.userId = parsed;
+    } else if (!isStaff && tokenUserId != null) {
       where.userId = tokenUserId;
     }
     if (status) where.approvalStatus = status;

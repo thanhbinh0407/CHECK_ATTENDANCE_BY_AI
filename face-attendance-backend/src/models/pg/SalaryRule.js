@@ -1,6 +1,7 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../../db/sequelize.js';
 
+/** Payroll rules are global for this deployment (no companyId / tenant scope on this model). */
 const SalaryRule = sequelize.define('SalaryRule', {
   id: {
     type: DataTypes.INTEGER,

@@ -208,9 +208,29 @@ function Dashboard({ token, onNavigate }) {
 }
 
 // ─── GENERIC APPROVAL LIST ─────────────────────────────────────────────────────
+function buildApprovalSearchText(item, columns) {
+  const bits = [];
+  for (const c of columns) {
+    try {
+      const v = c.render ? c.render(item) : item[c.key];
+      if (v != null && v !== '') bits.push(String(v));
+    } catch {
+      /* ignore */
+    }
+  }
+  if (item.User) {
+    bits.push(item.User.name, item.User.employeeCode, item.User.email);
+  }
+  bits.push(String(item.id ?? ''), String(item.userId ?? ''));
+  if (item.month != null && item.year != null) bits.push(`${item.month}/${item.year}`);
+  if (item.amount != null) bits.push(String(item.amount));
+  return bits.filter(Boolean).join(' ').toLowerCase();
+}
+
 function ApprovalList({ token, type, apiPath, columns, extractList }) {
   const [items, setItems] = useState([]);
   const [statusFilter, setStatusFilter] = useState('pending');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [actionModal, setActionModal] = useState(null); // { item, action }
   const [comment, setComment] = useState('');
@@ -270,17 +290,47 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
     load();
   };
 
+  const q = search.trim().toLowerCase();
+  const filteredItems = q
+    ? items.filter((it) => buildApprovalSearchText(it, columns).includes(q))
+    : items;
+
   return (
     <div>
-      <div className="filters">
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          <option value="">All statuses</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
+      <div className="sup-approval-toolbar card">
+        <div className="sup-approval-toolbar-inner">
+          <div className="sup-approval-search-wrap">
+            <label className="sup-approval-label" htmlFor={`sup-ap-search-${type}`}>Search</label>
+            <input
+              id={`sup-ap-search-${type}`}
+              className="sup-approval-search"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Name, employee code, dates, reason…"
+              autoComplete="off"
+            />
+          </div>
+          <div className="sup-approval-filter-wrap">
+            <label className="sup-approval-label" htmlFor={`sup-ap-status-${type}`}>Status</label>
+            <select
+              id={`sup-ap-status-${type}`}
+              className="sup-approval-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+          <div className="sup-approval-meta">
+            {loading ? 'Loading…' : `${filteredItems.length} of ${items.length} shown`}
+          </div>
+        </div>
       </div>
-      <div className="card">
+      <div className="card sup-approval-table-card">
         {loading ? <div className="loading">Loading...</div> : (
           <div className="table-wrap">
             <table>
@@ -292,7 +342,7 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
                 </tr>
               </thead>
               <tbody>
-                {items.map(item => {
+                {filteredItems.map(item => {
                   const rowStatus = item.status ?? item.approvalStatus ?? 'pending';
                   return (
                   <tr key={item.id}>
@@ -324,6 +374,9 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
                 )})}
                 {items.length === 0 && (
                   <tr><td colSpan={columns.length + 2} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No data</td></tr>
+                )}
+                {items.length > 0 && filteredItems.length === 0 && (
+                  <tr><td colSpan={columns.length + 2} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No rows match your search</td></tr>
                 )}
               </tbody>
             </table>
@@ -438,6 +491,7 @@ function SalaryAdvanceApprovals({ token }) {
 // ─── SALARY APPROVALS ──────────────────────────────────────────────────────────
 function SalaryApprovals({ token }) {
   const [items, setItems] = useState([]);
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -455,41 +509,81 @@ function SalaryApprovals({ token }) {
     load();
   };
 
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? items.filter((item) => {
+        const net = Number(item.finalSalary ?? item.netSalary ?? item.totalSalary ?? 0);
+        const hay = [
+          String(item.id),
+          String(item.userId),
+          item.User?.name,
+          item.User?.employeeCode,
+          `${item.month}/${item.year}`,
+          net.toString(),
+        ].filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(q);
+      })
+    : items;
+
   return (
-    <div className="card">
-      <p className="card-title">Pending payroll</p>
-      {loading ? <div className="loading">Loading...</div> : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th><th>Employee</th><th>Month/Year</th>
-                <th>Net salary</th><th>Status</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map(item => (
-                <tr key={item.id}>
-                  <td>{item.id}</td>
-                  <td>{item.User?.name || item.userId}</td>
-                  <td>{item.month}/{item.year}</td>
-                  <td>{Number(item.netSalary || item.totalSalary || 0).toLocaleString('en-US')} VND</td>
-                  <td><span className="badge badge-pending">Pending</span></td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-approve" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'approve')}>✓ Approve</button>
-                      <button className="btn btn-reject" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'reject')}>✗ Reject</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {items.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No pending payroll</td></tr>
-              )}
-            </tbody>
-          </table>
+    <div>
+      <div className="sup-approval-toolbar card">
+        <div className="sup-approval-toolbar-inner">
+          <div className="sup-approval-search-wrap sup-approval-search-wrap--grow">
+            <label className="sup-approval-label" htmlFor="sup-payroll-search">Search</label>
+            <input
+              id="sup-payroll-search"
+              className="sup-approval-search"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Employee name, code, period, amount…"
+              autoComplete="off"
+            />
+          </div>
+          <div className="sup-approval-meta">
+            {loading ? 'Loading…' : `${filtered.length} of ${items.length} shown`}
+          </div>
         </div>
-      )}
+      </div>
+      <div className="card sup-approval-table-card">
+        <p className="card-title">Pending payroll</p>
+        {loading ? <div className="loading">Loading...</div> : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th><th>Employee</th><th>Month/Year</th>
+                  <th>Net salary</th><th>Status</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(item => (
+                  <tr key={item.id}>
+                    <td>{item.id}</td>
+                    <td>{item.User?.name || item.userId}</td>
+                    <td>{item.month}/{item.year}</td>
+                    <td>{Number(item.finalSalary ?? item.netSalary ?? item.totalSalary ?? 0).toLocaleString('en-US')} VND</td>
+                    <td><span className="badge badge-pending">Pending</span></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-approve" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'approve')}>✓ Approve</button>
+                        <button className="btn btn-reject" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'reject')}>✗ Reject</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {items.length === 0 && (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No pending payroll</td></tr>
+                )}
+                {items.length > 0 && filtered.length === 0 && (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No rows match your search</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -621,18 +715,18 @@ export default function App() {
   return (
     <div className="app-layout">
       <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
-        <div className="sidebar-header">
-          <span style={{ fontSize: 22 }}>✅</span>
+        <div className="sidebar-header sup-sidebar-head">
+          <span className="sup-sidebar-mark" aria-hidden />
           <h2>Supervisor</h2>
         </div>
-        <div className="sidebar-nav">
+        <div className="sidebar-nav sup-sidebar-nav">
           {TABS.map(tab => (
             <div
               key={tab.key}
-              className={`nav-item ${activeTab === tab.key ? 'active' : ''}`}
+              className={`nav-item sup-nav-item ${activeTab === tab.key ? 'active' : ''}`}
               onClick={() => setActiveTab(tab.key)}
             >
-              <span className="nav-icon">{tab.icon}</span>
+              <span className="nav-icon sup-nav-icon" aria-hidden>{tab.icon}</span>
               <span className="nav-label">{tab.label}</span>
             </div>
           ))}

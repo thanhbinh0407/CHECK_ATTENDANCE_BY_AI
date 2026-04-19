@@ -1168,10 +1168,11 @@ async function seedDB() {
       const profile = employeeProfiles[i];
       if (!profile.hasSalaryAdvance) continue;
 
+      // First period must align with REFERENCE_DATE so isRefPeriod can run (pending mix for demos).
       const periods = [
+        { year: seedRefYear, month: seedRefMonth },
         { year: 2025, month: (i % 12) + 1 },
         { year: 2025, month: ((i + 5) % 12) + 1 },
-        { year: 2026, month: (i % 2) + 1 }
       ];
       const count = profile.seniorityBand === 'ten_years' ? 2 : 1;
       const used = new Set();
@@ -1204,7 +1205,7 @@ async function seedDB() {
             }
           }
         } else {
-          // Outside Feb/2026: keep it approved/rejected only, so UI won't try to approve -> recalc blocked by "paid" salary.
+          // Outside reference month: keep it approved/rejected only, so UI won't try to approve -> recalc blocked by "paid" salary.
           status = (i + j) % 7 === 0 ? 'rejected' : 'approved';
         }
 

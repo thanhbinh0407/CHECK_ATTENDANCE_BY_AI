@@ -356,3 +356,68 @@
   color: #fff;
   border-color: transparent;
 }
+
+/* HR — Attendance & payroll reference */
+.hr-att-root { max-width: 1220px; margin: 0 auto; }
+.hr-att-hero {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 22px 24px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 45%, #334155 100%);
+  color: #e2e8f0;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.28);
+}
+.hr-att-title {
+  margin: 0;
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+.hr-att-sub {
+  margin: 8px 0 0;
+  font-size: 14px;
+  opacity: 0.88;
+  max-width: 56ch;
+  line-height: 1.5;
+}
+.hr-att-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  align-self: center;
+}
+.hr-att-filters { margin-bottom: 16px; }
+.hr-att-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px 16px;
+  margin-bottom: 16px;
+}
+.hr-att-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: #475569; }
+.hr-att-field span { text-transform: uppercase; letter-spacing: 0.04em; }
+.hr-att-field input,
+.hr-att-field select {
+  font: inherit;
+  font-weight: 500;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #0f172a;
+}
+.hr-att-field--span2 { grid-column: span 2; }
+@media (max-width: 720px) {
+  .hr-att-field--span2 { grid-column: span 1; }
+}
+.hr-att-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.badge-in { background: #dbeafe; color: #1e40af; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.badge-out { background: #fef3c7; color: #92400e; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }

@@ -315,3 +315,132 @@
     align-items: center;
   }
 }
+
+/* ─── Approval toolbar & sidebar polish ───────────────────────────────────── */
+.sup-approval-toolbar {
+  margin-bottom: 14px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(124, 58, 237, 0.12);
+  box-shadow: 0 4px 18px rgba(76, 29, 149, 0.06);
+  background: linear-gradient(180deg, #ffffff 0%, #fafaff 100%);
+}
+
+.sup-approval-toolbar-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 18px;
+}
+
+.sup-approval-search-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: min(100%, 240px);
+}
+
+.sup-approval-search-wrap--grow {
+  flex: 1;
+  min-width: min(100%, 280px);
+}
+
+.sup-approval-filter-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
+}
+
+.sup-approval-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+.sup-approval-search,
+.sup-approval-select {
+  font: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: #fff;
+  color: #0f172a;
+  width: 100%;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sup-approval-search:focus,
+.sup-approval-select:focus {
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.18);
+}
+
+.sup-approval-meta {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  padding-bottom: 4px;
+}
+
+@media (max-width: 640px) {
+  .sup-approval-meta {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+.sup-approval-table-card {
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 2px 14px rgba(15, 23, 42, 0.05);
+}
+
+.app-layout .sidebar {
+  background: linear-gradient(180deg, #3b2f63 0%, #312854 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sup-sidebar-head {
+  gap: 12px;
+}
+
+.sup-sidebar-mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a78bfa, #6d28d9);
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25);
+  flex-shrink: 0;
+}
+
+.app-layout .sup-sidebar-nav {
+  padding: 10px 6px;
+}
+
+.app-layout .sup-nav-item {
+  border-radius: 10px;
+  margin: 3px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.app-layout .sup-nav-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.app-layout .sup-nav-item.active {
+  background: rgba(124, 58, 237, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.app-layout .sup-nav-icon {
+  font-size: 15px;
+  opacity: 0.88;
+}

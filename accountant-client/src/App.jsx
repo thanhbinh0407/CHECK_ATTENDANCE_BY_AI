@@ -5,8 +5,11 @@ import SalaryCalculation from "./components/SalaryCalculation.jsx";
 import SalaryApprovalDashboard from "./components/SalaryApprovalDashboard.jsx";
 import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
 import EmployeeManagement from "./components/EmployeeManagement.jsx";
+import SalaryGradeManagement from "./components/SalaryGradeManagement.jsx";
+import InsuranceConfigManagement from "./components/InsuranceConfigManagement.jsx";
 import D02LTReport from "./components/D02LTReport.jsx";
 import TK1TSForm from "./components/TK1TSForm.jsx";
+import RegulatoryExports from "./components/RegulatoryExports.jsx";
 import { theme } from "./theme.js";
 import socket from "./socket.js";
 import "./App.css";
@@ -297,8 +300,11 @@ function App() {
   const navFinance = financeExtraRoles.includes(user?.role)
     ? [
         { id: "rules", label: "Salary rules", icon: "⚙️" },
+        { id: "salary-grades", label: "Salary grades", icon: "📈" },
+        { id: "insurance-config", label: "Insurance settings", icon: "🏥" },
         { id: "d02-lt-report", label: "D02-LT report", icon: "📄" },
-        { id: "tk1-ts-form", label: "TK1-TS form", icon: "🏥" },
+        { id: "tk1-ts-form", label: "TK1-TS form", icon: "📋" },
+        { id: "regulatory-exports", label: "Annual tax (Excel)", icon: "🧾" },
       ]
     : [];
 
@@ -310,8 +316,11 @@ function App() {
     "salary-management": "Salary management",
     "salary-approval": "Payroll approval",
     rules: "Salary rules",
+    "salary-grades": "Salary grades",
+    "insurance-config": "Insurance settings",
     "d02-lt-report": "D02-LT report",
     "tk1-ts-form": "TK1-TS form",
+    "regulatory-exports": "Annual tax export",
     "employee-management": "Employees",
   };
 
@@ -414,8 +423,13 @@ function App() {
           {currentView === "salary-management" && <SalaryManagement />}
           {currentView === "salary-approval" && <SalaryApprovalDashboard onNavigate={setCurrentView} />}
           {currentView === "rules" && <SalaryRulesManagement />}
+          {currentView === "salary-grades" && <SalaryGradeManagement />}
+          {currentView === "insurance-config" && <InsuranceConfigManagement />}
           {currentView === "d02-lt-report" && <D02LTReport />}
           {currentView === "tk1-ts-form" && <TK1TSForm />}
+          {currentView === "regulatory-exports" && (
+            <RegulatoryExports apiBase={API_BASE} token={authToken} />
+          )}
           {currentView === "employee-management" && <EmployeeManagement />}
         </div>
       </div>

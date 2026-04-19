@@ -81,6 +81,11 @@ router.get("/salary", async (req, res) => {
     if (month) where.month = month;
     if (year) where.year = year;
 
+    // Employees only see finalized payroll rows (not draft pending recalculation/approval).
+    if (String(req.user?.role || "").toLowerCase() === "employee") {
+      where.status = { [Op.in]: ["approved", "paid"] };
+    }
+
     const salaries = await Salary.findAll({
       where,
       order: [['year', 'DESC'], ['month', 'DESC']]
@@ -110,6 +115,19 @@ router.get("/salary/breakdown", async (req, res) => {
         status: "error",
         message: "Month and year are required"
       });
+    }
+
+    if (String(req.user?.role || "").toLowerCase() === "employee") {
+      const sal = await Salary.findOne({
+        where: { userId, month: parseInt(month, 10), year: parseInt(year, 10) },
+        attributes: ["id", "status"],
+      });
+      if (!sal || sal.status === "pending") {
+        return res.status(404).json({
+          status: "error",
+          message: "Salary breakdown is available after payroll is approved.",
+        });
+      }
     }
 
     const breakdown = await getSalaryBreakdownDetail(userId, parseInt(month, 10), parseInt(year, 10));

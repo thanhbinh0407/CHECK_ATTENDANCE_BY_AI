@@ -7,6 +7,8 @@ import HrAnalytics from './HrAnalytics.jsx';
 import HrReports from './HrReports.jsx';
 import HrShiftAdmin from './HrShiftAdmin.jsx';
 import EmployeeManagement from './EmployeeManagement.jsx';
+import HrAttendance from './HrAttendance.jsx';
+import HrPayrollReference from './HrPayrollReference.jsx';
 import './index.css';
 
 const API = 'http://localhost:5000/api';
@@ -194,43 +196,6 @@ function JobTitleManagement({ token }) {
   );
 }
 
-// ─── ATTENDANCE OVERVIEW ───────────────────────────────────────────────────────
-function AttendanceOverview({ token }) {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch(`${API}/admin/logs`, { headers: authHeaders(token) })
-      .then(r => r.json())
-      .then(d => { setLogs(d.logs || []); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [token]);
-
-  return (
-    <div className="card">
-      <p className="card-title">Latest attendance logs</p>
-      {loading ? <div className="loading">Loading...</div> : (
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Time</th><th>Employee code</th><th>Full name</th><th>Type</th><th>IP</th></tr></thead>
-            <tbody>
-              {logs.slice(0, 50).map(log => (
-                <tr key={log.id}>
-                  <td>{new Date(log.timestamp).toLocaleString('vi-VN')}</td>
-                  <td>{log.User?.employeeCode || log.userId}</td>
-                  <td>{log.User?.name || '—'}</td>
-                  <td>{log.type || log.status}</td>
-                  <td>{log.ipAddress || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── APP ROOT ──────────────────────────────────────────────────────────────────
 const TABS = [
   { key: 'dashboard',   label: 'Overview',      icon: '📊' },
@@ -242,6 +207,7 @@ const TABS = [
   { key: 'leave',       label: 'Leave approval', icon: '✅' },
   { key: 'analytics',   label: 'Analytics',     icon: '📉' },
   { key: 'reports',     label: 'HR reports',    icon: '📑' },
+  { key: 'payroll-ref', label: 'Payroll ref.',  icon: '💼' },
 ];
 
 export default function App() {
@@ -339,6 +305,7 @@ export default function App() {
     leave: 'Leave approvals',
     analytics: 'HR analytics',
     reports: 'HR reports',
+    'payroll-ref': 'Payroll reference',
   };
 
   return (
@@ -387,7 +354,8 @@ export default function App() {
           {activeTab === 'departments' && <DepartmentManagement token={token} />}
           {activeTab === 'job-titles'  && <JobTitleManagement token={token} />}
           {activeTab === 'shifts'      && <HrShiftAdmin token={token} />}
-          {activeTab === 'attendance'  && <AttendanceOverview token={token} />}
+          {activeTab === 'attendance'  && <HrAttendance token={token} />}
+          {activeTab === 'payroll-ref' && <HrPayrollReference token={token} />}
           {activeTab === 'leave'       && <HrLeaveApprovals token={token} />}
           {activeTab === 'analytics'   && <HrAnalytics token={token} />}
           {activeTab === 'reports'     && <HrReports token={token} />}

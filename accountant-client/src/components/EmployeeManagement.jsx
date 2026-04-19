@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { theme } from "../theme.js";
 import EmployeeDetailView from "./EmployeeDetailView.jsx";
@@ -46,11 +46,8 @@ export default function EmployeeManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [detailEmployeeId, setDetailEmployeeId] = useState(null);
-  const [tempPassword, setTempPassword] = useState("");
-  const [showTempPassword, setShowTempPassword] = useState(false);
-  const [passwordLoading, setPasswordLoading] = useState(false);
+  const tableSectionRef = useRef(null);
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
@@ -60,9 +57,6 @@ export default function EmployeeManagement() {
 
   const closeDetailPanel = useCallback(() => {
     setDetailEmployeeId(null);
-    setSelectedEmployee(null);
-    setTempPassword("");
-    setShowTempPassword(false);
   }, []);
 
   useEffect(() => {
@@ -111,48 +105,7 @@ export default function EmployeeManagement() {
       return;
     }
     setDetailEmployeeId(eid);
-    setSelectedEmployee(employee);
-    setTempPassword("");
-    setShowTempPassword(false);
     setMessage("");
-  };
-
-  const resetAndRevealPassword = async () => {
-    const sid = rowEmployeeId(selectedEmployee);
-    if (sid == null) return;
-    try {
-      setPasswordLoading(true);
-      const token = localStorage.getItem("authToken");
-      const res = await fetch(`${apiBase}/api/admin/employees/${sid}/reset-password`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({})
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage("✗ Error resetting password: " + (data.message || "Unknown error"));
-        return;
-      }
-      setTempPassword(data.newPassword || "");
-      setShowTempPassword(true);
-      setMessage("✓ Password has been reset. Share the temporary password with the employee.");
-    } catch (err) {
-      setMessage("✗ Error: " + err.message);
-    } finally {
-      setPasswordLoading(false);
-    }
-  };
-
-  const formatVnd = (value) => {
-    const amount = Number(value);
-    const safeAmount = Number.isFinite(amount) ? amount : 0;
-    return `${new Intl.NumberFormat("vi-VN", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(safeAmount)} VNĐ`;
   };
 
   const handleEdit = (employee) => {
@@ -660,23 +613,14 @@ export default function EmployeeManagement() {
           <div className="emp-profile-overlay__panel">
             <div className="emp-profile-overlay__header">
               <h2 id="emp-profile-dialog-title" className="emp-profile-overlay__title">
-                Chi tiết nhân viên
+                Employee details
               </h2>
               <div className="emp-profile-overlay__header-actions">
                 <button
                   type="button"
-                  className="emp-btn emp-btn-edit emp-profile-overlay__toolbar-btn"
-                  onClick={resetAndRevealPassword}
-                  disabled={passwordLoading || rowEmployeeId(selectedEmployee) == null}
-                  title="Reset mật khẩu tạm"
-                >
-                  {passwordLoading ? "…" : "Reset mật khẩu tạm"}
-                </button>
-                <button
-                  type="button"
                   className="emp-profile-overlay__close"
                   onClick={closeDetailPanel}
-                  aria-label="Đóng"
+                  aria-label="Close"
                 >
                   ×
                 </button>
@@ -684,13 +628,8 @@ export default function EmployeeManagement() {
             </div>
             <div className="emp-profile-overlay__subbar">
               <button type="button" className="emp-btn emp-btn-view" onClick={closeDetailPanel}>
-                ← Về danh sách
+                ← Back to list
               </button>
-              {showTempPassword && tempPassword ? (
-                <span className="emp-profile-overlay__temp-pw">
-                  Mật khẩu tạm: <strong>{tempPassword}</strong>
-                </span>
-              ) : null}
             </div>
             <div className="emp-profile-overlay__body">
               <EmployeeDetailView
