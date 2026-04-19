@@ -112,7 +112,7 @@ export const createBusinessTripRequest = async (req, res) => {
         type: 'business_trip_request',
         title: 'New Business Trip Request',
         message: `${user.name} has submitted a business trip request to ${destination}`,
-        isRead: false
+        read: false
       });
     }
 
@@ -183,7 +183,7 @@ export const approveBusinessTripRequest = async (req, res) => {
         type: 'business_trip_request',
         title: 'Business Trip Request Rejected',
         message: `Your business trip request to ${request.destination} has been rejected`,
-        isRead: false
+        read: false
       });
     } else if (action === 'approve') {
       const approverChain = await resolveApprovalChain('business_trip', request.User, {
@@ -209,7 +209,7 @@ export const approveBusinessTripRequest = async (req, res) => {
           type: 'business_trip_request',
           title: 'Business Trip Request Approved',
           message: `Your business trip request to ${request.destination} has been approved`,
-          isRead: false
+          read: false
         });
       } else {
         const nextLevel = request.approvalLevel + 1;
@@ -238,7 +238,7 @@ export const approveBusinessTripRequest = async (req, res) => {
             type: 'business_trip_request',
             title: 'Business Trip Request Pending Approval',
             message: `${request.User.name}'s business trip request needs your approval`,
-            isRead: false
+            read: false
           });
         }
       }

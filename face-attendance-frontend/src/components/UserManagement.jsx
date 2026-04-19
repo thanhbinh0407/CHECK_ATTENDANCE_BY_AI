@@ -11,6 +11,7 @@ import {
   toastWarning,
   toastPrompt,
 } from "../lib/notify.jsx";
+import "./userManagement.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
@@ -862,16 +863,13 @@ export default function UserManagement() {
                                   Restore
                                 </button>
                                 <button
+                                  type="button"
                                   onClick={() => permanentlyDeleteUser(user)}
-                                  style={{
-                                    padding: "4px 10px", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12,
-                                    background: "#7f1d1d",
-                                    color: "#fff",
-                                    fontWeight: 700,
-                                  }}
+                                  className="btn-delete-forever"
                                   title="Permanent delete (requires Manager password)"
                                 >
-                                  Delete Forever
+                                  <span className="btn-delete-forever-icon" aria-hidden>🗑</span>
+                                  <span className="btn-delete-forever-label">Delete Forever</span>
                                 </button>
                               </>
                             )

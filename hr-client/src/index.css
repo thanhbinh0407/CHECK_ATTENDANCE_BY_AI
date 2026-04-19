@@ -82,6 +82,26 @@ body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #2d3748;
   display: flex; justify-content: space-between; align-items: center;
 }
 .topbar h1 { font-size: 18px; color: #1a365d; }
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.topbar-signout {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.topbar-signout:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
 .page-content { flex: 1; overflow-y: auto; padding: 24px; }
 
 /* ─── Cards / Tables ──────────────────────────────────────────── */
@@ -173,6 +193,53 @@ tr:hover td { background: #f7faff; }
 .btn-tbl-reset   { background: #fefcbf; color: #744210; }
 .btn-tbl-delete  { background: #fed7d7; color: #9b2c2c; }
 .btn-tbl-restore { background: #c6f6d5; color: #276749; }
+
+/* Permanent-delete danger button (larger, high-contrast, with icon) */
+.btn-tbl-delete-forever {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  min-width: 132px;
+  border: none;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%);
+  box-shadow: 0 2px 6px rgba(127, 29, 29, 0.28);
+  cursor: pointer;
+  line-height: 1.2;
+  font-family: inherit;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease, filter .15s;
+}
+.btn-tbl-delete-forever:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  box-shadow: 0 4px 14px rgba(185, 28, 28, 0.38);
+  transform: translateY(-1px);
+  filter: none;
+}
+.btn-tbl-delete-forever:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(127, 29, 29, 0.3);
+}
+.btn-tbl-delete-forever:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.4);
+}
+.btn-tbl-delete-forever:disabled {
+  background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+  color: #f3f4f6;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+.btn-tbl-delete-forever .btn-tbl-delete-forever-icon {
+  font-size: 13px;
+  line-height: 1;
+}
 
 /* ─── Detail Modal ─────────────────────────────────────────────── */
 .detail-modal { background: #fff; border-radius: 12px; padding: 24px; width: 900px; max-width: 96vw; max-height: 90vh; overflow-y: auto; }

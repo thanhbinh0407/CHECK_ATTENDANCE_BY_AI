@@ -624,6 +624,21 @@ function AttendanceScanner() {
           console.warn("⚠️ UNKNOWN FACE: No matching record found");
         }
 
+        // Block deactivated accounts: show message and don't open confirm dialog / log
+        if (matchData.deactivated) {
+          console.warn("🚫 Deactivated account attempted attendance:", matchData.detectedName);
+          setConfirmDialog(null);
+          setErrorMsg(
+            matchData.message ||
+              `Your account has been deactivated${
+                matchData.detectedName ? ` (${matchData.detectedName})` : ""
+              }. Please contact HR.`
+          );
+          setLastMatch(Date.now());
+          setTimeout(() => setErrorMsg(""), 6000);
+          return;
+        }
+
         // Capture image from video
         let capturedImage = null;
         try {
@@ -694,6 +709,19 @@ function AttendanceScanner() {
         console.log("Backend response:", { ok: response.ok, status: response.status, result });
         
         if (response.ok) {
+          // Backend reports the matched user is deactivated — do NOT treat as a successful log
+          if (result.deactivated) {
+            console.warn("🚫 Deactivated account blocked at log step:", result.detectedName);
+            setErrorMsg(
+              result.message ||
+                `Your account has been deactivated${
+                  result.detectedName ? ` (${result.detectedName})` : ""
+                }. Please contact HR.`
+            );
+            setTimeout(() => setErrorMsg(""), 6000);
+            return;
+          }
+
           console.log("Attendance logged:", result);
           // Reload today's logs from server so list stays in sync and persists after reload
           await fetchTodayLogs();

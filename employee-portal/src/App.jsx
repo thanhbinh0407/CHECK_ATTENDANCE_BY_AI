@@ -255,8 +255,8 @@ function App() {
             <button
               type="button"
               onClick={() => setProfileOpen(true)}
-              title="Hồ sơ cá nhân"
-              aria-label="Mở hồ sơ cá nhân"
+              title="Personal profile"
+              aria-label="Open personal profile"
               style={{
                 border: "none",
                 padding: 0,

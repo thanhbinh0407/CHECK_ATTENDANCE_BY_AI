@@ -113,7 +113,7 @@ export const createSalaryAdvance = async (req, res) => {
         type: 'salary_advance',
         title: 'New Salary Advance Request',
         message: `${user.name} has requested a salary advance of ${parseFloat(amount).toLocaleString('en-US')} VND for ${month}/${year}`,
-        isRead: false
+        read: false
       });
     }
 
@@ -188,7 +188,7 @@ export const approveSalaryAdvance = async (req, res) => {
         type: 'salary_advance',
         title: 'Salary Advance Rejected',
         message: `Your salary advance request for ${advance.month}/${advance.year} has been rejected`,
-        isRead: false
+        read: false
       });
     } else if (action === 'approve') {
       const approvalLevel = Number(advance.approvalLevel || 1);
@@ -209,7 +209,7 @@ export const approveSalaryAdvance = async (req, res) => {
           type: 'salary_advance',
           title: 'Salary Advance Approved',
           message: `Your salary advance request for ${advance.month}/${advance.year} has been approved`,
-          isRead: false
+          read: false
         });
 
         await createNotification(
@@ -240,7 +240,7 @@ export const approveSalaryAdvance = async (req, res) => {
           type: 'salary_advance',
           title: 'Salary Advance Pending Approval',
           message: `${advance.User?.name || 'An employee'} salary advance request needs your approval`,
-          isRead: false,
+          read: false,
         });
       }
     }

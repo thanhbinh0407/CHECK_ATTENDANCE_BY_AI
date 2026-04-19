@@ -137,6 +137,44 @@ try {
       END $$;
     `).catch(() => { });
 
+    // Ensure the notifications enum contains every type used by the codebase.
+    // PostgreSQL ENUM values can only be added (not removed) at runtime, so we
+    // fan-out one ALTER TYPE per value and ignore duplicates. This avoids the
+    // "invalid input value for enum enum_notifications_type" runtime errors
+    // when creating notifications for overtime/business trip/etc.
+    const notificationEnumValues = [
+      'attendance',
+      'late',
+      'leave',
+      'leave_request',
+      'salary',
+      'salary_advance',
+      'salary_advance_request',
+      'overtime',
+      'overtime_request',
+      'business_trip',
+      'business_trip_request',
+      'qualification',
+      'qualification_request',
+      'dependent',
+      'work_experience',
+      'document',
+      'attendance_warning',
+      'birthday',
+      'anniversary',
+      'system',
+      'alert',
+    ];
+    for (const value of notificationEnumValues) {
+      try {
+        await sequelize.query(
+          `ALTER TYPE "enum_notifications_type" ADD VALUE IF NOT EXISTS '${value}';`
+        );
+      } catch (e) {
+        // ignore: enum or value missing in fresh DBs (sync will create the type)
+      }
+    }
+
     console.log("✅ ENUM types created/verified");
   } catch (enumErr) {
     console.warn("⚠️ ENUM types creation warning:", enumErr.message);

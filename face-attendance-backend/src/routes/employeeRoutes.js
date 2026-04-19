@@ -1,5 +1,6 @@
 import express from "express";
 import { authMiddleware } from "../middleware/authMiddleware.js";
+import { auditMutation } from "../services/actionAuditService.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import Salary from "../models/pg/Salary.js";
 import User from "../models/pg/User.js";
@@ -184,7 +185,14 @@ router.get("/profile", async (req, res) => {
 });
 
 // Self-service: cập nhật các trường cá nhân (không đổi email đăng nhập, role, lương, phòng ban…)
-router.patch("/profile", async (req, res) => {
+router.patch("/profile", auditMutation({
+  action: "profile.update",
+  category: "own_profile",
+  entityType: "user",
+  entityIdFrom: (req) => req.user?.userId ?? req.user?.id ?? null,
+  summary: () => "Updated own profile",
+  metadata: (req) => ({ changedFields: Object.keys(req.body || {}) }),
+}), async (req, res) => {
   try {
     const userId = req.user.userId;
     const body = req.body || {};
@@ -239,7 +247,13 @@ router.patch("/profile", async (req, res) => {
 });
 
 // Ảnh đại diện (JPEG/PNG/WebP, tối đa 2MB)
-router.post("/profile/avatar", (req, res) => {
+router.post("/profile/avatar", auditMutation({
+  action: "profile.avatar_update",
+  category: "own_profile",
+  entityType: "user",
+  entityIdFrom: (req) => req.user?.userId ?? req.user?.id ?? null,
+  summary: () => "Updated profile avatar",
+}), (req, res) => {
   uploadAvatar.single("avatar")(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ status: "error", message: err.message || "Tải ảnh thất bại" });

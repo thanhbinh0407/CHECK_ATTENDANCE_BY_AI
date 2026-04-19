@@ -1,13 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
 import SupervisorReports from './SupervisorReports.jsx';
+import PersonalProfileModal from './PersonalProfileModal.jsx';
 import socket from './socket.js';
 import { toastInfo } from './lib/notify.jsx';
 import './index.css';
 import './supervisorDashboard.css';
 
 const API = 'http://localhost:5000/api';
+const API_BASE = 'http://localhost:5000';
+
 function authHeaders(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+}
+
+function portalAvatarSrc(apiBase, avatarUrl) {
+  if (!avatarUrl) return null;
+  if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
+  const base = (apiBase || '').replace(/\/$/, '');
+  const path = avatarUrl.startsWith('/') ? avatarUrl : `/${avatarUrl}`;
+  return `${base}${path}`;
 }
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────────
@@ -604,6 +615,16 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const patchSessionUser = useCallback((patch) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -736,19 +757,42 @@ export default function App() {
             <strong>{user?.name}</strong><br />
             <span style={{ opacity: 0.65 }}>{user?.role === 'manager' ? 'Manager' : 'Supervisor'}</span>
           </div>
-          <button className="logout-btn" onClick={logout}>Log out</button>
         </div>
       </nav>
 
       <div className="main-content">
         <div className="topbar">
-          <h1>{tabTitles[activeTab]}</h1>
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            style={{ background:'none',border:'1px solid #e2e8f0',borderRadius:6,padding:'6px 12px',cursor:'pointer' }}
-          >
-            {collapsed ? '→' : '←'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              style={{ background:'none',border:'1px solid #e2e8f0',borderRadius:6,padding:'6px 12px',cursor:'pointer' }}
+              aria-label="Toggle menu"
+            >
+              {collapsed ? '→' : '←'}
+            </button>
+            <h1>{tabTitles[activeTab]}</h1>
+          </div>
+          <div className="topbar-actions">
+            <button
+              type="button"
+              className="portal-avatar-btn"
+              onClick={() => setProfileOpen(true)}
+              title="Personal profile"
+              aria-label="Open personal profile"
+            >
+              {portalAvatarSrc(API_BASE, user?.avatarUrl) ? (
+                <img className="portal-avatar-img" src={portalAvatarSrc(API_BASE, user?.avatarUrl)} alt="" />
+              ) : (
+                <span className="portal-avatar-fallback" aria-hidden>
+                  {(user?.name || '?').charAt(0).toUpperCase()}
+                </span>
+              )}
+            </button>
+            <span style={{ fontSize: 13, color: '#64748b' }}>{user?.email}</span>
+            <button type="button" className="topbar-signout" onClick={logout}>
+              Sign out
+            </button>
+          </div>
         </div>
         <div className="page-content">
           {activeTab === 'dashboard'      && <Dashboard token={token} onNavigate={setActiveTab} />}
@@ -760,6 +804,12 @@ export default function App() {
           {activeTab === 'reports'        && <SupervisorReports token={token} />}
         </div>
       </div>
+      <PersonalProfileModal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        apiBase={API_BASE}
+        onSessionUserPatch={patchSessionUser}
+      />
     </div>
   );
 }
