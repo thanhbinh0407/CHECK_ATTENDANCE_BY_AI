@@ -85,5 +85,10 @@ export const theme = {
     md: "0 4px 6px rgba(0, 0, 0, 0.1)",
     lg: "0 10px 15px rgba(0, 0, 0, 0.1)",
   },
+
+  /** Hero headers (shared with salary-grade / insurance config screens). */
+  gradients: {
+    primary: "linear-gradient(135deg, #0f766e 0%, #0d9488 45%, #14b8a6 100%)",
+  },
 };
 

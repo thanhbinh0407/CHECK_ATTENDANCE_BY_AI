@@ -2188,3 +2188,111 @@ export const getApprovalAuditLogs = async (req, res) => {
   }
 };
 
+/**
+ * Filtered attendance logs for HR / managers / roles with attendance:read.
+ * Supervisors are limited to their own department when departmentId is set on the user.
+ */
+export const getHrAttendanceLogs = async (req, res) => {
+  try {
+    const {
+      from,
+      to,
+      month,
+      year,
+      userId,
+      departmentId,
+      type,
+      search,
+      limit = "50",
+      offset = "0",
+    } = req.query;
+
+    const where = {};
+    if (type === "IN" || type === "OUT") {
+      where.type = type;
+    }
+    const uid = toNumber(userId, NaN);
+    if (Number.isFinite(uid) && uid > 0) {
+      where.userId = uid;
+    }
+
+    if (month && year) {
+      const m = toNumber(month, NaN);
+      const y = toNumber(year, NaN);
+      if (m >= 1 && m <= 12 && y > 2000) {
+        const start = new Date(y, m - 1, 1, 0, 0, 0, 0);
+        const end = new Date(y, m, 0, 23, 59, 59, 999);
+        where.timestamp = { [Op.between]: [start, end] };
+      }
+    } else if (from && to) {
+      const start = new Date(from);
+      const end = new Date(to);
+      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+        where.timestamp = { [Op.between]: [start, end] };
+      }
+    }
+
+    const userAnd = [];
+    const deptQ = toNumber(departmentId, NaN);
+    if (Number.isFinite(deptQ) && deptQ > 0) {
+      userAnd.push({ departmentId: deptQ });
+    }
+
+    const role = String(req.user?.role || "").toLowerCase();
+    const supervisorDept = toNumber(req.user?.departmentId, NaN);
+    if (role === "supervisor" && Number.isFinite(supervisorDept) && supervisorDept > 0) {
+      userAnd.push({ departmentId: supervisorDept });
+    }
+
+    const q = search != null ? String(search).trim() : "";
+    if (q.length > 0) {
+      const like = `%${q}%`;
+      userAnd.push({
+        [Op.or]: [
+          { name: { [Op.iLike]: like } },
+          { employeeCode: { [Op.iLike]: like } },
+        ],
+      });
+    }
+
+    const userWhere = userAnd.length > 0 ? { [Op.and]: userAnd } : undefined;
+    const userRequired = Boolean(userWhere);
+
+    const lim = Math.min(Math.max(toNumber(limit, 50), 1), 1000);
+    const off = Math.max(toNumber(offset, 0), 0);
+
+    const { count, rows } = await AttendanceLog.findAndCountAll({
+      where,
+      distinct: true,
+      col: "id",
+      include: [
+        {
+          model: User,
+          as: "User",
+          attributes: ["id", "name", "email", "employeeCode", "departmentId"],
+          required: userRequired,
+          where: userWhere,
+          include: [{ model: Department, attributes: ["id", "name"], required: false }],
+        },
+      ],
+      order: [["timestamp", "DESC"]],
+      limit: lim,
+      offset: off,
+    });
+
+    return res.json({
+      status: "success",
+      logs: rows,
+      pagination: {
+        total: count,
+        limit: lim,
+        offset: off,
+        hasMore: off + rows.length < count,
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching attendance logs:", err);
+    return res.status(500).json({ status: "error", message: err.message });
+  }
+};
+

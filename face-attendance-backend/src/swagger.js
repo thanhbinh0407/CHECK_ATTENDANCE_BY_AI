@@ -88,10 +88,22 @@ export const swaggerDoc = {
         responses: { 200: { description: "OK" } }
       }
     },
-    "/api/admin/logs": {
+    "/api/admin/attendance-logs": {
       get: {
-        summary: "List attendance logs",
-        responses: { 200: { description: "OK" } }
+        summary: "List attendance logs (auth + attendance:read)",
+        parameters: [
+          { name: "month", in: "query", schema: { type: "integer" } },
+          { name: "year", in: "query", schema: { type: "integer" } },
+          { name: "from", in: "query", schema: { type: "string", format: "date" } },
+          { name: "to", in: "query", schema: { type: "string", format: "date" } },
+          { name: "departmentId", in: "query", schema: { type: "integer" } },
+          { name: "userId", in: "query", schema: { type: "integer" } },
+          { name: "type", in: "query", schema: { type: "string", enum: ["IN", "OUT"] } },
+          { name: "search", in: "query", schema: { type: "string" } },
+          { name: "limit", in: "query", schema: { type: "integer" } },
+          { name: "offset", in: "query", schema: { type: "integer" } }
+        ],
+        responses: { 200: { description: "OK" }, 401: { description: "Unauthorized" } }
       }
     }
   }

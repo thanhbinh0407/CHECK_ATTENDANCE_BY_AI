@@ -54,7 +54,7 @@ export default function HrDashboard({ token, onNavigate }) {
           fetch(`${API}/overtime-requests?status=pending`, { headers: h }),
           fetch(`${API}/business-trip-requests?status=pending`, { headers: h }),
           fetch(`${API}/salary-advances?status=pending`, { headers: h }),
-          fetch(`${API}/admin/logs`, { headers: h }).catch(() => null),
+          fetch(`${API}/admin/attendance-logs?limit=8&offset=0`, { headers: h }).catch(() => null),
         ]);
 
         const empData = empRes.ok ? await empRes.json() : {};
@@ -292,6 +292,7 @@ export default function HrDashboard({ token, onNavigate }) {
             ['leave', '🏖️', 'Leave approvals'],
             ['analytics', '📉', 'Analytics'],
             ['reports', '📑', 'HR reports'],
+            ['payroll-ref', '💼', 'Payroll reference'],
           ].map(([tab, icon, label]) => (
             <button
               key={tab}

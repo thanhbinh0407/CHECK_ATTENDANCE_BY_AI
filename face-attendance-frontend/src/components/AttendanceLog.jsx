@@ -26,14 +26,23 @@ export default function AttendanceLog() {
       setLoading(true);
       setError("");
 
-      // Fetch all attendance logs
-      const logsRes = await fetch(`${apiBase}/api/admin/logs`);
-      const logsData = await logsRes.json();
-
-      // Fetch all employees
       const token = localStorage.getItem("authToken");
+      if (!token) {
+        setError("Please sign in to load attendance logs.");
+        setLoading(false);
+        return;
+      }
+
+      const logsRes = await fetch(`${apiBase}/api/admin/attendance-logs?limit=1000&offset=0`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const logsData = await logsRes.json();
+      if (!logsRes.ok) {
+        throw new Error(logsData?.message || `Failed to load logs (${logsRes.status})`);
+      }
+
       const empRes = await fetch(`${apiBase}/api/admin/employees`, {
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       const empData = await empRes.json();
 
