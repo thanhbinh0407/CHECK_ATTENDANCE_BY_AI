@@ -27,6 +27,7 @@ import PayrollDetail from "./PayrollDetail.js";
 import InsuranceForm from "./InsuranceForm.js";
 import D02LTReport from "./D02LTReport.js";
 import RoleChangeAudit from "./RoleChangeAudit.js";
+import ActionAudit from "./ActionAudit.js";
 
 // USER ASSOCIATIONS - Organizational Structure
 User.belongsTo(Department, { foreignKey: "departmentId" });
@@ -102,6 +103,12 @@ User.hasMany(RoleChangeAudit, { foreignKey: "userId", as: "RoleChangeHistory" })
 RoleChangeAudit.belongsTo(User, { foreignKey: "userId", as: "TargetUser" });
 RoleChangeAudit.belongsTo(User, { foreignKey: "changedBy", as: "ChangedByUser" });
 
+// ACTION AUDIT ASSOCIATIONS (Approval Responsibility Log)
+ActionAudit.belongsTo(User, { foreignKey: "actorId", as: "Actor" });
+ActionAudit.belongsTo(User, { foreignKey: "targetUserId", as: "TargetUser" });
+User.hasMany(ActionAudit, { foreignKey: "actorId", as: "ActionAuditsAsActor" });
+User.hasMany(ActionAudit, { foreignKey: "targetUserId", as: "ActionAuditsAsTarget" });
+
 // Employee Direct Manager Association (Self-referential)
 User.belongsTo(User, { foreignKey: "managerId", as: "Manager" });
 User.hasMany(User, { foreignKey: "managerId", as: "DirectReports" });
@@ -170,7 +177,8 @@ export {
   Payroll,
   PayrollDetail,
   InsuranceForm,
-  RoleChangeAudit
+  RoleChangeAudit,
+  ActionAudit
 };
 
 

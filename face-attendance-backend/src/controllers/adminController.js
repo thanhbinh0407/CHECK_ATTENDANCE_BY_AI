@@ -27,6 +27,8 @@ import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
 import { recalculatePendingSalariesForUsers } from "../services/salaryCalculationService.js";
 import { createNotification } from "./notificationController.js";
+import ActionAudit from "../models/pg/ActionAudit.js";
+import { recordAction } from "../services/actionAuditService.js";
 
 const toNumber = (value, fallback = 0) => {
   const n = Number(value);
@@ -606,6 +608,26 @@ export const updateEmployee = async (req, res) => {
 
     console.log(`Employee updated: ${employee.name} (ID: ${id})${salaryFieldsChanged ? ` - ${recalculatedSalaryCount} salary record(s) recalculated` : ''}`);
 
+    // Audit: employee update (+ optional role change)
+    const changedFieldKeys = Object.keys(updateData || {});
+    await recordAction(req, {
+      action: roleAuditPayload ? "employee.update_role" : "employee.update",
+      category: roleAuditPayload ? "role_change" : "employee_update",
+      targetUserId: employee.id,
+      entityType: "user",
+      entityId: employee.id,
+      summary: roleAuditPayload
+        ? `Changed role of ${employee.name} (${employee.employeeCode}): ${roleAuditPayload.oldRole} → ${roleAuditPayload.newRole}`
+        : `Updated employee ${employee.name} (${employee.employeeCode})`,
+      metadata: {
+        changedFields: changedFieldKeys,
+        roleChange: roleAuditPayload || null,
+        jobChanged,
+        salaryChanged,
+        recalculatedSalaryCount,
+      },
+    });
+
     if (roleAuditPayload) {
       await createNotification(
         null, 'system', 'Employee Role Updated',
@@ -739,6 +761,16 @@ export const deleteEmployee = async (req, res) => {
     });
     console.log(`User deactivated: ${employee.name} (ID: ${id})`);
 
+    await recordAction(req, {
+      action: "employee.deactivate",
+      category: "employee_lifecycle",
+      targetUserId: employee.id,
+      entityType: "user",
+      entityId: employee.id,
+      summary: `Deactivated employee ${employee.name} (${employee.employeeCode})`,
+      metadata: { role: employee.role, email: employee.email },
+    });
+
     return res.json({
       status: "success",
       message: "User deactivated successfully",
@@ -788,6 +820,16 @@ export const restoreEmployee = async (req, res) => {
     });
     console.log(`User restored: ${employee.name} (ID: ${id})`);
 
+    await recordAction(req, {
+      action: "employee.restore",
+      category: "employee_lifecycle",
+      targetUserId: employee.id,
+      entityType: "user",
+      entityId: employee.id,
+      summary: `Restored employee ${employee.name} (${employee.employeeCode})`,
+      metadata: { role: employee.role, email: employee.email },
+    });
+
     return res.json({
       status: "success",
       message: "User restored successfully",
@@ -831,6 +873,13 @@ export const permanentlyDeleteEmployee = async (req, res) => {
       });
     }
 
+    const snapshot = {
+      name: employee.name,
+      email: employee.email,
+      employeeCode: employee.employeeCode,
+      role: employee.role,
+    };
+
     await sequelize.transaction(async (transaction) => {
       await verifyActorPasswordOrThrow(req, transaction);
       await purgeEmployeeRelatedRows(id, transaction);
@@ -838,6 +887,16 @@ export const permanentlyDeleteEmployee = async (req, res) => {
     });
 
     console.log(`Employee permanently deleted: ${employee.name} (ID: ${id})`);
+
+    await recordAction(req, {
+      action: "employee.delete_permanent",
+      category: "employee_lifecycle",
+      targetUserId: null, // user no longer exists
+      entityType: "user",
+      entityId: Number(id) || null,
+      summary: `Permanently deleted employee ${snapshot.name} (${snapshot.employeeCode})`,
+      metadata: snapshot,
+    });
 
     return res.json({
       status: "success",
@@ -876,6 +935,16 @@ export const resetEmployeePassword = async (req, res) => {
     await employee.update({ password: hashedPassword });
 
     console.log(`Password reset for employee: ${employee.name} (ID: ${id}) → ${passwordToUse}`);
+
+    await recordAction(req, {
+      action: "employee.reset_password",
+      category: "password",
+      targetUserId: employee.id,
+      entityType: "user",
+      entityId: employee.id,
+      summary: `Reset password for ${employee.name} (${employee.employeeCode})`,
+      metadata: { customPassword: Boolean(newPassword) },
+    });
 
     return res.json({
       status: "success",
@@ -1057,6 +1126,21 @@ export const createEmployee = async (req, res) => {
 
     console.log(`Employee created: ${name} (${employeeCode})`);
 
+    await recordAction(req, {
+      action: "employee.create",
+      category: "employee_lifecycle",
+      targetUserId: employee.id,
+      entityType: "user",
+      entityId: employee.id,
+      summary: `Created employee ${employee.name} (${employee.employeeCode})`,
+      metadata: {
+        email: employee.email,
+        baseSalary: employee.baseSalary,
+        departmentId: employee.departmentId || null,
+        jobTitleId: employee.jobTitleId || null,
+      },
+    });
+
     return res.json({
       status: "success",
       message: "Employee created successfully",
@@ -1166,6 +1250,19 @@ export const bulkCreateEmployees = async (req, res) => {
         console.error(`Error creating employee ${empData.employeeCode}:`, err);
       }
     }
+
+    await recordAction(req, {
+      action: "employee.bulk_create",
+      category: "employee_lifecycle",
+      entityType: "user_bulk",
+      summary: `Bulk created ${results.success.length} employee(s); ${results.failed.length} failed`,
+      metadata: {
+        successCount: results.success.length,
+        failedCount: results.failed.length,
+        success: results.success.map((s) => ({ id: s.id, code: s.employeeCode, name: s.name })),
+        failed: results.failed,
+      },
+    });
 
     return res.json({
       status: "success",
@@ -1980,6 +2077,16 @@ export const updateUserRole = async (req, res) => {
       );
     });
 
+    await recordAction(req, {
+      action: "employee.update_role",
+      category: "role_change",
+      targetUserId: targetUser.id,
+      entityType: "user",
+      entityId: targetUser.id,
+      summary: `Changed role of ${targetUser.name} (${targetUser.employeeCode}): ${oldRole} → ${role}`,
+      metadata: { oldRole, newRole: role, reason: reason || null },
+    });
+
     return res.json({
       status: "success",
       message: "User role updated successfully",
@@ -2041,7 +2148,13 @@ export const getApprovalAuditLogs = async (req, res) => {
     const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || "20", 10), 1), 100);
 
     const role = (req.query.role || "").trim().toLowerCase();
-    const requestType = (req.query.requestType || "").trim().toLowerCase();
+    const rawRequestType = (req.query.requestType || "").trim().toLowerCase();
+    // "other" / "payroll" are no longer surfaced in the UI because the Payroll
+    // approval feature is not wired into the main backend. If an older client
+    // sends them, treat the filter as unset to avoid returning empty results.
+    const requestType = rawRequestType === "other" || rawRequestType === "payroll"
+      ? ""
+      : rawRequestType;
     const status = (req.query.status || "").trim().toLowerCase();
     const fromDate = (req.query.fromDate || "").trim();
     const toDate = (req.query.toDate || "").trim();
@@ -2054,9 +2167,12 @@ export const getApprovalAuditLogs = async (req, res) => {
       where: role ? { role } : undefined,
     };
 
+    // Date inputs are local calendar days in Asia/Ho_Chi_Minh (UTC+7).
+    // Convert to UTC boundaries so filters match the day the user sees in the UI.
+    const TZ_OFFSET_MS = 7 * 60 * 60 * 1000;
     const actedAtRange = {};
-    if (fromDate) actedAtRange[Op.gte] = new Date(`${fromDate}T00:00:00.000Z`);
-    if (toDate) actedAtRange[Op.lte] = new Date(`${toDate}T23:59:59.999Z`);
+    if (fromDate) actedAtRange[Op.gte] = new Date(new Date(`${fromDate}T00:00:00.000Z`).getTime() - TZ_OFFSET_MS);
+    if (toDate) actedAtRange[Op.lte] = new Date(new Date(`${toDate}T23:59:59.999Z`).getTime() - TZ_OFFSET_MS);
 
     const applyDateFilter = (baseWhere = {}) => {
       if (!fromDate && !toDate) return baseWhere;
@@ -2065,12 +2181,56 @@ export const getApprovalAuditLogs = async (req, res) => {
 
     const shouldLoad = (type) => !requestType || requestType === type;
 
+    const TARGET_USER_ATTRS = ["id", "name", "email", "employeeCode"];
+    const toPlainUser = (u) =>
+      u
+        ? {
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            employeeCode: u.employeeCode,
+          }
+        : null;
+
+    const buildLeaveDetails = (r) => ({
+      type: r.type,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      days: r.days,
+      reason: r.reason,
+    });
+    const buildOvertimeDetails = (r) => ({
+      date: r.date,
+      startTime: r.startTime,
+      endTime: r.endTime,
+      totalHours: r.totalHours,
+      reason: r.reason,
+      projectName: r.projectName,
+    });
+    const buildTripDetails = (r) => ({
+      startDate: r.startDate,
+      endDate: r.endDate,
+      destination: r.destination,
+      purpose: r.purpose,
+      estimatedCost: r.estimatedCost,
+      transportType: r.transportType,
+    });
+    const buildAdvanceDetails = (r) => ({
+      amount: r.amount,
+      reason: r.reason,
+      requestDate: r.requestDate,
+      month: r.month,
+      year: r.year,
+    });
     const tasks = [];
     if (shouldLoad("leave")) {
       tasks.push(
         LeaveRequest.findAll({
           where: applyDateFilter({ approvedBy: { [Op.ne]: null } }),
-          include: [approverInclude],
+          include: [
+            approverInclude,
+            { model: User, as: "User", attributes: TARGET_USER_ATTRS },
+          ],
           order: [["approvedAt", "DESC"]],
           limit: 1000,
         }).then((rows) =>
@@ -2084,36 +2244,102 @@ export const getApprovalAuditLogs = async (req, res) => {
             approvedAt: r.approvedAt,
             updatedAt: r.updatedAt,
             Approver: r.Approver || null,
+            TargetEmployee: toPlainUser(r.User),
+            details: buildLeaveDetails(r),
           }))
         )
       );
     }
 
-    if (shouldLoad("other")) {
+    if (shouldLoad("overtime")) {
       tasks.push(
-        Payroll.findAll({
-          where: applyDateFilter({
-            approvedBy: { [Op.ne]: null },
-            status: { [Op.in]: ["approved", "rejected", "paid"] },
-          }),
-          include: [approverInclude],
+        OvertimeRequest.findAll({
+          where: applyDateFilter({ approvedBy: { [Op.ne]: null } }),
+          include: [
+            approverInclude,
+            { model: User, as: "User", attributes: TARGET_USER_ATTRS },
+          ],
           order: [["approvedAt", "DESC"]],
           limit: 1000,
         }).then((rows) =>
           rows.map((r) => ({
-            id: `payroll-${r.id}`,
-            requestType: "other",
+            id: `overtime-${r.id}`,
+            requestType: "overtime",
             requestId: r.id,
-            level: 1,
-            status: r.status,
+            level: r.approvalLevel || 1,
+            status: r.approvalStatus,
             comments: r.rejectionReason || null,
             approvedAt: r.approvedAt,
             updatedAt: r.updatedAt,
             Approver: r.Approver || null,
+            TargetEmployee: toPlainUser(r.User),
+            details: buildOvertimeDetails(r),
           }))
         )
       );
+    }
 
+    if (shouldLoad("business_trip")) {
+      tasks.push(
+        BusinessTripRequest.findAll({
+          where: applyDateFilter({ approvedBy: { [Op.ne]: null } }),
+          include: [
+            approverInclude,
+            { model: User, as: "User", attributes: TARGET_USER_ATTRS },
+          ],
+          order: [["approvedAt", "DESC"]],
+          limit: 1000,
+        }).then((rows) =>
+          rows.map((r) => ({
+            id: `trip-${r.id}`,
+            requestType: "business_trip",
+            requestId: r.id,
+            level: r.approvalLevel || 1,
+            status: r.approvalStatus,
+            comments: r.rejectionReason || null,
+            approvedAt: r.approvedAt,
+            updatedAt: r.updatedAt,
+            Approver: r.Approver || null,
+            TargetEmployee: toPlainUser(r.User),
+            details: buildTripDetails(r),
+          }))
+        )
+      );
+    }
+
+    if (shouldLoad("salary_advance")) {
+      tasks.push(
+        SalaryAdvance.findAll({
+          where: applyDateFilter({ approvedBy: { [Op.ne]: null } }),
+          include: [
+            approverInclude,
+            { model: User, attributes: TARGET_USER_ATTRS },
+          ],
+          order: [["approvedAt", "DESC"]],
+          limit: 1000,
+        }).then((rows) =>
+          rows.map((r) => ({
+            id: `advance-${r.id}`,
+            requestType: "salary_advance",
+            requestId: r.id,
+            level: r.approvalLevel || 1,
+            status: r.approvalStatus,
+            comments: r.rejectionReason || null,
+            approvedAt: r.approvedAt,
+            updatedAt: r.updatedAt,
+            Approver: r.Approver || null,
+            TargetEmployee: toPlainUser(r.User),
+            details: buildAdvanceDetails(r),
+          }))
+        )
+      );
+    }
+
+    // Always surface ApprovalWorkflow rows that have an `approvedAt` timestamp
+    // (covers skipped / pending / approved / rejected levels). When the user
+    // filters by a specific requestType we scope the query; otherwise we load
+    // all of them and rely on the merge step downstream.
+    if (!requestType) {
       tasks.push(
         ApprovalWorkflow.findAll({
           where: applyDateFilter({ approvedAt: { [Op.ne]: null } }),
@@ -2131,6 +2357,7 @@ export const getApprovalAuditLogs = async (req, res) => {
             approvedAt: r.approvedAt,
             updatedAt: r.updatedAt,
             Approver: r.Approver || null,
+            _needsEnrichment: true,
           }))
         )
       );
@@ -2155,22 +2382,247 @@ export const getApprovalAuditLogs = async (req, res) => {
             approvedAt: r.approvedAt,
             updatedAt: r.updatedAt,
             Approver: r.Approver || null,
+            _needsEnrichment: true,
           }))
         )
       );
     }
 
     const merged = (await Promise.all(tasks)).flat();
+
+    // Batch-enrich workflow rows with TargetEmployee + details
+    const workflowRows = merged.filter((r) => r._needsEnrichment);
+    if (workflowRows.length > 0) {
+      const byType = {
+        leave: new Set(),
+        overtime: new Set(),
+        business_trip: new Set(),
+        salary_advance: new Set(),
+      };
+      workflowRows.forEach((r) => {
+        if (byType[r.requestType]) byType[r.requestType].add(r.requestId);
+      });
+
+      const [leaves, overtimes, trips, advances] = await Promise.all([
+        byType.leave.size
+          ? LeaveRequest.findAll({
+              where: { id: Array.from(byType.leave) },
+              include: [{ model: User, as: "User", attributes: TARGET_USER_ATTRS }],
+            })
+          : [],
+        byType.overtime.size
+          ? OvertimeRequest.findAll({
+              where: { id: Array.from(byType.overtime) },
+              include: [{ model: User, as: "User", attributes: TARGET_USER_ATTRS }],
+            })
+          : [],
+        byType.business_trip.size
+          ? BusinessTripRequest.findAll({
+              where: { id: Array.from(byType.business_trip) },
+              include: [{ model: User, as: "User", attributes: TARGET_USER_ATTRS }],
+            })
+          : [],
+        byType.salary_advance.size
+          ? SalaryAdvance.findAll({
+              where: { id: Array.from(byType.salary_advance) },
+              include: [{ model: User, attributes: TARGET_USER_ATTRS }],
+            })
+          : [],
+      ]);
+
+      const maps = {
+        leave: new Map(leaves.map((x) => [x.id, x])),
+        overtime: new Map(overtimes.map((x) => [x.id, x])),
+        business_trip: new Map(trips.map((x) => [x.id, x])),
+        salary_advance: new Map(advances.map((x) => [x.id, x])),
+      };
+
+      const detailBuilders = {
+        leave: buildLeaveDetails,
+        overtime: buildOvertimeDetails,
+        business_trip: buildTripDetails,
+        salary_advance: buildAdvanceDetails,
+      };
+
+      workflowRows.forEach((row) => {
+        const src = maps[row.requestType]?.get(row.requestId);
+        if (src) {
+          row.TargetEmployee = toPlainUser(src.User);
+          row.details = detailBuilders[row.requestType]
+            ? detailBuilders[row.requestType](src)
+            : null;
+        } else {
+          row.TargetEmployee = null;
+          row.details = null;
+        }
+        delete row._needsEnrichment;
+      });
+    }
+
     const filteredByStatus = status ? merged.filter((r) => String(r.status || "").toLowerCase() === status) : merged;
-    filteredByStatus.sort((a, b) => {
-      const ta = new Date(a.approvedAt || a.updatedAt || 0).getTime();
-      const tb = new Date(b.approvedAt || b.updatedAt || 0).getTime();
+
+    // ────────────────────────────────────────────────────────────────
+    // Unified actor-daily summary:
+    //   Every mutating action (ActionAudit rows + approval workflow
+    //   events) is collapsed into ONE row per (actorId, local-date),
+    //   regardless of role. The UI opens a "Daily Timeline" modal
+    //   (grouped by hour) when "Details" is clicked.
+    // ────────────────────────────────────────────────────────────────
+    const actionCategory = (req.query.actionCategory || "").trim().toLowerCase();
+
+    // ActionAudit is only loaded when no approval-specific filter is active
+    // (requestType / status), because those filters don't apply to it.
+    const canIncludeActionAudit = !requestType && !status;
+
+    let actionAuditRows = [];
+    if (canIncludeActionAudit) {
+      const auditWhere = {};
+      if (fromDate || toDate) {
+        auditWhere.createdAt = {};
+        if (fromDate) auditWhere.createdAt[Op.gte] = new Date(new Date(`${fromDate}T00:00:00.000Z`).getTime() - TZ_OFFSET_MS);
+        if (toDate) auditWhere.createdAt[Op.lte] = new Date(new Date(`${toDate}T23:59:59.999Z`).getTime() - TZ_OFFSET_MS);
+      }
+      if (actionCategory) auditWhere.category = actionCategory;
+      if (role) auditWhere.actorRole = role;
+
+      actionAuditRows = await ActionAudit.findAll({
+        where: auditWhere,
+        include: [
+          { model: User, as: "Actor", attributes: ["id", "name", "email", "employeeCode", "role"] },
+          { model: User, as: "TargetUser", attributes: ["id", "name", "email", "employeeCode"] },
+        ],
+        order: [["createdAt", "DESC"]],
+        limit: 10000,
+      });
+    }
+
+    // actionCategory is ActionAudit-specific: when set, drop approval activities.
+    const approvalActivities = actionCategory
+      ? []
+      : filteredByStatus
+          .filter((r) => r.Approver && r.Approver.id)
+          .map((r) => ({
+            actorId: r.Approver.id,
+            actorRole: String(r.Approver.role || "").toLowerCase(),
+            actorName: r.Approver.name,
+            actorCode: r.Approver.employeeCode,
+            actorEmail: r.Approver.email,
+            createdAt: r.approvedAt || r.updatedAt,
+            action: `${r.requestType}.${String(r.status || "").toLowerCase()}`,
+            category: r.requestType,
+          }));
+
+    const auditActivities = actionAuditRows.map((a) => ({
+      actorId: a.actorId,
+      actorRole: String(a.actorRole || "").toLowerCase(),
+      actorName: a.Actor?.name || null,
+      actorCode: a.Actor?.employeeCode || null,
+      actorEmail: a.Actor?.email || null,
+      createdAt: a.createdAt,
+      action: a.action,
+      category: a.category,
+    }));
+
+    const activities = [...approvalActivities, ...auditActivities];
+
+    const tz = "Asia/Ho_Chi_Minh";
+    const dayKeyOf = (d) =>
+      new Date(d).toLocaleDateString("sv-SE", { timeZone: tz });
+
+    // Virtual actorId used to group rows that don't have a human actor
+    // (typically scheduled / system jobs). The timeline endpoint understands
+    // this special id and loads rows where `actorId IS NULL`.
+    const SYSTEM_VIRTUAL_ID = 0;
+
+    const groupMap = new Map();
+    for (const it of activities) {
+      const isSystem = !it.actorId && it.actorRole === "system";
+      if (!it.actorId && !isSystem) continue;
+
+      const effectiveActorId = it.actorId ?? SYSTEM_VIRTUAL_ID;
+      const dayKey = dayKeyOf(it.createdAt);
+      const gkey = `${effectiveActorId}|${dayKey}`;
+      if (!groupMap.has(gkey)) {
+        groupMap.set(gkey, {
+          actorId: effectiveActorId,
+          actorRole: it.actorRole || "employee",
+          actorName: isSystem ? "System" : it.actorName || null,
+          actorCode: isSystem ? "SYSTEM" : it.actorCode || null,
+          actorEmail: it.actorEmail || null,
+          dayKey,
+          items: [],
+        });
+      }
+      const g = groupMap.get(gkey);
+      // Prefer a non-empty actor role / name from any item.
+      if (!g.actorName && it.actorName) g.actorName = it.actorName;
+      if (!g.actorCode && it.actorCode) g.actorCode = it.actorCode;
+      if (!g.actorEmail && it.actorEmail) g.actorEmail = it.actorEmail;
+      if ((!g.actorRole || g.actorRole === "employee") && it.actorRole) g.actorRole = it.actorRole;
+      g.items.push(it);
+    }
+
+    const summaryRows = Array.from(groupMap.values()).map((g) => {
+      const breakdown = {};
+      const categoryBreakdown = {};
+      for (const it of g.items) {
+        breakdown[it.action] = (breakdown[it.action] || 0) + 1;
+        if (it.category) {
+          categoryBreakdown[it.category] = (categoryBreakdown[it.category] || 0) + 1;
+        }
+      }
+      g.items.sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      const firstAt = g.items[0]?.createdAt || null;
+      const lastAt = g.items[g.items.length - 1]?.createdAt || null;
+      const topCategory =
+        Object.entries(categoryBreakdown).sort((a, b) => b[1] - a[1])[0]?.[0] ||
+        null;
+
+      return {
+        id: `actorday-${g.actorId}-${g.dayKey}`,
+        kind: "actor_daily_summary",
+        requestType: "actor_daily_summary",
+        requestId: g.actorId,
+        level: null,
+        status: `${g.items.length} actions`,
+        comments: null,
+        approvedAt: lastAt,
+        updatedAt: lastAt,
+        Approver: {
+          id: g.actorId,
+          name: g.actorName,
+          email: g.actorEmail,
+          employeeCode: g.actorCode,
+          role: g.actorRole,
+        },
+        TargetEmployee: null,
+        dayKey: g.dayKey,
+        count: g.items.length,
+        breakdown,
+        categoryBreakdown,
+        topCategory,
+        firstAt,
+        lastAt,
+      };
+    });
+
+    // Defensive role filter (already applied to both sources, but guarantees
+    // no cross-role leaks from approval rows with missing role metadata).
+    const filteredSummaries = role
+      ? summaryRows.filter((r) => r.Approver?.role === role)
+      : summaryRows;
+
+    filteredSummaries.sort((a, b) => {
+      const ta = new Date(a.lastAt || a.approvedAt || 0).getTime();
+      const tb = new Date(b.lastAt || b.approvedAt || 0).getTime();
       return tb - ta;
     });
 
-    const count = filteredByStatus.length;
+    const count = filteredSummaries.length;
     const offset = (page - 1) * pageSize;
-    const rows = filteredByStatus.slice(offset, offset + pageSize);
+    const rows = filteredSummaries.slice(offset, offset + pageSize);
 
     return res.json({
       status: "success",
@@ -2184,6 +2636,215 @@ export const getApprovalAuditLogs = async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching approval audit logs:", err);
+    return res.status(500).json({ status: "error", message: err.message });
+  }
+};
+
+/**
+ * Actor daily-action timeline for the Approval Responsibility Log.
+ * Returns every mutating action by `employeeId` (any role) on `date`
+ * (YYYY-MM-DD, Asia/Ho_Chi_Minh): both ActionAudit rows (self-service +
+ * admin mutations) and approval-workflow events (leave/overtime/trip/
+ * advance/payroll) the actor approved or rejected. The result is grouped
+ * by hour for nicer rendering. (The route path is kept for backward
+ * compatibility; `employeeId` is really an actorId of any role.)
+ */
+export const getEmployeeDayActions = async (req, res) => {
+  try {
+    const employeeId = Number(req.params.employeeId);
+    if (!Number.isFinite(employeeId)) {
+      return res.status(400).json({ status: "error", message: "Invalid employeeId" });
+    }
+    const dateStr = (req.query.date || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "`date` must be YYYY-MM-DD" });
+    }
+
+    // Day boundaries in Asia/Ho_Chi_Minh (UTC+7) expressed as UTC range.
+    const tzOffsetMinutes = 7 * 60;
+    const startLocal = new Date(`${dateStr}T00:00:00.000Z`);
+    const startUtc = new Date(startLocal.getTime() - tzOffsetMinutes * 60 * 1000);
+    const endUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000);
+
+    const TARGET_USER_ATTRS = ["id", "name", "email", "employeeCode"];
+
+    // employeeId === 0 is the virtual "System" actor (ActionAudit rows where
+    // actorId IS NULL and actorRole = 'system').
+    const isSystemActor = employeeId === 0;
+
+    const actor = isSystemActor
+      ? { id: 0, name: "System", email: null, employeeCode: "SYSTEM", role: "system" }
+      : await User.findByPk(employeeId, {
+          attributes: ["id", "name", "email", "employeeCode", "role"],
+        });
+
+    const approvedRange = {
+      approvedBy: employeeId,
+      approvedAt: { [Op.gte]: startUtc, [Op.lt]: endUtc },
+    };
+
+    const auditWhere = isSystemActor
+      ? {
+          actorId: null,
+          actorRole: "system",
+          createdAt: { [Op.gte]: startUtc, [Op.lt]: endUtc },
+        }
+      : {
+          actorId: employeeId,
+          createdAt: { [Op.gte]: startUtc, [Op.lt]: endUtc },
+        };
+
+    const [
+      auditRows,
+      leaves,
+      overtimes,
+      trips,
+      advances,
+      payrolls,
+    ] = await Promise.all([
+      ActionAudit.findAll({
+        where: auditWhere,
+        order: [["createdAt", "ASC"]],
+        include: [
+          { model: User, as: "TargetUser", attributes: TARGET_USER_ATTRS },
+        ],
+        limit: 5000,
+      }),
+      // System actor never approves workflows, so skip those lookups.
+      isSystemActor
+        ? []
+        : LeaveRequest.findAll({
+            where: approvedRange,
+            include: [{ model: User, as: "User", attributes: TARGET_USER_ATTRS }],
+          }),
+      isSystemActor
+        ? []
+        : OvertimeRequest.findAll({
+            where: approvedRange,
+            include: [{ model: User, as: "User", attributes: TARGET_USER_ATTRS }],
+          }),
+      isSystemActor
+        ? []
+        : BusinessTripRequest.findAll({
+            where: approvedRange,
+            include: [{ model: User, as: "User", attributes: TARGET_USER_ATTRS }],
+          }),
+      isSystemActor
+        ? []
+        : SalaryAdvance.findAll({
+            where: approvedRange,
+            include: [{ model: User, attributes: TARGET_USER_ATTRS }],
+          }),
+      isSystemActor
+        ? []
+        : Payroll.findAll({
+            where: {
+              approvedBy: employeeId,
+              approvedAt: { [Op.gte]: startUtc, [Op.lt]: endUtc },
+              status: { [Op.in]: ["approved", "rejected", "paid"] },
+            },
+            include: [{ model: User, attributes: TARGET_USER_ATTRS }],
+          }),
+    ]);
+
+    const toPlainUser = (u) =>
+      u
+        ? {
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            employeeCode: u.employeeCode,
+          }
+        : null;
+
+    const buildApprovalItem = (r, type, targetUser) => {
+      const st = String(r.status || r.approvalStatus || "").toLowerCase();
+      const verb =
+        st === "approved"
+          ? "Approved"
+          : st === "rejected"
+            ? "Rejected"
+            : st === "paid"
+              ? "Marked paid"
+              : st
+                ? st.charAt(0).toUpperCase() + st.slice(1)
+                : "Acted on";
+      const prettyType = type.replace(/_/g, " ");
+      let summary = `${verb} ${prettyType} request`;
+      if (targetUser?.name) summary += ` for ${targetUser.name}`;
+      return {
+        id: `${type}-${r.id}`,
+        kind: "approval",
+        action: `${type}.${st || "act"}`,
+        category: type,
+        summary,
+        entityType: `${type}_request`,
+        entityId: r.id,
+        metadata: null,
+        createdAt: r.approvedAt,
+        TargetUser: toPlainUser(targetUser),
+      };
+    };
+
+    const auditItems = auditRows.map((r) => ({
+      id: `audit-${r.id}`,
+      kind: "admin_action",
+      action: r.action,
+      category: r.category,
+      summary: r.summary,
+      entityType: r.entityType,
+      entityId: r.entityId,
+      metadata: r.metadata || null,
+      createdAt: r.createdAt,
+      TargetUser: toPlainUser(r.TargetUser),
+    }));
+
+    const approvalItems = [
+      ...leaves.map((r) => buildApprovalItem(r, "leave", r.User)),
+      ...overtimes.map((r) => buildApprovalItem(r, "overtime", r.User)),
+      ...trips.map((r) => buildApprovalItem(r, "business_trip", r.User)),
+      ...advances.map((r) => buildApprovalItem(r, "salary_advance", r.User)),
+      ...payrolls.map((r) => buildApprovalItem(r, "payroll", r.User)),
+    ];
+
+    const items = [...auditItems, ...approvalItems].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    const tz = "Asia/Ho_Chi_Minh";
+    const hourOf = (d) => {
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: tz,
+        hour: "2-digit",
+        hour12: false,
+      }).formatToParts(new Date(d));
+      const h = parts.find((p) => p.type === "hour")?.value || "00";
+      return String(h).padStart(2, "0");
+    };
+
+    const buckets = new Map();
+    for (const it of items) {
+      const hr = hourOf(it.createdAt);
+      if (!buckets.has(hr)) buckets.set(hr, []);
+      buckets.get(hr).push(it);
+    }
+
+    const hourGroups = Array.from(buckets.entries())
+      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .map(([hour, list]) => ({ hour, count: list.length, items: list }));
+
+    return res.json({
+      status: "success",
+      employee: actor || { id: employeeId, name: null },
+      date: dateStr,
+      total: items.length,
+      hourGroups,
+      items,
+    });
+  } catch (err) {
+    console.error("Error fetching employee day actions:", err);
     return res.status(500).json({ status: "error", message: err.message });
   }
 };

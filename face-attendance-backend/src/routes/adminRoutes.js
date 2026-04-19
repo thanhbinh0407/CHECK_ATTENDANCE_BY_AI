@@ -16,6 +16,7 @@ import {
   updateUserRole,
   getRoleAuditLogs,
   getApprovalAuditLogs,
+  getEmployeeDayActions,
   getHrAttendanceLogs,
 } from "../controllers/adminController.js";
 import {
@@ -184,6 +185,14 @@ router.get(
   managerOnly,
   requirePermission(PERMISSIONS["audit:view"]),
   getApprovalAuditLogs
+);
+
+// GET employee daily action timeline (for Approval Responsibility Log "Details" drilldown)
+router.get(
+  "/audits/employee-day/:employeeId",
+  managerOnly,
+  requirePermission(PERMISSIONS["audit:view"]),
+  getEmployeeDayActions
 );
 
 export default router;

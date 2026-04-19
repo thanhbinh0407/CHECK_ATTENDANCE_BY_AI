@@ -96,7 +96,7 @@ export const applySenioritySalaryIncrease = async (userId, options = {}) => {
         type:    'salary_increase',
         title:   'Salary Grade Promotion — Seniority',
         message: `Your salary grade has been updated to "${bestGrade.name}" with base salary ${newBaseSalary.toLocaleString('vi-VN')} VND based on ${seniority} year(s) of service.`,
-        isRead:  false
+        read:  false
       });
     }
 

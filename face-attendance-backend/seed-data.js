@@ -6,7 +6,8 @@ import { QueryTypes, Op } from 'sequelize';
 import {
   User, Department, JobTitle, SalaryGrade, SalaryRule, Salary,
   AttendanceLog, LeaveRequest, Document, OvertimeRequest, BusinessTripRequest,
-  SalaryAdvance, Dependent, Qualification, WorkExperience, ShiftSetting, InsuranceConfig, ApprovalWorkflow, RoleChangeAudit
+  SalaryAdvance, Dependent, Qualification, WorkExperience, ShiftSetting, InsuranceConfig, ApprovalWorkflow, RoleChangeAudit,
+  ActionAudit
 } from './src/models/pg/index.js';
 import bcrypt from 'bcryptjs';
 import { canTransitionSalaryStatus, SALARY_STATUS } from './src/services/salaryStatusRBAC.js';
@@ -1233,6 +1234,132 @@ async function seedDB() {
     }
     console.log(`   Created ${advanceCount} salary advances`);
 
+    // Create multi-level Approval Workflow history so the Approval Responsibility Log
+    // surfaces all four roles (Supervisor level 1, HR level 2, Manager level 3, Accountant for advances).
+    console.log('19.05 Creating multi-level approval workflow audit history...');
+    let workflowCount = 0;
+
+    const pushWorkflowTrace = async ({ requestType, requestId, approverLevel1, approverLevel2, approverLevel3, baseDate, finalStatus }) => {
+      const rows = [];
+      const l1Time = baseDate;
+      const l2Time = addDays(baseDate, 1);
+      const l3Time = addDays(baseDate, 2);
+
+      if (approverLevel1) {
+        rows.push({
+          requestType,
+          requestId,
+          level: 1,
+          approverId: approverLevel1,
+          status: finalStatus === 'rejected' ? 'approved' : 'approved',
+          approvedAt: l1Time,
+          comments: 'Initial review passed at supervisor level',
+          isRequired: true,
+        });
+      }
+      if (approverLevel2) {
+        rows.push({
+          requestType,
+          requestId,
+          level: 2,
+          approverId: approverLevel2,
+          status: finalStatus === 'rejected' ? 'rejected' : 'approved',
+          approvedAt: l2Time,
+          comments:
+            finalStatus === 'rejected'
+              ? 'HR declined due to policy constraints'
+              : 'HR verified policy compliance',
+          isRequired: true,
+        });
+      }
+      if (approverLevel3 && finalStatus !== 'rejected') {
+        rows.push({
+          requestType,
+          requestId,
+          level: 3,
+          approverId: approverLevel3,
+          status: 'approved',
+          approvedAt: l3Time,
+          comments: 'Final manager approval granted',
+          isRequired: true,
+        });
+      }
+      if (rows.length) {
+        await ApprovalWorkflow.bulkCreate(rows);
+        workflowCount += rows.length;
+      }
+    };
+
+    // Pull a handful of already-seeded records and build workflow traces for them.
+    const [workflowLeaves, workflowOvertimes, workflowTrips, workflowAdvances] = await Promise.all([
+      LeaveRequest.findAll({ where: { status: 'approved' }, order: [['id', 'ASC']], limit: 40 }),
+      OvertimeRequest.findAll({ where: { approvalStatus: 'approved' }, order: [['id', 'ASC']], limit: 30 }),
+      BusinessTripRequest.findAll({ where: { approvalStatus: 'approved' }, order: [['id', 'ASC']], limit: 25 }),
+      SalaryAdvance.findAll({ where: { approvalStatus: 'approved' }, order: [['id', 'ASC']], limit: 30 }),
+    ]);
+
+    for (let i = 0; i < workflowLeaves.length; i += 1) {
+      const r = workflowLeaves[i];
+      // Keep every 3rd without workflow so the log still shows level-1-only rows too
+      if (i % 3 === 2) continue;
+      const base = r.approvedAt ? new Date(r.approvedAt) : new Date();
+      await pushWorkflowTrace({
+        requestType: 'leave',
+        requestId: r.id,
+        approverLevel1: supervisor.id,
+        approverLevel2: hrStaff.id,
+        approverLevel3: i % 5 === 0 ? manager.id : null,
+        baseDate: base,
+        finalStatus: i % 9 === 0 ? 'rejected' : 'approved',
+      });
+    }
+
+    for (let i = 0; i < workflowOvertimes.length; i += 1) {
+      const r = workflowOvertimes[i];
+      if (i % 2 === 1) continue;
+      const base = r.approvedAt ? new Date(r.approvedAt) : new Date();
+      await pushWorkflowTrace({
+        requestType: 'overtime',
+        requestId: r.id,
+        approverLevel1: supervisor.id,
+        approverLevel2: hrStaff.id,
+        approverLevel3: i % 4 === 0 ? manager.id : null,
+        baseDate: base,
+        finalStatus: 'approved',
+      });
+    }
+
+    for (let i = 0; i < workflowTrips.length; i += 1) {
+      const r = workflowTrips[i];
+      const base = r.approvedAt ? new Date(r.approvedAt) : new Date();
+      await pushWorkflowTrace({
+        requestType: 'business_trip',
+        requestId: r.id,
+        approverLevel1: supervisor.id,
+        approverLevel2: hrStaff.id,
+        approverLevel3: manager.id,
+        baseDate: base,
+        finalStatus: i % 7 === 0 ? 'rejected' : 'approved',
+      });
+    }
+
+    for (let i = 0; i < workflowAdvances.length; i += 1) {
+      const r = workflowAdvances[i];
+      if (i % 2 === 1) continue;
+      const base = r.approvedAt ? new Date(r.approvedAt) : new Date();
+      await pushWorkflowTrace({
+        requestType: 'salary_advance',
+        requestId: r.id,
+        approverLevel1: supervisor.id,
+        approverLevel2: accountant.id,
+        approverLevel3: i % 5 === 0 ? manager.id : null,
+        baseDate: base,
+        finalStatus: 'approved',
+      });
+    }
+
+    console.log(`   Created ${workflowCount} approval workflow audit rows`);
+
     // Keep role-change audit as realistic governance trace
     console.log('19.1 Creating governance audit scenarios...');
     let edgeCaseCount = 0;
@@ -1541,6 +1668,327 @@ async function seedDB() {
       }
     }
     console.log('   RBAC transition validation passed');
+
+    // ────────────────────────────────────────────────────────────────
+    // Step 24: Seed ActionAudit rows so every filter option in the
+    // Approval Responsibility Log has matching data.
+    //   · Role filter:        manager / hr / accountant / supervisor / employee / system
+    //   · Action category:    employee_lifecycle / employee_update / password /
+    //                         role_change / own_request / own_profile / own_document /
+    //                         own_qualification / own_dependent / own_work_experience /
+    //                         own_notification / other
+    //   · Date range:         spread across the last 14 days (Asia/Ho_Chi_Minh)
+    // ────────────────────────────────────────────────────────────────
+    console.log('24. Seeding ActionAudit rows for Approval Responsibility Log filters...');
+    const actionAuditRows = [];
+    const auditBaseTime = new Date();
+
+    // Build timestamp N days ago, hour h, minute m — ensures distribution for the
+    // date filter and non-collapsing hour buckets in the daily timeline modal.
+    const auditAt = (daysAgo, h, m = 0) => {
+      const d = new Date(auditBaseTime);
+      d.setDate(d.getDate() - daysAgo);
+      d.setHours(h, m, 0, 0);
+      return d;
+    };
+
+    const pickEmp = (idx) => employees[idx % employees.length];
+
+    // ---- Manager actions (actorRole='manager') ----------------------------
+    const managerActions = [
+      { d: 12, h: 9,  action: 'employee.create',           category: 'employee_lifecycle', tgt: pickEmp(10), summary: 'Created employee record' },
+      { d: 10, h: 10, action: 'employee.update',           category: 'employee_update',    tgt: pickEmp(11), summary: 'Updated employee department' },
+      { d: 9,  h: 11, action: 'employee.deactivate',       category: 'employee_lifecycle', tgt: pickEmp(12), summary: 'Deactivated employee account' },
+      { d: 8,  h: 14, action: 'employee.restore',          category: 'employee_lifecycle', tgt: pickEmp(12), summary: 'Restored employee account' },
+      { d: 6,  h: 15, action: 'employee.reset_password',   category: 'password',           tgt: pickEmp(13), summary: 'Reset employee password' },
+      { d: 5,  h: 16, action: 'employee.update_role',      category: 'role_change',        tgt: pickEmp(14), summary: 'Promoted employee to supervisor', metadata: { from: 'employee', to: 'supervisor' } },
+      { d: 3,  h: 10, action: 'employee.update_role',      category: 'role_change',        tgt: pickEmp(14), summary: 'Rolled back employee role',      metadata: { from: 'supervisor', to: 'employee' } },
+      { d: 2,  h: 11, action: 'employee.delete_permanent', category: 'employee_lifecycle', tgt: pickEmp(15), summary: 'Permanently deleted employee' },
+      { d: 1,  h: 14, action: 'employee.update',           category: 'employee_update',    tgt: pickEmp(16), summary: 'Updated employee salary grade' },
+    ];
+    for (const a of managerActions) {
+      actionAuditRows.push({
+        actorId: manager.id,
+        actorRole: 'manager',
+        category: a.category,
+        action: a.action,
+        targetUserId: a.tgt?.id || null,
+        entityType: 'user',
+        entityId: a.tgt?.id || null,
+        summary: a.summary,
+        metadata: a.metadata || {},
+        ipAddress: '127.0.0.1',
+        userAgent: 'seed-script',
+        createdAt: auditAt(a.d, a.h),
+        updatedAt: auditAt(a.d, a.h),
+      });
+    }
+
+    // ---- HR actions (actorRole='hr') --------------------------------------
+    const hrActions = [
+      { d: 13, h: 9,  action: 'employee.bulk_create',      category: 'employee_lifecycle', tgt: null,         summary: 'Bulk imported 12 employees from CSV', metadata: { count: 12 } },
+      { d: 11, h: 10, action: 'employee.create',           category: 'employee_lifecycle', tgt: pickEmp(20),  summary: 'Created employee record' },
+      { d: 11, h: 11, action: 'employee.create',           category: 'employee_lifecycle', tgt: pickEmp(21),  summary: 'Created employee record' },
+      { d: 10, h: 13, action: 'employee.update',           category: 'employee_update',    tgt: pickEmp(22),  summary: 'Updated contact phone' },
+      { d: 9,  h: 14, action: 'employee.update',           category: 'employee_update',    tgt: pickEmp(23),  summary: 'Updated bank account' },
+      { d: 7,  h: 9,  action: 'employee.reset_password',   category: 'password',           tgt: pickEmp(24),  summary: 'Reset employee password (user request)' },
+      { d: 6,  h: 11, action: 'employee.deactivate',       category: 'employee_lifecycle', tgt: pickEmp(25),  summary: 'Deactivated employee on offboarding' },
+      { d: 4,  h: 15, action: 'employee.update',           category: 'employee_update',    tgt: pickEmp(26),  summary: 'Updated job title' },
+      { d: 2,  h: 16, action: 'employee.reset_password',   category: 'password',           tgt: pickEmp(27),  summary: 'Reset employee password' },
+      { d: 1,  h: 10, action: 'employee.update',           category: 'employee_update',    tgt: pickEmp(28),  summary: 'Updated insurance base salary' },
+    ];
+    for (const a of hrActions) {
+      actionAuditRows.push({
+        actorId: hrStaff.id,
+        actorRole: 'hr',
+        category: a.category,
+        action: a.action,
+        targetUserId: a.tgt?.id || null,
+        entityType: 'user',
+        entityId: a.tgt?.id || null,
+        summary: a.summary,
+        metadata: a.metadata || {},
+        ipAddress: '127.0.0.1',
+        userAgent: 'seed-script',
+        createdAt: auditAt(a.d, a.h),
+        updatedAt: auditAt(a.d, a.h),
+      });
+    }
+
+    // ---- Accountant actions (actorRole='accountant') ----------------------
+    const accountantActions = [
+      { d: 8, h: 9,  action: 'payroll.finalize',     category: 'other', summary: 'Finalized monthly payroll', metadata: { month: 2, year: 2026 } },
+      { d: 8, h: 10, action: 'payroll.mark_paid',    category: 'other', summary: 'Marked payroll as paid',    metadata: { batch: 'BANK-2026-02' } },
+      { d: 3, h: 14, action: 'salary_advance.note',  category: 'other', summary: 'Added accounting note to advance request' },
+    ];
+    for (const a of accountantActions) {
+      actionAuditRows.push({
+        actorId: accountant.id,
+        actorRole: 'accountant',
+        category: a.category,
+        action: a.action,
+        targetUserId: null,
+        entityType: 'payroll',
+        entityId: null,
+        summary: a.summary,
+        metadata: a.metadata || {},
+        ipAddress: '127.0.0.1',
+        userAgent: 'seed-script',
+        createdAt: auditAt(a.d, a.h),
+        updatedAt: auditAt(a.d, a.h),
+      });
+    }
+
+    // ---- Supervisor actions (actorRole='supervisor') ----------------------
+    const supervisorActions = [
+      { d: 9, h: 9,  action: 'schedule.update', category: 'other', summary: 'Rearranged weekly team schedule' },
+      { d: 4, h: 15, action: 'shift.approve',   category: 'other', summary: 'Approved shift swap for team member' },
+    ];
+    for (const a of supervisorActions) {
+      actionAuditRows.push({
+        actorId: supervisor.id,
+        actorRole: 'supervisor',
+        category: a.category,
+        action: a.action,
+        targetUserId: null,
+        entityType: 'schedule',
+        entityId: null,
+        summary: a.summary,
+        metadata: {},
+        ipAddress: '127.0.0.1',
+        userAgent: 'seed-script',
+        createdAt: auditAt(a.d, a.h),
+        updatedAt: auditAt(a.d, a.h),
+      });
+    }
+
+    // ---- Employee actions (actorRole='employee') --------------------------
+    // Cover every "own_*" category across a handful of employees & days so the
+    // daily-timeline modal has meaningful hour-grouped timelines.
+    const employeePlaybook = [
+      // (empIndex, daysAgo, hour, minute, action, category, entityType, summary)
+      [0,  12, 8,  10, 'leave.create',              'own_request',        'leave_request',         'Submitted paid leave request'],
+      [0,  12, 9,  20, 'overtime.create',           'own_request',        'overtime_request',      'Submitted overtime request'],
+      [0,  12, 10, 5,  'profile.change_password',   'own_profile',        'user',                  'Changed own password'],
+      [0,  12, 14, 30, 'document.create',           'own_document',       'document',              'Uploaded ID card scan'],
+
+      [1,  11, 8,  0,  'dependent.create',          'own_dependent',      'dependent',             'Added dependent Tran Bao'],
+      [1,  11, 8,  5,  'dependent.upload_documents','own_dependent',      'dependent',             'Uploaded documents for dependent'],
+      [1,  11, 14, 0,  'qualification.create',      'own_qualification',  'qualification',         'Added bachelor degree'],
+      [1,  11, 14, 15, 'work_experience.create',    'own_work_experience','work_experience',       'Added previous work experience'],
+      [1,  11, 15, 0,  'notification.read',         'own_notification',   'notification',          'Marked notification as read'],
+
+      [2,  10, 9,  30, 'business_trip.create',      'own_request',        'business_trip_request', 'Submitted business trip request'],
+      [2,  10, 13, 0,  'salary_advance.create',     'own_request',        'salary_advance',        'Submitted salary advance request'],
+      [2,  10, 16, 10, 'profile.update',            'own_profile',        'user',                  'Updated phone number'],
+
+      [3,  7,  9,  0,  'qualification.update',      'own_qualification',  'qualification',         'Updated qualification issue year'],
+      [3,  7,  9,  30, 'qualification.delete',      'own_qualification',  'qualification',         'Removed outdated certificate'],
+      [3,  7,  10, 0,  'document.delete',           'own_document',       'document',              'Deleted duplicate document'],
+      [3,  7,  11, 0,  'notification.delete',       'own_notification',   'notification',          'Deleted old notification'],
+
+      [4,  5,  8,  45, 'work_experience.update',    'own_work_experience','work_experience',       'Adjusted end date of work experience'],
+      [4,  5,  9,  0,  'work_experience.delete',    'own_work_experience','work_experience',       'Removed irrelevant work experience'],
+      [4,  5,  10, 30, 'dependent.update',          'own_dependent',      'dependent',             'Updated dependent relationship'],
+      [4,  5,  11, 0,  'dependent.delete',          'own_dependent',      'dependent',             'Removed dependent'],
+
+      [5,  3,  9,  0,  'leave.update',              'own_request',        'leave_request',         'Updated leave request'],
+      [5,  3,  10, 0,  'leave.cancel',              'own_request',        'leave_request',         'Cancelled leave request'],
+      [5,  3,  14, 0,  'profile.update',            'own_profile',        'user',                  'Updated address'],
+
+      [6,  1,  8,  0,  'leave.create',              'own_request',        'leave_request',         'Submitted sick leave request'],
+      [6,  1,  8,  30, 'notification.read',         'own_notification',   'notification',          'Read HR announcement'],
+      [6,  1,  17, 0,  'document.create',           'own_document',       'document',              'Uploaded training certificate'],
+    ];
+    for (const [empIdx, dAgo, h, mn, action, category, entityType, summary] of employeePlaybook) {
+      const emp = pickEmp(empIdx);
+      if (!emp) continue;
+      actionAuditRows.push({
+        actorId: emp.id,
+        actorRole: 'employee',
+        category,
+        action,
+        targetUserId: category === 'own_profile' ? emp.id : null,
+        entityType,
+        entityId: emp.id,
+        summary,
+        metadata: {},
+        ipAddress: '127.0.0.1',
+        userAgent: 'seed-script',
+        createdAt: auditAt(dAgo, h, mn),
+        updatedAt: auditAt(dAgo, h, mn),
+      });
+    }
+
+    // ---- System actions (actorRole='system') ------------------------------
+    // actorId stays nullable — these belong to automated / scheduled jobs.
+    const systemActions = [
+      { d: 13, h: 0,  action: 'system.daily_rollover',     summary: 'Daily rollover: archived attendance logs' },
+      { d: 7,  h: 0,  action: 'system.payroll_cron',       summary: 'Monthly payroll cron triggered for Feb 2026', metadata: { month: 2, year: 2026 } },
+      { d: 0,  h: 1,  action: 'system.notification_sweep', summary: 'Purged notifications older than 90 days' },
+    ];
+    for (const a of systemActions) {
+      actionAuditRows.push({
+        actorId: null, // System events have no human actor; the reader groups
+        actorRole: 'system', // them into a virtual "System" summary row.
+        category: 'other',
+        action: a.action,
+        targetUserId: null,
+        entityType: 'system',
+        entityId: null,
+        summary: a.summary,
+        metadata: a.metadata || {},
+        ipAddress: '127.0.0.1',
+        userAgent: 'cron/1.0',
+        createdAt: auditAt(a.d, a.h),
+        updatedAt: auditAt(a.d, a.h),
+      });
+    }
+
+    await ActionAudit.bulkCreate(actionAuditRows);
+    console.log(`   Created ${actionAuditRows.length} ActionAudit rows`);
+
+    // ────────────────────────────────────────────────────────────────
+    // Step 25: Fill approval-side filter gaps so every option in the
+    // Approval Status dropdown has matching rows.
+    //   · Status = Skipped → ApprovalWorkflow(status='skipped', approvedAt=set)
+    //   · Status = Pending → ApprovalWorkflow(status='pending', approvedAt=set)
+    // Note: The "Other / Payroll" request-type filter was removed from the UI
+    // because payrollRoutes.js is not mounted in the main backend, so no live
+    // Payroll approval events are ever produced. Seed no longer generates
+    // Payroll approval rows.
+    // ────────────────────────────────────────────────────────────────
+    console.log('25. Filling approval filter gaps (skipped / pending)...');
+
+    const [sampleLeaves, sampleOvertimes, sampleTrips, sampleAdvances] = await Promise.all([
+      LeaveRequest.findAll({ where: { status: 'approved' }, order: [['id', 'ASC']], limit: 6 }),
+      OvertimeRequest.findAll({ where: { approvalStatus: 'approved' }, order: [['id', 'ASC']], limit: 6 }),
+      BusinessTripRequest.findAll({ where: { approvalStatus: 'approved' }, order: [['id', 'ASC']], limit: 4 }),
+      SalaryAdvance.findAll({ where: { approvalStatus: 'approved' }, order: [['id', 'ASC']], limit: 6 }),
+    ]);
+
+    const gapWorkflowRows = [];
+    const pushGapWorkflow = ({ requestType, requestId, level, approverId, status, daysAgo, hour, comment }) => {
+      gapWorkflowRows.push({
+        requestType,
+        requestId,
+        level,
+        approverId,
+        status,
+        approvedAt: auditAt(daysAgo, hour),
+        comments: `SEED:${comment}`,
+        isRequired: true,
+      });
+    };
+
+    // Skipped (mid-levels auto-skipped by policy)
+    sampleLeaves.slice(0, 3).forEach((r, i) =>
+      pushGapWorkflow({
+        requestType: 'leave',
+        requestId: r.id,
+        level: 2,
+        approverId: hrStaff.id,
+        status: 'skipped',
+        daysAgo: 6 - i,
+        hour: 10 + i,
+        comment: 'HR review auto-skipped (policy exempt)',
+      })
+    );
+    sampleOvertimes.slice(0, 2).forEach((r, i) =>
+      pushGapWorkflow({
+        requestType: 'overtime',
+        requestId: r.id,
+        level: 3,
+        approverId: manager.id,
+        status: 'skipped',
+        daysAgo: 5 - i,
+        hour: 11 + i,
+        comment: 'Manager approval not required for OT < 4h',
+      })
+    );
+    sampleTrips.slice(0, 1).forEach((r) =>
+      pushGapWorkflow({
+        requestType: 'business_trip',
+        requestId: r.id,
+        level: 2,
+        approverId: hrStaff.id,
+        status: 'skipped',
+        daysAgo: 4,
+        hour: 14,
+        comment: 'Domestic trip — HR check not required',
+      })
+    );
+
+    // Pending (routed-to-approver with timestamp)
+    sampleAdvances.slice(0, 3).forEach((r, i) =>
+      pushGapWorkflow({
+        requestType: 'salary_advance',
+        requestId: r.id,
+        level: 2,
+        approverId: accountant.id,
+        status: 'pending',
+        daysAgo: 3 - i,
+        hour: 9 + i,
+        comment: 'Awaiting accountant review',
+      })
+    );
+    sampleLeaves.slice(3, 6).forEach((r, i) =>
+      pushGapWorkflow({
+        requestType: 'leave',
+        requestId: r.id,
+        level: 3,
+        approverId: manager.id,
+        status: 'pending',
+        daysAgo: 2 - i,
+        hour: 15,
+        comment: 'Awaiting final manager review',
+      })
+    );
+
+    if (gapWorkflowRows.length) {
+      await ApprovalWorkflow.bulkCreate(gapWorkflowRows);
+      console.log(`   Created ${gapWorkflowRows.length} ApprovalWorkflow rows (skipped + pending)`);
+    }
 
     const employeeCredentials = await User.findAll({
       where: { role: 'employee' },

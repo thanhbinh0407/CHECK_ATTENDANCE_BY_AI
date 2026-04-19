@@ -140,7 +140,7 @@ export const createOvertimeRequest = async (req, res) => {
         type: 'overtime_request',
         title: 'New Overtime Request',
         message: `${user.name} has submitted an overtime request for ${date}`,
-        isRead: false
+        read: false
       });
     }
 
@@ -214,7 +214,7 @@ export const approveOvertimeRequest = async (req, res) => {
         type: 'overtime_request',
         title: 'Overtime Request Rejected',
         message: `Your overtime request for ${request.date} has been rejected`,
-        isRead: false
+        read: false
       });
     } else if (action === 'approve') {
       const approverChain = await resolveApprovalChain('overtime', request.User);
@@ -241,7 +241,7 @@ export const approveOvertimeRequest = async (req, res) => {
           type: 'overtime_request',
           title: 'Overtime Request Approved',
           message: `Your overtime request for ${request.date} has been approved`,
-          isRead: false
+          read: false
         });
       } else {
         // Move to next approval level from policy chain
@@ -272,7 +272,7 @@ export const approveOvertimeRequest = async (req, res) => {
             type: 'overtime_request',
             title: 'Overtime Request Pending Approval',
             message: `${request.User.name}'s overtime request needs your approval`,
-            isRead: false
+            read: false
           });
         }
       }

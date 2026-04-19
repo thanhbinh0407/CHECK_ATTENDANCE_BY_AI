@@ -382,9 +382,6 @@ function App() {
           <span style={{ display: "block", marginTop: 6, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", opacity: 0.6 }}>
             {user?.role || "accountant"}
           </span>
-          <button type="button" className="acc-logout" onClick={handleLogout}>
-            Log out
-          </button>
         </div>
       </aside>
 
@@ -396,8 +393,8 @@ function App() {
               type="button"
               className="portal-avatar-btn"
               onClick={() => setProfileOpen(true)}
-              title="Hồ sơ cá nhân"
-              aria-label="Mở hồ sơ cá nhân"
+              title="Personal profile"
+              aria-label="Open personal profile"
             >
               {portalAvatarSrc(API_BASE, user?.avatarUrl) ? (
                 <img className="portal-avatar-img" src={portalAvatarSrc(API_BASE, user?.avatarUrl)} alt="" />
@@ -407,14 +404,10 @@ function App() {
                 </span>
               )}
             </button>
-            <span className="acc-topbar-meta">
-              {new Intl.DateTimeFormat("en-US", {
-                weekday: "short",
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              }).format(new Date())}
-            </span>
+            <span className="acc-topbar-meta">{user?.email}</span>
+            <button type="button" className="acc-btn-logout" onClick={handleLogout}>
+              Sign out
+            </button>
           </div>
         </header>
         <div className="acc-content" style={{ animation: "accShellIn 0.45s ease-out" }}>

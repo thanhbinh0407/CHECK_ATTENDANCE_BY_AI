@@ -9,9 +9,19 @@ import HrShiftAdmin from './HrShiftAdmin.jsx';
 import EmployeeManagement from './EmployeeManagement.jsx';
 import HrAttendance from './HrAttendance.jsx';
 import HrPayrollReference from './HrPayrollReference.jsx';
+import PersonalProfileModal from './PersonalProfileModal.jsx';
 import './index.css';
 
 const API = 'http://localhost:5000/api';
+const API_BASE = 'http://localhost:5000';
+
+function portalAvatarSrc(apiBase, avatarUrl) {
+  if (!avatarUrl) return null;
+  if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
+  const base = (apiBase || '').replace(/\/$/, '');
+  const path = avatarUrl.startsWith('/') ? avatarUrl : `/${avatarUrl}`;
+  return `${base}${path}`;
+}
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function authHeaders(token) {
@@ -215,6 +225,16 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const patchSessionUser = useCallback((patch) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -333,20 +353,43 @@ export default function App() {
             <strong>{user?.name}</strong><br />
             <span style={{ opacity: 0.65 }}>{user?.role === 'manager' ? 'Manager' : 'HR Staff'}</span>
           </div>
-          <button className="logout-btn" onClick={logout}>Log out</button>
         </div>
       </nav>
 
       {/* Main */}
       <div className="main-content">
         <div className="topbar">
-          <h1>{tabTitles[activeTab]}</h1>
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}
-          >
-            {collapsed ? '→' : '←'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}
+              aria-label="Toggle menu"
+            >
+              {collapsed ? '→' : '←'}
+            </button>
+            <h1>{tabTitles[activeTab]}</h1>
+          </div>
+          <div className="topbar-actions">
+            <button
+              type="button"
+              className="portal-avatar-btn"
+              onClick={() => setProfileOpen(true)}
+              title="Personal profile"
+              aria-label="Open personal profile"
+            >
+              {portalAvatarSrc(API_BASE, user?.avatarUrl) ? (
+                <img className="portal-avatar-img" src={portalAvatarSrc(API_BASE, user?.avatarUrl)} alt="" />
+              ) : (
+                <span className="portal-avatar-fallback" aria-hidden>
+                  {(user?.name || '?').charAt(0).toUpperCase()}
+                </span>
+              )}
+            </button>
+            <span style={{ fontSize: 13, color: '#64748b' }}>{user?.email}</span>
+            <button type="button" className="topbar-signout" onClick={logout}>
+              Sign out
+            </button>
+          </div>
         </div>
         <div className="page-content">
           {activeTab === 'dashboard'   && <HrDashboard token={token} onNavigate={setActiveTab} />}
@@ -361,6 +404,12 @@ export default function App() {
           {activeTab === 'reports'     && <HrReports token={token} />}
         </div>
       </div>
+      <PersonalProfileModal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        apiBase={API_BASE}
+        onSessionUserPatch={patchSessionUser}
+      />
     </div>
   );
 }

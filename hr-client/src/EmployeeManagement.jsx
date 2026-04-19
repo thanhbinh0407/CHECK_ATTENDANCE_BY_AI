@@ -811,9 +811,7 @@ export default function EmployeeManagement({ token, user }) {
           <option value="">All Departments</option>
           {departments.map(d => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
         </select>
-        <button className="btn btn-primary" style={{ fontSize: 13, padding: '8px 14px', flexShrink: 0 }} onClick={openCreate} type="button">
-          + Add employee
-        </button>
+        {/* '+ Add employee' is intentionally hidden in HR Portal. Employee creation is handled by Manager only. */}
         <button className="btn btn-secondary" style={{ fontSize: 13, padding: '8px 14px', flexShrink: 0 }} onClick={load} title="Reload">
           ↻ Reload
         </button>
@@ -957,12 +955,12 @@ export default function EmployeeManagement({ token, user }) {
                         {canShowAccountLifecycleActions(emp) && !emp.isActive && (
                           <button
                             type="button"
-                            className="btn-tbl btn-tbl-delete"
+                            className="btn-tbl-delete-forever"
                             onClick={() => permanentlyDeleteEmployee(emp)}
                             title="Permanently delete (password required)"
-                            style={{ background: '#7f1d1d' }}
                           >
-                            Delete Forever
+                            <span className="btn-tbl-delete-forever-icon" aria-hidden="true">🗑</span>
+                            <span>Delete Forever</span>
                           </button>
                         )}
                       </div>

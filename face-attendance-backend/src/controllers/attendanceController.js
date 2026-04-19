@@ -44,6 +44,27 @@ export const logAttendance = async (req, res) => {
 
     let log;
     if (match.matched && match.userId) {
+      // Short-circuit: deactivated accounts cannot check in
+      const matchedUser = await User.findByPk(match.userId, {
+        attributes: ["id", "name", "isActive", "avatarUrl"],
+      });
+      if (matchedUser && matchedUser.isActive === false) {
+        console.log(
+          `[attendance] Deactivated user attempted to log: ${matchedUser.name} (ID: ${matchedUser.id})`
+        );
+        return res.json({
+          status: "success",
+          matched: true,
+          deactivated: true,
+          userId: matchedUser.id,
+          detectedName: matchedUser.name,
+          distance: match.distance,
+          threshold: THRESHOLD,
+          avatarUrl: matchedUser.avatarUrl || null,
+          message: "Your account has been deactivated. Please contact HR.",
+        });
+      }
+
       // Get the active company-wide shift settings
       let applicableShift = null;
       try {
@@ -273,6 +294,29 @@ export const matchFace = async (req, res) => {
     let finished = false;
     let avatarUrl = null;
     if (match.matched && match.userId) {
+      // Short-circuit: deactivated accounts cannot check in
+      const matchedUser = await User.findByPk(match.userId, {
+        attributes: ["id", "name", "isActive", "avatarUrl"],
+      });
+      if (matchedUser && matchedUser.isActive === false) {
+        return res.json({
+          status: "success",
+          matched: true,
+          deactivated: true,
+          userId: matchedUser.id,
+          detectedName: matchedUser.name,
+          distance: match.distance,
+          threshold: THRESHOLD,
+          allProfiles: match.allProfiles || 0,
+          topMatch: match.topMatch || null,
+          meanVariance: match.meanVariance || null,
+          logsToday: [],
+          finished: false,
+          avatarUrl: matchedUser.avatarUrl || null,
+          message: "Your account has been deactivated. Please contact HR.",
+        });
+      }
+
       avatarUrl = await userAvatarUrl(match.userId);
       const now = new Date();
       const todayStart = new Date(now);
