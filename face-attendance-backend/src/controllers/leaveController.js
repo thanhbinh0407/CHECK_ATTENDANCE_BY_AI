@@ -2,6 +2,7 @@ import LeaveRequest from "../models/pg/LeaveRequest.js";
 import User from "../models/pg/User.js";
 import { Op } from "sequelize";
 import { notifyLeaveStatusChange, createNotification } from "./notificationController.js";
+import { emitApprovalEvent } from "../services/actionAuditService.js";
 
 // Create leave request
 export const createLeaveRequest = async (req, res) => {
@@ -225,6 +226,25 @@ export const approveLeaveRequest = async (req, res) => {
       { leaveRequestId: leaveRequest.id, action: 'approved' }
     );
 
+    try {
+      const owner = leaveRequest.userId
+        ? await User.findByPk(leaveRequest.userId, {
+            attributes: ["id", "name", "email", "employeeCode"],
+          })
+        : null;
+      emitApprovalEvent({
+        actor: req.user,
+        requestType: "leave",
+        requestId: leaveRequest.id,
+        status: "approved",
+        level: 1,
+        targetUser: owner ? owner.get({ plain: true }) : null,
+        approvedAt: leaveRequest.approvedAt,
+      });
+    } catch (emitErr) {
+      console.warn("[leave.approve] realtime emit failed:", emitErr.message);
+    }
+
     return res.json({
       status: "success",
       message: "Leave request approved",
@@ -270,6 +290,26 @@ export const rejectLeaveRequest = async (req, res) => {
 
     // Send notification
     await notifyLeaveStatusChange(leaveRequest.id, 'rejected', approvedBy);
+
+    try {
+      const owner = leaveRequest.userId
+        ? await User.findByPk(leaveRequest.userId, {
+            attributes: ["id", "name", "email", "employeeCode"],
+          })
+        : null;
+      emitApprovalEvent({
+        actor: req.user,
+        requestType: "leave",
+        requestId: leaveRequest.id,
+        status: "rejected",
+        level: 1,
+        targetUser: owner ? owner.get({ plain: true }) : null,
+        comments: rejectionReason || null,
+        approvedAt: leaveRequest.approvedAt,
+      });
+    } catch (emitErr) {
+      console.warn("[leave.reject] realtime emit failed:", emitErr.message);
+    }
 
     return res.json({
       status: "success",

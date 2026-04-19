@@ -102,20 +102,20 @@ export const supervisorOnly = (req, res, next) => {
   next();
 };
 
-/** HR hoặc Manager (quản lý thông tin nhân viên) */
+/** HR, Manager hoặc Supervisor (quản lý thông tin nhân viên / duyệt hồ sơ) */
 export const hrOrManager = (req, res, next) => {
-  const allowed = ["hr", "manager"];
+  const allowed = ["hr", "manager", "supervisor"];
   if (!allowed.includes(req.user?.role)) {
-    return res.status(403).json({ status: "error", message: "Requires hr or manager role" });
+    return res.status(403).json({ status: "error", message: "Requires hr, manager or supervisor role" });
   }
   next();
 };
 
-/** Kế toán hoặc Manager */
+/** Kế toán, Manager hoặc Supervisor */
 export const accountantOrManager = (req, res, next) => {
-  const allowed = ["accountant", "manager"];
+  const allowed = ["accountant", "manager", "supervisor"];
   if (!allowed.includes(req.user?.role)) {
-    return res.status(403).json({ status: "error", message: "Requires accountant or manager role" });
+    return res.status(403).json({ status: "error", message: "Requires accountant, manager or supervisor role" });
   }
   next();
 };

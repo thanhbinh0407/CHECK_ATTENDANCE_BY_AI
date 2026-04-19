@@ -5,6 +5,7 @@ import { recalculateSalaryRecord } from "../services/salaryCalculationService.js
 import { Op } from "sequelize";
 import { resolveApprovalChain } from "../services/approvalPolicyService.js";
 import { createNotification } from "./notificationController.js";
+import { emitApprovalEvent } from "../services/actionAuditService.js";
 
 // Get all salary advances
 export const getSalaryAdvances = async (req, res) => {
@@ -175,6 +176,9 @@ export const approveSalaryAdvance = async (req, res) => {
     const requester = await User.findByPk(advance.userId);
     const approvalChain = await resolveApprovalChain('salary_advance', requester, { amount: advance.amount });
 
+    const decisionLevel = Number(advance.approvalLevel || 1);
+    let emittedStatus = null;
+
     if (action === 'reject') {
       await advance.update({
         approvalStatus: 'rejected',
@@ -190,6 +194,8 @@ export const approveSalaryAdvance = async (req, res) => {
         message: `Your salary advance request for ${advance.month}/${advance.year} has been rejected`,
         read: false
       });
+
+      emittedStatus = 'rejected';
     } else if (action === 'approve') {
       const approvalLevel = Number(advance.approvalLevel || 1);
       const currentIndex = Math.max(approvalLevel - 1, 0);
@@ -228,6 +234,8 @@ export const approveSalaryAdvance = async (req, res) => {
             message: recalc.error || "Cannot recalculate salary after approving advance"
           });
         }
+
+        emittedStatus = 'approved';
       } else {
         await advance.update({
           approvalStatus: 'pending',
@@ -242,6 +250,34 @@ export const approveSalaryAdvance = async (req, res) => {
           message: `${advance.User?.name || 'An employee'} salary advance request needs your approval`,
           read: false,
         });
+
+        // Intermediate approval: surfaces this approver's decision
+        // even though the request is still pending at the next level.
+        emittedStatus = 'approved';
+      }
+    }
+
+    if (emittedStatus) {
+      try {
+        const owner = advance.User
+          ? {
+              id: advance.User.id,
+              name: advance.User.name,
+              email: advance.User.email,
+              employeeCode: advance.User.employeeCode,
+            }
+          : null;
+        emitApprovalEvent({
+          actor: req.user,
+          requestType: 'salary_advance',
+          requestId: advance.id,
+          status: emittedStatus,
+          level: decisionLevel,
+          targetUser: owner,
+          comments: comments || null,
+        });
+      } catch (emitErr) {
+        console.warn('[salary_advance.approve] realtime emit failed:', emitErr.message);
       }
     }
 

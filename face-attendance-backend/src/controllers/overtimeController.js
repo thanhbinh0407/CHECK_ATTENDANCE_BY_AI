@@ -4,6 +4,7 @@ import User from "../models/pg/User.js";
 import Notification from "../models/pg/Notification.js";
 import { Op } from "sequelize";
 import { resolveApprovalChain } from "../services/approvalPolicyService.js";
+import { emitApprovalEvent } from "../services/actionAuditService.js";
 
 // Get all overtime requests
 export const getOvertimeRequests = async (req, res) => {
@@ -186,13 +187,13 @@ export const approveOvertimeRequest = async (req, res) => {
       });
     }
 
-    // Check if current user is the approver
-    if (request.currentApproverId !== approverId) {
-      return res.status(403).json({
-        status: "error",
-        message: "You are not authorized to approve this request"
-      });
-    }
+    // Role middleware (supervisorOrManager) already restricts who can reach
+    // this endpoint. We no longer require `currentApproverId === req.user.id`
+    // — any supervisor or manager on duty may decide any pending request at
+    // the current level. The actual approver is recorded below for audit.
+
+    const decisionLevel = request.approvalLevel || 1;
+    let emittedStatus = null;
 
     if (action === 'reject') {
       await request.update({
@@ -202,11 +203,23 @@ export const approveOvertimeRequest = async (req, res) => {
         rejectionReason: comments || null
       });
 
-      // Update workflow
-      await ApprovalWorkflow.update(
-        { status: 'rejected', approvedAt: new Date(), comments },
-        { where: { requestType: 'overtime', requestId: id, approverId } }
+      // Record this approver's decision on the matching workflow row if it
+      // exists; otherwise create one so the audit log always has a trace.
+      const [workflowRowsUpdated] = await ApprovalWorkflow.update(
+        { status: 'rejected', approvedAt: new Date(), comments, approverId },
+        { where: { requestType: 'overtime', requestId: id, level: decisionLevel, status: 'pending' } }
       );
+      if (!workflowRowsUpdated) {
+        await ApprovalWorkflow.create({
+          requestType: 'overtime',
+          requestId: id,
+          level: decisionLevel,
+          approverId,
+          status: 'rejected',
+          approvedAt: new Date(),
+          comments: comments || null,
+        });
+      }
 
       // Notify employee
       await Notification.create({
@@ -216,6 +229,8 @@ export const approveOvertimeRequest = async (req, res) => {
         message: `Your overtime request for ${request.date} has been rejected`,
         read: false
       });
+
+      emittedStatus = 'rejected';
     } else if (action === 'approve') {
       const approverChain = await resolveApprovalChain('overtime', request.User);
       const currentIndex = Math.max(request.approvalLevel - 1, 0);
@@ -230,10 +245,21 @@ export const approveOvertimeRequest = async (req, res) => {
           approvedAt: new Date()
         });
 
-        await ApprovalWorkflow.update(
-          { status: 'approved', approvedAt: new Date(), comments },
-          { where: { requestType: 'overtime', requestId: id, approverId } }
+        const [finalWorkflowRowsUpdated] = await ApprovalWorkflow.update(
+          { status: 'approved', approvedAt: new Date(), comments, approverId },
+          { where: { requestType: 'overtime', requestId: id, level: decisionLevel, status: 'pending' } }
         );
+        if (!finalWorkflowRowsUpdated) {
+          await ApprovalWorkflow.create({
+            requestType: 'overtime',
+            requestId: id,
+            level: decisionLevel,
+            approverId,
+            status: 'approved',
+            approvedAt: new Date(),
+            comments: comments || null,
+          });
+        }
 
         // Notify employee
         await Notification.create({
@@ -243,6 +269,8 @@ export const approveOvertimeRequest = async (req, res) => {
           message: `Your overtime request for ${request.date} has been approved`,
           read: false
         });
+
+        emittedStatus = 'approved';
       } else {
         // Move to next approval level from policy chain
         const nextLevel = request.approvalLevel + 1;
@@ -252,10 +280,21 @@ export const approveOvertimeRequest = async (req, res) => {
           currentApproverId: nextApproverId
         });
 
-        await ApprovalWorkflow.update(
-          { status: 'approved', approvedAt: new Date(), comments },
-          { where: { requestType: 'overtime', requestId: id, approverId } }
+        const [midWorkflowRowsUpdated] = await ApprovalWorkflow.update(
+          { status: 'approved', approvedAt: new Date(), comments, approverId },
+          { where: { requestType: 'overtime', requestId: id, level: decisionLevel, status: 'pending' } }
         );
+        if (!midWorkflowRowsUpdated) {
+          await ApprovalWorkflow.create({
+            requestType: 'overtime',
+            requestId: id,
+            level: decisionLevel,
+            approverId,
+            status: 'approved',
+            approvedAt: new Date(),
+            comments: comments || null,
+          });
+        }
 
         if (nextApproverId) {
           await ApprovalWorkflow.create({
@@ -275,6 +314,34 @@ export const approveOvertimeRequest = async (req, res) => {
             read: false
           });
         }
+
+        // Intermediate approval: this decision is "approved" at this level
+        // even though the overall request is still pending the next approver.
+        emittedStatus = 'approved';
+      }
+    }
+
+    if (emittedStatus) {
+      try {
+        const owner = request.User
+          ? {
+              id: request.User.id,
+              name: request.User.name,
+              email: request.User.email,
+              employeeCode: request.User.employeeCode,
+            }
+          : null;
+        emitApprovalEvent({
+          actor: req.user,
+          requestType: 'overtime',
+          requestId: request.id,
+          status: emittedStatus,
+          level: decisionLevel,
+          targetUser: owner,
+          comments: comments || null,
+        });
+      } catch (emitErr) {
+        console.warn('[overtime.approve] realtime emit failed:', emitErr.message);
       }
     }
 

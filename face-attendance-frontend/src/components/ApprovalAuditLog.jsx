@@ -44,7 +44,6 @@ const ROLE_OPTIONS = [
   { value: "hr", label: "👥 HR Staff" },
   { value: "accountant", label: "💰 Accountant" },
   { value: "employee", label: "👤 Employee" },
-  { value: "system", label: "⚙️ System" },
 ];
 
 const REQUEST_TYPE_OPTIONS = [
@@ -183,6 +182,66 @@ function formatCurrency(v) {
   return `${n.toLocaleString("vi-VN")} đ`;
 }
 
+function dayKeyFromDate(d) {
+  if (!d) return null;
+  try {
+    const date = new Date(d);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleDateString("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decide whether a live `audit:new` payload should trigger an auto-refresh
+ * given the filters currently in effect. Mirrors the server-side filtering
+ * in `getApprovalAuditLogs` so the user never sees a refresh that would not
+ * change what they are looking at.
+ */
+function eventMatchesFilters(payload, filters) {
+  if (!payload) return false;
+  const kind = payload.kind || "action_audit";
+
+  const role = filters.role || "";
+  const requestType = filters.requestType || "";
+  const status = filters.status || "";
+  const actionCategory = filters.actionCategory || "";
+  const fromDate = filters.fromDate || "";
+  const toDate = filters.toDate || "";
+
+  const ts = payload.approvedAt || payload.createdAt;
+  if (fromDate || toDate) {
+    const day = dayKeyFromDate(ts);
+    if (!day) return false;
+    if (fromDate && day < fromDate) return false;
+    if (toDate && day > toDate) return false;
+  }
+
+  if (kind === "approval") {
+    // actionCategory is ActionAudit-specific; when set, approval rows
+    // are excluded server-side — so the live row would not show either.
+    if (actionCategory) return false;
+    if (requestType && payload.requestType !== requestType) return false;
+    if (status && String(payload.status || "").toLowerCase() !== status) return false;
+    if (role) {
+      const approverRole = String(payload.Approver?.role || "").toLowerCase();
+      if (approverRole !== role) return false;
+    }
+    return true;
+  }
+
+  // action_audit (default) — server drops ActionAudit when requestType or
+  // status filter is active, so live refresh is also suppressed.
+  if (requestType || status) return false;
+  if (actionCategory && payload.category !== actionCategory) return false;
+  if (role) {
+    const actorRole = String(payload.actorRole || payload.Actor?.role || "").toLowerCase();
+    if (actorRole !== role) return false;
+  }
+  return true;
+}
+
 function formatActionVerb(status) {
   const s = (status || "").toLowerCase();
   if (s === "approved") return "Approved";
@@ -254,6 +313,7 @@ export default function ApprovalAuditLog() {
   const [meta, setMeta] = useState({ page: 1, pageSize: 20, totalPages: 1, total: 0 });
   const [selected, setSelected] = useState(null);
   const [hasNewEvents, setHasNewEvents] = useState(false);
+  const [newEventCount, setNewEventCount] = useState(0);
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
   const pageRef = useRef(page);
@@ -277,6 +337,7 @@ export default function ApprovalAuditLog() {
       setLoading(true);
       setError("");
       setHasNewEvents(false);
+      setNewEventCount(0);
       const params = new URLSearchParams({
         page: String(page),
         pageSize: String(meta.pageSize || 20),
@@ -322,16 +383,20 @@ export default function ApprovalAuditLog() {
     const handleConnect = () => {
       socket.emit("join-room", { room: "audit-managers" });
     };
-    const handleNew = () => {
+    const handleNew = (payload) => {
       const f = filtersRef.current;
-      const isFiltered = Boolean(
-        f.role || f.requestType || f.status || f.actionCategory || f.fromDate || f.toDate
-      );
-      if (!isFiltered && pageRef.current === 1) {
-        // auto-refresh list when viewing the live feed
+      const onFirstPage = pageRef.current === 1;
+      const matches = eventMatchesFilters(payload, f);
+
+      // Auto-refresh only when the user is on page 1 AND the incoming
+      // event would actually appear in their currently-filtered view.
+      // Any other case just surfaces the live banner so the user can
+      // choose when to refresh without losing their place.
+      if (onFirstPage && matches) {
         loadLogs();
-      } else {
+      } else if (matches || !payload) {
         setHasNewEvents(true);
+        setNewEventCount((n) => n + 1);
       }
     };
 
@@ -364,15 +429,6 @@ export default function ApprovalAuditLog() {
           Refresh
         </button>
       </header>
-
-      {hasNewEvents && (
-        <div className="aal-live-banner">
-          <span>🔔 New events available</span>
-          <button type="button" className="aal-live-refresh" onClick={loadLogs}>
-            Refresh to see
-          </button>
-        </div>
-      )}
 
       <div className="aal-toolbar">
         <div className="aal-toolbar-grid">
@@ -480,6 +536,27 @@ export default function ApprovalAuditLog() {
 
       <div className="aal-body">
         {error && <div className="aal-alert" role="alert">{error}</div>}
+
+        {hasNewEvents && (
+          <div className="aal-live-banner" role="status" aria-live="polite">
+            <span className="aal-live-banner-text">
+              <span className="aal-live-banner-dot" aria-hidden />
+              {newEventCount > 0
+                ? `${newEventCount} new event${newEventCount === 1 ? "" : "s"} available`
+                : "New activity available"}
+            </span>
+            <button
+              type="button"
+              className="aal-live-banner-btn"
+              onClick={() => {
+                setPage(1);
+                loadLogs();
+              }}
+            >
+              Refresh now
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <div className="aal-loading">Loading audit logs…</div>
@@ -866,17 +943,26 @@ function ActorDayModal({ log, onClose }) {
               {(data.hourGroups || []).length === 0 ? (
                 <div className="aal-empty">No recorded actions.</div>
               ) : (
-                (data.hourGroups || []).map((group) => (
+                (data.hourGroups || []).map((group) => {
+                  const items = Array.isArray(group.items) ? group.items : [];
+                  // Badge shows what's actually rendered, not a server-side
+                  // count that might drift from the items array.
+                  const actionLabel = `${items.length} action${items.length === 1 ? "" : "s"}`;
+                  return (
                   <section key={group.hour} className="aal-hour-group">
                     <div className="aal-hour-label">
                       <span>{group.hour}:00</span>
-                      <span className="aal-hour-count">{group.count} action(s)</span>
+                      <span className="aal-hour-count">{actionLabel}</span>
                     </div>
                     <ul className="aal-hour-list">
-                      {group.items.map((it) => {
+                      {items.map((it, idx) => {
                         const isApproval = it.kind === "approval";
+                        // Composite key guards against any duplicate `it.id`
+                        // sneaking through from the server so React never
+                        // silently drops a row.
+                        const rowKey = `${it.id || "row"}-${it.createdAt || ""}-${idx}`;
                         return (
-                          <li key={it.id} className="aal-hour-item">
+                          <li key={rowKey} className="aal-hour-item">
                             <div className="aal-hour-time">
                               {new Date(it.createdAt).toLocaleTimeString("vi-VN")}
                             </div>
@@ -905,7 +991,8 @@ function ActorDayModal({ log, onClose }) {
                       })}
                     </ul>
                   </section>
-                ))
+                  );
+                })
               )}
             </>
           )}
