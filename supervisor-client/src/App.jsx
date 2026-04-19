@@ -1,8 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import SupervisorReports from './SupervisorReports.jsx';
 import PersonalProfileModal from './PersonalProfileModal.jsx';
+import QualificationApprovals from './components/QualificationApprovals.jsx';
+import DependentApprovals from './components/DependentApprovals.jsx';
+import JobTitleManagement from './components/JobTitleManagement.jsx';
+import DepartmentManagement from './components/DepartmentManagement.jsx';
+import InsuranceConfigManagement from './components/InsuranceConfigManagement.jsx';
+import AnalyticsDashboard from './components/AnalyticsDashboard.jsx';
 import socket from './socket.js';
-import { toastInfo } from './lib/notify.jsx';
+import { toastInfo, toastSuccess, toastError } from './lib/notify.jsx';
 import './index.css';
 import './supervisorDashboard.css';
 
@@ -259,47 +265,63 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const approve = async () => {
+  const submitDecision = async (decision /* 'approve' | 'reject' */) => {
     const { item } = actionModal;
-    if (type === 'leave') {
-      await fetch(`${API}/leave/requests/${item.id}/approve`, {
-        method: 'PUT',
-        headers: authHeaders(token),
-        body: JSON.stringify({}),
-      });
-    } else {
-      const url = `${API}/${apiPath}/${item.id}/approve`;
-      await fetch(url, {
-        method: 'PUT',
-        headers: authHeaders(token),
-        body: JSON.stringify({ action: 'approve', comments: comment || undefined }),
-      });
+    let res;
+    try {
+      if (type === 'leave') {
+        const url =
+          decision === 'approve'
+            ? `${API}/leave/requests/${item.id}/approve`
+            : `${API}/leave/requests/${item.id}/reject`;
+        res = await fetch(url, {
+          method: 'PUT',
+          headers: authHeaders(token),
+          body:
+            decision === 'approve'
+              ? JSON.stringify({})
+              : JSON.stringify({ rejectionReason: comment || null }),
+        });
+      } else {
+        const url = `${API}/${apiPath}/${item.id}/approve`;
+        res = await fetch(url, {
+          method: 'PUT',
+          headers: authHeaders(token),
+          body: JSON.stringify({ action: decision, comments: comment || undefined }),
+        });
+      }
+    } catch (networkErr) {
+      toastError(`Network error: ${networkErr.message}`);
+      return;
     }
+
+    let body = null;
+    try {
+      body = await res.json();
+    } catch {
+      /* non-JSON response */
+    }
+
+    if (!res.ok || body?.status === 'error') {
+      const msg =
+        body?.message ||
+        `Request failed (${res.status}). Please check your permissions and try again.`;
+      toastError(msg);
+      return;
+    }
+
+    toastSuccess(
+      decision === 'approve'
+        ? 'Approved successfully.'
+        : 'Rejected successfully.'
+    );
     setActionModal(null);
     setComment('');
     load();
   };
 
-  const reject = async () => {
-    const { item } = actionModal;
-    if (type === 'leave') {
-      await fetch(`${API}/leave/requests/${item.id}/reject`, {
-        method: 'PUT',
-        headers: authHeaders(token),
-        body: JSON.stringify({ rejectionReason: comment || null }),
-      });
-    } else {
-      const url = `${API}/${apiPath}/${item.id}/approve`;
-      await fetch(url, {
-        method: 'PUT',
-        headers: authHeaders(token),
-        body: JSON.stringify({ action: 'reject', comments: comment || undefined }),
-      });
-    }
-    setActionModal(null);
-    setComment('');
-    load();
-  };
+  const approve = () => submitDecision('approve');
+  const reject = () => submitDecision('reject');
 
   const q = search.trim().toLowerCase();
   const filteredItems = q
@@ -601,13 +623,19 @@ function SalaryApprovals({ token }) {
 
 // ─── APP ROOT ──────────────────────────────────────────────────────────────────
 const TABS = [
-  { key: 'dashboard',     label: 'Overview',        icon: '📊' },
-  { key: 'leave',         label: 'Leave approvals', icon: '📋' },
-  { key: 'overtime',      label: 'Overtime approvals', icon: '⏰' },
-  { key: 'business-trip', label: 'Trip approvals',  icon: '✈️' },
-  { key: 'salary-advance',label: 'Advance approvals', icon: '💵' },
-  { key: 'salary',        label: 'Payroll approvals', icon: '💰' },
-  { key: 'reports',       label: 'Reports',         icon: '📈' },
+  { key: 'dashboard',        label: 'Overview',             icon: '📊' },
+  { key: 'leave',            label: 'Leave approvals',      icon: '📋' },
+  { key: 'overtime',         label: 'Overtime approvals',   icon: '⏰' },
+  { key: 'business-trip',    label: 'Trip approvals',       icon: '✈️' },
+  { key: 'salary-advance',   label: 'Advance approvals',    icon: '💵' },
+  { key: 'salary',           label: 'Payroll approvals',    icon: '💰' },
+  { key: 'qualifications',   label: 'Qualifications',       icon: '🎓' },
+  { key: 'dependents',       label: 'Dependents',           icon: '👨‍👩‍👧' },
+  { key: 'job-titles',       label: 'Job titles',           icon: '🏷️' },
+  { key: 'departments',      label: 'Departments',          icon: '🏢' },
+  { key: 'insurance-config', label: 'Insurance config',     icon: '🛡️' },
+  { key: 'analytics',        label: 'Analytics',            icon: '📈' },
+  { key: 'reports',          label: 'Reports',              icon: '📑' },
 ];
 
 export default function App() {
@@ -730,6 +758,12 @@ export default function App() {
     'business-trip': 'Business trip approvals',
     'salary-advance': 'Salary advance approvals',
     salary: 'Payroll approvals',
+    qualifications: 'Qualification approvals',
+    dependents: 'Dependent approvals',
+    'job-titles': 'Job title management',
+    departments: 'Department management',
+    'insurance-config': 'Insurance configuration',
+    analytics: 'Analytics dashboard',
     reports: 'Reports',
   };
 
@@ -795,13 +829,19 @@ export default function App() {
           </div>
         </div>
         <div className="page-content">
-          {activeTab === 'dashboard'      && <Dashboard token={token} onNavigate={setActiveTab} />}
-          {activeTab === 'leave'          && <LeaveApprovals token={token} />}
-          {activeTab === 'overtime'       && <OvertimeApprovals token={token} />}
-          {activeTab === 'business-trip'  && <BusinessTripApprovals token={token} />}
-          {activeTab === 'salary-advance' && <SalaryAdvanceApprovals token={token} />}
-          {activeTab === 'salary'         && <SalaryApprovals token={token} />}
-          {activeTab === 'reports'        && <SupervisorReports token={token} />}
+          {activeTab === 'dashboard'        && <Dashboard token={token} onNavigate={setActiveTab} />}
+          {activeTab === 'leave'            && <LeaveApprovals token={token} />}
+          {activeTab === 'overtime'         && <OvertimeApprovals token={token} />}
+          {activeTab === 'business-trip'    && <BusinessTripApprovals token={token} />}
+          {activeTab === 'salary-advance'   && <SalaryAdvanceApprovals token={token} />}
+          {activeTab === 'salary'           && <SalaryApprovals token={token} />}
+          {activeTab === 'qualifications'   && <QualificationApprovals token={token} />}
+          {activeTab === 'dependents'       && <DependentApprovals token={token} />}
+          {activeTab === 'job-titles'       && <JobTitleManagement token={token} />}
+          {activeTab === 'departments'      && <DepartmentManagement token={token} />}
+          {activeTab === 'insurance-config' && <InsuranceConfigManagement token={token} />}
+          {activeTab === 'analytics'        && <AnalyticsDashboard token={token} />}
+          {activeTab === 'reports'          && <SupervisorReports token={token} />}
         </div>
       </div>
       <PersonalProfileModal

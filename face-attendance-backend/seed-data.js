@@ -40,6 +40,22 @@ const ID_ISSUE_PLACES = ['Ho Chi Minh City', 'Ha Noi', 'Da Nang', 'Can Tho', 'Ha
 const DESTINATIONS = ['Ha Noi', 'Da Nang', 'Can Tho', 'Hai Phong', 'Nha Trang', 'Vung Tau'];
 const TRANSPORT_TYPES = ['plane', 'train', 'bus', 'car'];
 const STATUS_CYCLE = ['approved', 'approved', 'pending', 'rejected'];
+// Approval-status cycles for self-service records that HR / supervisor must
+// sign off on. Mirrors STATUS_CYCLE's 50/25/25 split but adds a second
+// "pending" slot so the Dependent/Qualification approval screens always
+// have something queued up for reviewers.
+const DEP_STATUS_CYCLE = ['approved', 'approved', 'pending', 'approved', 'rejected', 'pending'];
+const QUAL_STATUS_CYCLE = ['approved', 'pending', 'approved', 'rejected', 'approved', 'pending'];
+const DEP_REJECTION_REASONS = [
+  'Birth certificate copy unclear',
+  'ID number mismatch with household book',
+  'Relationship proof missing',
+];
+const QUAL_REJECTION_REASONS = [
+  'Certificate authenticity to be verified',
+  'Expired credential — please renew',
+  'Training provider not recognised',
+];
 const LEAVE_TYPES = ['paid', 'personal', 'sick', 'unpaid'];
 // Attendance overrides for specific employees (by 1-based index)
 const ATTENDANCE_OVERRIDES = {
@@ -729,11 +745,38 @@ async function seedDB() {
     // Create Dependents (deterministic)
     console.log('11. Creating deterministic dependents...');
     let depCount = 0;
+    const depByStatus = { approved: 0, pending: 0, rejected: 0 };
     for (let i = 0; i < employeeProfiles.length; i += 1) {
       const profile = employeeProfiles[i];
       const emp = employees[i];
       for (let j = 0; j < profile.dependents.length; j += 1) {
         const dep = profile.dependents[j];
+        const status = DEP_STATUS_CYCLE[(i + j) % DEP_STATUS_CYCLE.length];
+        const reviewedAt = addDays(emp.startDate, 30);
+        let approvalFields;
+        if (status === 'pending') {
+          approvalFields = {
+            approvalStatus: 'pending',
+            approvedBy: null,
+            approvedAt: null,
+            rejectionReason: null,
+          };
+        } else if (status === 'rejected') {
+          approvalFields = {
+            approvalStatus: 'rejected',
+            approvedBy: hrStaff.id,
+            approvedAt: reviewedAt,
+            rejectionReason:
+              DEP_REJECTION_REASONS[(i + j) % DEP_REJECTION_REASONS.length],
+          };
+        } else {
+          approvalFields = {
+            approvalStatus: 'approved',
+            approvedBy: hrStaff.id,
+            approvedAt: reviewedAt,
+            rejectionReason: null,
+          };
+        }
         await Dependent.create({
           fullName: dep.fullName,
           relationship: dep.relationship,
@@ -745,15 +788,16 @@ async function seedDB() {
           phoneNumber: deterministicPhone(i + j + 1, 7000000),
           email: `${profile.employeeCode.toLowerCase()}-${j + 1}@family.local`,
           occupation: dep.occupation,
-          approvalStatus: 'approved',
-          approvedBy: hrStaff.id,
-          approvedAt: addDays(emp.startDate, 30),
-          isDependent: true
+          isDependent: true,
+          ...approvalFields,
         });
+        depByStatus[status] += 1;
         depCount += 1;
       }
     }
-    console.log(`   Created ${depCount} dependents`);
+    console.log(
+      `   Created ${depCount} dependents (approved/pending/rejected = ${depByStatus.approved}/${depByStatus.pending}/${depByStatus.rejected})`
+    );
 
     // Create Work Experiences (deterministic)
     console.log('12. Creating deterministic work experiences...');
@@ -816,6 +860,7 @@ async function seedDB() {
     // Create Qualifications (deterministic)
     console.log('13. Creating deterministic qualifications...');
     let qualCount = 0;
+    const qualByStatus = { approved: 0, pending: 0, rejected: 0 };
     const qualificationCountByUserId = new Map();
     const baseQualificationByDept = [
       { type: 'degree', name: 'Bachelor of Information Technology' },
@@ -846,6 +891,39 @@ async function seedDB() {
         const issuedDateBase = q === 0 ? addDays(emp.startDate, -(365 * (1 + (i % 3)))) : addDays(emp.startDate, 120 + (i % 90));
         const issuedDate = clampDate(issuedDateBase, new Date('2010-01-01T00:00:00.000Z'), addDays(REFERENCE_DATE, -7));
         const expiryDate = tpl.type === 'certificate' ? addDays(issuedDate, 365 * 3) : null;
+        // Base degree (q===0) stays approved so PIT seniority / documents
+        // logic that assumes the employee has at least one valid degree keeps
+        // working. Only the advanced qualification rotates through the
+        // cycle so the Qualification approval screen always has pending and
+        // rejected items to review.
+        const status = q === 0
+          ? 'approved'
+          : QUAL_STATUS_CYCLE[i % QUAL_STATUS_CYCLE.length];
+        const reviewedAt = addDays(issuedDate, 10);
+        let approvalFields;
+        if (status === 'pending') {
+          approvalFields = {
+            approvalStatus: 'pending',
+            approvedBy: null,
+            approvedAt: null,
+            rejectionReason: null,
+          };
+        } else if (status === 'rejected') {
+          approvalFields = {
+            approvalStatus: 'rejected',
+            approvedBy: hrStaff.id,
+            approvedAt: reviewedAt,
+            rejectionReason:
+              QUAL_REJECTION_REASONS[i % QUAL_REJECTION_REASONS.length],
+          };
+        } else {
+          approvalFields = {
+            approvalStatus: 'approved',
+            approvedBy: hrStaff.id,
+            approvedAt: reviewedAt,
+            rejectionReason: null,
+          };
+        }
         await Qualification.create({
           name: tpl.name,
           type: tpl.type,
@@ -855,15 +933,16 @@ async function seedDB() {
           certificateNumber: `CERT-${emp.employeeCode}-${q + 1}`,
           documentPath: `/uploads/qualifications/${emp.employeeCode}_${q + 1}.pdf`,
           description: `Qualification ${q + 1} for ${emp.employeeCode}`,
-          approvalStatus: 'approved',
-          approvedBy: hrStaff.id,
-          approvedAt: addDays(issuedDate, 10),
-          userId: emp.id
+          userId: emp.id,
+          ...approvalFields,
         });
+        qualByStatus[status] += 1;
         qualCount += 1;
       }
     }
-    console.log(`   Created ${qualCount} qualifications`);
+    console.log(
+      `   Created ${qualCount} qualifications (approved/pending/rejected = ${qualByStatus.approved}/${qualByStatus.pending}/${qualByStatus.rejected})`
+    );
 
     // Create Documents (deterministic)
     console.log('14. Creating deterministic documents...');
@@ -2016,9 +2095,9 @@ async function seedDB() {
     console.log(`   Departments: ${depts.length}`);
     console.log(`   Job Titles: ${titles.length}`);
     console.log(`   Salary Grades: ${grades.length}`);
-    console.log(`   Dependents: ${depCount}`);
+    console.log(`   Dependents: ${depCount} (approved/pending/rejected = ${depByStatus.approved}/${depByStatus.pending}/${depByStatus.rejected})`);
     console.log(`   Work Experiences: ${workExpCount}`);
-    console.log(`   Qualifications: ${qualCount}`);
+    console.log(`   Qualifications: ${qualCount} (approved/pending/rejected = ${qualByStatus.approved}/${qualByStatus.pending}/${qualByStatus.rejected})`);
     console.log(`   Documents: ${docCount}`);
     console.log(`   Attendance Logs: ${attCount}`);
     console.log(`   Leave Requests: ${leaveCount}`);

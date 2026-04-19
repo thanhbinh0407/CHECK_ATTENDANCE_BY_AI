@@ -205,3 +205,66 @@ export function auditMutation(cfg) {
 }
 
 export const AUDIT_MANAGER_ROOM = MANAGER_ROOM;
+
+/**
+ * Broadcast an approval / rejection / skip decision to the Approval
+ * Responsibility Log room WITHOUT writing an ActionAudit row.
+ *
+ * Approvals are counted from the request tables themselves
+ * (LeaveRequest / OvertimeRequest / BusinessTripRequest / SalaryAdvance +
+ * ApprovalWorkflow) inside getApprovalAuditLogs. Inserting an extra
+ * ActionAudit row here would cause the actor-daily summary to double-count.
+ *
+ * @param {Object} opts
+ * @param {{ id:number, role?:string, name?:string, email?:string, employeeCode?:string }} opts.actor
+ * @param {"leave"|"overtime"|"business_trip"|"salary_advance"} opts.requestType
+ * @param {number|string} opts.requestId
+ * @param {"approved"|"rejected"|"skipped"|"pending"} opts.status
+ * @param {number} [opts.level]
+ * @param {{ id?:number, name?:string, email?:string, employeeCode?:string }|null} [opts.targetUser]
+ * @param {string|null} [opts.comments]
+ * @param {Date|string} [opts.approvedAt]
+ */
+export function emitApprovalEvent({
+  actor,
+  requestType,
+  requestId,
+  status,
+  level = 1,
+  targetUser = null,
+  comments = null,
+  approvedAt = new Date(),
+}) {
+  try {
+    const approver = actor
+      ? {
+          id: actor.id ?? actor.userId ?? null,
+          name: actor.name || null,
+          email: actor.email || null,
+          employeeCode: actor.employeeCode || null,
+          role: String(actor.role || "").toLowerCase() || null,
+        }
+      : null;
+
+    emitToRoom(MANAGER_ROOM, "audit:new", {
+      kind: "approval",
+      requestType,
+      requestId,
+      level,
+      status: status ? String(status).toLowerCase() : null,
+      comments: comments || null,
+      approvedAt,
+      Approver: approver,
+      TargetUser: targetUser
+        ? {
+            id: targetUser.id ?? null,
+            name: targetUser.name || null,
+            email: targetUser.email || null,
+            employeeCode: targetUser.employeeCode || null,
+          }
+        : null,
+    });
+  } catch (e) {
+    console.warn("[approvalEvent] emit failed:", e.message);
+  }
+}

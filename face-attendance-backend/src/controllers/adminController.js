@@ -2523,7 +2523,22 @@ export const getApprovalAuditLogs = async (req, res) => {
       category: a.category,
     }));
 
-    const activities = [...approvalActivities, ...auditActivities];
+    // Drop any item whose timestamp is in the future relative to the server
+    // clock. Such rows can appear when seeds stamp demo data with fixed hours
+    // (e.g. 15:00 today) that haven't actually occurred yet — surfacing them
+    // would make a daily summary claim an action the actor hasn't taken,
+    // which in turn breaks the "most recent first" ordering the UI promises.
+    // A 60-second buffer absorbs minor clock skew between app / DB hosts.
+    const nowMs = Date.now();
+    const FUTURE_BUFFER_MS = 60 * 1000;
+    const isNotFuture = (it) => {
+      const ts = new Date(it.createdAt || 0).getTime();
+      return Number.isFinite(ts) && ts > 0 && ts <= nowMs + FUTURE_BUFFER_MS;
+    };
+
+    const activities = [...approvalActivities, ...auditActivities].filter(
+      isNotFuture
+    );
 
     const tz = "Asia/Ho_Chi_Minh";
     const dayKeyOf = (d) =>
@@ -2614,10 +2629,20 @@ export const getApprovalAuditLogs = async (req, res) => {
       ? summaryRows.filter((r) => r.Approver?.role === role)
       : summaryRows;
 
+    // Strict chronological ordering (24h, newest first).
+    // Tiebreakers never use role so the display never looks "role-priority".
     filteredSummaries.sort((a, b) => {
       const ta = new Date(a.lastAt || a.approvedAt || 0).getTime();
       const tb = new Date(b.lastAt || b.approvedAt || 0).getTime();
-      return tb - ta;
+      if (tb !== ta) return tb - ta;
+      const fa = new Date(a.firstAt || 0).getTime();
+      const fb = new Date(b.firstAt || 0).getTime();
+      if (fb !== fa) return fb - fa;
+      if (b.count !== a.count) return b.count - a.count;
+      return String(a.Approver?.name || "").localeCompare(
+        String(b.Approver?.name || ""),
+        "vi"
+      );
     });
 
     const count = filteredSummaries.length;
@@ -2809,9 +2834,19 @@ export const getEmployeeDayActions = async (req, res) => {
       ...payrolls.map((r) => buildApprovalItem(r, "payroll", r.User)),
     ];
 
-    const items = [...auditItems, ...approvalItems].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
+    // Hide any item whose timestamp is in the future (keeps the day-timeline
+    // consistent with the summary list, which also suppresses future rows).
+    const nowMs = Date.now();
+    const FUTURE_BUFFER_MS = 60 * 1000;
+    const items = [...auditItems, ...approvalItems]
+      .filter((it) => {
+        const ts = new Date(it.createdAt || 0).getTime();
+        return Number.isFinite(ts) && ts > 0 && ts <= nowMs + FUTURE_BUFFER_MS;
+      })
+      .sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
 
     const tz = "Asia/Ho_Chi_Minh";
     const hourOf = (d) => {
