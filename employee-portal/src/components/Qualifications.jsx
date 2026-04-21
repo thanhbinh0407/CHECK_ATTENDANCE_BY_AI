@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 
-export default function Qualifications({ userId }) {
+export default function Qualifications({ userId, refreshVersion = 0 }) {
   const [qualifications, setQualifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -67,7 +67,7 @@ export default function Qualifications({ userId }) {
 
   useEffect(() => {
     fetchQualifications();
-  }, [userId]);
+  }, [userId, refreshVersion]);
 
   const fetchQualifications = async () => {
     try {

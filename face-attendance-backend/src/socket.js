@@ -2,6 +2,39 @@ import { Server } from 'socket.io';
 
 let io;
 
+const DEFAULT_SOCKET_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:5172',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:5176',
+  'http://localhost:5177',
+  'http://localhost:5178', // employee-portal
+];
+
+function getSocketCorsOrigins() {
+  const extra = process.env.SOCKET_CORS_ORIGINS;
+  if (!extra || !String(extra).trim()) return DEFAULT_SOCKET_ORIGINS;
+  const parsed = String(extra)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return [...new Set([...DEFAULT_SOCKET_ORIGINS, ...parsed])];
+}
+
+/**
+ * Tell the employee portal (joined room user-{id}) to refetch a tab’s data.
+ * @param {number|string} userId
+ * @param {'leave'|'qualification'|'dependent'|'salary_advance'|'overtime'|'business_trip'} domain
+ */
+export function emitEmployeePortalRefresh(userId, domain) {
+  if (userId == null || userId === '') return;
+  const id = Number(userId);
+  if (Number.isNaN(id)) return;
+  emitToRoom(`user-${id}`, 'portal-refresh', { domain: String(domain) });
+}
+
 /**
  * Initialize Socket.io server
  * @param {import('http').Server} httpServer
@@ -9,15 +42,7 @@ let io;
 export function initSocket(httpServer) {
   io = new Server(httpServer, {
     cors: {
-      origin: [
-        'http://localhost:3000',
-        'http://localhost:5172', // hr-client
-        'http://localhost:5173', // supervisor-client
-        'http://localhost:5174',
-        'http://localhost:5175',
-        'http://localhost:5176',
-        'http://localhost:5177',
-      ],
+      origin: getSocketCorsOrigins(),
       methods: ['GET', 'POST'],
       credentials: true,
     },

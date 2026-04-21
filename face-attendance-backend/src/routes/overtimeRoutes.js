@@ -5,7 +5,7 @@ import {
   approveOvertimeRequest,
   deleteOvertimeRequest
 } from "../controllers/overtimeController.js";
-import { authMiddleware, supervisorOrManager } from "../middleware/authMiddleware.js";
+import { authMiddleware, supervisorOrManager, requirePermission } from "../middleware/authMiddleware.js";
 import { auditMutation } from "../services/actionAuditService.js";
 
 const router = express.Router();
@@ -43,8 +43,13 @@ router.delete(
   deleteOvertimeRequest
 );
 
-// Supervisor (Quản lý) hoặc Manager duyệt đơn tăng ca
-router.put("/:id/approve", supervisorOrManager, approveOvertimeRequest);
+// Supervisor / Manager + request:approve (matrix)
+router.put(
+  "/:id/approve",
+  supervisorOrManager,
+  requirePermission("request:approve"),
+  approveOvertimeRequest
+);
 
 export default router;
 

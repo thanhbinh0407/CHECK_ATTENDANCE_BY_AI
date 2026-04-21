@@ -1,6 +1,6 @@
 import ActionAudit from "../models/pg/ActionAudit.js";
 import User from "../models/pg/User.js";
-import { emitToRoom } from "../socket.js";
+import { emitToRoom, emitEmployeePortalRefresh } from "../socket.js";
 
 const MANAGER_ROOM = "audit-managers";
 
@@ -84,6 +84,7 @@ async function buildAuditPayload(row) {
     : [];
   const byId = new Map(users.map((u) => [u.id, u]));
   return {
+    kind: "action_audit",
     id: plain.id,
     actorId: plain.actorId,
     actorRole: plain.actorRole,
@@ -264,6 +265,20 @@ export function emitApprovalEvent({
           }
         : null,
     });
+
+    const employeeId = targetUser?.id ?? targetUser?.userId;
+    if (employeeId != null) {
+      const domainByType = {
+        leave: "leave",
+        overtime: "overtime",
+        business_trip: "business_trip",
+        salary_advance: "salary_advance",
+      };
+      const domain = domainByType[requestType];
+      if (domain) {
+        emitEmployeePortalRefresh(employeeId, domain);
+      }
+    }
   } catch (e) {
     console.warn("[approvalEvent] emit failed:", e.message);
   }

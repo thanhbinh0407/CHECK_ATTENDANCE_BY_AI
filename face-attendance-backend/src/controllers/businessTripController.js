@@ -1,18 +1,28 @@
 import BusinessTripRequest from "../models/pg/BusinessTripRequest.js";
 import ApprovalWorkflow from "../models/pg/ApprovalWorkflow.js";
 import User from "../models/pg/User.js";
-import Notification from "../models/pg/Notification.js";
 import { Op } from "sequelize";
 import { resolveApprovalChain } from "../services/approvalPolicyService.js";
 import { emitApprovalEvent } from "../services/actionAuditService.js";
+import { createNotification } from "./notificationController.js";
 
 // Get all business trip requests
 export const getBusinessTripRequests = async (req, res) => {
   try {
-    const { userId, status, month, year } = req.query;
+    const { userId: queryUserId, status, month, year } = req.query;
+    const tokenUserId = req.user?.userId ?? req.user?.id;
+    const isStaff = req.user?.role && req.user.role !== "employee";
 
     const where = {};
-    if (userId) where.userId = userId;
+    if (!isStaff) {
+      if (tokenUserId == null) {
+        return res.status(401).json({ status: "error", message: "User not identified" });
+      }
+      where.userId = tokenUserId;
+    } else if (queryUserId != null && queryUserId !== "" && queryUserId !== "undefined") {
+      const parsed = parseInt(queryUserId, 10);
+      if (!Number.isNaN(parsed)) where.userId = parsed;
+    }
     if (status) where.approvalStatus = status;
     if (month && year) {
       where.startDate = {
@@ -30,7 +40,10 @@ export const getBusinessTripRequests = async (req, res) => {
         { model: User, as: 'Approver', attributes: ['id', 'name', 'email'] },
         { model: User, as: 'CurrentApprover', attributes: ['id', 'name', 'email'] }
       ],
-      order: [['startDate', 'DESC'], ['createdAt', 'DESC']]
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC']
+      ]
     });
 
     return res.json({
@@ -107,14 +120,13 @@ export const createBusinessTripRequest = async (req, res) => {
         status: 'pending'
       });
 
-      // Notify manager
-      await Notification.create({
-        userId: initialApproverId,
-        type: 'business_trip_request',
-        title: 'New Business Trip Request',
-        message: `${user.name} has submitted a business trip request to ${destination}`,
-        read: false
-      });
+      await createNotification(
+        initialApproverId,
+        "business_trip_request",
+        "New Business Trip Request",
+        `${user.name} has submitted a business trip request to ${destination}`,
+        { businessTripRequestId: request.id }
+      );
     }
 
     return res.json({
@@ -166,12 +178,19 @@ export const approveBusinessTripRequest = async (req, res) => {
     const decisionLevel = request.approvalLevel || 1;
     let emittedStatus = null;
 
+    if (action !== 'approve' && action !== 'reject') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Request body must include action: "approve" or "reject"'
+      });
+    }
+
     if (action === 'reject') {
       await request.update({
         approvalStatus: 'rejected',
         approvedBy: approverId,
-        approvedAt: new Date(),
-        rejectionReason: comments || null
+        approvedAt: null,
+        rejectionReason: comments != null && String(comments).trim() !== '' ? String(comments).trim() : null
       });
 
       const [workflowRowsUpdated] = await ApprovalWorkflow.update(
@@ -190,13 +209,13 @@ export const approveBusinessTripRequest = async (req, res) => {
         });
       }
 
-      await Notification.create({
-        userId: request.userId,
-        type: 'business_trip_request',
-        title: 'Business Trip Request Rejected',
-        message: `Your business trip request to ${request.destination} has been rejected`,
-        read: false
-      });
+      await createNotification(
+        request.userId,
+        "business_trip_request",
+        "Business Trip Request Rejected",
+        `Your business trip request to ${request.destination} has been rejected`,
+        { businessTripRequestId: request.id }
+      );
 
       emittedStatus = 'rejected';
     } else if (action === 'approve') {
@@ -229,13 +248,13 @@ export const approveBusinessTripRequest = async (req, res) => {
           });
         }
 
-        await Notification.create({
-          userId: request.userId,
-          type: 'business_trip_request',
-          title: 'Business Trip Request Approved',
-          message: `Your business trip request to ${request.destination} has been approved`,
-          read: false
-        });
+        await createNotification(
+          request.userId,
+          "business_trip_request",
+          "Business Trip Request Approved",
+          `Your business trip request to ${request.destination} has been approved`,
+          { businessTripRequestId: request.id }
+        );
 
         emittedStatus = 'approved';
       } else {
@@ -271,13 +290,13 @@ export const approveBusinessTripRequest = async (req, res) => {
             status: 'pending'
           });
 
-          await Notification.create({
-            userId: nextApproverId,
-            type: 'business_trip_request',
-            title: 'Business Trip Request Pending Approval',
-            message: `${request.User.name}'s business trip request needs your approval`,
-            read: false
-          });
+          await createNotification(
+            nextApproverId,
+            "business_trip_request",
+            "Business Trip Request Pending Approval",
+            `${request.User.name}'s business trip request needs your approval`,
+            { businessTripRequestId: request.id }
+          );
         }
 
         emittedStatus = 'approved';

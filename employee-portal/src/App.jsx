@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import EmployeeDashboard from "./components/EmployeeDashboard.jsx";
 import AttendanceHistory from "./components/AttendanceHistory.jsx";
 import SalaryHistory from "./components/SalaryHistory.jsx";
-import JobHistoryTimeline from "./components/JobHistoryTimeline.jsx";
 import LeaveRequest from "./components/LeaveRequest.jsx";
 import Qualifications from "./components/Qualifications.jsx";
 import Dependents from "./components/Dependents.jsx";
@@ -13,9 +12,19 @@ import OvertimeRequest from "./components/OvertimeRequest.jsx";
 import BusinessTripRequest from "./components/BusinessTripRequest.jsx";
 import ChangePassword from "./components/ChangePassword.jsx";
 import PersonalProfileModal from "./components/PersonalProfileModal.jsx";
+import socket from "./socket.js";
 import "./App.css";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:5000").replace(/\/$/, "");
+
+const INITIAL_PORTAL_REFRESH = {
+  leave: 0,
+  qualification: 0,
+  dependent: 0,
+  salary_advance: 0,
+  overtime: 0,
+  business_trip: 0,
+};
 
 function portalAvatarSrc(apiBase, avatarUrl) {
   if (!avatarUrl) return null;
@@ -36,6 +45,7 @@ function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isChecking, setIsChecking] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [portalRefresh, setPortalRefresh] = useState(() => ({ ...INITIAL_PORTAL_REFRESH }));
 
   const patchSessionUser = useCallback((patch) => {
     setUser((prev) => {
@@ -112,6 +122,34 @@ function App() {
       })
       .catch(() => {});
   }, [authToken]);
+
+  useEffect(() => {
+    if (!authToken || !user?.id) return;
+
+    const joinRoom = () => {
+      socket.emit("join-room", { room: `user-${user.id}` });
+    };
+
+    const onPortalRefresh = (payload) => {
+      const domain = payload?.domain;
+      if (!domain || typeof domain !== "string") return;
+      setPortalRefresh((prev) => {
+        if (prev[domain] === undefined) return prev;
+        return { ...prev, [domain]: prev[domain] + 1 };
+      });
+    };
+
+    socket.on("connect", joinRoom);
+    socket.on("portal-refresh", onPortalRefresh);
+    socket.connect();
+    if (socket.connected) joinRoom();
+
+    return () => {
+      socket.off("connect", joinRoom);
+      socket.off("portal-refresh", onPortalRefresh);
+      socket.disconnect();
+    };
+  }, [authToken, user?.id]);
 
   const handleLoginSuccess = (token, userData) => {
     setAuthToken(token);
@@ -362,14 +400,6 @@ function App() {
           Salary
         </button>
         <button
-          onClick={() => setActiveTab("job-history")}
-          style={tabStyle(activeTab === "job-history")}
-          onMouseEnter={(e) => handleTabHover(e, activeTab === "job-history")}
-          onMouseLeave={(e) => handleTabLeave(e, activeTab === "job-history")}
-        >
-          Job History
-        </button>
-        <button
           onClick={() => setActiveTab("leave")}
           style={tabStyle(activeTab === "leave")}
           onMouseEnter={(e) => handleTabHover(e, activeTab === "leave")}
@@ -455,13 +485,24 @@ function App() {
         )}
         {activeTab === "attendance" && <AttendanceHistory userId={user?.id} />}
         {activeTab === "salary" && <SalaryHistory userId={user?.id} isActive={true} />}
-        {activeTab === "job-history" && <JobHistoryTimeline />}
-        {activeTab === "leave" && <LeaveRequest userId={user?.id} />}
-        {activeTab === "qualifications" && <Qualifications userId={user?.id} />}
-        {activeTab === "dependents" && <Dependents userId={user?.id} />}
-        {activeTab === "salary-advance" && <SalaryAdvanceRequest userId={user?.id} />}
-        {activeTab === "overtime" && <OvertimeRequest userId={user?.id || user?.userId} />}
-        {activeTab === "business-trip" && <BusinessTripRequest userId={user?.id} />}
+        {activeTab === "leave" && (
+          <LeaveRequest userId={user?.id} refreshVersion={portalRefresh.leave} />
+        )}
+        {activeTab === "qualifications" && (
+          <Qualifications userId={user?.id} refreshVersion={portalRefresh.qualification} />
+        )}
+        {activeTab === "dependents" && (
+          <Dependents userId={user?.id} refreshVersion={portalRefresh.dependent} />
+        )}
+        {activeTab === "salary-advance" && (
+          <SalaryAdvanceRequest refreshVersion={portalRefresh.salary_advance} />
+        )}
+        {activeTab === "overtime" && (
+          <OvertimeRequest userId={user?.id || user?.userId} refreshVersion={portalRefresh.overtime} />
+        )}
+        {activeTab === "business-trip" && (
+          <BusinessTripRequest userId={user?.id} refreshVersion={portalRefresh.business_trip} />
+        )}
         {activeTab === "account" && <ChangePassword />}
         {activeTab === "approval" && user?.role === "admin" && <ApprovalManagement />}
         {activeTab === "rules" && user?.role === "admin" && <SalaryRulesManagement />}

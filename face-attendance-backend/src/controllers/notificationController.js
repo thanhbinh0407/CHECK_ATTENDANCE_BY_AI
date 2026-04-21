@@ -378,13 +378,13 @@ export const notifyLeaveStatusChange = async (leaveRequestId, status, approverId
       ? `Đơn nghỉ phép của bạn từ ${new Date(leaveRequest.startDate).toLocaleDateString('vi-VN')} đến ${new Date(leaveRequest.endDate).toLocaleDateString('vi-VN')} đã được duyệt.`
       : `Đơn nghỉ phép của bạn từ ${new Date(leaveRequest.startDate).toLocaleDateString('vi-VN')} đến ${new Date(leaveRequest.endDate).toLocaleDateString('vi-VN')} đã bị từ chối.${leaveRequest.rejectionReason ? ` Lý do: ${leaveRequest.rejectionReason}` : ''}`;
 
-    await Notification.create({
-      userId: leaveRequest.userId,
-      type: 'leave',
+    await createNotification(
+      leaveRequest.userId,
+      "leave",
       title,
       message,
-      metadata: { leaveRequestId, status }
-    });
+      { leaveRequestId, status }
+    );
 
     // Send email
     const transporter = getEmailTransporter();

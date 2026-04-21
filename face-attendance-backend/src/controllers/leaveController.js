@@ -121,7 +121,11 @@ export const getLeaveRequests = async (req, res) => {
           required: false
         }
       ],
-      order: [['createdAt', 'DESC']]
+      // Newest activity first (submit/approve/reject), stable tie-breaker
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC']
+      ]
     });
 
     return res.json({
