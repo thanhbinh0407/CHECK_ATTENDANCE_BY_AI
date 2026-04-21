@@ -11,9 +11,16 @@ import {
 } from './src/models/pg/index.js';
 import bcrypt from 'bcryptjs';
 import { canTransitionSalaryStatus, SALARY_STATUS } from './src/services/salaryStatusRBAC.js';
+import { calculateSalaryForUser } from './src/services/salaryCalculationService.js';
 
-const REFERENCE_DATE = new Date('2026-03-31T00:00:00.000Z');
+// Ngày mốc demo: phải ≥ tháng lương cần tính (tránh tháng sau không có attendance → phạt vắng cả tháng khi chạy tính lương)
+const REFERENCE_DATE = new Date('2026-04-30T00:00:00.000Z');
 const PERIOD_START = new Date('2025-01-01T00:00:00.000Z');
+/**
+ * Attendance logs through end of this calendar day (UTC).
+ * Covers 01/01/2025 → end of 2026 for demo; extend past REFERENCE_DATE for “present” filters.
+ */
+const ATTENDANCE_LOG_THROUGH = new Date(Date.UTC(2026, 11, 31, 23, 59, 59, 999));
 
 const REQUIRED_COUNTS = {
   totalEmployees: 150,
@@ -134,10 +141,16 @@ function toDateOnly(text) {
   return new Date(`${text}T00:00:00.000Z`);
 }
 
+/**
+ * Deterministic display name per employee index (1…N).
+ * Avoids duplicates that occurred for index and index+50 with the old formula
+ * (same i%10, (i+3)%10, i%25 because lcm(10,25)=50).
+ */
 function deterministicName(index) {
   const f = FAMILY_NAMES[index % FAMILY_NAMES.length];
   const m = MIDDLE_NAMES[(index + 3) % MIDDLE_NAMES.length];
-  const g = GIVEN_NAMES[index % GIVEN_NAMES.length];
+  const bucket = Math.floor((index - 1) / 50);
+  const g = GIVEN_NAMES[(index + bucket) % GIVEN_NAMES.length];
   return `${f} ${m} ${g}`;
 }
 
@@ -168,6 +181,18 @@ function classifySeniority(startDate) {
   return 'other';
 }
 
+/** Seniority cohort by EMP number (1…N), matches buildEmployeeProfiles — not calendar-only tenure */
+function seniorityBandFromEmployeeNumber(n) {
+  if (n < 1 || n > REQUIRED_COUNTS.totalEmployees) return 'other';
+  const i = n - 1;
+  if (i < REQUIRED_COUNTS.seniority.ten_years) return 'ten_years';
+  const afterTen = REQUIRED_COUNTS.seniority.ten_years + REQUIRED_COUNTS.seniority.five_years;
+  if (i < afterTen) return 'five_years';
+  const afterFive = afterTen + REQUIRED_COUNTS.seniority.three_years;
+  if (i < afterFive) return 'three_years';
+  return 'new_joiner';
+}
+
 function addDays(date, days) {
   const result = new Date(date);
   result.setDate(result.getDate() + days);
@@ -187,6 +212,18 @@ function getWorkingDaysInMonth(year, month) {
   return workingDays;
 }
 
+/** Match attendance_logs timestamps seeded with Date.UTC(...) per calendar day */
+function getWorkingDaysInMonthUTC(year, month) {
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  let workingDays = 0;
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const d = new Date(Date.UTC(year, month - 1, day));
+    const dow = d.getUTCDay();
+    if (dow !== 0 && dow !== 6) workingDays += 1;
+  }
+  return workingDays;
+}
+
 function createStartDateByBand(band, indexInBand) {
   if (band === 'ten_years') {
     return addDays(new Date('2012-01-10T00:00:00.000Z'), indexInBand * 45);
@@ -195,9 +232,11 @@ function createStartDateByBand(band, indexInBand) {
     return addDays(new Date('2018-01-15T00:00:00.000Z'), indexInBand * 20);
   }
   if (band === 'three_years') {
-    return addDays(new Date('2021-04-01T00:00:00.000Z'), indexInBand * 17);
+    // [3,5) years at REFERENCE_DATE: after 2021-04-30 (avoid five_years) but early enough that +39*17d still ≥3y.
+    return addDays(new Date('2021-06-01T00:00:00.000Z'), indexInBand * 17);
   }
-  return addDays(new Date('2025-04-01T00:00:00.000Z'), indexInBand * 7);
+  // new_joiner: stagger from 2025-01-01 so attendance exists from PERIOD_START; cohort is fixed by EMP index
+  return addDays(new Date('2025-01-01T00:00:00.000Z'), indexInBand * 7);
 }
 
 // Salary grade definitions (must match what's seeded into SalaryGrade table)
@@ -286,7 +325,7 @@ function buildEmployeeProfiles() {
       ? TITLE_CODES_FOR_FIRST_30[i - 1]
       : (i <= REQUIRED_COUNTS.withJobTitle ? TITLE_CODE_POOL[(i - TITLE_CODES_FOR_FIRST_30.length - 1) % TITLE_CODE_POOL.length] : null);
 
-    let salaryGradeCode = gradeCodeBySeniority(startDate);
+    let salaryGradeCode = seniorityBand === 'new_joiner' ? 'F' : gradeCodeBySeniority(startDate);
 
     let contractType = '1_year';
     if (seniorityBand === 'ten_years') contractType = ['indefinite', 'indefinite', 'indefinite', '3_year', 'indefinite', '3_year', '3_year', '1_year', '1_year', '1_year'][indexInBand];
@@ -345,8 +384,7 @@ function validateEmployeeProfiles(profiles) {
     if (codes.has(p.employeeCode)) throw new Error(`Duplicate employeeCode ${p.employeeCode}`);
     codes.add(p.employeeCode);
 
-    const band = classifySeniority(p.startDate);
-    seniorityCount[band] += 1;
+    seniorityCount[p.seniorityBand] += 1;
     if (p.jobTitleCode) withTitle += 1;
     else withoutTitle += 1;
     if (p.dependents.length > 0) depEmployees += 1;
@@ -501,10 +539,11 @@ async function seedDB() {
       employerHealthInsuranceRate: 3.0,
       employeeUnemploymentInsuranceRate: 1.0,
       employerUnemploymentInsuranceRate: 1.0,
-      maxInsuranceSalary: 36000000,
+      // Trần lương đóng BHXH (NLĐ) — mức 20× lương tối thiểu vùng, thông dụng ~46,8tr/tháng (VN 2024–2025)
+      maxInsuranceSalary: 46800000,
       minInsuranceSalary: 1800000,
       isActive: true,
-      description: 'Insurance configuration based on 2025 policy'
+      description: 'Cấu hình BH theo chính sách VN: trần đóng BHXH ~46,8tr, tỷ lệ NLĐ 8%+1,5%+1%'
     });
     console.log('Done: insurance configuration created\n');
 
@@ -523,11 +562,11 @@ async function seedDB() {
     // Create Departments
     console.log('Step 7: Creating departments...');
     const depts = await Department.bulkCreate([
-      { code: 'KT', name: 'Engineering' },
-      { code: 'KB', name: 'Business' },
-      { code: 'NS', name: 'Human Resources' },
-      { code: 'ACC', name: 'Accounting' },
-      { code: 'HC', name: 'Administration' }
+      { code: 'KT', name: 'Engineering', description: 'Product development, software engineering, and IT systems operations.' },
+      { code: 'KB', name: 'Business', description: 'Sales and business development, market expansion, and customer success.' },
+      { code: 'NS', name: 'Human Resources', description: 'Recruitment, training, compensation and benefits, and employee relations.' },
+      { code: 'ACC', name: 'Accounting', description: 'Finance and accounting, bookkeeping, financial reporting, and internal control.' },
+      { code: 'HC', name: 'Administration', description: 'General administration, office services, and corporate operations support.' }
     ]);
     console.log(`Done: created ${depts.length} departments\n`);
 
@@ -559,12 +598,12 @@ async function seedDB() {
     await SalaryRule.bulkCreate([
       { name: 'Attendance bonus', type: 'bonus', triggerType: 'full_attendance', amount: 3, amountType: 'percentage' },
       { name: 'Overtime bonus', type: 'bonus', triggerType: 'overtime', amount: 500000, amountType: 'fixed' },
-      { name: 'Performance bonus', type: 'bonus', triggerType: 'custom', amount: 5, amountType: 'percentage' },
+      { name: 'Performance bonus', type: 'bonus', triggerType: 'custom', amount: 4, amountType: 'percentage' },
       { name: 'Seniority bonus', type: 'bonus', triggerType: 'custom', amount: 2, amountType: 'percentage' },
       { name: 'Technical allowance', type: 'bonus', triggerType: 'custom', amount: 1000000, amountType: 'fixed' },
       { name: 'Management allowance', type: 'bonus', triggerType: 'custom', amount: 10, amountType: 'percentage' },
-      { name: 'Late penalty', type: 'deduction', triggerType: 'late', amount: 500000, amountType: 'fixed' },
-      { name: 'Absence penalty', type: 'deduction', triggerType: 'absent', amount: 1000000, amountType: 'fixed' },
+      { name: 'Late penalty', type: 'deduction', triggerType: 'late', amount: 400000, amountType: 'fixed' },
+      { name: 'Absence penalty', type: 'deduction', triggerType: 'absent', amount: 2.5, amountType: 'percentage' },
       { name: 'Early leave penalty', type: 'deduction', triggerType: 'early_leave', amount: 300000, amountType: 'fixed' }
     ]);
     console.log('Done: salary rules created\n');
@@ -1018,7 +1057,7 @@ async function seedDB() {
       const profile = employeeProfiles[i];
       const effectiveStart = emp.startDate > PERIOD_START ? emp.startDate : PERIOD_START;
 
-      for (let date = new Date(effectiveStart); date <= REFERENCE_DATE; date = addDays(date, 1)) {
+      for (let date = new Date(effectiveStart); date <= ATTENDANCE_LOG_THROUGH; date = addDays(date, 1)) {
         const dayOfWeek = date.getUTCDay();
         if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
@@ -1154,6 +1193,30 @@ async function seedDB() {
       });
     }
 
+    // Extra approved leave in April 2026 (reference month) for realistic monthly report demos
+    const april2026LeaveDemo = [
+      { empIdx: 12, start: new Date('2026-04-14T00:00:00.000Z'), end: new Date('2026-04-15T00:00:00.000Z'), days: 2 },
+      { empIdx: 47, start: new Date('2026-04-21T00:00:00.000Z'), end: new Date('2026-04-21T00:00:00.000Z'), days: 1 },
+      { empIdx: 88, start: new Date('2026-04-28T00:00:00.000Z'), end: new Date('2026-04-29T00:00:00.000Z'), days: 2 }
+    ];
+    for (const row of april2026LeaveDemo) {
+      const emp = employees[row.empIdx];
+      if (!emp || emp.startDate > row.start) continue;
+      await LeaveRequest.create({
+        userId: emp.id,
+        type: 'paid',
+        startDate: row.start,
+        endDate: row.end,
+        days: row.days,
+        reason: 'Seed demo: approved leave in Apr/2026',
+        status: 'approved',
+        approvedBy: supervisor.id,
+        approvedAt: addDays(row.start, 1),
+        rejectionReason: null
+      });
+      leaveCount += 1;
+    }
+
     // Create Overtime Requests (deterministic)
     console.log('17. Creating deterministic overtime requests...');
     let otCount = 0;
@@ -1195,6 +1258,37 @@ async function seedDB() {
         otCount += 1;
       }
     }
+
+    // Approved OT on sample April 2026 workdays (reference month) for attendance / OT reports
+    const april2026OtDays = [
+      new Date('2026-04-09T00:00:00.000Z'),
+      new Date('2026-04-17T00:00:00.000Z'),
+      new Date('2026-04-25T00:00:00.000Z')
+    ];
+    for (let di = 0; di < april2026OtDays.length; di += 1) {
+      const idx = (di * 19 + 2) % employees.length;
+      const emp = employees[idx];
+      const profile = employeeProfiles[idx];
+      const date = april2026OtDays[di];
+      if (!emp || !profile.hasOvertime || emp.startDate > date) continue;
+      await OvertimeRequest.create({
+        userId: emp.id,
+        date,
+        startTime: '18:00',
+        endTime: '20:30',
+        totalHours: 2.5,
+        reason: 'Seed demo: April 2026 OT',
+        projectName: 'Demo-APR2026',
+        approvalStatus: 'approved',
+        approvedBy: supervisor.id,
+        approvedAt: addDays(date, 1),
+        rejectionReason: null,
+        approvalLevel: 1,
+        currentApproverId: null
+      });
+      otCount += 1;
+    }
+
     console.log(`   Created ${otCount} overtime requests`);
 
     // Create Business Trip Requests (deterministic)
@@ -1289,8 +1383,13 @@ async function seedDB() {
           status = (i + j) % 7 === 0 ? 'rejected' : 'approved';
         }
 
-        const ratio = [0.25, 0.30, 0.35][(i + j) % 3];
-        const amount = Math.round(Number(emp.baseSalary) * ratio);
+        // Ứng lương DN thật: thường 10–20% lương cơ bản/đợt, có trần tuyệt đối (tránh vượt quá thu nhập thực lĩnh)
+        const advanceRatio = [0.1, 0.15, 0.2][(i + j) % 3];
+        const ADVANCE_MONTHLY_CAP_VND = 8_000_000;
+        const amount = Math.min(
+          Math.round(Number(emp.baseSalary) * advanceRatio),
+          ADVANCE_MONTHLY_CAP_VND
+        );
         const requestDate = new Date(Date.UTC(period.year, period.month - 1, 15));
 
         await SalaryAdvance.create({
@@ -1469,73 +1568,29 @@ async function seedDB() {
     }
     console.log(`   Created ${edgeCaseCount} edge-case records`);
 
-    // Create Salary Records (deterministic)
-    console.log('20. Creating deterministic salary records...');
+    // Create Salary Records — same pipeline as runtime (calculateSalaryForUser), then apply demo statuses
+    console.log('20. Creating salary records via calculateSalaryForUser...');
     let salCount = 0;
     const refYear = now.getUTCFullYear();
     const refMonth = now.getUTCMonth() + 1;
 
     for (let i = 0; i < employees.length; i += 1) {
       const emp = employees[i];
-      const profile = employeeProfiles[i];
       const startDate = new Date(emp.startDate);
 
       for (let year = 2025; year <= refYear; year += 1) {
         const endMonthForYear = year === refYear ? refMonth : 12;
         for (let month = 1; month <= endMonthForYear; month += 1) {
-          const monthStart = new Date(Date.UTC(year, month - 1, 1));
           const monthEnd = new Date(Date.UTC(year, month, 1));
           if (monthEnd <= startDate) continue;
 
-          const base = Number(emp.baseSalary);
-          const workingDays = getWorkingDaysInMonth(year, month);
-          const attendanceDays = await AttendanceLog.count({
-            where: {
-              userId: emp.id,
-              type: 'IN',
-              timestamp: {
-                [Op.gte]: monthStart,
-                [Op.lt]: monthEnd
-              }
-            }
-          });
+          const calc = await calculateSalaryForUser(emp.id, month, year);
+          if (!calc.success) {
+            throw new Error(`calculateSalaryForUser failed for ${emp.employeeCode} ${month}/${year}: ${calc.error || 'unknown'}`);
+          }
 
-          const absentDays = Math.max(0, workingDays - attendanceDays);
-          const absentDeduction = Math.round((base / workingDays) * absentDays * 0.5);
+          const { salary, attendance } = calc;
 
-          const performanceRate = profile.seniorityBand === 'ten_years' ? 0.12 + (i % 3) * 0.01
-            : profile.seniorityBand === 'five_years' ? 0.08 + (i % 3) * 0.01
-              : profile.seniorityBand === 'three_years' ? 0.06 + (i % 3) * 0.01
-                : 0.04 + (i % 2) * 0.005;
-          const performanceBonus = Math.round(base * performanceRate);
-          const attendanceBonus = attendanceDays >= workingDays ? Math.round(base * 0.03) : (attendanceDays >= workingDays - 1 ? Math.round(base * 0.015) : 0);
-          const totalBonus = performanceBonus
-            + attendanceBonus
-            + Number(emp.lunchAllowance || 0)
-            + Number(emp.transportAllowance || 0)
-            + Number(emp.phoneAllowance || 0)
-            + Number(emp.responsibilityAllowance || 0);
-
-          const advance = await SalaryAdvance.findOne({
-            where: {
-              userId: emp.id,
-              month,
-              year,
-              approvalStatus: 'approved',
-              isDeducted: false
-            }
-          });
-          const advanceDeduction = advance ? Number(advance.amount) : 0;
-          const insuranceBase = Number(emp.insuranceBaseSalary || base);
-          const employeeInsurance = Math.round(insuranceBase * 0.105);
-          const personalDeduction = 11000000 + profile.dependents.length * 4400000;
-          const taxableIncome = base + totalBonus - employeeInsurance - personalDeduction;
-          const tax = taxableIncome > 0 ? Math.round(taxableIncome * 0.05) : 0;
-          const totalDeduction = absentDeduction + advanceDeduction + employeeInsurance + tax;
-          const finalSalary = Math.round(base + totalBonus - totalDeduction);
-
-          // Seed salary statuses to cover the full workflow (pending -> approved -> paid)
-          // - Mar/2026: mix pending/approved/paid for workflow testing
           const isRefMonth = year === refYear && month === refMonth;
 
           let salaryStatus = 'paid';
@@ -1559,25 +1614,16 @@ async function seedDB() {
             }
           }
 
-          await Salary.create({
-            userId: emp.id,
-            month,
-            year,
-            baseSalary: base,
-            bonus: totalBonus,
-            deduction: totalDeduction,
-            advanceDeduction,
-            finalSalary,
+          const otH = attendance?.overtimeHours ?? 0;
+          const notes = `Salary ${month}/${year}. OT ${otH.toFixed(1)}h, late ${attendance?.lateCount ?? 0}, absent ${attendance?.absentDays ?? 0}d`;
+
+          await salary.update({
             status: salaryStatus,
             calculatedAt,
             paidAt,
-            notes: `Salary ${month}/${year}. Attendance ${attendanceDays}/${workingDays}`
+            notes
           });
           salCount += 1;
-
-          if (advance) {
-            await advance.update({ isDeducted: true, deductedAt: new Date(Date.UTC(year, month - 1, 28)) });
-          }
         }
       }
     }
@@ -1613,7 +1659,8 @@ async function seedDB() {
 
     const seniorityActual = { ten_years: 0, five_years: 0, three_years: 0, new_joiner: 0, other: 0 };
     for (const emp of employees) {
-      const band = classifySeniority(new Date(emp.startDate));
+      const n = Number.parseInt(String(emp.employeeCode || '').replace(/^EMP/i, ''), 10);
+      const band = seniorityBandFromEmployeeNumber(n);
       seniorityActual[band] += 1;
     }
     for (const [band, expected] of Object.entries(REQUIRED_COUNTS.seniority)) {
@@ -2087,6 +2134,73 @@ async function seedDB() {
       }
     }
     console.log('   Validation passed');
+
+    // HR Reports — Turnover / resignation (multi-month 2026 for date-range / month filters)
+    // getEmployeeTurnoverReport: new hires = startDate in [start,end]; exits = terminated|resigned + updatedAt in [start,end].
+    const applyTurnoverExit = async (code, status, y, monthIndex, day, hour = 10) => {
+      const ts = new Date(Date.UTC(y, monthIndex, day, hour, 0, 0));
+      await sequelize.query(
+        `UPDATE users SET "employmentStatus" = :st, "isActive" = false, "deactivatedAt" = :ts, "updatedAt" = :ts
+         WHERE "employeeCode" = :code AND role = 'employee'`,
+        { replacements: { st: status, ts, code } }
+      );
+    };
+    const applyTurnoverNewHire = async (code, y, monthIndex, day) => {
+      const sd = new Date(Date.UTC(y, monthIndex, day, 0, 0, 0));
+      const ut = new Date(Date.UTC(y, monthIndex, day, 14, 30, 0));
+      await sequelize.query(
+        `UPDATE users SET "startDate" = :sd, "updatedAt" = :ut, "isActive" = true,
+         "employmentStatus" = 'active', "deactivatedAt" = NULL
+         WHERE "employeeCode" = :code AND role = 'employee'`,
+        { replacements: { sd, ut, code } }
+      );
+    };
+
+    // February 2026 — filter preset "month 2 / year 2026" or range inside Feb
+    await applyTurnoverExit('EMP120', 'resigned', 2026, 1, 12);
+    await applyTurnoverNewHire('EMP121', 2026, 1, 22);
+
+    // March 2026 — distinct from April; good for "March only" vs "Apr only" vs spanning Mar–Apr
+    await applyTurnoverExit('EMP131', 'resigned', 2026, 2, 6);
+    await applyTurnoverExit('EMP132', 'terminated', 2026, 2, 14);
+    await applyTurnoverExit('EMP133', 'resigned', 2026, 2, 26);
+    await applyTurnoverNewHire('EMP128', 2026, 2, 5);
+    await applyTurnoverNewHire('EMP129', 2026, 2, 16);
+    await applyTurnoverNewHire('EMP130', 2026, 2, 27);
+
+    // April 2026 — primary demo window (e.g. 2026-03-31 … 2026-04-29)
+    const turnoverExit = [
+      { code: 'EMP141', status: 'resigned', day: 7 },
+      { code: 'EMP142', status: 'resigned', day: 11 },
+      { code: 'EMP143', status: 'resigned', day: 15 },
+      { code: 'EMP144', status: 'terminated', day: 18 },
+      { code: 'EMP145', status: 'terminated', day: 22 },
+      { code: 'EMP146', status: 'resigned', day: 25 },
+    ];
+    for (const row of turnoverExit) {
+      await applyTurnoverExit(row.code, row.status, 2026, 3, row.day);
+    }
+    const turnoverNewHires = [
+      { code: 'EMP147', day: 4 },
+      { code: 'EMP148', day: 11 },
+      { code: 'EMP149', day: 18 },
+      { code: 'EMP150', day: 24 },
+    ];
+    for (const row of turnoverNewHires) {
+      await applyTurnoverNewHire(row.code, 2026, 3, row.day);
+    }
+
+    // May 2026 — filter "May / 2026" or ranges that exclude April
+    await applyTurnoverNewHire('EMP126', 2026, 4, 6);
+    await applyTurnoverExit('EMP127', 'terminated', 2026, 4, 19);
+
+    // Boundary: last day of March + first day of April (cross-month range tests)
+    await applyTurnoverExit('EMP134', 'resigned', 2026, 2, 31);
+    await applyTurnoverNewHire('EMP135', 2026, 3, 1);
+
+    const turnoverDemoNote =
+      'Feb(120/121) + Mar(128-133) + Apr(141-150) + May(126/127) + boundary Mar31/Apr1(134/135)';
+    console.log(`   HR reports (turnover demo): ${turnoverDemoNote}`);
 
     // Summary
     console.log('\nSEED DATA GENERATION COMPLETED\n');
