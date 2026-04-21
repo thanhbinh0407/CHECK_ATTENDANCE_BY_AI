@@ -12,27 +12,16 @@ function formatMoney(n) {
 
 const shortcutGroups = [
   {
-    title: "People & Organization",
+    title: "People & accounts",
     links: [
       { to: "/employees", label: "Employee Profiles", icon: "👥" },
       { to: "/users", label: "Accounts & Roles", icon: "🔐" },
-      { to: "/departments", label: "Departments", icon: "🏢" },
-      { to: "/job-titles", label: "Job Titles", icon: "📋" },
-      { to: "/shifts", label: "Work Shifts", icon: "🕐" },
       { to: "/enrollment", label: "Face Enrollment", icon: "🪪" },
     ],
   },
   {
-    title: "Attendance & Requests",
-    links: [
-      { to: "/camera", label: "Face Recognition Kiosk", icon: "📷" },
-      { to: "/attendance-logs", label: "Attendance Logs", icon: "📅" },
-      { to: "/leave", label: "Leave Requests", icon: "🏖️" },
-      { to: "/overtime", label: "Overtime", icon: "⏱️" },
-      { to: "/business-trips", label: "Business Trips", icon: "✈️" },
-      { to: "/salary-advances", label: "Salary Advances", icon: "💵" },
-      { to: "/approvals", label: "Approval Flow (HR)", icon: "✅" },
-    ],
+    title: "Attendance",
+    links: [{ to: "/attendance-logs", label: "Attendance Logs", icon: "📅" }],
   },
   {
     title: "Payroll, Insurance & Reports",
@@ -46,14 +35,6 @@ const shortcutGroups = [
       { to: "/reports", label: "Reports", icon: "📊" },
       { to: "/analytics", label: "Analytics", icon: "📉" },
       { to: "/approval-audit", label: "Approval Responsibility Log", icon: "🧾" },
-    ],
-  },
-  {
-    title: "Profiles & Documents",
-    links: [
-      { to: "/documents", label: "Documents", icon: "📎" },
-      { to: "/dependents", label: "Dependents", icon: "👨‍👩‍👧" },
-      { to: "/qualifications", label: "Qualifications / Certificates", icon: "🎓" },
     ],
   },
 ];
@@ -81,7 +62,7 @@ export default function ManagerDashboard() {
         <div>
           <h1 className="mgr-dash__title">Overview</h1>
           <p className="mgr-dash__sub">
-            Quick snapshot of workforce, pending requests, and core workflows. Use the grid below or the left menu to open modules.
+            Quick snapshot of workforce and core workflows. Use the grid below or the left menu to open modules.
           </p>
         </div>
         <div className="mgr-dash__meta">{headDate}</div>
@@ -111,11 +92,11 @@ export default function ManagerDashboard() {
           <div className="mgr-dash__kpi-label">Inactive / On Leave</div>
           <div className="mgr-dash__kpi-value">{loading ? "…" : summary.inactive}</div>
         </div>
-        <Link to="/approvals" className="mgr-dash__kpi mgr-dash__kpi--accent mgr-dash__kpi--link">
+        <div className="mgr-dash__kpi mgr-dash__kpi--accent" title="Handled in Supervisor/HR consoles">
           <span className="mgr-dash__kpi-deco" aria-hidden>
             ⏳
           </span>
-          <div className="mgr-dash__kpi-label">Pending Approvals</div>
+          <div className="mgr-dash__kpi-label">Pending Approvals (org-wide)</div>
           <div className="mgr-dash__kpi-value">{loading ? "…" : summary.pendingTotal}</div>
           {!loading && (
             <div className="mgr-dash__kpi-chips">
@@ -125,7 +106,7 @@ export default function ManagerDashboard() {
               <span className="mgr-dash__chip">Advance {pending.advance}</span>
             </div>
           )}
-        </Link>
+        </div>
         <div className="mgr-dash__kpi">
           <span className="mgr-dash__kpi-deco" aria-hidden>
             ₫

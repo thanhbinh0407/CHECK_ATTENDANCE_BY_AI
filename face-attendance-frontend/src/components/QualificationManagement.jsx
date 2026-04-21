@@ -159,15 +159,16 @@ export default function QualificationManagement() {
   };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <h2 style={{ color: theme.primary.main }}>📜 Qualification & Certificate Management</h2>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+    <div style={{ padding: "14px 16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
+        <h2 style={{ color: theme.primary.main, margin: 0, fontSize: "18px", fontWeight: 700 }}>📜 Qualifications / Certificates</h2>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <select
             value={filterUserId}
             onChange={(e) => setFilterUserId(e.target.value)}
             style={{
-              padding: "8px 12px",
+              padding: "6px 10px",
+              fontSize: "13px",
               border: `1px solid ${theme.neutral.gray300}`,
               borderRadius: theme.radius.sm
             }}
@@ -184,27 +185,29 @@ export default function QualificationManagement() {
               setFormData({ userId: filterUserId || "", type: "degree", name: "", issuedBy: "", issuedDate: "", expiryDate: "", certificateNumber: "", description: "", isActive: true });
             }}
             style={{
-              padding: "10px 20px",
+              padding: "7px 14px",
+              fontSize: "13px",
               backgroundColor: theme.primary.main,
               color: "white",
               border: "none",
-              borderRadius: theme.radius.md,
+              borderRadius: theme.radius.sm,
               cursor: "pointer",
               fontWeight: "600"
             }}
           >
-            + Add Qualification
+            + Add
           </button>
         </div>
       </div>
 
       {message && (
         <div style={{
-          padding: "12px",
-          marginBottom: "20px",
+          padding: "8px 12px",
+          fontSize: "13px",
+          marginBottom: "12px",
           backgroundColor: message.toLowerCase().includes("success") ? theme.success.bg : theme.error.bg,
           color: message.toLowerCase().includes("success") ? theme.success.text : theme.error.text,
-          borderRadius: theme.radius.md
+          borderRadius: theme.radius.sm
         }}>
           {message}
         </div>
@@ -213,26 +216,27 @@ export default function QualificationManagement() {
       {showForm && (
         <div style={{
           backgroundColor: "white",
-          padding: "24px",
+          padding: "16px",
           borderRadius: theme.radius.md,
-          marginBottom: "20px",
-          boxShadow: theme.shadows.md
+          marginBottom: "14px",
+          boxShadow: theme.shadows.sm
         }}>
-          <h3 style={{ marginTop: 0, color: theme.primary.main }}>
+          <h3 style={{ marginTop: 0, marginBottom: "12px", color: theme.primary.main, fontSize: "16px" }}>
             {editingId ? "Edit Qualification" : "Add New Qualification"}
           </h3>
           <form onSubmit={handleSubmit}>
-            <div style={{ display: "grid", gridTemplateColumns: editingId ? "1fr 1fr" : "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: editingId ? "1fr 1fr" : "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
               {!editingId && (
                 <div>
-                  <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Employee *</label>
+                  <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Employee *</label>
                   <select
                     required={!editingId}
                     value={formData.userId}
                     onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
                     style={{
                       width: "100%",
-                      padding: "10px",
+                      padding: "8px 10px",
+                      fontSize: "13px",
                       border: `1px solid ${theme.neutral.gray300}`,
                       borderRadius: theme.radius.sm
                     }}
@@ -245,14 +249,15 @@ export default function QualificationManagement() {
                 </div>
               )}
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Type *</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Type *</label>
                 <select
                   required
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
@@ -264,7 +269,7 @@ export default function QualificationManagement() {
                 </select>
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Qualification Name *</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Qualification Name *</label>
                 <input
                   type="text"
                   required
@@ -272,70 +277,75 @@ export default function QualificationManagement() {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Issued By</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Issued By</label>
                 <input
                   type="text"
                   value={formData.issuedBy}
                   onChange={(e) => setFormData({ ...formData, issuedBy: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Issue Date</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Issue Date</label>
                 <input
                   type="date"
                   value={formData.issuedDate}
                   onChange={(e) => setFormData({ ...formData, issuedDate: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Expiry Date</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Expiry Date</label>
                 <input
                   type="date"
                   value={formData.expiryDate}
                   onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Certificate Number</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Certificate Number</label>
                 <input
                   type="text"
                   value={formData.certificateNumber}
                   onChange={(e) => setFormData({ ...formData, certificateNumber: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
                 />
               </div>
               <div>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "28px" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "22px", fontSize: "13px" }}>
                   <input
                     type="checkbox"
                     checked={formData.isActive}
@@ -345,26 +355,28 @@ export default function QualificationManagement() {
                 </label>
               </div>
             </div>
-            <div style={{ marginBottom: "16px" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Description</label>
+            <div style={{ marginBottom: "12px" }}>
+              <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Description</label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows="3"
                 style={{
                   width: "100%",
-                  padding: "10px",
+                  padding: "8px 10px",
+                  fontSize: "13px",
                   border: `1px solid ${theme.neutral.gray300}`,
                   borderRadius: theme.radius.sm
                 }}
               />
             </div>
-            <div style={{ display: "flex", gap: "12px" }}>
+            <div style={{ display: "flex", gap: "8px" }}>
               <button
                 type="submit"
                 disabled={loading}
                 style={{
-                  padding: "10px 20px",
+                  padding: "8px 16px",
+                  fontSize: "13px",
                   backgroundColor: theme.primary.main,
                   color: "white",
                   border: "none",
@@ -383,7 +395,8 @@ export default function QualificationManagement() {
                   setFormData({ userId: filterUserId || "", type: "degree", name: "", issuedBy: "", issuedDate: "", expiryDate: "", certificateNumber: "", description: "", isActive: true });
                 }}
                 style={{
-                  padding: "10px 20px",
+                  padding: "8px 16px",
+                  fontSize: "13px",
                   backgroundColor: theme.neutral.gray400,
                   color: "white",
                   border: "none",
@@ -399,37 +412,37 @@ export default function QualificationManagement() {
       )}
 
       {loading && !showForm ? (
-        <div style={{ textAlign: "center", padding: "40px" }}>Loading...</div>
+        <div style={{ textAlign: "center", padding: "24px", fontSize: "13px" }}>Loading...</div>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse", backgroundColor: "white", borderRadius: theme.radius.md, overflow: "hidden" }}>
           <thead>
             <tr style={{ backgroundColor: theme.primary.main, color: "white" }}>
-              <th style={{ padding: "12px", textAlign: "left" }}>Employee</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Type</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Name</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Issued By</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Issue Date</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Expiry Date</th>
-              <th style={{ padding: "12px", textAlign: "center" }}>Status</th>
-              <th style={{ padding: "12px", textAlign: "center" }}>Actions</th>
+              <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "12px" }}>Employee</th>
+              <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "12px" }}>Type</th>
+              <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "12px" }}>Name</th>
+              <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "12px" }}>Issued By</th>
+              <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "12px" }}>Issue</th>
+              <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "12px" }}>Expiry</th>
+              <th style={{ padding: "8px 10px", textAlign: "center", fontSize: "12px" }}>Status</th>
+              <th style={{ padding: "8px 10px", textAlign: "center", fontSize: "12px" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {qualifications.map(qual => (
               <tr key={qual.id} style={{ borderBottom: `1px solid ${theme.neutral.gray200}` }}>
-                <td style={{ padding: "12px" }}>
+                <td style={{ padding: "8px 10px", fontSize: "13px" }}>
                   {qual.User ? `${qual.User.name} (${qual.User.employeeCode})` : "-"}
                 </td>
-                <td style={{ padding: "12px" }}>{getTypeLabel(qual.type)}</td>
-                <td style={{ padding: "12px", fontWeight: "600" }}>{qual.name}</td>
-                <td style={{ padding: "12px" }}>{qual.issuedBy || "-"}</td>
-                <td style={{ padding: "12px" }}>
+                <td style={{ padding: "8px 10px", fontSize: "13px" }}>{getTypeLabel(qual.type)}</td>
+                <td style={{ padding: "8px 10px", fontSize: "13px", fontWeight: "600" }}>{qual.name}</td>
+                <td style={{ padding: "8px 10px", fontSize: "13px" }}>{qual.issuedBy || "-"}</td>
+                <td style={{ padding: "8px 10px", fontSize: "13px" }}>
                   {qual.issuedDate ? new Date(qual.issuedDate).toLocaleDateString("vi-VN") : "-"}
                 </td>
-                <td style={{ padding: "12px" }}>
+                <td style={{ padding: "8px 10px", fontSize: "13px" }}>
                   {qual.expiryDate ? new Date(qual.expiryDate).toLocaleDateString("vi-VN") : "-"}
                 </td>
-                <td style={{ padding: "12px", textAlign: "center" }}>
+                <td style={{ padding: "8px 10px", textAlign: "center" }}>
                   <span style={{
                     padding: "4px 12px",
                     borderRadius: theme.radius.full,
@@ -441,7 +454,7 @@ export default function QualificationManagement() {
                     {qual.isActive ? "Active" : "Inactive"}
                   </span>
                 </td>
-                <td style={{ padding: "12px", textAlign: "center" }}>
+                <td style={{ padding: "8px 10px", textAlign: "center" }}>
                   <button
                     onClick={() => handleEdit(qual)}
                     style={{

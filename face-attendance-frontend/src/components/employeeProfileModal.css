@@ -1,16 +1,27 @@
 /* Employee profile modal — compact sections & form grid */
+/*
+ * Tab bar: overflow-x:auto can make overflow-y compute to "auto" and clip descenders.
+ * Use inner padding + comfortable line-height; underline via inset shadow (no negative margin).
+ */
 .epm-tabs-scroll {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  border-bottom: 2px solid #e2e8f0;
+  flex-shrink: 0;
   background: #f8fafc;
+  border-bottom: 2px solid #e2e8f0;
 }
 
-.epm-tabs-scroll::-webkit-scrollbar {
+.epm-tabs-scroll-inner {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  /* Room above/below tab labels so "g", "p", "y" are not clipped */
+  padding: 10px 8px 10px;
+}
+
+.epm-tabs-scroll-inner::-webkit-scrollbar {
   height: 6px;
 }
 
-.epm-tabs-scroll::-webkit-scrollbar-thumb {
+.epm-tabs-scroll-inner::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 3px;
 }
@@ -18,36 +29,43 @@
 .epm-tabs {
   display: flex;
   flex-wrap: nowrap;
-  gap: 0;
+  gap: 2px;
   min-width: min-content;
+  align-items: stretch;
 }
 
 .epm-tab {
   flex: 0 0 auto;
-  padding: 10px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 10px 16px 12px;
   border: none;
   background: transparent;
   color: #64748b;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   font-family: inherit;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
+  line-height: 1.45;
   white-space: nowrap;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s, background 0.15s, box-shadow 0.15s;
+  box-shadow: inset 0 -3px 0 transparent;
+  border-radius: 8px 8px 0 0;
 }
 
 .epm-tab:hover {
   color: #334155;
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.65);
 }
 
 .epm-tab--active {
   background: #fff;
   color: #0f172a;
   font-weight: 600;
-  border-bottom-color: var(--epm-accent, #4f46e5);
+  box-shadow: inset 0 -3px 0 var(--epm-accent, #4f46e5);
 }
 
 .epm-body {
@@ -196,17 +214,4 @@
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid #e2e8f0;
-}
-
-.epm-password-panel {
-  margin-top: 16px;
-  padding: 14px 16px;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  background: #fffbeb;
-}
-
-.epm-password-panel--ok {
-  background: #f0fdf4;
-  border-color: #86efac;
 }

@@ -166,15 +166,16 @@ export default function DependentManagement() {
   };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <h2 style={{ color: theme.primary.main }}>👨‍👩‍👧‍👦 Dependent Management</h2>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+    <div style={{ padding: "14px 16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
+        <h2 style={{ color: theme.primary.main, margin: 0, fontSize: "18px", fontWeight: 700 }}>👨‍👩‍👧‍👦 Dependents</h2>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <select
             value={filterUserId}
             onChange={(e) => setFilterUserId(e.target.value)}
             style={{
-              padding: "8px 12px",
+              padding: "6px 10px",
+              fontSize: "13px",
               border: `1px solid ${theme.neutral.gray300}`,
               borderRadius: theme.radius.sm
             }}
@@ -191,27 +192,29 @@ export default function DependentManagement() {
               setFormData({ userId: filterUserId || "", fullName: "", relationship: "", dateOfBirth: "", gender: "", idNumber: "", address: "", phoneNumber: "", email: "", occupation: "", notes: "", isDependent: true });
             }}
             style={{
-              padding: "10px 20px",
+              padding: "7px 14px",
+              fontSize: "13px",
               backgroundColor: theme.primary.main,
               color: "white",
               border: "none",
-              borderRadius: theme.radius.md,
+              borderRadius: theme.radius.sm,
               cursor: "pointer",
               fontWeight: "600"
             }}
           >
-            + Add Dependent
+            + Add
           </button>
         </div>
       </div>
 
       {message && (
         <div style={{
-          padding: "12px",
-          marginBottom: "20px",
+          padding: "8px 12px",
+          fontSize: "13px",
+          marginBottom: "12px",
           backgroundColor: message.toLowerCase().includes("success") ? theme.success.bg : theme.error.bg,
           color: message.toLowerCase().includes("success") ? theme.success.text : theme.error.text,
-          borderRadius: theme.radius.md
+          borderRadius: theme.radius.sm
         }}>
           {message}
         </div>
@@ -220,26 +223,27 @@ export default function DependentManagement() {
       {showForm && (
         <div style={{
           backgroundColor: "white",
-          padding: "24px",
+          padding: "16px",
           borderRadius: theme.radius.md,
-          marginBottom: "20px",
-          boxShadow: theme.shadows.md
+          marginBottom: "14px",
+          boxShadow: theme.shadows.sm
         }}>
-          <h3 style={{ marginTop: 0, color: theme.primary.main }}>
+          <h3 style={{ marginTop: 0, marginBottom: "12px", color: theme.primary.main, fontSize: "16px" }}>
             {editingId ? "Edit Dependent" : "Add New Dependent"}
           </h3>
           <form onSubmit={handleSubmit}>
-            <div style={{ display: "grid", gridTemplateColumns: editingId ? "1fr 1fr" : "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: editingId ? "1fr 1fr" : "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
               {!editingId && (
                 <div>
-                  <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Employee *</label>
+                  <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Employee *</label>
                   <select
                     required={!editingId}
                     value={formData.userId}
                     onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
                     style={{
                       width: "100%",
-                      padding: "10px",
+                      padding: "8px 10px",
+                      fontSize: "13px",
                       border: `1px solid ${theme.neutral.gray300}`,
                       borderRadius: theme.radius.sm
                     }}
@@ -252,7 +256,7 @@ export default function DependentManagement() {
                 </div>
               )}
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Full Name *</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Full Name *</label>
                 <input
                   type="text"
                   required
@@ -260,21 +264,23 @@ export default function DependentManagement() {
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Relationship *</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Relationship *</label>
                 <select
                   required
                   value={formData.relationship}
                   onChange={(e) => setFormData({ ...formData, relationship: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
@@ -289,27 +295,29 @@ export default function DependentManagement() {
                 </select>
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Date of Birth</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Date of Birth</label>
                 <input
                   type="date"
                   value={formData.dateOfBirth}
                   onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Gender</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Gender</label>
                 <select
                   value={formData.gender}
                   onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
@@ -321,96 +329,103 @@ export default function DependentManagement() {
                 </select>
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>CMND/CCCD</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>CMND/CCCD</label>
                 <input
                   type="text"
                   value={formData.idNumber}
                   onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Address</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Address</label>
                 <input
                   type="text"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Phone Number</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Phone Number</label>
                 <input
                   type="text"
                   value={formData.phoneNumber}
                   onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Email</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Email</label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Occupation</label>
+                <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Occupation</label>
                 <input
                   type="text"
                   value={formData.occupation}
                   onChange={(e) => setFormData({ ...formData, occupation: e.target.value })}
                   style={{
                     width: "100%",
-                    padding: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
                     border: `1px solid ${theme.neutral.gray300}`,
                     borderRadius: theme.radius.sm
                   }}
                 />
               </div>
             </div>
-            <div style={{ marginBottom: "16px" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Notes</label>
+            <div style={{ marginBottom: "12px" }}>
+              <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px" }}>Notes</label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 rows="3"
                 style={{
                   width: "100%",
-                  padding: "10px",
+                  padding: "8px 10px",
+                  fontSize: "13px",
                   border: `1px solid ${theme.neutral.gray300}`,
                   borderRadius: theme.radius.sm
                 }}
               />
             </div>
-            <div style={{ display: "flex", gap: "12px" }}>
+            <div style={{ display: "flex", gap: "8px" }}>
               <button
                 type="submit"
                 disabled={loading}
                 style={{
-                  padding: "10px 20px",
+                  padding: "8px 16px",
+                  fontSize: "13px",
                   backgroundColor: theme.primary.main,
                   color: "white",
                   border: "none",
@@ -429,7 +444,8 @@ export default function DependentManagement() {
                   setFormData({ userId: filterUserId || "", fullName: "", relationship: "", dateOfBirth: "", gender: "", idNumber: "", address: "", phoneNumber: "", email: "", occupation: "", notes: "", isDependent: true });
                 }}
                 style={{
-                  padding: "10px 20px",
+                  padding: "8px 16px",
+                  fontSize: "13px",
                   backgroundColor: theme.neutral.gray400,
                   color: "white",
                   border: "none",
@@ -445,38 +461,38 @@ export default function DependentManagement() {
       )}
 
       {loading && !showForm ? (
-        <div style={{ textAlign: "center", padding: "40px" }}>Loading...</div>
+        <div style={{ textAlign: "center", padding: "24px", fontSize: "13px" }}>Loading...</div>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse", backgroundColor: "white", borderRadius: theme.radius.md, overflow: "hidden" }}>
           <thead>
             <tr style={{ backgroundColor: theme.primary.main, color: "white" }}>
-              <th style={{ padding: "12px", textAlign: "left" }}>Employee</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Full Name</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Relationship</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Date of Birth</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Gender</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>CMND/CCCD</th>
-              <th style={{ padding: "12px", textAlign: "left" }}>Phone Number</th>
-              <th style={{ padding: "12px", textAlign: "center" }}>Actions</th>
+              <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "12px" }}>Employee</th>
+              <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "12px" }}>Full Name</th>
+              <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "12px" }}>Relationship</th>
+              <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "12px" }}>Date of Birth</th>
+              <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "12px" }}>Gender</th>
+              <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "12px" }}>CMND/CCCD</th>
+              <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "12px" }}>Phone</th>
+              <th style={{ padding: "8px 10px", textAlign: "center", fontSize: "12px" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {dependents.map(dep => (
               <tr key={dep.id} style={{ borderBottom: `1px solid ${theme.neutral.gray200}` }}>
-                <td style={{ padding: "12px" }}>
+                <td style={{ padding: "8px 10px", fontSize: "13px" }}>
                   {dep.User ? `${dep.User.name} (${dep.User.employeeCode})` : "-"}
                 </td>
-                <td style={{ padding: "12px", fontWeight: "600" }}>{dep.fullName}</td>
-                <td style={{ padding: "12px" }}>{getRelationshipLabel(dep.relationship)}</td>
-                <td style={{ padding: "12px" }}>
+                <td style={{ padding: "8px 10px", fontSize: "13px", fontWeight: "600" }}>{dep.fullName}</td>
+                <td style={{ padding: "8px 10px", fontSize: "13px" }}>{getRelationshipLabel(dep.relationship)}</td>
+                <td style={{ padding: "8px 10px", fontSize: "13px" }}>
                   {dep.dateOfBirth ? new Date(dep.dateOfBirth).toLocaleDateString("vi-VN") : "-"}
                 </td>
-                <td style={{ padding: "12px" }}>
+                <td style={{ padding: "8px 10px", fontSize: "13px" }}>
                   {dep.gender === "male" ? "Male" : dep.gender === "female" ? "Female" : dep.gender || "-"}
                 </td>
-                <td style={{ padding: "12px" }}>{dep.idNumber || "-"}</td>
-                <td style={{ padding: "12px" }}>{dep.phoneNumber || "-"}</td>
-                <td style={{ padding: "12px", textAlign: "center" }}>
+                <td style={{ padding: "8px 10px", fontSize: "13px" }}>{dep.idNumber || "-"}</td>
+                <td style={{ padding: "8px 10px", fontSize: "13px" }}>{dep.phoneNumber || "-"}</td>
+                <td style={{ padding: "8px 10px", textAlign: "center" }}>
                   <button
                     onClick={() => handleEdit(dep)}
                     style={{

@@ -13,6 +13,52 @@ import LeaveRequest from '../models/pg/LeaveRequest.js';
 import Salary from '../models/pg/Salary.js';
 import { Op } from 'sequelize';
 
+const UNKNOWN = 'Unknown';
+
+/** Display labels for educationLevel enum (pie chart / legend) */
+const EDUCATION_LEVEL_LABELS = {
+  high_school: 'High school',
+  vocational: 'Vocational',
+  college: 'College',
+  university: 'University',
+  master: 'Master',
+  phd: 'PhD',
+  other: 'Other',
+  'Không xác định': UNKNOWN,
+};
+
+function formatEducationLevelName(level) {
+  if (level == null || level === '') return UNKNOWN;
+  return EDUCATION_LEVEL_LABELS[level] || String(level);
+}
+
+const CONTRACT_TYPE_LABELS = {
+  probation: 'Probation',
+  '1_year': '1 year',
+  '3_year': '3 years',
+  indefinite: 'Open-ended',
+  other: 'Other',
+};
+
+function formatContractTypeName(contractType) {
+  if (contractType == null || contractType === '') return UNKNOWN;
+  return CONTRACT_TYPE_LABELS[contractType] || String(contractType);
+}
+
+/** Seniority bucket keys from reportService (Vietnamese) → English for dashboard API */
+const SENIORITY_GROUP_LABELS = {
+  'Dưới 1 năm': 'Under 1 year',
+  '1-3 năm': '1–3 years',
+  '3-5 năm': '3–5 years',
+  '5-10 năm': '5–10 years',
+  'Trên 10 năm': 'Over 10 years',
+};
+
+function formatSeniorityGroupName(key) {
+  if (key == null || key === '') return UNKNOWN;
+  return SENIORITY_GROUP_LABELS[key] || String(key);
+}
+
 // Get dashboard analytics data
 export const getDashboardAnalytics = async (month, year) => {
   try {
@@ -158,32 +204,28 @@ export const getDashboardAnalytics = async (month, year) => {
       charts: {
         // Pie chart: Structure by Department
         structureByDepartment: (structureReport.byDepartment || []).map(dept => ({
-          name: dept.departmentName || 'Không xác định',
+          name: dept.departmentName || UNKNOWN,
           value: parseInt(dept.count) || 0
         })),
         // Pie chart: Structure by Contract Type
         structureByContractType: (structureReport.byContractType || []).map(contract => ({
-          name: contract.contractType === 'probation' ? 'Thử việc' :
-                contract.contractType === '1_year' ? '1 năm' :
-                contract.contractType === '3_year' ? '3 năm' :
-                contract.contractType === 'indefinite' ? 'Không xác định' :
-                contract.contractType === 'other' ? 'Khác' : contract.contractType || 'Không xác định',
+          name: formatContractTypeName(contract.contractType),
           value: parseInt(contract.count) || 0
         })),
-        // Pie chart: Age Distribution
+        // Pie chart: Age Distribution (ageGroup keys are already e.g. 18–25, 26–30)
         ageDistribution: (seniorityAgeReport.ageDistribution || []).map(age => ({
-          name: age.ageGroup || 'Không xác định',
+          name: age.ageGroup || UNKNOWN,
           value: age.count || 0
         })),
         // Pie chart: Seniority Distribution
         seniorityDistribution: (seniorityAgeReport.seniorityDistribution || []).map(sen => ({
-          name: sen.seniorityGroup || 'Không xác định',
+          name: formatSeniorityGroupName(sen.seniorityGroup),
           value: sen.count || 0
         })),
-        // Pie chart: Education Level
-        educationLevel: (educationReport.byEducationLevel || []).map(edu => ({
-          name: edu.level || 'Không xác định',
-          value: edu.count || 0
+        // Pie chart: Education Level (numeric value required for Recharts)
+        educationLevel: (educationReport.byEducationLevel || []).map((edu) => ({
+          name: formatEducationLevelName(edu.level),
+          value: Number(edu.count) || 0,
         })),
         // Line chart: Turnover Rate Trend (6 months)
         turnoverTrend: turnoverTrend || [],
@@ -193,7 +235,7 @@ export const getDashboardAnalytics = async (month, year) => {
         attendanceTrend: attendanceTrend || [],
         // Bar chart: Overtime by Department
         overtimeByDepartment: (overtimeReport.byDepartment || []).map(dept => ({
-          name: dept.departmentName || 'Không xác định',
+          name: dept.departmentName || UNKNOWN,
           hours: dept.totalHours || 0,
           employees: dept.employeeCount || 0
         })),
@@ -202,7 +244,7 @@ export const getDashboardAnalytics = async (month, year) => {
           .sort((a, b) => (b.totalHours || 0) - (a.totalHours || 0))
           .slice(0, 10)
           .map(emp => ({
-            name: emp.employeeName || 'Không xác định',
+            name: emp.employeeName || UNKNOWN,
             hours: emp.totalHours || 0
           }))
       }

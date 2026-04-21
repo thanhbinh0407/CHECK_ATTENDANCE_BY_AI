@@ -1,20 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  exportEmployeesToExcel,
-  exportEmployeesToPDF,
-  importEmployeesFromExcel,
-  downloadEmployeeTemplate,
-} from "../utils/exportUtils.js";
 import EmployeeProfileModal from "./EmployeeProfileModal.jsx";
 import socket from "../socket.js";
 import "./adminEmployeeProfiles.css";
-import {
-  toastConfirm,
-  toastError,
-  toastSuccess,
-  toastWarning,
-  toastPrompt,
-} from "../lib/notify.jsx";
 
 function buildPresenceMap(logs) {
   const byUser = {};
@@ -89,10 +76,8 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState("all");
-  const [listMode, setListMode] = useState("active"); // active | inactive
   const [filterDepartmentId, setFilterDepartmentId] = useState("");
   const [filterJobTitleId, setFilterJobTitleId] = useState("");
-  const [filterEmployment, setFilterEmployment] = useState("all");
   const [filterPresence, setFilterPresence] = useState("all");
   const [startDateFrom, setStartDateFrom] = useState("");
   const [startDateTo, setStartDateTo] = useState("");
@@ -171,7 +156,6 @@ export default function AdminDashboard() {
     if (filterStatus !== "all") n++;
     if (filterDepartmentId) n++;
     if (filterJobTitleId) n++;
-    if (filterEmployment !== "all") n++;
     if (filterPresence !== "all") n++;
     if (startDateFrom || startDateTo) n++;
     return n;
@@ -179,7 +163,6 @@ export default function AdminDashboard() {
     filterStatus,
     filterDepartmentId,
     filterJobTitleId,
-    filterEmployment,
     filterPresence,
     startDateFrom,
     startDateTo,
@@ -188,11 +171,7 @@ export default function AdminDashboard() {
   const filteredEmployees = useMemo(() => {
     let filtered = [...employees];
 
-    // List mode: active list shows only active; disabled list shows only inactive
-    filtered =
-      listMode === "active"
-        ? filtered.filter((e) => e.isActive !== false)
-        : filtered.filter((e) => e.isActive === false);
+    filtered = filtered.filter((e) => e.isActive !== false);
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -220,13 +199,7 @@ export default function AdminDashboard() {
       filtered = filtered.filter((e) => e.JobTitle?.id === id);
     }
 
-    if (filterEmployment !== "all") {
-      filtered = filtered.filter((e) => (e.employmentStatus || "active") === filterEmployment);
-    }
-
-    if (filterPresence === "checkedIn") {
-      filtered = filtered.filter((e) => presenceByUserId[e.id]?.checkedIn);
-    } else if (filterPresence === "checkedOut") {
+    if (filterPresence === "checkedOut") {
       filtered = filtered.filter(
         (e) => presenceByUserId[e.id] && !presenceByUserId[e.id].checkedIn
       );
@@ -256,21 +229,20 @@ export default function AdminDashboard() {
     return filtered;
   }, [
     employees,
-    listMode,
     searchQuery,
     filterStatus,
     filterDepartmentId,
     filterJobTitleId,
-    filterEmployment,
     filterPresence,
     startDateFrom,
     startDateTo,
     presenceByUserId,
   ]);
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (options = {}) => {
+    const background = options.background === true;
     try {
-      setLoading(true);
+      if (!background) setLoading(true);
       const token = localStorage.getItem("authToken");
 
       if (!token || !token.trim()) {
@@ -312,7 +284,7 @@ export default function AdminDashboard() {
       setMessage("Error: " + error.message);
       console.error("Fetch employees error:", error);
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   };
 
@@ -320,167 +292,15 @@ export default function AdminDashboard() {
     fetchEmployees();
   }, []);
 
-  const deactivateEmployee = async (employeeId) => {
-    const ok = await toastConfirm({ message: "Are you sure you want to deactivate this employee?" });
-    if (!ok) return;
-
-    try {
-      const token = localStorage.getItem("authToken");
-
-      if (!token || !token.trim()) {
-        setMessage("Error: Authentication token not found. Please sign in again.");
-        setTimeout(() => {
-          localStorage.removeItem("authToken");
-          localStorage.removeItem("user");
-          window.location.reload();
-        }, 2000);
-        return;
-      }
-
-      const res = await fetch(`${apiBase}/api/admin/employees/${employeeId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setMessage("Employee deactivated: " + (data.user?.name || data.deletedEmployee?.name || ""));
-        fetchEmployees();
-        toastSuccess("Employee deactivated.");
-      } else {
-        if (res.status === 401) {
-          setMessage("Session expired. Please sign in again.");
-          setTimeout(() => {
-            localStorage.removeItem("authToken");
-            localStorage.removeItem("user");
-            window.location.reload();
-          }, 2000);
-        } else {
-          setMessage("Error: " + (data.message || "Unknown error"));
-          console.error("Delete error:", data);
-        }
-      }
-    } catch (error) {
-      setMessage("Error: " + error.message);
-      console.error("Delete exception:", error);
-    }
-  };
-
-  const restoreEmployee = async (employeeId) => {
-    const ok = await toastConfirm({ message: "Restore this employee account?" });
-    if (!ok) return;
-    try {
-      const token = localStorage.getItem("authToken");
-
-      if (!token || !token.trim()) {
-        setMessage("Error: Authentication token not found. Please sign in again.");
-        setTimeout(() => {
-          localStorage.removeItem("authToken");
-          localStorage.removeItem("user");
-          window.location.reload();
-        }, 2000);
-        return;
-      }
-
-      const res = await fetch(`${apiBase}/api/admin/employees/${employeeId}/restore`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({}),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.status === "success") {
-        setMessage("Employee restored: " + (data.user?.name || ""));
-        fetchEmployees();
-        toastSuccess("Employee restored.");
-      } else {
-        if (res.status === 401) {
-          setMessage("Session expired. Please sign in again.");
-          setTimeout(() => {
-            localStorage.removeItem("authToken");
-            localStorage.removeItem("user");
-            window.location.reload();
-          }, 2000);
-        } else {
-          setMessage("Error: " + (data.message || "Unknown error"));
-        }
-      }
-    } catch (error) {
-      setMessage("Error: " + error.message);
-    }
-  };
-
-  const permanentlyDeleteEmployee = async (employeeId, employeeName) => {
-    const ok = await toastConfirm({
-      message: `Permanently delete "${employeeName}"?\n\nThis action cannot be undone.`,
-    });
-    if (!ok) return;
-    const password = await toastPrompt({
-      message: "Enter Manager password to confirm permanent deletion:",
-      inputType: "password",
-    });
-    if (password === null) return;
-    if (!String(password).trim()) {
-      toastWarning("Password is required.");
-      return;
-    }
-    try {
-      const token = localStorage.getItem("authToken");
-
-      if (!token || !token.trim()) {
-        setMessage("Error: Authentication token not found. Please sign in again.");
-        setTimeout(() => {
-          localStorage.removeItem("authToken");
-          localStorage.removeItem("user");
-          window.location.reload();
-        }, 2000);
-        return;
-      }
-
-      const res = await fetch(`${apiBase}/api/admin/employees/${employeeId}/permanent`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ password }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.status === "success") {
-        setMessage("✅ Permanently deleted: " + employeeName);
-        fetchEmployees();
-        toastSuccess("Employee permanently deleted.");
-      } else {
-        if (res.status === 401) {
-          setMessage("Session expired. Please sign in again.");
-          setTimeout(() => {
-            localStorage.removeItem("authToken");
-            localStorage.removeItem("user");
-            window.location.reload();
-          }, 2000);
-        } else {
-          setMessage("Error: " + (data.message || "Unknown error"));
-        }
-      }
-    } catch (error) {
-      setMessage("Error: " + error.message);
-    }
-  };
+  useEffect(() => {
+    if (filterPresence === "checkedIn") setFilterPresence("all");
+  }, [filterPresence]);
 
   const resetFilters = () => {
     setSearchQuery("");
     setFilterStatus("all");
     setFilterDepartmentId("");
     setFilterJobTitleId("");
-    setFilterEmployment("all");
     setFilterPresence("all");
     setStartDateFrom("");
     setStartDateTo("");
@@ -511,24 +331,6 @@ export default function AdminDashboard() {
         )}
 
         <div className="aep-toolbar">
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              type="button"
-              className={`aep-btn ${listMode === "active" ? "aep-btn--primary" : "aep-btn--ghost"}`}
-              onClick={() => setListMode("active")}
-              style={{ padding: "9px 14px" }}
-            >
-              Employee List
-            </button>
-            <button
-              type="button"
-              className={`aep-btn ${listMode === "inactive" ? "aep-btn--primary" : "aep-btn--ghost"}`}
-              onClick={() => setListMode("inactive")}
-              style={{ padding: "9px 14px" }}
-            >
-              Disabled List
-            </button>
-          </div>
           <input
             type="text"
             className="aep-search"
@@ -591,28 +393,12 @@ export default function AdminDashboard() {
                 </select>
               </div>
               <div className="aep-field">
-                <label>Employment / Status</label>
-                <select
-                  value={filterEmployment}
-                  onChange={(e) => setFilterEmployment(e.target.value)}
-                >
-                  <option value="all">All</option>
-                  <option value="active">Active</option>
-                  <option value="maternity_leave">Maternity Leave</option>
-                  <option value="unpaid_leave">Unpaid Leave</option>
-                  <option value="suspended">Suspended</option>
-                  <option value="terminated">Terminated</option>
-                  <option value="resigned">Resigned</option>
-                </select>
-              </div>
-              <div className="aep-field">
                 <label>Today's Attendance</label>
                 <select
                   value={filterPresence}
                   onChange={(e) => setFilterPresence(e.target.value)}
                 >
                   <option value="all">All</option>
-                  <option value="checkedIn">On shift (checked in, not checked out)</option>
                   <option value="checkedOut">Checked out today</option>
                   <option value="absent">No attendance record today</option>
                 </select>
@@ -640,94 +426,9 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        <div className="aep-actions-row">
-          <button
-            type="button"
-            className="aep-btn aep-btn--outline"
-            onClick={() =>
-              exportEmployeesToExcel(
-                filteredEmployees,
-                `employees-${new Date().toISOString().split("T")[0]}`
-              )
-            }
-          >
-            Export Excel
-          </button>
-          <button
-            type="button"
-            className="aep-btn aep-btn--outline"
-            onClick={() =>
-              exportEmployeesToPDF(
-                filteredEmployees,
-                `employees-${new Date().toISOString().split("T")[0]}`
-              )
-            }
-          >
-            Export PDF
-          </button>
-          <button type="button" className="aep-btn aep-btn--outline" onClick={downloadEmployeeTemplate}>
-            Download Excel Template
-          </button>
-          <label className="aep-btn aep-btn--outline" style={{ cursor: "pointer" }}>
-            Import from Excel
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              style={{ display: "none" }}
-              onChange={async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                try {
-                  setLoading(true);
-                  const imported = await importEmployeesFromExcel(file);
-                  const token = localStorage.getItem("authToken");
-                  if (!token) throw new Error("Authentication token missing");
-                  const res = await fetch(`${apiBase}/api/admin/employees/bulk`, {
-                    method: "POST",
-                    headers: {
-                      Authorization: `Bearer ${token}`,
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ employees: imported }),
-                  });
-                  const data = await res.json();
-                  if (res.ok && data.status === "success") {
-                    const { results } = data;
-                    const successCount = results.success.length;
-                    const failCount = results.failed.length;
-                    if (failCount > 0) {
-                      const failedDetails = results.failed
-                        .slice(0, 5)
-                        .map((f) => `- ${f.name} (${f.employeeCode}): ${f.reason}`)
-                        .join("\n");
-                      const moreFailed = failCount > 5 ? `\n... and ${failCount - 5} more errors` : "";
-                      toastWarning(
-                        `Import completed.\nSuccess: ${successCount}\nFailed: ${failCount}\n\n${failedDetails}${moreFailed}`
-                      );
-                    } else {
-                      setMessage(`✅ Import success: ${successCount} employees`);
-                      toastSuccess(`Import success: ${successCount} employees.`);
-                    }
-                    fetchEmployees();
-                  } else {
-                    throw new Error(data.message || "Failed to import employees");
-                  }
-                } catch (err) {
-                  console.error("Import error:", err);
-                  setMessage(`❌ Import error: ${err.message}`);
-                  toastError(`Import error: ${err.message}`);
-                } finally {
-                  setLoading(false);
-                  e.target.value = "";
-                }
-              }}
-            />
-          </label>
-        </div>
-
         <p className="aep-meta">
-          Showing <strong>{filteredEmployees.length}</strong> / {employees.length} employees · On-shift employees are
-          prioritized at the top
+          Showing <strong>{filteredEmployees.length}</strong> / {employees.length} employees · Checked-in today listed
+          first
         </p>
 
         {loading ? (
@@ -743,7 +444,7 @@ export default function AdminDashboard() {
             </h3>
             <p style={{ margin: 0, fontSize: 14 }}>
               {employees.length === 0
-                ? "Add employees or import from Excel."
+                ? "Add employees."
                 : "Try adjusting search or advanced filters."}
             </p>
             {employees.length > 0 && (
@@ -838,51 +539,21 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    <p className="aep-footnote">
-                      *These fields are pulled from HR profile data. If empty, open <strong>Details</strong> to set
-                      department, job title, and start date.
-                    </p>
+                    <div className="aep-card-footer">
+                      <p className="aep-footnote">
+                        *These fields are pulled from HR profile data. If empty, open <strong>Details</strong> to set
+                        department, job title, and start date.
+                      </p>
 
-                    <div className="aep-card-actions">
-                      <button
-                        type="button"
-                        className="aep-btn aep-btn--primary"
-                        onClick={() => setSelectedEmployee(emp)}
-                      >
-                        Details
-                      </button>
-                      {emp.isActive !== false ? (
+                      <div className="aep-card-actions">
                         <button
                           type="button"
-                          className="aep-btn aep-btn--ghost"
-                          onClick={() => deactivateEmployee(emp.id)}
+                          className="aep-btn aep-btn--primary"
+                          onClick={() => setSelectedEmployee(emp)}
                         >
-                          Deactivate
+                          Details
                         </button>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            className="aep-btn aep-btn--ghost"
-                            onClick={() => restoreEmployee(emp.id)}
-                          >
-                            Restore
-                          </button>
-                          <button
-                            type="button"
-                            className="aep-btn"
-                            style={{
-                              background: "#7f1d1d",
-                              color: "#fff",
-                              border: "1px solid #450a0a",
-                              fontWeight: 700,
-                            }}
-                            onClick={() => permanentlyDeleteEmployee(emp.id, emp.name)}
-                          >
-                            Delete Forever
-                          </button>
-                        </>
-                      )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -896,8 +567,8 @@ export default function AdminDashboard() {
             employee={selectedEmployee}
             onClose={() => setSelectedEmployee(null)}
             onUpdate={() => {
-              fetchEmployees();
-              setSelectedEmployee(null);
+              // Giữ modal mở ở chế độ xem chi tiết; chỉ đồng bộ danh sách thẻ phía sau
+              fetchEmployees({ background: true });
             }}
           />
         )}

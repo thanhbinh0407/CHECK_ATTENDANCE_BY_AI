@@ -11,6 +11,11 @@ import sequelize from "../db/sequelize.js";
 import { calculateAllEmployeesInsurance } from "./insuranceService.js";
 import { calculatePersonalIncomeTax } from "./taxService.js";
 import D02LTReport from "../models/pg/D02LTReport.js";
+import {
+  computeAbsentDays,
+  getWorkingDayNumbersInMonth,
+  getApprovedLeaveDayNumbersFromRequests
+} from "./salaryCalculationService.js";
 
 // Employee Turnover Report
 export const getEmployeeTurnoverReport = async (startDate, endDate) => {
@@ -84,8 +89,13 @@ export const getEmployeeTurnoverReport = async (startDate, endDate) => {
 // Attendance Report
 export const getAttendanceReport = async (month, year) => {
   try {
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+    const startDate = new Date(y, m - 1, 1, 0, 0, 0, 0);
+    const endDate = new Date(y, m, 0, 23, 59, 59, 999);
+
+    const workingDayNumbers = getWorkingDayNumbersInMonth(y, m);
+    const totalWorkingDays = workingDayNumbers.size;
 
     const employees = await User.findAll({
       where: {
@@ -93,6 +103,7 @@ export const getAttendanceReport = async (month, year) => {
         isActive: true
       },
       include: [
+        { model: Department, attributes: ['name'], required: false },
         {
           model: AttendanceLog,
           as: 'AttendanceLogs',
@@ -132,34 +143,45 @@ export const getAttendanceReport = async (month, year) => {
       const leaveRequests = emp.LeaveRequests || [];
       const overtimeRequests = emp.OvertimeRequests || [];
 
-      const totalDays = new Date(year, month, 0).getDate();
-      const presentDays = attendanceLogs.filter(log => log.status === 'check_in').length;
-      const lateCount = attendanceLogs.filter(log => log.isLate).length;
-      const leaveDays = leaveRequests.reduce((sum, req) => {
-        const reqStart = new Date(req.startDate);
-        const reqEnd = new Date(req.endDate);
-        const monthStart = new Date(year, month - 1, 1);
-        const monthEnd = new Date(year, month, 0);
-        
-        const actualStart = reqStart < monthStart ? monthStart : reqStart;
-        const actualEnd = reqEnd > monthEnd ? monthEnd : reqEnd;
-        
-        return sum + Math.max(0, Math.ceil((actualEnd - actualStart) / (1000 * 60 * 60 * 24)) + 1);
-      }, 0);
+      const presentDayNumbers = new Set();
+      attendanceLogs.forEach((log) => {
+        if (log.type !== "IN") return;
+        const dayNum = new Date(log.timestamp).getDate();
+        if (workingDayNumbers.has(dayNum)) {
+          presentDayNumbers.add(dayNum);
+        }
+      });
+
+      const approvedLeaveDayNumbers = getApprovedLeaveDayNumbersFromRequests(leaveRequests, y, m);
+      const leaveDays = approvedLeaveDayNumbers.size;
+      const presentDays = presentDayNumbers.size;
+      const absentDays = computeAbsentDays({
+        totalWorkingDays,
+        presentDayNumbers,
+        approvedLeaveDayNumbers
+      });
+      const lateCount = attendanceLogs.filter(
+        (log) => log.type === "IN" && log.isLate === true
+      ).length;
       const overtimeHours = overtimeRequests.reduce((sum, req) => sum + parseFloat(req.totalHours || 0), 0);
+
+      const attendanceRate =
+        totalWorkingDays > 0
+          ? (((totalWorkingDays - absentDays) / totalWorkingDays) * 100).toFixed(2)
+          : 0;
 
       return {
         employeeId: emp.id,
         employeeName: emp.name,
         employeeCode: emp.employeeCode,
         department: emp.Department?.name || '-',
-        totalDays,
+        totalDays: totalWorkingDays,
         presentDays,
         leaveDays,
-        absentDays: totalDays - presentDays - leaveDays,
+        absentDays,
         lateCount,
         overtimeHours: parseFloat(overtimeHours.toFixed(2)),
-        attendanceRate: totalDays > 0 ? ((presentDays / totalDays) * 100).toFixed(2) : 0
+        attendanceRate
       };
     });
 
@@ -715,8 +737,13 @@ export const getLateEarlyDetailReport = async (month, year) => {
 // Absent Detail Report
 export const getAbsentDetailReport = async (month, year) => {
   try {
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+    const startDate = new Date(y, m - 1, 1, 0, 0, 0, 0);
+    const endDate = new Date(y, m, 0, 23, 59, 59, 999);
+
+    const workingDayNumbers = getWorkingDayNumbersInMonth(y, m);
+    const totalWorkingDays = workingDayNumbers.size;
 
     const employees = await User.findAll({
       where: {
@@ -749,49 +776,47 @@ export const getAbsentDetailReport = async (month, year) => {
       ]
     });
 
-    const totalDays = new Date(year, month, 0).getDate();
     const report = employees.map(emp => {
       const attendanceLogs = emp.AttendanceLogs || [];
       const leaveRequests = emp.LeaveRequests || [];
 
-      // Count present days (unique dates with IN logs)
-      const presentDates = new Set();
-      attendanceLogs.forEach(log => {
-        const date = new Date(log.timestamp).toISOString().split('T')[0];
-        presentDates.add(date);
-      });
-      const presentDays = presentDates.size;
-
-      // Count leave days
-      let leaveDays = 0;
-      leaveRequests.forEach(leave => {
-        const leaveStart = new Date(leave.startDate);
-        const leaveEnd = new Date(leave.endDate);
-        const monthStart = new Date(year, month - 1, 1);
-        const monthEnd = new Date(year, month, 0);
-
-        const actualStart = leaveStart < monthStart ? monthStart : leaveStart;
-        const actualEnd = leaveEnd > monthEnd ? monthEnd : leaveEnd;
-
-        if (actualStart <= actualEnd) {
-          const days = Math.ceil((actualEnd - actualStart) / (1000 * 60 * 60 * 24)) + 1;
-          leaveDays += days;
+      const presentDayNumbers = new Set();
+      attendanceLogs.forEach((log) => {
+        const dayNum = new Date(log.timestamp).getDate();
+        if (workingDayNumbers.has(dayNum)) {
+          presentDayNumbers.add(dayNum);
         }
       });
 
-      const absentDays = totalDays - presentDays - leaveDays;
+      const approvedLeaveDayNumbers = getApprovedLeaveDayNumbersFromRequests(leaveRequests, y, m);
+      const leaveDays = approvedLeaveDayNumbers.size;
+      const presentDays = presentDayNumbers.size;
+      const absentDays = computeAbsentDays({
+        totalWorkingDays,
+        presentDayNumbers,
+        approvedLeaveDayNumbers
+      });
+
+      const attendanceRate =
+        totalWorkingDays > 0
+          ? (((totalWorkingDays - absentDays) / totalWorkingDays) * 100).toFixed(2)
+          : 0;
+      const absentRate =
+        totalWorkingDays > 0
+          ? ((absentDays / totalWorkingDays) * 100).toFixed(2)
+          : 0;
 
       return {
         employeeId: emp.id,
         employeeName: emp.name,
         employeeCode: emp.employeeCode,
         department: emp.Department?.name || '-',
-        totalDays,
+        totalDays: totalWorkingDays,
         presentDays,
         leaveDays,
         absentDays,
-        attendanceRate: totalDays > 0 ? ((presentDays / totalDays) * 100).toFixed(2) : 0,
-        absentRate: totalDays > 0 ? ((absentDays / totalDays) * 100).toFixed(2) : 0
+        attendanceRate,
+        absentRate
       };
     });
 
@@ -800,7 +825,7 @@ export const getAbsentDetailReport = async (month, year) => {
       year,
       totalEmployees: employees.length,
       summary: {
-        totalDays,
+        totalDays: totalWorkingDays,
         totalPresentDays: report.reduce((sum, r) => sum + r.presentDays, 0),
         totalLeaveDays: report.reduce((sum, r) => sum + r.leaveDays, 0),
         totalAbsentDays: report.reduce((sum, r) => sum + r.absentDays, 0),

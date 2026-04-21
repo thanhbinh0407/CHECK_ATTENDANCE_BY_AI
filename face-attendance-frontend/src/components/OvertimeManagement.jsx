@@ -70,29 +70,43 @@ export default function OvertimeManagement() {
 
   const cardStyle = {
     backgroundColor: theme.neutral.white,
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.md,
     border: `1px solid ${theme.neutral.gray200}`,
     boxShadow: theme.shadows.sm,
-    padding: theme.spacing.xl,
+    padding: theme.spacing.md,
   };
 
   return (
-    <div style={{ display: "grid", gap: theme.spacing.xl }}>
-      <div style={{ ...cardStyle, background: theme.gradients.primary, color: theme.neutral.white, border: "none" }}>
-        <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>⏱️ Overtime Requests</div>
-        <div style={{ opacity: 0.95 }}>Review and approve OT requests with multi-level workflow.</div>
+    <div style={{ display: "grid", gap: theme.spacing.md }}>
+      <div
+        style={{
+          ...cardStyle,
+          background: theme.gradients.primary,
+          color: theme.neutral.white,
+          border: "none",
+          padding: "14px 18px",
+        }}
+      >
+        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 3, lineHeight: 1.25 }}>
+          ⏱️ Overtime Requests
+        </div>
+        <div style={{ opacity: 0.92, fontSize: 13, lineHeight: 1.4 }}>
+          Review and approve OT (multi-level workflow).
+        </div>
       </div>
 
       <div style={cardStyle}>
-        <div style={{ display: "flex", gap: theme.spacing.md, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: theme.spacing.sm, alignItems: "center", flexWrap: "wrap" }}>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
             style={{
-              padding: "10px 12px",
-              borderRadius: theme.radius.md,
+              padding: "6px 10px",
+              borderRadius: theme.radius.sm,
               border: `1px solid ${theme.neutral.gray300}`,
-              fontWeight: 700,
+              fontWeight: 600,
+              fontSize: 13,
+              backgroundColor: theme.neutral.white,
             }}
           >
             <option value="pending">Pending</option>
@@ -104,60 +118,85 @@ export default function OvertimeManagement() {
             onClick={fetchRequests}
             disabled={loading}
             style={{
-              padding: "10px 14px",
-              borderRadius: theme.radius.md,
+              padding: "6px 12px",
+              borderRadius: theme.radius.sm,
               border: "none",
               background: theme.secondary.gradient,
               color: theme.neutral.white,
-              fontWeight: 800,
+              fontWeight: 600,
+              fontSize: 13,
               cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.85 : 1,
             }}
           >
             {loading ? "Loading..." : "Refresh"}
           </button>
         </div>
 
-        <div style={{ marginTop: theme.spacing.lg }}>
+        <div style={{ marginTop: theme.spacing.md }}>
           {filtered.length === 0 ? (
-            <div style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No requests.</div>
+            <div style={{ color: theme.neutral.gray500, fontStyle: "italic", fontSize: 13 }}>No requests.</div>
           ) : (
-            <div style={{ display: "grid", gap: theme.spacing.md }}>
+            <div style={{ display: "grid", gap: theme.spacing.sm }}>
               {filtered.map((r) => (
-                <div key={r.id} style={{
-                  border: `1px solid ${theme.neutral.gray200}`,
-                  borderRadius: theme.radius.md,
-                  padding: theme.spacing.md,
-                  backgroundColor: theme.neutral.gray50,
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: theme.spacing.md, alignItems: "start" }}>
+                <div
+                  key={r.id}
+                  style={{
+                    border: `1px solid ${theme.neutral.gray200}`,
+                    borderRadius: theme.radius.sm,
+                    padding: "10px 12px",
+                    backgroundColor: theme.neutral.gray50,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: theme.spacing.sm,
+                      alignItems: "flex-start",
+                    }}
+                  >
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 900, color: theme.neutral.gray900 }}>
-                        {r.User?.name || "Employee"} ({r.User?.employeeCode || r.userId})
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          fontSize: 14,
+                          color: theme.neutral.gray900,
+                          lineHeight: 1.3,
+                        }}
+                      >
+                        {r.User?.name || "Employee"}{" "}
+                        <span style={{ color: theme.neutral.gray600, fontWeight: 600, fontSize: 12 }}>
+                          ({r.User?.employeeCode || r.userId})
+                        </span>
                       </div>
-                      <div style={{ fontSize: 12, color: theme.neutral.gray600, marginTop: 4 }}>
-                        Date: {r.date} • {r.startTime} → {r.endTime} • Hours: {r.totalHours}
+                      <div style={{ fontSize: 11, color: theme.neutral.gray600, marginTop: 3, lineHeight: 1.4 }}>
+                        {r.date} · {r.startTime}–{r.endTime} · {r.totalHours}h
                       </div>
-                      <div style={{ fontSize: 13, color: theme.neutral.gray800, marginTop: 8 }}>
-                        <b>Reason:</b> {r.reason}
+                      <div style={{ fontSize: 12, color: theme.neutral.gray800, marginTop: 4, lineHeight: 1.4 }}>
+                        <span style={{ color: theme.neutral.gray500, fontWeight: 600 }}>Reason:</span> {r.reason}
                       </div>
-                      <div style={{ fontSize: 12, color: theme.neutral.gray600, marginTop: 6 }}>
-                        Status: <b>{r.approvalStatus}</b> • Level: <b>{r.approvalLevel}</b>
+                      <div style={{ fontSize: 11, color: theme.neutral.gray600, marginTop: 3 }}>
+                        <b style={{ fontWeight: 600 }}>{r.approvalStatus}</b>
+                        <span style={{ margin: "0 6px", color: theme.neutral.gray400 }}>·</span>
+                        L{r.approvalLevel}
                       </div>
                     </div>
 
                     {r.approvalStatus === "pending" ? (
-                      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                         <button
                           onClick={() => handleAction(r.id, "approve")}
                           disabled={loading}
                           style={{
-                            padding: "8px 10px",
-                            borderRadius: theme.radius.md,
+                            padding: "5px 10px",
+                            borderRadius: theme.radius.sm,
                             border: "none",
                             backgroundColor: theme.success.main,
                             color: theme.neutral.white,
-                            fontWeight: 900,
-                            cursor: "pointer",
+                            fontWeight: 600,
+                            fontSize: 12,
+                            cursor: loading ? "not-allowed" : "pointer",
                           }}
                         >
                           Approve
@@ -166,13 +205,14 @@ export default function OvertimeManagement() {
                           onClick={() => handleAction(r.id, "reject")}
                           disabled={loading}
                           style={{
-                            padding: "8px 10px",
-                            borderRadius: theme.radius.md,
+                            padding: "5px 10px",
+                            borderRadius: theme.radius.sm,
                             border: "none",
                             backgroundColor: theme.error.main,
                             color: theme.neutral.white,
-                            fontWeight: 900,
-                            cursor: "pointer",
+                            fontWeight: 600,
+                            fontSize: 12,
+                            cursor: loading ? "not-allowed" : "pointer",
                           }}
                         >
                           Reject
@@ -187,7 +227,17 @@ export default function OvertimeManagement() {
         </div>
 
         {message ? (
-          <div style={{ marginTop: theme.spacing.lg, padding: theme.spacing.md, borderRadius: theme.radius.md, backgroundColor: theme.neutral.gray50, border: `1px solid ${theme.neutral.gray200}`, fontWeight: 700 }}>
+          <div
+            style={{
+              marginTop: theme.spacing.md,
+              padding: "8px 12px",
+              borderRadius: theme.radius.sm,
+              backgroundColor: theme.neutral.gray50,
+              border: `1px solid ${theme.neutral.gray200}`,
+              fontWeight: 600,
+              fontSize: 13,
+            }}
+          >
             {message}
           </div>
         ) : null}
