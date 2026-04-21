@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
-import html2canvas from "html2canvas";
+import { html2canvasIsolated } from "../utils/html2canvasIsolated.js";
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, UnderlineType, BorderStyle, PageBreak } from "docx";
 import { saveAs } from "file-saver";
 import { countries, vietnamProvinces } from "../data/countries.js";
@@ -649,18 +649,11 @@ export default function TK1TSForm() {
       }
       
       printDiv.innerHTML = htmlContent;
-      document.body.appendChild(printDiv);
-      
-      // Render to canvas
-      const canvas = await html2canvas(printDiv, {
+      const canvas = await html2canvasIsolated(printDiv, {
         scale: 2,
         useCORS: true,
-        logging: false,
         backgroundColor: '#ffffff'
       });
-      
-      // Remove temporary div
-      document.body.removeChild(printDiv);
       
       const imgData = canvas.toDataURL('image/png');
       const imgWidth = 210; // A4 width in mm

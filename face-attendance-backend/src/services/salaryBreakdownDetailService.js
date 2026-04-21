@@ -1,10 +1,12 @@
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import Salary from "../models/pg/Salary.js";
 import User from "../models/pg/User.js";
+import Department from "../models/pg/Department.js";
+import JobTitle from "../models/pg/JobTitle.js";
 import SalaryRule from "../models/pg/SalaryRule.js";
+import { evaluateCustomSalaryRule } from "./salaryRuleCustomEval.js";
 import { ShiftSetting } from "../models/pg/index.js";
 import { Op } from "sequelize";
-import { calculateSeniority } from "./senioritySalaryService.js";
 import { calculateInsurance } from "./insuranceService.js";
 import { calculatePersonalIncomeTax } from "./taxService.js";
 import LeaveRequest from "../models/pg/LeaveRequest.js";
@@ -65,7 +67,12 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
     throw err;
   }
 
-  const user = await User.findByPk(userId);
+  const user = await User.findByPk(userId, {
+    include: [
+      { model: Department, attributes: ["code", "name"] },
+      { model: JobTitle, attributes: ["code", "name"] }
+    ]
+  });
   if (!user) {
     const err = new Error("User not found");
     err.code = "USER_NOT_FOUND";
@@ -120,7 +127,10 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
   });
   const approvedLeaveDayNumbers = await getApprovedLeaveDayNumbersInMonth(userId, parseInt(month, 10), parseInt(year, 10));
   const coveredDayNumbers = new Set([...presentDaysSet, ...approvedLeaveDayNumbers]);
-  const absentDays = Math.max(0, totalWorkingDays - coveredDayNumbers.size);
+  let absentDays = Math.max(0, totalWorkingDays - coveredDayNumbers.size);
+  if (!logs.some((log) => log.type === "IN")) {
+    absentDays = 0;
+  }
 
   const baseSalary = parseFloat(user.baseSalary) || 0;
   const bonusBreakdown = [];
@@ -217,23 +227,12 @@ export async function getSalaryBreakdownDetail(userId, month, year) {
         break;
       }
       case "custom": {
-        if (rule.name && rule.name.toLowerCase().includes("seniority")) {
-          const seniority = calculateSeniority(user.startDate);
-          let tier = 0;
-          if (seniority >= 10) tier = 4;
-          else if (seniority >= 5) tier = 3;
-          else if (seniority >= 3) tier = 2;
-          else if (seniority >= 1) tier = 1;
-          if (tier > 0) {
-            shouldApply = true;
-            quantity = seniority;
-            if (rule.amountType === "percentage") {
-              ruleAmount = baseSalary * parseFloat(rule.amount) / 100 * tier;
-            } else {
-              ruleAmount = parseFloat(rule.amount) * tier;
-            }
-            reason = `Seniority ${seniority} year(s) (tier ${tier})`;
-          }
+        const customOut = evaluateCustomSalaryRule(rule, user, baseSalary);
+        if (customOut.shouldApply) {
+          shouldApply = true;
+          ruleAmount = customOut.ruleAmount;
+          reason = customOut.reason || "";
+          quantity = customOut.quantity ?? 0;
         }
         break;
       }

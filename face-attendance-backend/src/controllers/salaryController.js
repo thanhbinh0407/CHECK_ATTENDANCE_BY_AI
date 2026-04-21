@@ -13,6 +13,7 @@ import { Op } from "sequelize";
 import { createNotification } from "./notificationController.js";
 import { getSalaryTransitionError, SALARY_STATUS } from "../services/salaryStatusRBAC.js";
 import { getSalaryBreakdownDetail } from "../services/salaryBreakdownDetailService.js";
+import { recordAction } from "../services/actionAuditService.js";
 
 // Calculate working days in a month (exclude weekends)
 function getWorkingDaysInMonth(year, month) {
@@ -225,12 +226,18 @@ export const calculateSalary = async (req, res) => {
 // Get salaries for all employees or specific employee
 export const getSalaries = async (req, res) => {
   try {
-    const { userId, month, year } = req.query;
+    const { userId, month, year, status } = req.query;
 
     const where = {};
     if (userId) where.userId = userId;
     if (month !== undefined && month !== "") where.month = parseInt(month, 10);
     if (year !== undefined && year !== "") where.year = parseInt(year, 10);
+    if (status !== undefined && status !== "") {
+      const s = String(status).toLowerCase();
+      if (["pending", "approved", "paid"].includes(s)) {
+        where.status = s;
+      }
+    }
 
     const salaries = await Salary.findAll({
       where,
@@ -391,7 +398,10 @@ export const getPendingSalaries = async (req, res) => {
         attributes: ['id', 'name', 'email', 'employeeCode'],
         required: false // Allow salaries without users
       }],
-      order: [['year', 'DESC'], ['month', 'DESC'], ['createdAt', 'ASC']]
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC']
+      ]
     });
 
     console.log(`Found ${pendingSalaries.length} pending salaries`);
@@ -436,6 +446,20 @@ export const approveSalary = async (req, res) => {
     await salary.update({
       status: 'approved',
       calculatedAt: new Date()
+    });
+
+    await recordAction(req, {
+      action: "salary.approve",
+      category: "other",
+      targetUserId: salary.userId,
+      entityType: "salary",
+      entityId: salary.id,
+      summary: `Approved payroll ${salary.month}/${salary.year}`,
+      metadata: {
+        month: salary.month,
+        year: salary.year,
+        finalSalary: salary.finalSalary,
+      },
     });
 
     const employee = await User.findByPk(salary.userId, { attributes: ['name', 'employeeCode'] });
@@ -489,6 +513,20 @@ export const rejectSalary = async (req, res) => {
       status: 'pending',
       notes: reason ? `[REJECTED] ${reason}` : '[REJECTED] No reason provided',
       calculatedAt: new Date()
+    });
+
+    await recordAction(req, {
+      action: "salary.reject_review",
+      category: "other",
+      targetUserId: salary.userId,
+      entityType: "salary",
+      entityId: salary.id,
+      summary: `Rejected payroll review ${salary.month}/${salary.year}`,
+      metadata: {
+        month: salary.month,
+        year: salary.year,
+        reason: reason || null,
+      },
     });
 
     return res.json({
@@ -598,12 +636,31 @@ export const adjustSalary = async (req, res) => {
       calculatedAt: new Date()
     });
 
-    await salary.reload();
+    const salaryWithUser = await Salary.findByPk(id, {
+      include: [
+        {
+          model: User,
+          attributes: { exclude: ["password"] },
+          include: [
+            { model: Department, attributes: ["id", "name"] },
+            { model: JobTitle, attributes: ["id", "name"] },
+            { model: SalaryGrade, attributes: ["id", "name", "code", "level", "baseSalary"] }
+          ]
+        }
+      ]
+    });
+
+    if (!salaryWithUser) {
+      return res.status(500).json({
+        status: "error",
+        message: "Salary record missing after adjustment"
+      });
+    }
 
     return res.json({
       status: "success",
       message: "Salary adjusted successfully",
-      salary
+      salary: salaryWithUser
     });
   } catch (err) {
     console.error("Error adjusting salary:", err);

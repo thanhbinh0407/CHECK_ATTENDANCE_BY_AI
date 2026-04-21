@@ -99,6 +99,20 @@ const SalaryAdvance = sequelize.define('SalaryAdvance', {
     type: DataTypes.INTEGER,
     allowNull: true,
     comment: 'ID bảng lương đã trừ tạm ứng'
+  },
+  disbursedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Thời điểm kế toán xác nhận đã chuyển khoản ứng lương'
+  },
+  disbursedBy: {
+    type: DataTypes.INTEGER,
+    references: {
+      model: User,
+      key: 'id'
+    },
+    allowNull: true,
+    comment: 'Người xác nhận giải ngân'
   }
 }, {
   timestamps: true,

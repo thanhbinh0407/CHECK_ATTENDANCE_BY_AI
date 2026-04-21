@@ -14,7 +14,41 @@ function rowEmployeeId(employee) {
   );
 }
 
-/** Standalone profile trigger — avoids shared `.emp-btn-view` styles and keeps a large hit target. */
+/** Salary grade column: prefer code + short name from API `SalaryGrade` include */
+function formatSalaryGradeDisplay(employee) {
+  const sg = employee?.SalaryGrade;
+  if (!sg) return "—";
+  const code = sg.code?.trim();
+  const name = sg.name?.trim();
+  if (code && name) return `${code} · ${name}`;
+  if (code) return code;
+  if (name) return name;
+  return "—";
+}
+
+function ViewProfileIcon() {
+  return (
+    <svg
+      className="emp-view-profile-btn__svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <path
+        d="M12 5c-4.42 0-8.06 2.55-10 6.5 1.94 3.95 5.58 6.5 10 6.5s8.06-2.55 10-6.5C20.06 7.55 16.42 5 12 5z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="11.5" r="3.25" stroke="currentColor" strokeWidth="1.75" />
+    </svg>
+  );
+}
+
+/** Outline-style profile trigger — professional, distinct from primary Edit */
 function ProfileViewButton({ employee, onOpen }) {
   const eid = rowEmployeeId(employee);
   const label = employee?.name || employee?.employeeCode || "Employee";
@@ -25,15 +59,13 @@ function ProfileViewButton({ employee, onOpen }) {
       type="button"
       className="emp-view-profile-btn"
       disabled={blocked}
-      title={blocked ? "Cannot open profile (missing id)" : `Open full profile — ${label}`}
-      aria-label={blocked ? "View profile unavailable" : `Open full profile for ${label}`}
+      title={blocked ? "Cannot open profile (missing id)" : `Open profile — ${label}`}
+      aria-label={blocked ? "View profile unavailable" : `View profile, ${label}`}
       onClick={() => {
         if (!blocked) onOpen(employee);
       }}
     >
-      <span className="emp-view-profile-btn__icon" aria-hidden>
-        👁
-      </span>
+      <ViewProfileIcon />
       <span className="emp-view-profile-btn__label">View</span>
     </button>
   );
@@ -116,8 +148,21 @@ export default function EmployeeManagement() {
   const handleSaveEdit = async () => {
     try {
       setLoading(true);
+      setMessage("");
       const token = localStorage.getItem("authToken");
       if (!token) return;
+
+      const phoneRaw = editingEmployee.phoneNumber ?? editingEmployee.phone;
+      const payload = {
+        name: editingEmployee.name,
+        email: editingEmployee.email,
+        phoneNumber: phoneRaw != null && String(phoneRaw).trim() !== "" ? String(phoneRaw).trim() : null,
+        baseSalary: editingEmployee.baseSalary,
+        startDate: editingEmployee.startDate || null,
+        effectiveDate: editingEmployee.effectiveDate || null,
+        historyNote: editingEmployee.historyNote || null,
+        salaryChangeReason: editingEmployee.salaryChangeReason || null
+      };
 
       const res = await fetch(`${apiBase}/api/admin/employees/${editingEmployee.id}`, {
         method: "PUT",
@@ -125,24 +170,21 @@ export default function EmployeeManagement() {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          name: editingEmployee.name,
-          email: editingEmployee.email,
-          phone: editingEmployee.phone,
-          baseSalary: editingEmployee.baseSalary,
-          startDate: editingEmployee.startDate,
-          effectiveDate: editingEmployee.effectiveDate,
-          historyNote: editingEmployee.historyNote,
-          salaryChangeReason: editingEmployee.salaryChangeReason
-        })
+        body: JSON.stringify(payload)
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
-        setMessage("✓ Employee information updated successfully");
+        setMessage(data.message ? `✓ ${data.message}` : "✓ Employee information updated successfully");
         setShowEditModal(false);
         fetchEmployees();
       } else {
-        setMessage("✗ Error updating employee information");
+        const detail =
+          (typeof data.message === "string" && data.message) ||
+          (Array.isArray(data.errors) && data.errors[0]?.msg) ||
+          `HTTP ${res.status}`;
+        setMessage(`✗ ${detail}`);
       }
     } catch (error) {
       setMessage("✗ Error: " + error.message);
@@ -396,14 +438,27 @@ export default function EmployeeManagement() {
                         })
                       : "—"}
                   </td>
-                  <td className="emp-grade">{employee.SalaryGrade?.code || "—"}</td>
+                  <td className="emp-grade">
+                    {(() => {
+                      const g = formatSalaryGradeDisplay(employee);
+                      const isEmpty = g === "—";
+                      return (
+                        <span
+                          className={isEmpty ? "emp-grade-empty" : "emp-grade-pill"}
+                          title={employee.SalaryGrade?.name || (isEmpty ? "No salary grade assigned" : "")}
+                        >
+                          {g}
+                        </span>
+                      );
+                    })()}
+                  </td>
                   <td className="emp-salary">
-                    {employee.baseSalary
-                      ? new Intl.NumberFormat("en-US", { 
-                          style: "currency", 
-                          currency: "USD",
-                          minimumFractionDigits: 0
-                        }).format(employee.baseSalary)
+                    {employee.baseSalary != null && employee.baseSalary !== ""
+                      ? new Intl.NumberFormat("vi-VN", {
+                          style: "currency",
+                          currency: "VND",
+                          maximumFractionDigits: 0
+                        }).format(Number(employee.baseSalary))
                       : "—"}
                   </td>
                   <td className="emp-actions">
@@ -488,9 +543,9 @@ export default function EmployeeManagement() {
               <input
                 type="text"
                 className="emp-input"
-                value={editingEmployee?.phone || ""}
+                value={editingEmployee?.phoneNumber ?? editingEmployee?.phone ?? ""}
                 onChange={(e) =>
-                  setEditingEmployee({ ...editingEmployee, phone: e.target.value })
+                  setEditingEmployee({ ...editingEmployee, phoneNumber: e.target.value })
                 }
                 placeholder="Enter phone number"
               />

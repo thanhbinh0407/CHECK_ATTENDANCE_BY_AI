@@ -699,6 +699,18 @@ export const exportAnnualTaxSummary = async (year) => {
     });
     
     const sheet = XLSX.utils.aoa_to_sheet(data);
+    // Cột mặc định quá hẹp → nhãn/số bị cắt; chỉnh theo nội dung tiếng Việt + số VND
+    sheet['!cols'] = [
+      { wch: 36 }, // A: nhãn tổng hợp + Mã NV
+      { wch: 30 }, // B: Họ tên / giá trị tổng hợp
+      { wch: 16 }, // C: Mã số thuế
+      { wch: 24 }, // D: Thu nhập chịu thuế
+      { wch: 22 }, // E: Giảm trừ bản thân
+      { wch: 28 }, // F: Giảm trừ người phụ thuộc
+      { wch: 20 }, // G: Tổng giảm trừ
+      { wch: 22 }, // H: Thuế phải nộp
+      { wch: 18 }  // I: Số người phụ thuộc
+    ];
     XLSX.utils.book_append_sheet(workbook, sheet, 'Quyết toán thuế');
     
     return workbook;
