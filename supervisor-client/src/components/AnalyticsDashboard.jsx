@@ -13,7 +13,7 @@ function authHeaders(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 }
 
-const COLORS = ['#5b21b6', '#7c3aed', '#a855f7', '#c084fc', '#818cf8', '#6366f1', '#4f46e5', '#ec4899', '#f97316', '#f59e0b'];
+const COLORS = ['#7029d1', '#8b46ff', '#a855f7', '#c084fc', '#818cf8', '#6366f1', '#4f46e5', '#ec4899', '#f97316', '#f59e0b'];
 
 function formatVND(n) {
   return `${Number(n || 0).toLocaleString('en-US')}`;
@@ -58,8 +58,12 @@ export default function AnalyticsDashboard({ token }) {
   }, []);
 
   return (
-    <div>
-      <div className="sup-approval-toolbar card">
+    <div className="sup-mgmt-page">
+      <div className="sup-mgmt-hero">
+        <h2>Analytics dashboard</h2>
+        <p>Workforce and payroll insights for the selected month. Use charts to spot trends and distribution.</p>
+      </div>
+      <div className="sup-approval-toolbar card sup-approval-toolbar--filters">
         <div className="sup-approval-toolbar-inner">
           <div className="sup-approval-filter-wrap">
             <label className="sup-approval-label" htmlFor="sup-an-month">Month</label>
@@ -132,7 +136,7 @@ export default function AnalyticsDashboard({ token }) {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="turnoverRate" name="Turnover %" stroke="#5b21b6" strokeWidth={2} />
+                  <Line type="monotone" dataKey="turnoverRate" name="Turnover %" stroke="#7029d1" strokeWidth={2} />
                   <Line type="monotone" dataKey="newEmployees" name="New hires" stroke="#10b981" strokeWidth={2} />
                   <Line type="monotone" dataKey="terminatedEmployees" name="Terminated" stroke="#ef4444" strokeWidth={2} />
                 </LineChart>
@@ -169,7 +173,7 @@ export default function AnalyticsDashboard({ token }) {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="averageAttendanceRate" name="Avg attendance %" stroke="#5b21b6" strokeWidth={2} />
+                  <Line type="monotone" dataKey="averageAttendanceRate" name="Avg attendance %" stroke="#7029d1" strokeWidth={2} />
                   <Line type="monotone" dataKey="totalLate" name="Total late" stroke="#f59e0b" strokeWidth={2} />
                   <Line type="monotone" dataKey="totalAbsent" name="Total absent" stroke="#ef4444" strokeWidth={2} />
                 </LineChart>
@@ -188,7 +192,7 @@ export default function AnalyticsDashboard({ token }) {
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="hours" name="Hours" fill="#5b21b6" />
+                    <Bar dataKey="hours" name="Hours" fill="#7029d1" />
                     <Bar dataKey="employees" name="Employees" fill="#a855f7" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -224,8 +228,23 @@ function Kpi({ label, value }) {
   );
 }
 
+/** Percent only on slices — full count + % stay in tooltip (avoids clipped long labels). */
+function pieLabel({ percent }) {
+  if (percent == null) return '';
+  return `${(percent * 100).toFixed(1)}%`;
+}
+
 function PieCard({ title, data }) {
-  const rows = Array.isArray(data) ? data.filter((d) => (d.value ?? 0) > 0) : [];
+  const raw = Array.isArray(data) ? data : [];
+  const rows = raw
+    .map((d) => ({
+      name: d.name ?? '—',
+      value: Number(d.value),
+    }))
+    .filter((d) => Number.isFinite(d.value) && d.value > 0);
+
+  const total = rows.reduce((s, r) => s + r.value, 0);
+
   return (
     <div className="card">
       <p className="card-title">{title}</p>
@@ -235,13 +254,34 @@ function PieCard({ title, data }) {
         <div style={{ width: '100%', height: 260 }}>
           <ResponsiveContainer>
             <PieChart>
-              <Pie data={rows} dataKey="value" nameKey="name" outerRadius={90} label>
+              <Pie
+                data={rows}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={88}
+                innerRadius={0}
+                paddingAngle={2}
+                startAngle={90}
+                endAngle={-270}
+                labelLine={false}
+                label={pieLabel}
+                isAnimationActive={rows.length <= 12}
+              >
                 {rows.map((_, idx) => (
-                  <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                  <Cell key={`${title}-${idx}`} fill={COLORS[idx % COLORS.length]} stroke="#fff" strokeWidth={1} />
                 ))}
               </Pie>
-              <Tooltip />
-              <Legend />
+              <Tooltip
+                formatter={(value, name, item) => {
+                  const v = Number(value) || 0;
+                  const t = total > 0 ? ((v / total) * 100).toFixed(1) : '0';
+                  const labelName = item?.payload?.name ?? name;
+                  return [`${v} (${t}%)`, labelName];
+                }}
+              />
+              <Legend verticalAlign="bottom" align="center" layout="horizontal" wrapperStyle={{ paddingTop: 8 }} />
             </PieChart>
           </ResponsiveContainer>
         </div>

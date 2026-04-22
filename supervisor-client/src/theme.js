@@ -8,14 +8,14 @@ export const theme = {
   },
   // Accent – primary buttons, links, highlights
   accent: {
-    main: "#5b21b6",
-    hover: "#4c1d95",
+    main: "#7029d1",
+    hover: "#6020b8",
     light: "#ede9fe",
     dark: "#2e1065",
   },
   colors: {
     primary: "#1e1b4b",
-    secondary: "#5b21b6",
+    secondary: "#7029d1",
     light: "#f8fafc",
     border: "#e2e8f0",
   },
@@ -82,6 +82,8 @@ export const theme = {
   },
 
   gradients: {
-    primary: "linear-gradient(135deg, #1e1b4b 0%, #4c1d95 45%, #5b21b6 100%)",
+    primary: "linear-gradient(90deg, #7029d1 0%, #8b46ff 100%)",
+    /** Insurance & cost hero — aligned with Accountant app */
+    insurance: "linear-gradient(135deg, #0f766e 0%, #0d9488 45%, #14b8a6 100%)",
   },
 };
