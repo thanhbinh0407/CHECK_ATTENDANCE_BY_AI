@@ -3,9 +3,11 @@ import {
   getSalaryAdvances,
   createSalaryAdvance,
   approveSalaryAdvance,
-  markDeducted
+  markDeducted,
+  getSalaryAdvanceSalaryPreview,
+  disburseSalaryAdvance,
 } from "../controllers/salaryAdvanceController.js";
-import { authMiddleware, accountantOrSupervisor } from "../middleware/authMiddleware.js";
+import { authMiddleware, accountantOrSupervisor, accountantOnly } from "../middleware/authMiddleware.js";
 import { auditMutation } from "../services/actionAuditService.js";
 
 const router = express.Router();
@@ -32,8 +34,11 @@ router.post(
   createSalaryAdvance
 );
 
+router.get("/:id/salary-preview", getSalaryAdvanceSalaryPreview);
+
 // Kế toán hoặc Supervisor duyệt tạm ứng lương
 router.put("/:id/approve", accountantOrSupervisor, approveSalaryAdvance);
+router.put("/:id/disburse", accountantOnly, disburseSalaryAdvance);
 router.put("/:id/deduct", accountantOrSupervisor, markDeducted);
 
 export default router;

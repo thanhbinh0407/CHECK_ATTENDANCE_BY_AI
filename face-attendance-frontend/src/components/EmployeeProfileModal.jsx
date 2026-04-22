@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { theme } from "../styles/theme.js";
 import "./employeeProfileModal.css";
-import { toastConfirm } from "../lib/notify.jsx";
 
 export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   const [loading, setLoading] = useState(false);
@@ -13,10 +12,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   const [jobTitles, setJobTitles] = useState([]);
   const [managers, setManagers] = useState([]);
   const [activeTab, setActiveTab] = useState("info");
-  const [showPassword, setShowPassword] = useState(false);
-  const [resettingPassword, setResettingPassword] = useState(false);
-  const [newPassword, setNewPassword] = useState(null);
-  const [editingWorkExp, setEditingWorkExp] = useState(null); // null = new, number = editing id
+  const [editingWorkExp, setEditingWorkExp] = useState(null); // null | "new" | number (work experience id)
   const [workExpForm, setWorkExpForm] = useState({
     companyName: "",
     position: "",
@@ -28,6 +24,63 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
     isCurrent: false
   });
   const [savingWorkExp, setSavingWorkExp] = useState(false);
+  const [editingQual, setEditingQual] = useState(null); // null | "new" | number
+  const [qualForm, setQualForm] = useState({
+    type: "degree",
+    name: "",
+    issuedBy: "",
+    issuedDate: "",
+    expiryDate: "",
+    certificateNumber: "",
+    description: "",
+    documentPath: "",
+  });
+  const [savingQual, setSavingQual] = useState(false);
+  const [editingDep, setEditingDep] = useState(null); // null | "new" | number
+  const [depForm, setDepForm] = useState({
+    fullName: "",
+    relationship: "child",
+    dateOfBirth: "",
+    gender: "",
+    idNumber: "",
+    address: "",
+    phoneNumber: "",
+    email: "",
+    occupation: "",
+    notes: "",
+  });
+  const [savingDep, setSavingDep] = useState(false);
+  /** In-modal confirm (avoids toast top-right outside this dialog). */
+  const [modalConfirm, setModalConfirm] = useState(null);
+  const modalConfirmResolveRef = useRef(null);
+
+  const closeModalConfirm = useCallback((result) => {
+    setModalConfirm(null);
+    const resolve = modalConfirmResolveRef.current;
+    modalConfirmResolveRef.current = null;
+    if (resolve) resolve(result);
+  }, []);
+
+  const openModalConfirm = useCallback((opts) => {
+    return new Promise((resolve) => {
+      modalConfirmResolveRef.current = resolve;
+      setModalConfirm({
+        message: opts.message,
+        confirmText: opts.confirmText ?? "Confirm",
+        cancelText: opts.cancelText ?? "Cancel",
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!modalConfirm) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") closeModalConfirm(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [modalConfirm, closeModalConfirm]);
+
   const [validationErrors, setValidationErrors] = useState({});
   const [attendanceFilter, setAttendanceFilter] = useState(null); // { month, year } | null = auto
   const [attendanceLoading, setAttendanceLoading] = useState(false);
@@ -41,9 +94,16 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       fetchDepartments();
       fetchJobTitles();
       fetchManagers();
-      setNewPassword(null);
     }
   }, [employee]);
+
+  /** Personal / Work share the header "Edit"; leaving those tabs exits edit mode (same as Cancel). */
+  useEffect(() => {
+    const onMainProfileTab = activeTab === "info" || activeTab === "work";
+    if (onMainProfileTab || !isEditing) return;
+    setIsEditing(false);
+    fetchEmployeeDetails();
+  }, [activeTab, isEditing]);
 
   const fetchAttendanceByFilter = async (month, year) => {
     try {
@@ -383,40 +443,6 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
     }
   };
 
-  const handleResetPassword = async () => {
-    const ok = await toastConfirm({
-      message:
-        "Reset password for this employee? The new password will be: Password123!",
-    });
-    if (!ok) return;
-
-    try {
-      setResettingPassword(true);
-      const token = localStorage.getItem("authToken");
-      const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}/reset-password`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setNewPassword(data.newPassword);
-        setMessage("Password reset successfully!");
-        fetchEmployeeDetails();
-        setTimeout(() => setMessage(""), 5000);
-      } else {
-        setMessage("Error: " + (data.message || "Unable to reset password"));
-      }
-    } catch (error) {
-      setMessage("Error: " + error.message);
-    } finally {
-      setResettingPassword(false);
-    }
-  };
-
   const handleSaveWorkExp = async () => {
     if (!workExpForm.companyName || !workExpForm.position) {
       setMessage("Company name and position are required");
@@ -427,8 +453,9 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
     try {
       setSavingWorkExp(true);
       const token = localStorage.getItem("authToken");
+      const employeePk = Number(employee.id);
       const url = editingWorkExp === "new" 
-        ? `${apiBase}/api/work-experiences/${employee.id}`
+        ? `${apiBase}/api/work-experiences/${employeePk}`
         : `${apiBase}/api/work-experiences/${editingWorkExp}`;
       const method = editingWorkExp === "new" ? "POST" : "PUT";
 
@@ -484,7 +511,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   };
 
   const handleDeleteWorkExp = async (id) => {
-    const ok = await toastConfirm({ message: "Delete this work experience?" });
+    const ok = await openModalConfirm({ message: "Delete this work experience?" });
     if (!ok) return;
 
     try {
@@ -514,6 +541,269 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
     }
   };
 
+  const resetQualForm = () =>
+    setQualForm({
+      type: "degree",
+      name: "",
+      issuedBy: "",
+      issuedDate: "",
+      expiryDate: "",
+      certificateNumber: "",
+      description: "",
+      documentPath: "",
+    });
+
+  const resetDepForm = () =>
+    setDepForm({
+      fullName: "",
+      relationship: "child",
+      dateOfBirth: "",
+      gender: "",
+      idNumber: "",
+      address: "",
+      phoneNumber: "",
+      email: "",
+      occupation: "",
+      notes: "",
+    });
+
+  const handleSaveQual = async () => {
+    if (!employee?.id) return;
+    if (!qualForm.type || !qualForm.name?.trim()) {
+      setMessage("Qualification type and name are required");
+      setTimeout(() => setMessage(""), 3000);
+      return;
+    }
+    const employeePk = Number(employee.id);
+    try {
+      setSavingQual(true);
+      const token = localStorage.getItem("authToken");
+      const url =
+        editingQual === "new"
+          ? `${apiBase}/api/qualifications`
+          : `${apiBase}/api/qualifications/${editingQual}`;
+      const method = editingQual === "new" ? "POST" : "PUT";
+      const body =
+        editingQual === "new"
+          ? {
+              userId: employeePk,
+              type: qualForm.type,
+              name: qualForm.name.trim(),
+              issuedBy: qualForm.issuedBy?.trim() || null,
+              issuedDate: qualForm.issuedDate || null,
+              expiryDate: qualForm.expiryDate || null,
+              certificateNumber: qualForm.certificateNumber?.trim() || null,
+              description: qualForm.description?.trim() || null,
+              documentPath: qualForm.documentPath?.trim() || null,
+            }
+          : {
+              type: qualForm.type,
+              name: qualForm.name.trim(),
+              issuedBy: qualForm.issuedBy?.trim() || null,
+              issuedDate: qualForm.issuedDate || null,
+              expiryDate: qualForm.expiryDate || null,
+              certificateNumber: qualForm.certificateNumber?.trim() || null,
+              description: qualForm.description?.trim() || null,
+              documentPath: qualForm.documentPath?.trim() || null,
+            };
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage(editingQual === "new" ? "Qualification added." : "Qualification updated.");
+        setEditingQual(null);
+        resetQualForm();
+        fetchEmployeeDetails();
+        setTimeout(() => setMessage(""), 3000);
+      } else {
+        setMessage("Error: " + (data.message || "Unable to save qualification"));
+        setTimeout(() => setMessage(""), 4000);
+      }
+    } catch (error) {
+      setMessage("Error: " + error.message);
+      setTimeout(() => setMessage(""), 3000);
+    } finally {
+      setSavingQual(false);
+    }
+  };
+
+  const handleCancelQual = () => {
+    setEditingQual(null);
+    resetQualForm();
+  };
+
+  const handleDeleteQual = async (id) => {
+    const ok = await openModalConfirm({ message: "Delete this qualification / certificate?" });
+    if (!ok) return;
+    try {
+      setSavingQual(true);
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/qualifications/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage("Qualification deleted.");
+        fetchEmployeeDetails();
+        setTimeout(() => setMessage(""), 3000);
+      } else {
+        setMessage("Error: " + (data.message || "Unable to delete"));
+        setTimeout(() => setMessage(""), 3000);
+      }
+    } catch (error) {
+      setMessage("Error: " + error.message);
+      setTimeout(() => setMessage(""), 3000);
+    } finally {
+      setSavingQual(false);
+    }
+  };
+
+  const handleSaveDep = async () => {
+    if (!employee?.id) return;
+    if (!depForm.fullName?.trim() || !depForm.relationship) {
+      setMessage("Dependent name and relationship are required");
+      setTimeout(() => setMessage(""), 3000);
+      return;
+    }
+    const employeePk = Number(employee.id);
+    try {
+      setSavingDep(true);
+      const token = localStorage.getItem("authToken");
+      const url =
+        editingDep === "new" ? `${apiBase}/api/dependents` : `${apiBase}/api/dependents/${editingDep}`;
+      const method = editingDep === "new" ? "POST" : "PUT";
+      const payload =
+        editingDep === "new"
+          ? {
+              userId: employeePk,
+              fullName: depForm.fullName.trim(),
+              relationship: depForm.relationship,
+              dateOfBirth: depForm.dateOfBirth || null,
+              gender: depForm.gender || null,
+              idNumber: depForm.idNumber?.trim() || null,
+              address: depForm.address?.trim() || null,
+              phoneNumber: depForm.phoneNumber?.trim() || null,
+              email: depForm.email?.trim() || null,
+              occupation: depForm.occupation?.trim() || null,
+              notes: depForm.notes?.trim() || null,
+            }
+          : {
+              fullName: depForm.fullName.trim(),
+              relationship: depForm.relationship,
+              dateOfBirth: depForm.dateOfBirth || null,
+              gender: depForm.gender || null,
+              idNumber: depForm.idNumber?.trim() || null,
+              address: depForm.address?.trim() || null,
+              phoneNumber: depForm.phoneNumber?.trim() || null,
+              email: depForm.email?.trim() || null,
+              occupation: depForm.occupation?.trim() || null,
+              notes: depForm.notes?.trim() || null,
+            };
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage(editingDep === "new" ? "Dependent added." : "Dependent updated.");
+        setEditingDep(null);
+        resetDepForm();
+        fetchEmployeeDetails();
+        setTimeout(() => setMessage(""), 3000);
+      } else {
+        setMessage("Error: " + (data.message || "Unable to save dependent"));
+        setTimeout(() => setMessage(""), 4000);
+      }
+    } catch (error) {
+      setMessage("Error: " + error.message);
+      setTimeout(() => setMessage(""), 3000);
+    } finally {
+      setSavingDep(false);
+    }
+  };
+
+  const handleCancelDep = () => {
+    setEditingDep(null);
+    resetDepForm();
+  };
+
+  const handleDeleteDep = async (id) => {
+    const ok = await openModalConfirm({ message: "Delete this dependent?" });
+    if (!ok) return;
+    try {
+      setSavingDep(true);
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/dependents/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage("Dependent deleted.");
+        fetchEmployeeDetails();
+        setTimeout(() => setMessage(""), 3000);
+      } else {
+        setMessage("Error: " + (data.message || "Unable to delete"));
+        setTimeout(() => setMessage(""), 3000);
+      }
+    } catch (error) {
+      setMessage("Error: " + error.message);
+      setTimeout(() => setMessage(""), 3000);
+    } finally {
+      setSavingDep(false);
+    }
+  };
+
+  const workExperienceListForGrid = useMemo(() => {
+    const all = employeeDetails?.WorkExperiences ?? [];
+    if (editingWorkExp != null && editingWorkExp !== "new") {
+      return all.filter((e) => Number(e.id) !== Number(editingWorkExp));
+    }
+    return all;
+  }, [employeeDetails?.WorkExperiences, editingWorkExp]);
+
+  const workExperienceTotalCount = (employeeDetails?.WorkExperiences ?? []).length;
+
+  const qualListForGrid = useMemo(() => {
+    const all = employeeDetails?.Qualifications ?? employeeDetails?.qualifications ?? [];
+    if (editingQual != null && editingQual !== "new") {
+      return all.filter((q) => Number(q.id) !== Number(editingQual));
+    }
+    return all;
+  }, [employeeDetails?.Qualifications, employeeDetails?.qualifications, editingQual]);
+
+  const qualTotalCount = (employeeDetails?.Qualifications ?? employeeDetails?.qualifications ?? []).length;
+
+  const depListForGrid = useMemo(() => {
+    const all = employeeDetails?.Dependents ?? employeeDetails?.dependents ?? [];
+    if (editingDep != null && editingDep !== "new") {
+      return all.filter((d) => Number(d.id) !== Number(editingDep));
+    }
+    return all;
+  }, [employeeDetails?.Dependents, employeeDetails?.dependents, editingDep]);
+
+  const depTotalCount = (employeeDetails?.Dependents ?? employeeDetails?.dependents ?? []).length;
+
+  const approvalBadgeStyle = (status) => {
+    const st = status || "pending";
+    if (st === "approved") return { label: "Approved", bg: "#d4edda", color: "#155724" };
+    if (st === "rejected") return { label: "Rejected", bg: "#f8d7da", color: "#721c24" };
+    return { label: "Pending", bg: "#fff3cd", color: "#856404" };
+  };
+
   if (!employee) return null;
 
   const modalOverlayStyle = {
@@ -532,6 +822,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   };
 
   const modalContentStyle = {
+    position: "relative",
     backgroundColor: theme.neutral.white,
     borderRadius: theme.radius.xl,
     width: "100%",
@@ -576,6 +867,75 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   return (
     <div style={modalOverlayStyle} onClick={onClose}>
       <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
+        {modalConfirm ? (
+          <div
+            role="presentation"
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 100,
+              backgroundColor: "rgba(15, 23, 42, 0.45)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: theme.spacing.lg,
+              borderRadius: theme.radius.xl,
+            }}
+            onClick={() => closeModalConfirm(false)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="epm-confirm-title"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                backgroundColor: theme.neutral.white,
+                borderRadius: theme.radius.lg,
+                padding: theme.spacing.xl,
+                maxWidth: 400,
+                width: "100%",
+                boxShadow: theme.shadows.xl,
+              }}
+            >
+              <p id="epm-confirm-title" style={{ margin: `0 0 ${theme.spacing.md} 0`, fontSize: "16px", fontWeight: 600, color: theme.neutral.gray900 }}>
+                {modalConfirm.message}
+              </p>
+              <div style={{ display: "flex", gap: theme.spacing.sm, justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => closeModalConfirm(false)}
+                  style={{
+                    padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                    cursor: "pointer",
+                    border: `1px solid ${theme.neutral.gray300}`,
+                    borderRadius: theme.radius.md,
+                    background: theme.neutral.gray100,
+                    fontWeight: 600,
+                    fontSize: "14px",
+                  }}
+                >
+                  {modalConfirm.cancelText}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => closeModalConfirm(true)}
+                  style={{
+                    padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                    cursor: "pointer",
+                    border: "none",
+                    borderRadius: theme.radius.md,
+                    background: theme.primary.main,
+                    color: theme.neutral.white,
+                    fontWeight: 600,
+                    fontSize: "14px",
+                  }}
+                >
+                  {modalConfirm.confirmText}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
         {/* Header */}
         <div style={headerStyle}>
           <div>
@@ -587,7 +947,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
             </p>
           </div>
           <div style={{ display: "flex", gap: theme.spacing.sm, alignItems: "center" }}>
-            {!isEditing && (
+            {!isEditing && (activeTab === "info" || activeTab === "work") && (
               <button
                 onClick={() => setIsEditing(true)}
                 style={{
@@ -637,61 +997,63 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
 
         {/* Tabs */}
         <div className="epm-tabs-scroll">
-          <div className="epm-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "info"}
-              className={activeTab === "info" ? "epm-tab epm-tab--active" : "epm-tab"}
-              onClick={() => setActiveTab("info")}
-            >
-              Personal
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "work"}
-              className={activeTab === "work" ? "epm-tab epm-tab--active" : "epm-tab"}
-              onClick={() => setActiveTab("work")}
-            >
-              Work
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "family"}
-              className={activeTab === "family" ? "epm-tab epm-tab--active" : "epm-tab"}
-              onClick={() => setActiveTab("family")}
-            >
-              Family
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "qualifications"}
-              className={activeTab === "qualifications" ? "epm-tab epm-tab--active" : "epm-tab"}
-              onClick={() => setActiveTab("qualifications")}
-            >
-              Qualifications
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "experience"}
-              className={activeTab === "experience" ? "epm-tab epm-tab--active" : "epm-tab"}
-              onClick={() => setActiveTab("experience")}
-            >
-              Experience
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "attendance"}
-              className={activeTab === "attendance" ? "epm-tab epm-tab--active" : "epm-tab"}
-              onClick={() => setActiveTab("attendance")}
-            >
-              Attendance
-            </button>
+          <div className="epm-tabs-scroll-inner">
+            <div className="epm-tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "info"}
+                className={activeTab === "info" ? "epm-tab epm-tab--active" : "epm-tab"}
+                onClick={() => setActiveTab("info")}
+              >
+                Personal
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "work"}
+                className={activeTab === "work" ? "epm-tab epm-tab--active" : "epm-tab"}
+                onClick={() => setActiveTab("work")}
+              >
+                Work
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "family"}
+                className={activeTab === "family" ? "epm-tab epm-tab--active" : "epm-tab"}
+                onClick={() => setActiveTab("family")}
+              >
+                Family
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "qualifications"}
+                className={activeTab === "qualifications" ? "epm-tab epm-tab--active" : "epm-tab"}
+                onClick={() => setActiveTab("qualifications")}
+              >
+                Qualifications
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "experience"}
+                className={activeTab === "experience" ? "epm-tab epm-tab--active" : "epm-tab"}
+                onClick={() => setActiveTab("experience")}
+              >
+                Experience
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "attendance"}
+                className={activeTab === "attendance" ? "epm-tab epm-tab--active" : "epm-tab"}
+                onClick={() => setActiveTab("attendance")}
+              >
+                Attendance
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1248,85 +1610,6 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                   </div>
                 </div>
 
-                  {!isEditing && (
-                    <div className={`epm-password-panel ${newPassword ? "epm-password-panel--ok" : ""}`}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing.xs }}>
-                        <label className="epm-label">Password</label>
-                        <button
-                          onClick={handleResetPassword}
-                          disabled={resettingPassword}
-                          style={{
-                            padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                            backgroundColor: theme.warning.main,
-                            color: theme.neutral.white,
-                            border: "none",
-                            borderRadius: theme.radius.md,
-                            cursor: resettingPassword ? "not-allowed" : "pointer",
-                            fontSize: "13px",
-                            fontWeight: 600
-                          }}
-                        >
-                          {resettingPassword ? "⏳ Resetting..." : "🔄 Reset Password"}
-                        </button>
-                      </div>
-                      {newPassword ? (
-                        <div style={{ 
-                          ...valueStyle, 
-                          fontFamily: "monospace", 
-                          fontSize: "18px", 
-                          fontWeight: 700,
-                          color: theme.success.main,
-                          backgroundColor: "#fff", 
-                          padding: theme.spacing.md, 
-                          borderRadius: theme.radius.sm, 
-                          border: "2px solid #28a745",
-                          textAlign: "center",
-                          letterSpacing: "2px"
-                        }}>
-                          {newPassword}
-                        </div>
-                      ) : (
-                        <div style={{ ...valueStyle, fontFamily: "monospace", fontSize: "12px", wordBreak: "break-all", backgroundColor: "#fff", padding: theme.spacing.sm, borderRadius: theme.radius.sm, border: "1px solid #ddd" }}>
-                          {showPassword && employeeDetails?.password ? (
-                            <span style={{ color: theme.neutral.gray700 }}>
-                              Hash: {employeeDetails.password.substring(0, 50)}...
-                            </span>
-                          ) : (
-                            <span style={{ color: theme.neutral.gray500 }}>
-                              {employeeDetails?.password ? "••••••••••••••••••••••••••••••••" : "No password set"}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      <div style={{ fontSize: "11px", color: theme.neutral.gray600, marginTop: theme.spacing.xs, fontStyle: "italic" }}>
-                        {newPassword ? (
-                          <span style={{ color: theme.success.main, fontWeight: 600 }}>
-                            ✅ New password has been generated! Please save this information.
-                          </span>
-                        ) : (
-                          "Password is hashed with bcrypt, cannot be displayed as plain text. Use Reset to create a new password (default: Password123!)"
-                        )}
-                      </div>
-                      {!newPassword && employeeDetails?.password && (
-                        <button
-                          onClick={() => setShowPassword(!showPassword)}
-                          style={{
-                            marginTop: theme.spacing.xs,
-                            padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
-                            backgroundColor: theme.neutral.gray200,
-                            border: "none",
-                            borderRadius: theme.radius.sm,
-                            cursor: "pointer",
-                            fontSize: "11px",
-                            fontWeight: 600
-                          }}
-                        >
-                          {showPassword ? "👁️ Hide hash" : "👁️ Show hash"}
-                        </button>
-                      )}
-                    </div>
-                  )}
-
                   {isEditing && (
                     <div style={{ display: "flex", gap: theme.spacing.md, marginTop: theme.spacing.xl }}>
                       <button
@@ -1793,158 +2076,614 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                 </div>
               )}
 
-              {/* Tab: Family */}
+              {/* Tab: Family — same UX pattern as Work Experience */}
               {activeTab === "family" && (
                 <div>
-                  <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
-                    Dependents
-                  </h3>
-                  {(() => {
-                    const dependents = employeeDetails?.Dependents || employeeDetails?.dependents || [];
-                    if (!dependents || dependents.length === 0) {
-                      return (
-                        <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No dependents</p>
-                      );
-                    }
-                    return (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: theme.spacing.md }}>
-                      {dependents.map((dep) => (
-                        <div
-                          key={dep.id}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing.lg }}>
+                    <h3 style={{ marginTop: 0, marginBottom: 0, color: theme.primary.main }}>Dependents</h3>
+                    {!editingDep && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingDep("new");
+                          resetDepForm();
+                        }}
+                        style={{
+                          padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                          backgroundColor: theme.primary.main,
+                          color: theme.neutral.white,
+                          border: "none",
+                          borderRadius: theme.radius.md,
+                          cursor: "pointer",
+                          fontWeight: 600,
+                          fontSize: "14px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        ➕ Add Dependent
+                      </button>
+                    )}
+                  </div>
+
+                  {editingDep && (
+                    <div
+                      style={{
+                        padding: theme.spacing.lg,
+                        backgroundColor: theme.neutral.gray50,
+                        borderRadius: theme.radius.md,
+                        border: `2px solid ${theme.primary.main}`,
+                        marginBottom: theme.spacing.lg,
+                      }}
+                    >
+                      <h4 style={{ marginTop: 0, marginBottom: theme.spacing.md, color: theme.primary.main }}>
+                        {editingDep === "new" ? "Add dependent" : "Edit dependent"}
+                      </h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: theme.spacing.md }}>
+                        <div style={{ gridColumn: "1 / -1" }}>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Full name *</label>
+                          <input
+                            type="text"
+                            value={depForm.fullName}
+                            onChange={(e) => setDepForm({ ...depForm, fullName: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Relationship *</label>
+                          <select
+                            value={depForm.relationship}
+                            onChange={(e) => setDepForm({ ...depForm, relationship: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          >
+                            <option value="spouse">Spouse</option>
+                            <option value="child">Child</option>
+                            <option value="parent">Parent</option>
+                            <option value="grandparent">Grandparent</option>
+                            <option value="sibling">Sibling</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Date of birth</label>
+                          <input
+                            type="date"
+                            value={depForm.dateOfBirth}
+                            onChange={(e) => setDepForm({ ...depForm, dateOfBirth: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Gender</label>
+                          <select
+                            value={depForm.gender}
+                            onChange={(e) => setDepForm({ ...depForm, gender: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          >
+                            <option value="">—</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div style={{ gridColumn: "1 / -1" }}>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>
+                            ID / CCCD — employees: 9 or 12 digits. HR/staff: optional; internal reference allowed (e.g. seed codes)
+                          </label>
+                          <input
+                            type="text"
+                            value={depForm.idNumber}
+                            onChange={(e) => setDepForm({ ...depForm, idNumber: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          />
+                        </div>
+                        <div style={{ gridColumn: "1 / -1" }}>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Address</label>
+                          <textarea
+                            value={depForm.address}
+                            onChange={(e) => setDepForm({ ...depForm, address: e.target.value })}
+                            rows={2}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px", resize: "vertical" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Phone</label>
+                          <input
+                            type="text"
+                            value={depForm.phoneNumber}
+                            onChange={(e) => setDepForm({ ...depForm, phoneNumber: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Email</label>
+                          <input
+                            type="email"
+                            value={depForm.email}
+                            onChange={(e) => setDepForm({ ...depForm, email: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          />
+                        </div>
+                        <div style={{ gridColumn: "1 / -1" }}>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Occupation</label>
+                          <input
+                            type="text"
+                            value={depForm.occupation}
+                            onChange={(e) => setDepForm({ ...depForm, occupation: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          />
+                        </div>
+                        <div style={{ gridColumn: "1 / -1" }}>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Notes</label>
+                          <textarea
+                            value={depForm.notes}
+                            onChange={(e) => setDepForm({ ...depForm, notes: e.target.value })}
+                            rows={2}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px", resize: "vertical" }}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: theme.spacing.md, marginTop: theme.spacing.lg }}>
+                        <button
+                          type="button"
+                          onClick={handleSaveDep}
+                          disabled={savingDep || !depForm.fullName?.trim()}
                           style={{
-                            padding: theme.spacing.md,
-                            backgroundColor: theme.neutral.gray50,
+                            padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
+                            backgroundColor: savingDep || !depForm.fullName?.trim() ? theme.neutral.gray400 : theme.primary.main,
+                            color: theme.neutral.white,
+                            border: "none",
                             borderRadius: theme.radius.md,
-                            border: `1px solid ${theme.neutral.gray200}`
+                            cursor: savingDep || !depForm.fullName?.trim() ? "not-allowed" : "pointer",
+                            fontWeight: 600,
+                            fontSize: "14px",
                           }}
                         >
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              marginBottom: theme.spacing.xs,
-                              fontSize: "16px"
-                            }}
-                          >
-                            {dep.fullName || "-"}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "14px",
-                              color: theme.neutral.gray600,
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: 2
-                            }}
-                          >
-                            <div>
-                              <strong>Relationship:</strong> {dep.relationship || "-"}
-                            </div>
-                            {dep.gender && (
-                              <div>
-                                <strong>Gender:</strong> {dep.gender}
-                              </div>
-                            )}
-                            {dep.dateOfBirth && (
-                              <div>
-                                <strong>Date of Birth:</strong>{" "}
-                                {new Date(dep.dateOfBirth).toLocaleDateString("en-GB")}
-                              </div>
-                            )}
-                            {dep.idNumber && (
-                              <div>
-                                <strong>ID Number:</strong> {dep.idNumber}
-                              </div>
-                            )}
-                            {dep.address && (
-                              <div>
-                                <strong>Address:</strong> {dep.address}
-                              </div>
-                            )}
-                            {dep.phoneNumber && (
-                              <div>
-                                <strong>Phone Number:</strong> {dep.phoneNumber}
-                              </div>
-                            )}
-                            {dep.email && (
-                              <div>
-                                <strong>Email:</strong> {dep.email}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                          {savingDep ? "Saving…" : "💾 Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelDep}
+                          disabled={savingDep}
+                          style={{
+                            padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
+                            backgroundColor: theme.neutral.gray300,
+                            color: theme.neutral.gray700,
+                            border: "none",
+                            borderRadius: theme.radius.md,
+                            cursor: savingDep ? "not-allowed" : "pointer",
+                            fontWeight: 600,
+                            fontSize: "14px",
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
-                    );
-                  })()}
+                  )}
+
+                  {depListForGrid.length > 0 ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: theme.spacing.md }}>
+                      {depListForGrid.map((dep) => {
+                        const ab = approvalBadgeStyle(dep.approvalStatus);
+                        return (
+                          <div
+                            key={dep.id}
+                            style={{
+                              padding: theme.spacing.md,
+                              backgroundColor: theme.neutral.gray50,
+                              borderRadius: theme.radius.md,
+                              border: `1px solid ${theme.neutral.gray200}`,
+                              position: "relative",
+                            }}
+                          >
+                            {Number(editingDep) !== Number(dep.id) && (
+                              <div style={{ position: "absolute", top: theme.spacing.sm, right: theme.spacing.sm, display: "flex", gap: theme.spacing.xs }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingDep(dep.id);
+                                    setDepForm({
+                                      fullName: dep.fullName || "",
+                                      relationship: dep.relationship || "child",
+                                      dateOfBirth: dep.dateOfBirth ? new Date(dep.dateOfBirth).toISOString().split("T")[0] : "",
+                                      gender: dep.gender || "",
+                                      idNumber: dep.idNumber || "",
+                                      address: dep.address || "",
+                                      phoneNumber: dep.phoneNumber || "",
+                                      email: dep.email || "",
+                                      occupation: dep.occupation || "",
+                                      notes: dep.notes || "",
+                                    });
+                                  }}
+                                  style={{
+                                    padding: "4px 8px",
+                                    backgroundColor: theme.primary.main,
+                                    color: theme.neutral.white,
+                                    border: "none",
+                                    borderRadius: theme.radius.sm,
+                                    cursor: "pointer",
+                                    fontSize: "12px",
+                                  }}
+                                  title="Edit"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteDep(dep.id)}
+                                  style={{
+                                    padding: "4px 8px",
+                                    backgroundColor: theme.error.main,
+                                    color: theme.neutral.white,
+                                    border: "none",
+                                    borderRadius: theme.radius.sm,
+                                    cursor: "pointer",
+                                    fontSize: "12px",
+                                  }}
+                                  title="Delete"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            )}
+                            <div style={{ fontWeight: 700, marginBottom: theme.spacing.xs, fontSize: "18px", color: theme.primary.main, paddingRight: 72 }}>
+                              {dep.fullName || "—"}
+                            </div>
+                            <div style={{ fontSize: "14px", color: theme.neutral.gray700, fontWeight: 600, marginBottom: theme.spacing.xs }}>
+                              {dep.relationship ? dep.relationship.charAt(0).toUpperCase() + dep.relationship.slice(1) : "—"}
+                              <span
+                                style={{
+                                  marginLeft: "8px",
+                                  padding: "2px 8px",
+                                  backgroundColor: ab.bg,
+                                  color: ab.color,
+                                  borderRadius: "4px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {ab.label}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: "13px", color: theme.neutral.gray700, marginTop: theme.spacing.sm, display: "flex", flexDirection: "column", gap: 6 }}>
+                              {dep.gender && (
+                                <div>
+                                  <strong>Gender:</strong> {dep.gender}
+                                </div>
+                              )}
+                              {dep.dateOfBirth && (
+                                <div>
+                                  <strong>Date of Birth:</strong> {new Date(dep.dateOfBirth).toLocaleDateString("en-US")}
+                                </div>
+                              )}
+                              {dep.idNumber && (
+                                <div>
+                                  <strong>ID Number:</strong> {dep.idNumber}
+                                </div>
+                              )}
+                              {dep.address && (
+                                <div>
+                                  <strong>Address:</strong> {dep.address}
+                                </div>
+                              )}
+                              {dep.phoneNumber && (
+                                <div>
+                                  <strong>Phone:</strong> {dep.phoneNumber}
+                                </div>
+                              )}
+                              {dep.email && (
+                                <div>
+                                  <strong>Email:</strong> {dep.email}
+                                </div>
+                              )}
+                              {dep.occupation && (
+                                <div>
+                                  <strong>Occupation:</strong> {dep.occupation}
+                                </div>
+                              )}
+                              {dep.notes && (
+                                <div>
+                                  <strong>Notes:</strong> {dep.notes}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : !editingDep && depTotalCount === 0 ? (
+                    <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No dependents recorded</p>
+                  ) : null}
                 </div>
               )}
 
-              {/* Tab: Bằng cấp */}
+              {/* Tab: Qualifications — same UX pattern as Work Experience */}
               {activeTab === "qualifications" && (
                 <div>
-                  <h3 style={{ marginTop: 0, marginBottom: theme.spacing.lg, color: theme.primary.main }}>
-                    Qualifications and Certificates
-                  </h3>
-                  {(() => {
-                    const qualifications = employeeDetails?.Qualifications || employeeDetails?.qualifications || [];
-                    if (!qualifications || qualifications.length === 0) {
-                      return (
-                        <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No qualifications or certificates</p>
-                      );
-                    }
-                    return (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: theme.spacing.md }}>
-                      {qualifications.map((qual) => (
-                        <div key={qual.id} style={{
-                          padding: theme.spacing.md,
-                          backgroundColor: theme.neutral.gray50,
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing.lg }}>
+                    <h3 style={{ marginTop: 0, marginBottom: 0, color: theme.primary.main }}>Qualifications and Certificates</h3>
+                    {!editingQual && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingQual("new");
+                          resetQualForm();
+                        }}
+                        style={{
+                          padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                          backgroundColor: theme.primary.main,
+                          color: theme.neutral.white,
+                          border: "none",
                           borderRadius: theme.radius.md,
-                          border: `1px solid ${theme.neutral.gray200}`
-                        }}>
-                          <div style={{ fontWeight: 600, marginBottom: theme.spacing.xs, fontSize: "16px" }}>
-                            {qual.name}
-                          </div>
-                          <div style={{ fontSize: "14px", color: theme.neutral.gray600, display: "flex", flexDirection: "column", gap: 2 }}>
-                            <div>Type: {qual.type}</div>
-                            {qual.issuedBy && <div><strong>Issued by:</strong> {qual.issuedBy}</div>}
-                            {qual.issuedDate && (
-                              <div>
-                                <strong>Issued date:</strong>{" "}
-                                {new Date(qual.issuedDate).toLocaleDateString('en-US')}
+                          cursor: "pointer",
+                          fontWeight: 600,
+                          fontSize: "14px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        ➕ Add Qualification
+                      </button>
+                    )}
+                  </div>
+
+                  {editingQual && (
+                    <div
+                      style={{
+                        padding: theme.spacing.lg,
+                        backgroundColor: theme.neutral.gray50,
+                        borderRadius: theme.radius.md,
+                        border: `2px solid ${theme.primary.main}`,
+                        marginBottom: theme.spacing.lg,
+                      }}
+                    >
+                      <h4 style={{ marginTop: 0, marginBottom: theme.spacing.md, color: theme.primary.main }}>
+                        {editingQual === "new" ? "Add qualification / certificate" : "Edit qualification"}
+                      </h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: theme.spacing.md }}>
+                        <div>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Type *</label>
+                          <select
+                            value={qualForm.type}
+                            onChange={(e) => setQualForm({ ...qualForm, type: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          >
+                            <option value="degree">Degree</option>
+                            <option value="certificate">Certificate</option>
+                            <option value="license">License</option>
+                            <option value="training">Training</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Certificate / degree name *</label>
+                          <input
+                            type="text"
+                            value={qualForm.name}
+                            onChange={(e) => setQualForm({ ...qualForm, name: e.target.value })}
+                            placeholder="e.g. Bachelor of Human Resource Management"
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          />
+                        </div>
+                        <div style={{ gridColumn: "1 / -1" }}>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Issued by</label>
+                          <input
+                            type="text"
+                            value={qualForm.issuedBy}
+                            onChange={(e) => setQualForm({ ...qualForm, issuedBy: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Issued date</label>
+                          <input
+                            type="date"
+                            value={qualForm.issuedDate}
+                            onChange={(e) => setQualForm({ ...qualForm, issuedDate: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Expiry date</label>
+                          <input
+                            type="date"
+                            value={qualForm.expiryDate}
+                            onChange={(e) => setQualForm({ ...qualForm, expiryDate: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          />
+                        </div>
+                        <div style={{ gridColumn: "1 / -1" }}>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Certificate number</label>
+                          <input
+                            type="text"
+                            value={qualForm.certificateNumber}
+                            onChange={(e) => setQualForm({ ...qualForm, certificateNumber: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          />
+                        </div>
+                        <div style={{ gridColumn: "1 / -1" }}>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>Description</label>
+                          <textarea
+                            value={qualForm.description}
+                            onChange={(e) => setQualForm({ ...qualForm, description: e.target.value })}
+                            rows={3}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px", resize: "vertical" }}
+                          />
+                        </div>
+                        <div style={{ gridColumn: "1 / -1" }}>
+                          <label style={{ display: "block", marginBottom: theme.spacing.xs, fontWeight: 600, fontSize: "14px" }}>
+                            Document path (optional for HR — e.g. /uploads/qualifications/file.pdf)
+                          </label>
+                          <input
+                            type="text"
+                            value={qualForm.documentPath}
+                            onChange={(e) => setQualForm({ ...qualForm, documentPath: e.target.value })}
+                            style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.neutral.gray300}`, borderRadius: theme.radius.sm, fontSize: "14px" }}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: theme.spacing.md, marginTop: theme.spacing.lg }}>
+                        <button
+                          type="button"
+                          onClick={handleSaveQual}
+                          disabled={savingQual || !qualForm.type || !qualForm.name?.trim()}
+                          style={{
+                            padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
+                            backgroundColor: savingQual || !qualForm.type || !qualForm.name?.trim() ? theme.neutral.gray400 : theme.primary.main,
+                            color: theme.neutral.white,
+                            border: "none",
+                            borderRadius: theme.radius.md,
+                            cursor: savingQual || !qualForm.type || !qualForm.name?.trim() ? "not-allowed" : "pointer",
+                            fontWeight: 600,
+                            fontSize: "14px",
+                          }}
+                        >
+                          {savingQual ? "Saving…" : "💾 Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelQual}
+                          disabled={savingQual}
+                          style={{
+                            padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
+                            backgroundColor: theme.neutral.gray300,
+                            color: theme.neutral.gray700,
+                            border: "none",
+                            borderRadius: theme.radius.md,
+                            cursor: savingQual ? "not-allowed" : "pointer",
+                            fontWeight: 600,
+                            fontSize: "14px",
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {qualListForGrid.length > 0 ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: theme.spacing.md }}>
+                      {qualListForGrid.map((qual) => {
+                        const ab = approvalBadgeStyle(qual.approvalStatus);
+                        const typeLabel = qual.type ? String(qual.type).charAt(0).toUpperCase() + String(qual.type).slice(1) : "—";
+                        return (
+                          <div
+                            key={qual.id}
+                            style={{
+                              padding: theme.spacing.md,
+                              backgroundColor: theme.neutral.gray50,
+                              borderRadius: theme.radius.md,
+                              border: `1px solid ${theme.neutral.gray200}`,
+                              position: "relative",
+                            }}
+                          >
+                            {Number(editingQual) !== Number(qual.id) && (
+                              <div style={{ position: "absolute", top: theme.spacing.sm, right: theme.spacing.sm, display: "flex", gap: theme.spacing.xs }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingQual(qual.id);
+                                    setQualForm({
+                                      type: qual.type || "degree",
+                                      name: qual.name || "",
+                                      issuedBy: qual.issuedBy || "",
+                                      issuedDate: qual.issuedDate ? new Date(qual.issuedDate).toISOString().split("T")[0] : "",
+                                      expiryDate: qual.expiryDate ? new Date(qual.expiryDate).toISOString().split("T")[0] : "",
+                                      certificateNumber: qual.certificateNumber || "",
+                                      description: qual.description || "",
+                                      documentPath: qual.documentPath || "",
+                                    });
+                                  }}
+                                  style={{
+                                    padding: "4px 8px",
+                                    backgroundColor: theme.primary.main,
+                                    color: theme.neutral.white,
+                                    border: "none",
+                                    borderRadius: theme.radius.sm,
+                                    cursor: "pointer",
+                                    fontSize: "12px",
+                                  }}
+                                  title="Edit"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteQual(qual.id)}
+                                  style={{
+                                    padding: "4px 8px",
+                                    backgroundColor: theme.error.main,
+                                    color: theme.neutral.white,
+                                    border: "none",
+                                    borderRadius: theme.radius.sm,
+                                    cursor: "pointer",
+                                    fontSize: "12px",
+                                  }}
+                                  title="Delete"
+                                >
+                                  🗑️
+                                </button>
                               </div>
                             )}
-                            {qual.expiryDate && (
-                              <div>
-                                <strong>Expiry date:</strong>{" "}
-                                {new Date(qual.expiryDate).toLocaleDateString('en-US')}
+                            <div style={{ fontWeight: 700, marginBottom: theme.spacing.xs, fontSize: "18px", color: theme.primary.main, paddingRight: 72 }}>
+                              {qual.name}
+                            </div>
+                            <div style={{ fontSize: "14px", color: theme.neutral.gray700, fontWeight: 600, marginBottom: theme.spacing.xs }}>
+                              {typeLabel}
+                              <span
+                                style={{
+                                  marginLeft: "8px",
+                                  padding: "2px 8px",
+                                  backgroundColor: ab.bg,
+                                  color: ab.color,
+                                  borderRadius: "4px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {ab.label}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: "13px", color: theme.neutral.gray600, marginBottom: theme.spacing.xs }}>
+                              {qual.issuedDate ? new Date(qual.issuedDate).toLocaleDateString("en-US") : "—"}
+                              {qual.expiryDate ? ` → ${new Date(qual.expiryDate).toLocaleDateString("en-US")}` : ""}
+                            </div>
+                            {qual.issuedBy && (
+                              <div style={{ fontSize: "13px", color: theme.neutral.gray700, marginTop: theme.spacing.sm }}>
+                                <strong>Issued by:</strong> {qual.issuedBy}
                               </div>
                             )}
                             {qual.certificateNumber && (
-                              <div>
+                              <div style={{ fontSize: "13px", color: theme.neutral.gray700, marginTop: theme.spacing.xs }}>
                                 <strong>Certificate No.:</strong> {qual.certificateNumber}
                               </div>
                             )}
                             {qual.description && (
-                              <div>
+                              <div style={{ fontSize: "13px", color: theme.neutral.gray700, marginTop: theme.spacing.xs }}>
                                 <strong>Description:</strong> {qual.description}
                               </div>
                             )}
                             {qual.documentPath && (
-                              <a
-                                href={`${apiBase}${qual.documentPath}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{ color: theme.primary.main, textDecoration: "underline", fontSize: "12px" }}
-                              >
-                                View document
-                              </a>
+                              <div style={{ marginTop: theme.spacing.sm }}>
+                                <a
+                                  href={`${apiBase}${qual.documentPath}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ color: theme.primary.main, textDecoration: "underline", fontSize: "12px" }}
+                                >
+                                  View document
+                                </a>
+                              </div>
                             )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
-                    );
-                  })()}
+                  ) : !editingQual && qualTotalCount === 0 ? (
+                    <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No qualifications or certificates</p>
+                  ) : null}
                 </div>
               )}
 
@@ -2192,9 +2931,9 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                   )}
 
                   {/* Work Experience List */}
-                  {employeeDetails?.WorkExperiences && employeeDetails.WorkExperiences.length > 0 ? (
+                  {workExperienceListForGrid.length > 0 ? (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: theme.spacing.md }}>
-                      {employeeDetails.WorkExperiences.map((exp) => (
+                      {workExperienceListForGrid.map((exp) => (
                         <div key={exp.id} style={{
                           padding: theme.spacing.md,
                           backgroundColor: theme.neutral.gray50,
@@ -2202,7 +2941,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           border: `1px solid ${theme.neutral.gray200}`,
                           position: "relative"
                         }}>
-                          {editingWorkExp !== exp.id && (
+                          {Number(editingWorkExp) !== Number(exp.id) && (
                             <div style={{ position: "absolute", top: theme.spacing.sm, right: theme.spacing.sm, display: "flex", gap: theme.spacing.xs }}>
                               <button
                                 onClick={() => {
@@ -2280,9 +3019,9 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         </div>
                       ))}
                     </div>
-                  ) : !editingWorkExp && (
+                  ) : !editingWorkExp && workExperienceTotalCount === 0 ? (
                     <p style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No work experience recorded</p>
-                  )}
+                  ) : null}
                 </div>
               )}
 

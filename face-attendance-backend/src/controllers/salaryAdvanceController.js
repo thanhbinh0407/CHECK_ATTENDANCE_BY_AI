@@ -1,11 +1,23 @@
 import SalaryAdvance from "../models/pg/SalaryAdvance.js";
 import User from "../models/pg/User.js";
-import Notification from "../models/pg/Notification.js";
-import { recalculateSalaryRecord } from "../services/salaryCalculationService.js";
-import { Op } from "sequelize";
+import { calculateSalaryForUser } from "../services/salaryCalculationService.js";
 import { resolveApprovalChain } from "../services/approvalPolicyService.js";
 import { createNotification } from "./notificationController.js";
 import { emitApprovalEvent } from "../services/actionAuditService.js";
+import {
+  formatSalaryAdvancePayoutDateISO,
+  getConfiguredSalaryAdvancePayoutDay,
+  isSalaryAdvanceDisburseAllowedToday,
+} from "../utils/salaryAdvancePayout.js";
+
+function enrichAdvanceRow(a) {
+  const plain = a && typeof a.toJSON === "function" ? a.toJSON() : { ...a };
+  return {
+    ...plain,
+    payoutDueDate: formatSalaryAdvancePayoutDateISO(plain.year, plain.month),
+    configuredPayoutDay: getConfiguredSalaryAdvancePayoutDay(),
+  };
+}
 
 // Get all salary advances
 export const getSalaryAdvances = async (req, res) => {
@@ -15,8 +27,13 @@ export const getSalaryAdvances = async (req, res) => {
     const where = {};
     const queryUserId = userId != null && userId !== "" && userId !== "undefined" ? userId : null;
     const canViewAll = ["manager", "supervisor", "accountant"].includes(req.user?.role);
+    const tokenUserId = req.user?.id ?? req.user?.userId;
+    const role = req.user?.role;
 
-    if (queryUserId != null) {
+    // Employees always see only their own advances (same as POST); ignore ?userId= for staff-style filters.
+    if (role === "employee") {
+      if (tokenUserId != null) where.userId = tokenUserId;
+    } else if (queryUserId != null) {
       const parsed = parseInt(queryUserId, 10);
       if (Number.isNaN(parsed)) {
         return res.status(400).json({
@@ -26,8 +43,6 @@ export const getSalaryAdvances = async (req, res) => {
       }
       where.userId = parsed;
     } else if (!canViewAll) {
-      // Employee: only list own advances (from token). Staff roles above can see all when no userId filter.
-      const tokenUserId = req.user?.id ?? req.user?.userId;
       if (tokenUserId != null) where.userId = tokenUserId;
     }
     if (month) where.month = parseInt(month);
@@ -41,12 +56,18 @@ export const getSalaryAdvances = async (req, res) => {
         { model: User, as: 'Approver', attributes: ['id', 'name', 'email'] },
         { model: User, as: 'CurrentApprover', attributes: ['id', 'name', 'email'] }
       ],
-      order: [['year', 'DESC'], ['month', 'DESC'], ['createdAt', 'DESC']]
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC']
+      ]
     });
+
+    const enriched = advances.map(enrichAdvanceRow);
 
     return res.json({
       status: "success",
-      advances
+      advances: enriched,
+      salaryAdvances: enriched,
     });
   } catch (err) {
     console.error("Error fetching salary advances:", err);
@@ -109,19 +130,19 @@ export const createSalaryAdvance = async (req, res) => {
 
     // Notify first approver from policy chain
     if (approverId) {
-      await Notification.create({
-        userId: approverId,
-        type: 'salary_advance',
-        title: 'New Salary Advance Request',
-        message: `${user.name} has requested a salary advance of ${parseFloat(amount).toLocaleString('en-US')} VND for ${month}/${year}`,
-        read: false
-      });
+      await createNotification(
+        approverId,
+        "salary_advance",
+        "New Salary Advance Request",
+        `${user.name} has requested a salary advance of ${parseFloat(amount).toLocaleString("en-US")} VND for ${month}/${year}`,
+        { salaryAdvanceId: advance.id }
+      );
     }
 
     return res.json({
       status: "success",
       message: "Salary advance request created successfully",
-      advance
+      advance: enrichAdvanceRow(advance),
     });
   } catch (err) {
     console.error("Error creating salary advance:", err);
@@ -179,21 +200,28 @@ export const approveSalaryAdvance = async (req, res) => {
     const decisionLevel = Number(advance.approvalLevel || 1);
     let emittedStatus = null;
 
+    if (action !== 'approve' && action !== 'reject') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Request body must include action: "approve" or "reject"'
+      });
+    }
+
     if (action === 'reject') {
       await advance.update({
         approvalStatus: 'rejected',
         approvedBy: approverId,
-        approvedAt: new Date(),
-        rejectionReason: comments || null
+        approvedAt: null,
+        rejectionReason: comments != null && String(comments).trim() !== '' ? String(comments).trim() : null
       });
 
-      await Notification.create({
-        userId: advance.userId,
-        type: 'salary_advance',
-        title: 'Salary Advance Rejected',
-        message: `Your salary advance request for ${advance.month}/${advance.year} has been rejected`,
-        read: false
-      });
+      await createNotification(
+        advance.userId,
+        "salary_advance",
+        "Salary Advance Rejected",
+        `Your salary advance request for ${advance.month}/${advance.year} has been rejected`,
+        { salaryAdvanceId: advance.id }
+      );
 
       emittedStatus = 'rejected';
     } else if (action === 'approve') {
@@ -210,13 +238,13 @@ export const approveSalaryAdvance = async (req, res) => {
           currentApproverId: null,
         });
 
-        await Notification.create({
-          userId: advance.userId,
-          type: 'salary_advance',
-          title: 'Salary Advance Approved',
-          message: `Your salary advance request for ${advance.month}/${advance.year} has been approved`,
-          read: false
-        });
+        await createNotification(
+          advance.userId,
+          "salary_advance",
+          "Salary Advance Approved",
+          `Your salary advance request for ${advance.month}/${advance.year} has been approved`,
+          { salaryAdvanceId: advance.id, action: "approved_employee" }
+        );
 
         await createNotification(
           null,
@@ -226,12 +254,13 @@ export const approveSalaryAdvance = async (req, res) => {
           { advanceId: advance.id, action: 'approved' }
         );
 
-        // Recalculate salary to include the advance deduction
-        const recalc = await recalculateSalaryRecord(advance.userId, advance.month, advance.year);
+        const recalc = await calculateSalaryForUser(advance.userId, advance.month, advance.year, {
+          requireExistingSalaryRecord: false,
+        });
         if (!recalc.success) {
           return res.status(403).json({
             status: "error",
-            message: recalc.error || "Cannot recalculate salary after approving advance"
+            message: recalc.error || "Cannot recalculate salary after approving advance",
           });
         }
 
@@ -243,13 +272,13 @@ export const approveSalaryAdvance = async (req, res) => {
           currentApproverId: nextApproverId,
         });
 
-        await Notification.create({
-          userId: nextApproverId,
-          type: 'salary_advance',
-          title: 'Salary Advance Pending Approval',
-          message: `${advance.User?.name || 'An employee'} salary advance request needs your approval`,
-          read: false,
-        });
+        await createNotification(
+          nextApproverId,
+          "salary_advance",
+          "Salary Advance Pending Approval",
+          `${advance.User?.name || "An employee"} salary advance request needs your approval`,
+          { salaryAdvanceId: advance.id }
+        );
 
         // Intermediate approval: surfaces this approver's decision
         // even though the request is still pending at the next level.
@@ -281,22 +310,151 @@ export const approveSalaryAdvance = async (req, res) => {
       }
     }
 
+    const updated = await SalaryAdvance.findByPk(id, {
+      include: [
+        { model: User, attributes: ["id", "name", "employeeCode"] },
+        { model: User, as: "Approver", attributes: ["id", "name"] },
+        { model: User, as: "CurrentApprover", attributes: ["id", "name"] },
+        { model: User, as: "Disburser", attributes: ["id", "name"], required: false },
+      ],
+    });
+
     return res.json({
       status: "success",
       message: `Salary advance ${action}d successfully`,
-      advance: await SalaryAdvance.findByPk(id, {
-        include: [
-          { model: User, attributes: ['id', 'name', 'employeeCode'] },
-          { model: User, as: 'Approver', attributes: ['id', 'name'] },
-          { model: User, as: 'CurrentApprover', attributes: ['id', 'name'] }
-        ]
-      })
+      advance: enrichAdvanceRow(updated),
     });
   } catch (err) {
     console.error("Error approving salary advance:", err);
     return res.status(500).json({
       status: "error",
       message: err.message
+    });
+  }
+};
+
+/** Approver or employee (own) — salary snapshot for this advance amount; does not persist. */
+export const getSalaryAdvanceSalaryPreview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const advance = await SalaryAdvance.findByPk(id, {
+      include: [{ model: User, attributes: ["id", "name", "employeeCode"] }],
+    });
+
+    if (!advance) {
+      return res.status(404).json({
+        status: "error",
+        message: "Salary advance not found",
+      });
+    }
+
+    const role = req.user?.role;
+    const tokenUserId = req.user?.id ?? req.user?.userId;
+    if (role === "employee") {
+      if (tokenUserId == null || Number(advance.userId) !== Number(tokenUserId)) {
+        return res.status(403).json({ status: "error", message: "Forbidden" });
+      }
+    } else if (!["manager", "supervisor", "accountant"].includes(role)) {
+      return res.status(403).json({ status: "error", message: "Forbidden" });
+    }
+
+    const result = await calculateSalaryForUser(advance.userId, advance.month, advance.year, {
+      persist: false,
+      previewSalaryAdvanceId: advance.id,
+      requireExistingSalaryRecord: false,
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        status: "error",
+        message: result.error || "Cannot compute salary preview",
+      });
+    }
+
+    return res.json({
+      status: "success",
+      preview: result.salary,
+      attendance: result.attendance,
+      meta: result.meta,
+      advance: {
+        id: advance.id,
+        amount: advance.amount,
+        approvalStatus: advance.approvalStatus,
+        month: advance.month,
+        year: advance.year,
+      },
+      payoutDueDate: formatSalaryAdvancePayoutDateISO(advance.year, advance.month),
+      configuredPayoutDay: getConfiguredSalaryAdvancePayoutDay(),
+    });
+  } catch (err) {
+    console.error("Error building salary advance preview:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message,
+    });
+  }
+};
+
+/** Accountant: mark funds transferred (only on or after configured payout day). */
+export const disburseSalaryAdvance = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const approverId = req.user?.id ?? req.user?.userId;
+
+    const advance = await SalaryAdvance.findByPk(id);
+    if (!advance) {
+      return res.status(404).json({
+        status: "error",
+        message: "Salary advance not found",
+      });
+    }
+
+    if (advance.approvalStatus !== "approved") {
+      return res.status(400).json({
+        status: "error",
+        message: "Only approved advances can be disbursed",
+      });
+    }
+
+    if (advance.disbursedAt) {
+      return res.status(400).json({
+        status: "error",
+        message: "This advance has already been marked as disbursed",
+      });
+    }
+
+    if (!isSalaryAdvanceDisburseAllowedToday(advance.year, advance.month)) {
+      const iso = formatSalaryAdvancePayoutDateISO(advance.year, advance.month);
+      return res.status(400).json({
+        status: "error",
+        message: `Disbursement is only allowed on or after the configured payout date (${iso}).`,
+        payoutDueDate: iso,
+        configuredPayoutDay: getConfiguredSalaryAdvancePayoutDay(),
+      });
+    }
+
+    await advance.update({
+      disbursedAt: new Date(),
+      disbursedBy: approverId,
+    });
+
+    const fresh = await SalaryAdvance.findByPk(id, {
+      include: [
+        { model: User, attributes: ["id", "name", "employeeCode"] },
+        { model: User, as: "Disburser", attributes: ["id", "name"], required: false },
+      ],
+    });
+
+    return res.json({
+      status: "success",
+      message: "Salary advance marked as disbursed",
+      advance: enrichAdvanceRow(fresh),
+    });
+  } catch (err) {
+    console.error("Error disbursing salary advance:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message,
     });
   }
 };

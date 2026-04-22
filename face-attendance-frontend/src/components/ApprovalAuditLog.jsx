@@ -99,6 +99,12 @@ const ADMIN_ACTION_LABELS = {
   "employee.restore": "Restored employee",
   "employee.delete_permanent": "Permanently deleted employee",
   "employee.reset_password": "Reset employee password",
+  "salary.approve": "Approved payroll",
+  "salary.reject_review": "Rejected payroll review",
+  "qualification.approve": "Approved qualification",
+  "qualification.reject": "Rejected qualification",
+  "dependent.approve": "Approved dependent",
+  "dependent.reject": "Rejected dependent",
 };
 
 function humanizeAction(action) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-export default function OvertimeRequest({ userId }) {
+export default function OvertimeRequest({ userId, refreshVersion = 0 }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -15,7 +15,7 @@ export default function OvertimeRequest({ userId }) {
 
   useEffect(() => {
     fetchRequests();
-  }, [userId]);
+  }, [userId, refreshVersion]);
 
   const fetchRequests = async () => {
     try {

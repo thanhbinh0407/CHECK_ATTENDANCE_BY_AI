@@ -31,7 +31,13 @@ export const authMiddleware = (req, res, next) => {
     // Validate session against current DB state (force-logout on role changes, deactivation, etc.)
     Promise.resolve()
       .then(async () => {
-        const dbUser = await User.findByPk(decoded.userId, {
+        const rawId = decoded.userId ?? decoded.id;
+        const resolvedId = Number.parseInt(String(rawId), 10);
+        if (!Number.isFinite(resolvedId) || resolvedId < 1) {
+          return res.status(401).json({ status: "error", message: "Invalid session" });
+        }
+
+        const dbUser = await User.findByPk(resolvedId, {
           attributes: ["id", "role", "isActive", "tokenVersion"],
         });
 
@@ -53,10 +59,16 @@ export const authMiddleware = (req, res, next) => {
           return res.status(401).json({ status: "error", message: "Role changed. Please login again." });
         }
 
-        // Use authoritative role/permissions from DB (optional safety).
-        decoded.role = dbUser.role;
-        decoded.permissions = getPermissionsByRole(dbUser.role);
-        req.user = decoded;
+        // Use authoritative role/permissions from DB; expose both id and userId for controllers.
+        const role = dbUser.role;
+        const permissions = getPermissionsByRole(role);
+        req.user = {
+          ...decoded,
+          id: dbUser.id,
+          userId: dbUser.id,
+          role,
+          permissions,
+        };
         return next();
       })
       .catch(() => {

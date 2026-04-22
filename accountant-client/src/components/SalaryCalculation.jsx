@@ -1058,9 +1058,17 @@ export default function SalaryCalculation() {
             setSelectedEmployee(null);
           }}
           onUpdate={(updatedSalary) => {
-            setSalaryBreakdown(updatedSalary);
-            setCalculatedSalaries(
-              calculatedSalaries.map(s => s.id === updatedSalary.id ? updatedSalary : s)
+            setSalaryBreakdown((prev) =>
+              prev && prev.id === updatedSalary.id
+                ? { ...prev, ...updatedSalary, User: updatedSalary.User ?? prev.User }
+                : updatedSalary
+            );
+            setCalculatedSalaries((prev) =>
+              prev.map((s) =>
+                s.id === updatedSalary.id
+                  ? { ...s, ...updatedSalary, User: updatedSalary.User ?? s.User }
+                  : s
+              )
             );
           }}
         />

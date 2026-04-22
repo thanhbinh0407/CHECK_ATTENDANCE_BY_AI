@@ -5,7 +5,7 @@ import {
   approveBusinessTripRequest,
   deleteBusinessTripRequest
 } from "../controllers/businessTripController.js";
-import { authMiddleware, supervisorOrManager } from "../middleware/authMiddleware.js";
+import { authMiddleware, supervisorOrManager, requirePermission } from "../middleware/authMiddleware.js";
 import { auditMutation } from "../services/actionAuditService.js";
 
 const router = express.Router();
@@ -43,8 +43,13 @@ router.delete(
   deleteBusinessTripRequest
 );
 
-// Supervisor (Quản lý) hoặc Manager duyệt đơn công tác
-router.put("/:id/approve", supervisorOrManager, approveBusinessTripRequest);
+// Supervisor / Manager — role + permission `request:approve` (matrix: Supervisor, Manager)
+router.put(
+  "/:id/approve",
+  supervisorOrManager,
+  requirePermission("request:approve"),
+  approveBusinessTripRequest
+);
 
 export default router;
 

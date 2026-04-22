@@ -45,25 +45,27 @@ export default function AnalyticsDashboard() {
 
   const cardStyle = {
     backgroundColor: theme.neutral.white,
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.md,
     border: `1px solid ${theme.neutral.gray200}`,
     boxShadow: theme.shadows.sm,
-    padding: theme.spacing.xl,
+    padding: theme.spacing.md,
   };
 
   const inputStyle = {
     width: "100%",
-    padding: "10px 12px",
-    borderRadius: theme.radius.md,
+    padding: "6px 10px",
+    borderRadius: theme.radius.sm,
     border: `1px solid ${theme.neutral.gray300}`,
     fontWeight: 600,
+    fontSize: "13px",
+    boxSizing: "border-box",
   };
 
   if (loading) {
     return (
       <div style={cardStyle}>
-        <div style={{ textAlign: "center", padding: theme.spacing.xl }}>
-          <div style={{ fontSize: 18, fontWeight: 600 }}>Loading analytics...</div>
+        <div style={{ textAlign: "center", padding: theme.spacing.md }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Loading analytics...</div>
         </div>
       </div>
     );
@@ -72,26 +74,26 @@ export default function AnalyticsDashboard() {
   if (!analytics) {
     return (
       <div style={cardStyle}>
-        <div style={{ textAlign: "center", padding: theme.spacing.xl }}>
-          <div style={{ fontSize: 18, fontWeight: 600, color: theme.error.main }}>Failed to load analytics</div>
+        <div style={{ textAlign: "center", padding: theme.spacing.md }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: theme.error.main }}>Failed to load analytics</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: "grid", gap: theme.spacing.xl }}>
+    <div style={{ display: "grid", gap: theme.spacing.md }}>
       {/* Header */}
-      <div style={{ ...cardStyle, background: theme.gradients.primary, color: theme.neutral.white, border: "none" }}>
-        <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>📊 Advanced Analytics Dashboard</div>
-        <div style={{ opacity: 0.95 }}>Visual analytics and insights for HR management</div>
+      <div style={{ ...cardStyle, background: theme.gradients.primary, color: theme.neutral.white, border: "none", padding: "14px 18px" }}>
+        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 3, lineHeight: 1.25 }}>📊 Analytics</div>
+        <div style={{ opacity: 0.92, fontSize: "13px", lineHeight: 1.4 }}>HR metrics and charts.</div>
       </div>
 
       {/* Filters */}
       <div style={cardStyle}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: theme.spacing.md, maxWidth: "400px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: theme.spacing.sm, maxWidth: "360px" }}>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: theme.neutral.gray700, marginBottom: 6 }}>Month</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: theme.neutral.gray700, marginBottom: 4 }}>Month</div>
             <input
               type="number"
               min="1"
@@ -102,7 +104,7 @@ export default function AnalyticsDashboard() {
             />
           </div>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: theme.neutral.gray700, marginBottom: 6 }}>Year</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: theme.neutral.gray700, marginBottom: 4 }}>Year</div>
             <input
               type="number"
               value={year}
@@ -114,40 +116,40 @@ export default function AnalyticsDashboard() {
       </div>
 
       {/* Summary Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: theme.spacing.md }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: theme.spacing.sm }}>
         <div style={cardStyle}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: theme.neutral.gray600, marginBottom: 8 }}>Total Employees</div>
-          <div style={{ fontSize: 32, fontWeight: 800, color: theme.primary.main }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: theme.neutral.gray600, marginBottom: 4 }}>Total Employees</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: theme.primary.main, lineHeight: 1.1 }}>
             {analytics.summary?.totalEmployees || 0}
           </div>
         </div>
         <div style={cardStyle}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: theme.neutral.gray600, marginBottom: 8 }}>Average Attendance Rate</div>
-          <div style={{ fontSize: 32, fontWeight: 800, color: theme.success.main }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: theme.neutral.gray600, marginBottom: 4 }}>Average Attendance Rate</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: theme.success.main, lineHeight: 1.1 }}>
             {analytics.summary?.currentMonthAttendance?.averageAttendanceRate || 0}%
           </div>
         </div>
         <div style={cardStyle}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: theme.neutral.gray600, marginBottom: 8 }}>Total Payroll Cost</div>
-          <div style={{ fontSize: 32, fontWeight: 800, color: theme.warning.main }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: theme.neutral.gray600, marginBottom: 4 }}>Total Payroll Cost</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: theme.warning.main, lineHeight: 1.15 }}>
             {new Intl.NumberFormat('vi-VN').format(analytics.summary?.currentMonthPayroll?.totalCost || 0)} VND
           </div>
         </div>
         <div style={cardStyle}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: theme.neutral.gray600, marginBottom: 8 }}>Total Overtime Hours</div>
-          <div style={{ fontSize: 32, fontWeight: 800, color: theme.secondary.main }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: theme.neutral.gray600, marginBottom: 4 }}>Total Overtime Hours</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: theme.secondary.main, lineHeight: 1.1 }}>
             {analytics.summary?.currentMonthOvertime?.totalHours || 0}
           </div>
         </div>
       </div>
 
       {/* Charts Row 1: Pie Charts */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: theme.spacing.lg }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: theme.spacing.md }}>
         {/* Structure by Department */}
         {analytics.charts?.structureByDepartment && analytics.charts.structureByDepartment.length > 0 && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Department Distribution</div>
-            <ResponsiveContainer width="100%" height={300}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: theme.spacing.sm }}>Department Distribution</div>
+            <ResponsiveContainer width="100%" height={240}>
               <PieChart>
                 <Pie
                   data={analytics.charts.structureByDepartment}
@@ -155,7 +157,7 @@ export default function AnalyticsDashboard() {
                   cy="50%"
                   labelLine={false}
                   label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
+                  outerRadius={68}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -172,8 +174,8 @@ export default function AnalyticsDashboard() {
         {/* Age Distribution */}
         {analytics.charts?.ageDistribution && analytics.charts.ageDistribution.length > 0 && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Age Distribution</div>
-            <ResponsiveContainer width="100%" height={300}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: theme.spacing.sm }}>Age Distribution</div>
+            <ResponsiveContainer width="100%" height={240}>
               <PieChart>
                 <Pie
                   data={analytics.charts.ageDistribution}
@@ -181,7 +183,7 @@ export default function AnalyticsDashboard() {
                   cy="50%"
                   labelLine={false}
                   label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
+                  outerRadius={68}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -197,12 +199,12 @@ export default function AnalyticsDashboard() {
       </div>
 
       {/* Charts Row 2: Line Charts */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(500px, 1fr))", gap: theme.spacing.lg }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: theme.spacing.md }}>
         {/* Turnover Trend */}
         {analytics.charts?.turnoverTrend && analytics.charts.turnoverTrend.length > 0 && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Turnover Trend (6 months)</div>
-            <ResponsiveContainer width="100%" height={300}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: theme.spacing.sm }}>Turnover Trend (6 months)</div>
+            <ResponsiveContainer width="100%" height={240}>
               <LineChart data={analytics.charts.turnoverTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="label" />
@@ -220,8 +222,8 @@ export default function AnalyticsDashboard() {
         {/* Payroll Cost Trend */}
         {analytics.charts?.payrollTrend && analytics.charts.payrollTrend.length > 0 && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Payroll Cost Trend (6 months)</div>
-            <ResponsiveContainer width="100%" height={300}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: theme.spacing.sm }}>Payroll Cost Trend (6 months)</div>
+            <ResponsiveContainer width="100%" height={240}>
               <LineChart data={analytics.charts.payrollTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="label" />
@@ -238,12 +240,12 @@ export default function AnalyticsDashboard() {
       </div>
 
       {/* Charts Row 3: Bar Charts */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(500px, 1fr))", gap: theme.spacing.lg }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: theme.spacing.md }}>
         {/* Overtime by Department */}
         {analytics.charts?.overtimeByDepartment && analytics.charts.overtimeByDepartment.length > 0 && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Overtime Hours by Department</div>
-            <ResponsiveContainer width="100%" height={300}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: theme.spacing.sm }}>Overtime Hours by Department</div>
+            <ResponsiveContainer width="100%" height={240}>
               <BarChart data={analytics.charts.overtimeByDepartment}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
@@ -259,12 +261,12 @@ export default function AnalyticsDashboard() {
         {/* Top 10 Overtime Employees */}
         {analytics.charts?.topOvertimeEmployees && analytics.charts.topOvertimeEmployees.length > 0 && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Top 10 Overtime Employees</div>
-            <ResponsiveContainer width="100%" height={300}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: theme.spacing.sm }}>Top 10 Overtime Employees</div>
+            <ResponsiveContainer width="100%" height={240}>
               <BarChart data={analytics.charts.topOvertimeEmployees} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" />
-                <YAxis dataKey="name" type="category" width={150} />
+                <YAxis dataKey="name" type="category" width={120} />
                 <Tooltip />
                 <Legend />
                 <Bar dataKey="hours" fill="#82ca9d" name="Overtime hours" />
@@ -277,8 +279,8 @@ export default function AnalyticsDashboard() {
       {/* Attendance Trend */}
       {analytics.charts?.attendanceTrend && analytics.charts.attendanceTrend.length > 0 && (
         <div style={cardStyle}>
-          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: theme.spacing.md }}>Attendance Trend (6 months)</div>
-          <ResponsiveContainer width="100%" height={300}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: theme.spacing.sm }}>Attendance Trend (6 months)</div>
+          <ResponsiveContainer width="100%" height={240}>
             <LineChart data={analytics.charts.attendanceTrend}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="label" />

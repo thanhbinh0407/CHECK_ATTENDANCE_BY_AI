@@ -1,10 +1,15 @@
 import User from "../models/pg/User.js";
 
+/**
+ * Role chains for `resolveApprovalChain` (overtime, business trip, salary advance).
+ * Leave uses single-step approve/reject in leaveController — not routed through this file.
+ */
 const DEFAULT_POLICIES = {
-  leave: ["supervisor", "manager"],
-  overtime: ["supervisor", "manager"],
-  business_trip: ["supervisor", "manager"],
-  salary_advance: ["supervisor", "accountant", "manager"],
+  leave: ["supervisor"],
+  overtime: ["supervisor"],
+  business_trip: ["supervisor"],
+  /** Single-step: Supervisor approve/reject is final (no accountant tier in chain). */
+  salary_advance: ["supervisor"],
 };
 
 function dedupeRoles(roles = []) {
@@ -38,15 +43,6 @@ async function resolveApproverIdForRole(role, requester) {
 export async function buildApprovalChain(requestType, requester, context = {}) {
   const rawRoles = DEFAULT_POLICIES[requestType] || ["supervisor", "manager"];
   const roles = [...rawRoles];
-
-  if (requestType === "salary_advance") {
-    const amount = Number(context.amount || 0);
-    if (amount > 0 && amount <= 5000000) {
-      // Small amount: supervisor + accountant are enough
-      return dedupeRoles(["supervisor", "accountant"]);
-    }
-  }
-
   return dedupeRoles(roles);
 }
 

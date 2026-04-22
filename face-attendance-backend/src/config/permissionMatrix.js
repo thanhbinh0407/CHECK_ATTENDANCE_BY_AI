@@ -160,8 +160,9 @@ export const ROLE_PERMISSIONS = {
    * ACCOUNTANT - Tập trung quản lý tài chính
    */
   Accountant: [
-    // User Management - Read only
+    // User Management — read list + update employee records (salary/contact for payroll)
     PERMISSIONS['user:read'],
+    PERMISSIONS['user:update'],
 
     // Payroll - Full access
     PERMISSIONS['payroll:read'],

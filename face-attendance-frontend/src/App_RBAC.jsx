@@ -5,15 +5,7 @@ import ManagerLayout from './layout/ManagerLayout.jsx';
 import AdminDashboard from './components/AdminDashboard.jsx';
 import UserManagement from './components/UserManagement.jsx';
 import ManagerDashboard from './components/ManagerDashboard.jsx';
-import DepartmentManagement from './components/DepartmentManagement.jsx';
-import JobTitleManagement from './components/JobTitleManagement.jsx';
-import ShiftAdmin from './components/ShiftAdmin.jsx';
 import AttendanceLog from './components/AttendanceLog.jsx';
-import LeaveManagement from './components/LeaveManagement.jsx';
-import OvertimeManagement from './components/OvertimeManagement.jsx';
-import BusinessTripManagement from './components/BusinessTripManagement.jsx';
-import SalaryAdvanceManagement from './components/SalaryAdvanceManagement.jsx';
-import ApprovalManagement from './components/ApprovalManagement.jsx';
 import SalaryManagement from './components/SalaryManagement.jsx';
 import SalaryManagementAdmin from './components/SalaryManagementAdmin.jsx';
 import SalaryCalculation from './components/SalaryCalculation.jsx';
@@ -23,9 +15,6 @@ import InsuranceFormD02LT from './components/InsuranceFormD02LT.jsx';
 import InsuranceFormTK1TS from './components/InsuranceFormTK1TS.jsx';
 import ReportsDashboard from './components/ReportsDashboard.jsx';
 import AnalyticsDashboard from './components/AnalyticsDashboard.jsx';
-import DocumentManagement from './components/DocumentManagement.jsx';
-import DependentManagement from './components/DependentManagement.jsx';
-import QualificationManagement from './components/QualificationManagement.jsx';
 import EnrollmentForm from './components/EnrollmentForm.jsx';
 import ApprovalAuditLog from './components/ApprovalAuditLog.jsx';
 import { AppToastContainer } from './lib/notify.jsx';
@@ -80,16 +69,16 @@ function AppRBAC() {
             <Route path="/employees" element={<AdminDashboard />} />
             <Route path="/admin" element={<Navigate to="/employees" replace />} />
             <Route path="/users" element={<UserManagement />} />
-            <Route path="/departments" element={<DepartmentManagement />} />
-            <Route path="/job-titles" element={<JobTitleManagement />} />
-            <Route path="/shifts" element={<ShiftAdmin />} />
+            <Route path="/departments" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/job-titles" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/shifts" element={<Navigate to="/dashboard" replace />} />
             <Route path="/camera" element={<CameraPage />} />
             <Route path="/attendance-logs" element={<AttendanceLog />} />
-            <Route path="/leave" element={<LeaveManagement />} />
-            <Route path="/overtime" element={<OvertimeManagement />} />
-            <Route path="/business-trips" element={<BusinessTripManagement />} />
-            <Route path="/salary-advances" element={<SalaryAdvanceManagement />} />
-            <Route path="/approvals" element={<ApprovalManagement />} />
+            <Route path="/leave" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/overtime" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/business-trips" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/salary-advances" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/approvals" element={<Navigate to="/dashboard" replace />} />
             <Route path="/salary" element={<SalaryManagement />} />
             <Route path="/salary-admin" element={<SalaryManagementAdmin />} />
             <Route path="/salary-calc" element={<SalaryCalculation />} />
@@ -99,9 +88,9 @@ function AppRBAC() {
             <Route path="/insurance-tk1" element={<InsuranceFormTK1TS />} />
             <Route path="/reports" element={<ReportsDashboard />} />
             <Route path="/analytics" element={<AnalyticsDashboard />} />
-            <Route path="/documents" element={<DocumentManagement />} />
-            <Route path="/dependents" element={<DependentManagement />} />
-            <Route path="/qualifications" element={<QualificationManagement />} />
+            <Route path="/documents" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dependents" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/qualifications" element={<Navigate to="/dashboard" replace />} />
             <Route path="/enrollment" element={<EnrollmentForm />} />
             <Route path="/approval-audit" element={<ApprovalAuditLog />} />
           </Route>

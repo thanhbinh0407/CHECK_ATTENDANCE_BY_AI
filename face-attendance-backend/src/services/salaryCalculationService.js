@@ -1,7 +1,9 @@
 import Salary from "../models/pg/Salary.js";
 import SalaryRule from "../models/pg/SalaryRule.js";
-import { calculateSeniority } from "./senioritySalaryService.js";
+import Department from "../models/pg/Department.js";
+import JobTitle from "../models/pg/JobTitle.js";
 import User from "../models/pg/User.js";
+import { evaluateCustomSalaryRule } from "./salaryRuleCustomEval.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import ShiftSetting from "../models/pg/ShiftSetting.js";
 import SalaryAdvance from "../models/pg/SalaryAdvance.js";
@@ -11,7 +13,7 @@ import { calculateInsurance } from "./insuranceService.js";
 import { calculatePersonalIncomeTax } from "./taxService.js";
 
 // Calculate working day numbers (exclude weekends)
-function getWorkingDayNumbersInMonth(year, month) {
+export function getWorkingDayNumbersInMonth(year, month) {
   const daysInMonth = new Date(year, month, 0).getDate();
   const workingDayNumbers = new Set();
   for (let day = 1; day <= daysInMonth; day++) {
@@ -24,8 +26,47 @@ function getWorkingDayNumbersInMonth(year, month) {
   return workingDayNumbers;
 }
 
-function getWorkingDaysInMonth(year, month) {
+export function getWorkingDaysInMonth(year, month) {
   return getWorkingDayNumbersInMonth(year, month).size;
+}
+
+/**
+ * Approved leave rows → set of calendar day-of-month numbers (1–31) that are
+ * working days in [year, month], matching calculateSalaryForUser semantics.
+ */
+export function getApprovedLeaveDayNumbersFromRequests(leaves, year, month) {
+  const startOfMonth = `${year}-${String(month).padStart(2, "0")}-01`;
+  const endOfMonth = `${year}-${String(month).padStart(2, "0")}-${new Date(year, month, 0).getDate()}`;
+
+  const dayNumbers = new Set();
+  for (const lr of leaves) {
+    const rawStart = lr.startDate;
+    const rawEnd = lr.endDate;
+    const start = rawStart instanceof Date
+      ? new Date(rawStart.getFullYear(), rawStart.getMonth(), rawStart.getDate())
+      : new Date(String(rawStart).slice(0, 10) + "T00:00:00");
+    const end = rawEnd instanceof Date
+      ? new Date(rawEnd.getFullYear(), rawEnd.getMonth(), rawEnd.getDate())
+      : new Date(String(rawEnd).slice(0, 10) + "T00:00:00");
+
+    const clampStart = new Date(
+      Math.max(start.getTime(), new Date(startOfMonth + "T00:00:00").getTime())
+    );
+    const clampEnd = new Date(
+      Math.min(end.getTime(), new Date(endOfMonth + "T00:00:00").getTime())
+    );
+
+    const dayMillis = 24 * 60 * 60 * 1000;
+    for (let t = clampStart.getTime(); t <= clampEnd.getTime(); t += dayMillis) {
+      const d = new Date(t);
+      const dow = d.getDay();
+      if (dow !== 0 && dow !== 6) {
+        dayNumbers.add(d.getDate());
+      }
+    }
+  }
+
+  return dayNumbers;
 }
 
 export function computeAbsentDays({ totalWorkingDays, presentDayNumbers, approvedLeaveDayNumbers }) {
@@ -45,8 +86,7 @@ export function getSalaryStatusAfterRecalc({ currentStatus }) {
   return { ok: true, nextStatus: "pending" };
 }
 
-async function getApprovedLeaveDayNumbersInMonth(userId, month, year) {
-  // Get the overlap between [startOfMonth, endOfMonth] and each leave [startDate, endDate]
+export async function getApprovedLeaveDayNumbersInMonth(userId, month, year) {
   const startOfMonth = `${year}-${String(month).padStart(2, "0")}-01`;
   const endOfMonth = `${year}-${String(month).padStart(2, "0")}-${new Date(year, month, 0).getDate()}`;
 
@@ -60,26 +100,7 @@ async function getApprovedLeaveDayNumbersInMonth(userId, month, year) {
     attributes: ["startDate", "endDate"]
   });
 
-  const dayNumbers = new Set();
-  for (const lr of leaves) {
-    const start = new Date(lr.startDate + "T00:00:00");
-    const end = new Date(lr.endDate + "T00:00:00");
-
-    // Clamp to the requested month
-    const clampStart = new Date(Math.max(start.getTime(), new Date(startOfMonth + "T00:00:00").getTime()));
-    const clampEnd = new Date(Math.min(end.getTime(), new Date(endOfMonth + "T00:00:00").getTime()));
-
-    const dayMillis = 24 * 60 * 60 * 1000;
-    for (let t = clampStart.getTime(); t <= clampEnd.getTime(); t += dayMillis) {
-      const d = new Date(t);
-      const dow = d.getDay();
-      if (dow !== 0 && dow !== 6) {
-        dayNumbers.add(d.getDate());
-      }
-    }
-  }
-
-  return dayNumbers;
+  return getApprovedLeaveDayNumbersFromRequests(leaves, year, month);
 }
 
 /**
@@ -88,9 +109,22 @@ async function getApprovedLeaveDayNumbersInMonth(userId, month, year) {
  * - Enforces approval safety:
  *   - approved -> pending when recalculated (re-approval required)
  *   - paid -> blocked (requires explicit revert flow)
+ * @param {{ requireExistingSalaryRecord?: boolean, persist?: boolean, previewSalaryAdvanceId?: number|null }} [options]
+ * - persist: false — compute only; do not write Salary or SalaryAdvance (for approver preview).
+ * - previewSalaryAdvanceId — when persist is false, use this advance row’s amount as the advance deduction (e.g. pending request).
  */
-export async function calculateSalaryForUser(userId, month, year, { requireExistingSalaryRecord = false } = {}) {
-  const user = await User.findByPk(userId);
+export async function calculateSalaryForUser(userId, month, year, options = {}) {
+  const {
+    requireExistingSalaryRecord = false,
+    persist = true,
+    previewSalaryAdvanceId = null,
+  } = options;
+  const user = await User.findByPk(userId, {
+    include: [
+      { model: Department, attributes: ["code", "name"] },
+      { model: JobTitle, attributes: ["code", "name"] }
+    ]
+  });
   if (!user) return { success: false, error: "User not found" };
 
   const shift = await ShiftSetting.findOne({ where: { active: true } });
@@ -152,11 +186,15 @@ export async function calculateSalaryForUser(userId, month, year, { requireExist
   // Approved leave days are treated as present (not absent).
   const approvedLeaveDayNumbers = await getApprovedLeaveDayNumbersInMonth(userId, parseInt(month), parseInt(year));
   const totalWorkingDays = workingDayNumbers.size;
-  const absentDays = computeAbsentDays({
+  let absentDays = computeAbsentDays({
     totalWorkingDays,
     presentDayNumbers,
     approvedLeaveDayNumbers
   });
+  // Không có bản ghi chấm công (IN) trong tháng → không coi là vắng cả tháng (tránh phạt cố định ~22×1M khi chưa có dữ liệu / tháng chưa đóng)
+  if (!logs.some((l) => l.type === "IN")) {
+    absentDays = 0;
+  }
 
   // Allowances
   const allowanceFields = ["lunchAllowance", "transportAllowance", "phoneAllowance", "responsibilityAllowance"];
@@ -223,21 +261,10 @@ export async function calculateSalaryForUser(userId, month, year, { requireExist
         break;
       }
       case "custom": {
-        if (rule.name && rule.name.toLowerCase().includes("seniority")) {
-          const seniority = calculateSeniority(user.startDate);
-          let tier = 0;
-          if (seniority >= 10) tier = 4;
-          else if (seniority >= 5) tier = 3;
-          else if (seniority >= 3) tier = 2;
-          else if (seniority >= 1) tier = 1;
-          if (tier > 0) {
-            shouldApply = true;
-            if (rule.amountType === "percentage") {
-              ruleAmount = baseSalary * parseFloat(rule.amount) / 100 * tier;
-            } else {
-              ruleAmount = parseFloat(rule.amount) * tier;
-            }
-          }
+        const customOut = evaluateCustomSalaryRule(rule, user, baseSalary);
+        if (customOut.shouldApply) {
+          shouldApply = true;
+          ruleAmount = customOut.ruleAmount;
         }
         break;
       }
@@ -249,20 +276,94 @@ export async function calculateSalaryForUser(userId, month, year, { requireExist
     }
   }
 
-  // Find/create salary record
-  const existingSalary = await Salary.findOne({ where: { userId, month, year } });
+  const m = parseInt(month, 10);
+  const y = parseInt(year, 10);
+
+  const existingSalary = await Salary.findOne({ where: { userId, month: m, year: y } });
   if (requireExistingSalaryRecord && !existingSalary) {
     return { success: false, error: "Salary record not found" };
+  }
+
+  if (!persist) {
+    if (existingSalary && existingSalary.status === "paid") {
+      return { success: false, error: "Cannot preview: salary record is already paid." };
+    }
+
+    let advanceDeduction = 0;
+    if (previewSalaryAdvanceId != null) {
+      const adv = await SalaryAdvance.findByPk(previewSalaryAdvanceId);
+      if (
+        !adv ||
+        Number(adv.userId) !== Number(userId) ||
+        parseInt(adv.month, 10) !== m ||
+        parseInt(adv.year, 10) !== y
+      ) {
+        return { success: false, error: "Invalid salary advance for preview" };
+      }
+      advanceDeduction = parseFloat(adv.amount) || 0;
+    } else {
+      const orConds = [{ isDeducted: false }];
+      if (existingSalary?.id) orConds.push({ salaryId: existingSalary.id });
+      const adv = await SalaryAdvance.findOne({
+        where: {
+          userId,
+          month: m,
+          year: y,
+          approvalStatus: "approved",
+          [Op.or]: orConds,
+        },
+      });
+      if (adv) advanceDeduction = parseFloat(adv.amount) || 0;
+    }
+
+    const deductionFromRules = deduction;
+    let totalDeduction = deductionFromRules + advanceDeduction;
+    const grossSalary = baseSalary + bonus;
+
+    try {
+      const insurance = await calculateInsurance(userId, m, y);
+      const tax = await calculatePersonalIncomeTax(userId, grossSalary, m, y);
+      totalDeduction += insurance.employee.total + tax.taxAmount;
+    } catch (err) {
+      console.error("[salaryCalculation] BH/thuế:", err.message);
+    }
+
+    const finalSalary = parseFloat((grossSalary - totalDeduction).toFixed(2));
+
+    return {
+      success: true,
+      salary: {
+        id: existingSalary?.id ?? null,
+        userId,
+        month: m,
+        year: y,
+        baseSalary,
+        bonus,
+        grossSalary,
+        deduction: totalDeduction,
+        advanceDeduction,
+        finalSalary,
+        status: existingSalary?.status ?? "pending",
+      },
+      attendance: {
+        totalLogs: logs.length,
+        lateCount,
+        earlyLeaveCount,
+        overtimeHours: totalOvertimeHours,
+        absentDays,
+      },
+      meta: { preview: true, persisted: false, deductionFromRules },
+    };
   }
 
   const [salary, created] = existingSalary
     ? [existingSalary, false]
     : await Salary.findOrCreate({
-        where: { userId, month, year },
+        where: { userId, month: m, year: y },
         defaults: {
           userId,
-          month,
-          year,
+          month: m,
+          year: y,
           status: "pending",
           calculatedAt: new Date(),
           baseSalary: 0,
@@ -284,8 +385,8 @@ export async function calculateSalaryForUser(userId, month, year, { requireExist
   const salaryAdvance = await SalaryAdvance.findOne({
     where: {
       userId,
-      month: parseInt(month),
-      year: parseInt(year),
+      month: m,
+      year: y,
       approvalStatus: "approved",
       [Op.or]: [{ isDeducted: false }, { salaryId: salary.id }]
     }
@@ -301,8 +402,8 @@ export async function calculateSalaryForUser(userId, month, year, { requireExist
 
   /** BHXH + BHYT + BHTN (NLĐ) + thuế TNCN — cộng vào tổng khấu trừ như kế toán thực tế */
   try {
-    const insurance = await calculateInsurance(userId, parseInt(month, 10), parseInt(year, 10));
-    const tax = await calculatePersonalIncomeTax(userId, grossSalary, parseInt(month, 10), parseInt(year, 10));
+    const insurance = await calculateInsurance(userId, m, y);
+    const tax = await calculatePersonalIncomeTax(userId, grossSalary, m, y);
     deduction += insurance.employee.total + tax.taxAmount;
   } catch (err) {
     console.error("[salaryCalculation] BH/thuế:", err.message);
@@ -357,7 +458,10 @@ export async function calculateSalaryForUser(userId, month, year, { requireExist
  * @returns {{ success: boolean, salary?: object, error?: string }}
  */
 export async function recalculateSalaryRecord(userId, month, year) {
-  return calculateSalaryForUser(userId, month, year, { requireExistingSalaryRecord: true });
+  return calculateSalaryForUser(userId, month, year, {
+    requireExistingSalaryRecord: true,
+    persist: true,
+  });
 }
 
 /**

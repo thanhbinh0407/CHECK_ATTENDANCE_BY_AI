@@ -129,6 +129,7 @@ function App() {
     socket.on('connect', () => {
       console.log('Connected to server');
       socket.emit('join-room', { room: 'admin' });
+      socket.emit('join-room', { room: 'audit-managers' });
     });
 
     socket.on('attendance-update', (data) => {
@@ -140,6 +141,11 @@ function App() {
       console.log('Real-time notification:', data);
       toastInfo(`New notification: ${data.title}`);
     });
+
+    if (socket.connected) {
+      socket.emit('join-room', { room: 'admin' });
+      socket.emit('join-room', { room: 'audit-managers' });
+    }
 
     return () => {
       socket.off('connect');

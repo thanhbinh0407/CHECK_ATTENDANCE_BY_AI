@@ -262,3 +262,15 @@ tr:hover td { background: #f7faff; }
   text-transform: uppercase; color: #a0aec0; margin-bottom: 10px;
   padding-bottom: 6px; border-bottom: 1px solid #f0f4f8;
 }
+
+/* Sidebar section labels (Organization, Insights, …) */
+.hr-nav-group { margin-bottom: 4px; }
+.hr-nav-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 10px 16px 6px;
+}
+.sidebar.collapsed .hr-nav-group-label { display: none; }

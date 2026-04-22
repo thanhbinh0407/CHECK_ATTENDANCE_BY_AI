@@ -155,16 +155,27 @@ export default function SalaryHistory({ userId, isActive }) {
       const breakdownData = breakdownRes?.ok ? await breakdownRes.json() : null;
       const insuranceData = insuranceRes?.ok ? await insuranceRes.json() : null;
       const taxData = taxRes?.ok ? await taxRes.json() : null;
+
+      /** API returns taxAmount as either a number or the full tax detail object */
+      const rawTaxPayload = taxData?.taxAmount;
+      const taxDetail =
+        rawTaxPayload != null && typeof rawTaxPayload === "object" && !Array.isArray(rawTaxPayload)
+          ? rawTaxPayload
+          : null;
+      const taxNumeric = taxDetail != null
+        ? parseFloat(taxDetail.taxAmount ?? 0) || 0
+        : parseFloat(rawTaxPayload ?? 0) || 0;
       
       // Calculate breakdown
       const grossSalary = parseFloat(salary.baseSalary || 0) + parseFloat(salary.bonus || 0);
       const employeeInsurance = insuranceData?.insurance?.employee?.total || 0;
       const employerInsurance = insuranceData?.insurance?.employer?.total || 0;
-      const tax = taxData?.taxAmount || 0;
+      const tax = taxNumeric;
       const advanceDeduction = parseFloat(salary.advanceDeduction || 0);
       const otherDeductions = parseFloat(salary.deduction || 0) - advanceDeduction; // Deduction minus advance
       const deductions = parseFloat(salary.deduction || 0);
-      const netSalary = grossSalary - employeeInsurance - tax - deductions;
+      // Backend: deduction already includes employee SI/HI/UI + PIT + rule deductions + advance
+      const netSalary = parseFloat((grossSalary - deductions).toFixed(2));
       
       setSalaryDetails({
         grossSalary,
@@ -180,7 +191,7 @@ export default function SalaryHistory({ userId, isActive }) {
         deductions,
         netSalary,
         insuranceBreakdown: insuranceData?.insurance || null,
-        taxBreakdown: taxData || null,
+        taxBreakdown: taxDetail ?? taxData ?? null,
         attendance: breakdownData?.breakdown?.attendance || null
       });
     } catch (error) {
@@ -2432,7 +2443,7 @@ export default function SalaryHistory({ userId, isActive }) {
                     color: "#A2B9ED",
                     letterSpacing: "-1px"
                   }}>
-                    {formatCurrency(salaryDetails?.netSalary || selectedSalary.finalSalary)}
+                    {formatCurrency(salaryDetails?.netSalary ?? selectedSalary.finalSalary)}
                   </strong>
                 </div>
                 {salaryDetails && (
@@ -2586,7 +2597,7 @@ export default function SalaryHistory({ userId, isActive }) {
                         color: "#A2B9ED"
                   }}>
 
-                        {formatCurrency(salaryDetails.netSalary)}
+                        {formatCurrency(salaryDetails.netSalary ?? selectedSalary.finalSalary)}
                   </strong>
 
                 </div>

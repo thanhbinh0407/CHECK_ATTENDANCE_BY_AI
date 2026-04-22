@@ -49,7 +49,7 @@ export default function EmployeeDashboard({ userId, userName, onNavigate }) {
       fetch(`${apiBase}/api/overtime-requests`, { headers: h })
         .then((r) => r.json())
         .then((d) => {
-          const rows = d.overtimeRequests || d.data || [];
+          const rows = d.requests || d.overtimeRequests || d.data || [];
           const mine = filterMine(rows).filter((x) => x.approvalStatus === "pending");
           return { pending: mine.length, recent: mine.slice(0, 3) };
         })
@@ -57,7 +57,7 @@ export default function EmployeeDashboard({ userId, userName, onNavigate }) {
       fetch(`${apiBase}/api/business-trip-requests`, { headers: h })
         .then((r) => r.json())
         .then((d) => {
-          const rows = d.businessTripRequests || d.data || [];
+          const rows = d.requests || d.businessTripRequests || d.data || [];
           const mine = filterMine(rows).filter((x) => x.approvalStatus === "pending");
           return { pending: mine.length, recent: mine.slice(0, 3) };
         })
@@ -65,7 +65,7 @@ export default function EmployeeDashboard({ userId, userName, onNavigate }) {
       fetch(`${apiBase}/api/salary-advances`, { headers: h })
         .then((r) => r.json())
         .then((d) => {
-          const rows = d.salaryAdvances || d.data || [];
+          const rows = d.advances || d.salaryAdvances || d.data || [];
           const mine = filterMine(rows).filter((x) => x.approvalStatus === "pending");
           return { pending: mine.length, recent: mine.slice(0, 3) };
         })

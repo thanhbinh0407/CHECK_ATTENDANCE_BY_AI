@@ -9,7 +9,7 @@ import {
   deleteLeaveRequest,
   updateLeaveRequest
 } from "../controllers/leaveController.js";
-import { authMiddleware, supervisorManagerOrHr } from "../middleware/authMiddleware.js";
+import { authMiddleware, supervisorManagerOrHr, requirePermission } from "../middleware/authMiddleware.js";
 import { auditMutation } from "../services/actionAuditService.js";
 
 const router = express.Router();
@@ -50,9 +50,19 @@ router.delete(
   deleteLeaveRequest
 );
 
-// Supervisor, Manager hoặc HR duyệt / từ chối đơn nghỉ
-router.put("/requests/:id/approve", supervisorManagerOrHr, approveLeaveRequest);
-router.put("/requests/:id/reject", supervisorManagerOrHr, rejectLeaveRequest);
+// Supervisor, Manager hoặc HR duyệt / từ chối đơn nghỉ (matrix: leave:approve)
+router.put(
+  "/requests/:id/approve",
+  supervisorManagerOrHr,
+  requirePermission("leave:approve"),
+  approveLeaveRequest
+);
+router.put(
+  "/requests/:id/reject",
+  supervisorManagerOrHr,
+  requirePermission("leave:approve"),
+  rejectLeaveRequest
+);
 // Employee edit (pending only)
 router.put(
   "/requests/:id",

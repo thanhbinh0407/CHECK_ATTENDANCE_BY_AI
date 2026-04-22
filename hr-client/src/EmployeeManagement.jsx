@@ -2,22 +2,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { toastConfirm, toastError, toastSuccess, toastWarning, toastPrompt } from './lib/notify.jsx';
 
-const CHANGE_TYPE_BADGE = {
-  hire:               { bg: '#dcfce7', color: '#166534' },
-  initial_assignment: { bg: '#e0f2fe', color: '#0c4a6e' },
-  transfer:           { bg: '#ede9fe', color: '#5b21b6' },
-  promotion:          { bg: '#fef3c7', color: '#92400e' },
-  demotion:           { bg: '#fee2e2', color: '#991b1b' },
-  initial_salary:     { bg: '#dbeafe', color: '#1e40af' },
-  increase:           { bg: '#dcfce7', color: '#166534' },
-  decrease:           { bg: '#fee2e2', color: '#991b1b' },
-  correction:         { bg: '#e5e7eb', color: '#374151' },
-  other:              { bg: '#e5e7eb', color: '#374151' },
-};
-
-const JOB_CHANGE_TYPES    = ['hire','initial_assignment','transfer','promotion','demotion','correction','other'];
-const SALARY_CHANGE_TYPES = ['initial_salary','increase','decrease','correction','other'];
-
 const API         = 'http://localhost:5000/api';
 const SOCKET_URL  = 'http://localhost:5000';
 
@@ -395,14 +379,6 @@ export default function EmployeeManagement({ token, user }) {
   // ── detail panel ──
   const [detailUser, setDetailUser]         = useState(null);
   const [detailLoading, setDetailLoading]   = useState(false);
-  const [detailJobRows, setDetailJobRows]   = useState([]);
-  const [detailSalaryRows, setDetailSalaryRows] = useState([]);
-  const [detailJobMeta, setDetailJobMeta]   = useState({ page: 1, pageSize: 8, totalPages: 1, totalItems: 0 });
-  const [detailSalaryMeta, setDetailSalaryMeta] = useState({ page: 1, pageSize: 8, totalPages: 1, totalItems: 0 });
-  const [detailJobFilter, setDetailJobFilter]       = useState({ fromDate: '', toDate: '', changeType: '' });
-  const [detailSalaryFilter, setDetailSalaryFilter] = useState({ fromDate: '', toDate: '', changeType: '' });
-  const [detailJobPage, setDetailJobPage]     = useState(1);
-  const [detailSalaryPage, setDetailSalaryPage] = useState(1);
 
   const isManager = user?.role === 'manager';
   const actorId = user?.id ?? user?.userId ?? null;
@@ -724,14 +700,6 @@ export default function EmployeeManagement({ token, user }) {
 
   // ── detail panel logic ──
   const viewDetails = async (emp) => {
-    setDetailJobFilter({ fromDate: '', toDate: '', changeType: '' });
-    setDetailSalaryFilter({ fromDate: '', toDate: '', changeType: '' });
-    setDetailJobPage(1);
-    setDetailSalaryPage(1);
-    setDetailJobRows([]);
-    setDetailSalaryRows([]);
-    setDetailJobMeta({ page: 1, pageSize: 8, totalPages: 1, totalItems: 0 });
-    setDetailSalaryMeta({ page: 1, pageSize: 8, totalPages: 1, totalItems: 0 });
     setDetailUser({ ...emp, _loading: true });
     setDetailLoading(true);
     try {
@@ -744,39 +712,6 @@ export default function EmployeeManagement({ token, user }) {
       setDetailLoading(false);
     }
   };
-
-  const fetchHistoryForDetail = useCallback(async (historyType) => {
-    if (!detailUser?.id) return;
-    const filter = historyType === 'job' ? detailJobFilter : detailSalaryFilter;
-    const page   = historyType === 'job' ? detailJobPage   : detailSalaryPage;
-    const params = new URLSearchParams({ historyType, page: String(page), pageSize: '8' });
-    if (filter.fromDate)   params.set('fromDate',   filter.fromDate);
-    if (filter.toDate)     params.set('toDate',     filter.toDate);
-    if (filter.changeType) params.set('changeType', filter.changeType);
-    try {
-      setDetailLoading(true);
-      const res  = await fetch(`${API}/admin/employees/${detailUser.id}/history?${params}`, { headers: authHeaders(token) });
-      const data = await res.json();
-      if (!res.ok) return;
-      if (historyType === 'job') {
-        setDetailJobRows(data.jobHistory || []);
-        setDetailJobMeta(prev => ({ ...prev, ...(data.jobPagination || {}) }));
-      } else {
-        setDetailSalaryRows(data.salaryChangeHistory || []);
-        setDetailSalaryMeta(prev => ({ ...prev, ...(data.salaryPagination || {}) }));
-      }
-    } finally {
-      setDetailLoading(false);
-    }
-  }, [detailUser?.id, detailJobFilter, detailSalaryFilter, detailJobPage, detailSalaryPage, token]);
-
-  useEffect(() => {
-    if (detailUser?.id) fetchHistoryForDetail('job');
-  }, [detailUser?.id, detailJobFilter.fromDate, detailJobFilter.toDate, detailJobFilter.changeType, detailJobPage]); // eslint-disable-line
-
-  useEffect(() => {
-    if (detailUser?.id) fetchHistoryForDetail('salary');
-  }, [detailUser?.id, detailSalaryFilter.fromDate, detailSalaryFilter.toDate, detailSalaryFilter.changeType, detailSalaryPage]); // eslint-disable-line
 
   // ── render ──
   return (
@@ -1037,122 +972,6 @@ export default function EmployeeManagement({ token, user }) {
                 <div><span style={{ color: '#718096' }}>Start Date:</span> {detailUser.startDate ? detailUser.startDate.slice(0,10) : '—'}</div>
                 <div><span style={{ color: '#718096' }}>Base Salary:</span> {detailUser.baseSalary ? Number(detailUser.baseSalary).toLocaleString('vi-VN') + ' ₫' : '—'}</div>
               </div>
-            </div>
-
-            {/* Job History */}
-            <div className="detail-section" style={{ marginBottom: 16 }}>
-              <div className="detail-section-title">Job History</div>
-              <div className="detail-filter-row">
-                <input className="detail-filter-input" type="date" value={detailJobFilter.fromDate}
-                  onChange={e => { setDetailJobFilter(f => ({ ...f, fromDate: e.target.value })); setDetailJobPage(1); }} />
-                <input className="detail-filter-input" type="date" value={detailJobFilter.toDate}
-                  onChange={e => { setDetailJobFilter(f => ({ ...f, toDate: e.target.value })); setDetailJobPage(1); }} />
-                <select className="detail-filter-input" value={detailJobFilter.changeType}
-                  onChange={e => { setDetailJobFilter(f => ({ ...f, changeType: e.target.value })); setDetailJobPage(1); }}>
-                  <option value="">All Types</option>
-                  {JOB_CHANGE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <button className="detail-filter-input" style={{ cursor: 'pointer', background: '#f1f5f9' }}
-                  onClick={() => { setDetailJobFilter({ fromDate: '', toDate: '', changeType: '' }); setDetailJobPage(1); }}>
-                  Clear
-                </button>
-              </div>
-              {detailJobRows.length === 0 ? (
-                <div style={{ color: '#94a3b8', fontSize: 13, padding: '8px 0' }}>No job history available.</div>
-              ) : (
-                <>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="detail-history-table">
-                      <thead>
-                        <tr><th>Effective Date</th><th>Type</th><th>Department</th><th>Job Title</th></tr>
-                      </thead>
-                      <tbody>
-                        {detailJobRows.map(h => (
-                          <tr key={h.id}>
-                            <td>{h.effectiveDate || '—'}</td>
-                            <td>
-                              <span className="change-badge" style={CHANGE_TYPE_BADGE[h.changeType] || CHANGE_TYPE_BADGE.other}>
-                                {h.changeType || 'other'}
-                              </span>
-                            </td>
-                            <td>{h.fromDepartmentName || '—'} → {h.toDepartmentName || '—'}</td>
-                            <td>{h.fromJobTitleName || '—'} → {h.toJobTitleName || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {detailJobMeta.totalItems > 0 && (
-                    <div className="detail-pagination">
-                      <button className="detail-filter-input" style={{ cursor: detailJobPage <= 1 ? 'not-allowed' : 'pointer' }}
-                        disabled={detailJobPage <= 1} onClick={() => setDetailJobPage(p => Math.max(1, p - 1))}>← Prev</button>
-                      <span>Page {detailJobMeta.currentPage || detailJobPage} / {detailJobMeta.totalPages || 1}</span>
-                      <button className="detail-filter-input" style={{ cursor: detailJobPage >= (detailJobMeta.totalPages || 1) ? 'not-allowed' : 'pointer' }}
-                        disabled={detailJobPage >= (detailJobMeta.totalPages || 1)} onClick={() => setDetailJobPage(p => p + 1)}>Next →</button>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Salary History */}
-            <div className="detail-section">
-              <div className="detail-section-title">Salary Change History</div>
-              <div className="detail-filter-row">
-                <input className="detail-filter-input" type="date" value={detailSalaryFilter.fromDate}
-                  onChange={e => { setDetailSalaryFilter(f => ({ ...f, fromDate: e.target.value })); setDetailSalaryPage(1); }} />
-                <input className="detail-filter-input" type="date" value={detailSalaryFilter.toDate}
-                  onChange={e => { setDetailSalaryFilter(f => ({ ...f, toDate: e.target.value })); setDetailSalaryPage(1); }} />
-                <select className="detail-filter-input" value={detailSalaryFilter.changeType}
-                  onChange={e => { setDetailSalaryFilter(f => ({ ...f, changeType: e.target.value })); setDetailSalaryPage(1); }}>
-                  <option value="">All Types</option>
-                  {SALARY_CHANGE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <button className="detail-filter-input" style={{ cursor: 'pointer', background: '#f1f5f9' }}
-                  onClick={() => { setDetailSalaryFilter({ fromDate: '', toDate: '', changeType: '' }); setDetailSalaryPage(1); }}>
-                  Clear
-                </button>
-              </div>
-              {detailSalaryRows.length === 0 ? (
-                <div style={{ color: '#94a3b8', fontSize: 13, padding: '8px 0' }}>No salary changes available.</div>
-              ) : (
-                <>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="detail-history-table">
-                      <thead>
-                        <tr><th>Effective Date</th><th>Type</th><th>Old → New Salary</th><th>Reason</th></tr>
-                      </thead>
-                      <tbody>
-                        {detailSalaryRows.map(h => (
-                          <tr key={h.id}>
-                            <td>{h.effectiveDate || '—'}</td>
-                            <td>
-                              <span className="change-badge" style={CHANGE_TYPE_BADGE[h.changeType] || CHANGE_TYPE_BADGE.other}>
-                                {h.changeType || 'other'}
-                              </span>
-                            </td>
-                            <td>
-                              {Number(h.previousBaseSalary || 0).toLocaleString('vi-VN')} ₫
-                              {' → '}
-                              {Number(h.newBaseSalary || 0).toLocaleString('vi-VN')} ₫
-                            </td>
-                            <td>{h.reason || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {detailSalaryMeta.totalItems > 0 && (
-                    <div className="detail-pagination">
-                      <button className="detail-filter-input" style={{ cursor: detailSalaryPage <= 1 ? 'not-allowed' : 'pointer' }}
-                        disabled={detailSalaryPage <= 1} onClick={() => setDetailSalaryPage(p => Math.max(1, p - 1))}>← Prev</button>
-                      <span>Page {detailSalaryMeta.currentPage || detailSalaryPage} / {detailSalaryMeta.totalPages || 1}</span>
-                      <button className="detail-filter-input" style={{ cursor: detailSalaryPage >= (detailSalaryMeta.totalPages || 1) ? 'not-allowed' : 'pointer' }}
-                        disabled={detailSalaryPage >= (detailSalaryMeta.totalPages || 1)} onClick={() => setDetailSalaryPage(p => p + 1)}>Next →</button>
-                    </div>
-                  )}
-                </>
-              )}
             </div>
 
           </div>

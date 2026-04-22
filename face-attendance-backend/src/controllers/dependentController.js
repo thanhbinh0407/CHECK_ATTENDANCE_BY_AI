@@ -3,9 +3,31 @@ import User from "../models/pg/User.js";
 import DependentDocument from "../models/pg/DependentDocument.js";
 import { Op } from "sequelize";
 import { getDependentFileUrl } from "../utils/fileUpload.js";
+import { recordAction } from "../services/actionAuditService.js";
+import { assertCanManageProfileSubresource, isStaffProfileEditor } from "../utils/profileSubresourceAccess.js";
+import { emitEmployeePortalRefresh } from "../socket.js";
 
 const normalizeIdNumber = (value) => String(value || "").replace(/\D/g, "");
 const isValidIdNumber = (value) => /^(\d{9}|\d{12})$/.test(normalizeIdNumber(value));
+const MAX_DEPENDENT_ID_REF_LEN = 80;
+
+/**
+ * CCCD/VNeID: chỉ chữ số 9 hoặc 12. Nhân viên (employee) bắt buộc đúng format.
+ * HR/Manager/Supervisor/Accountant có thể lưu mã tham chiếu nội bộ hoặc dữ liệu seed (vd. DEP-EMP028-1).
+ */
+function parseDependentIdNumber(raw, req) {
+  const trimmed = raw == null ? "" : String(raw).trim();
+  if (trimmed === "") return { ok: true, value: null };
+  const digits = normalizeIdNumber(trimmed);
+  if (isValidIdNumber(digits)) return { ok: true, value: digits };
+  if (isStaffProfileEditor(req)) {
+    if (trimmed.length > MAX_DEPENDENT_ID_REF_LEN) {
+      return { ok: false, message: `ID / reference must be at most ${MAX_DEPENDENT_ID_REF_LEN} characters` };
+    }
+    return { ok: true, value: trimmed };
+  }
+  return { ok: false, message: "ID Number must be 9 or 12 digits" };
+}
 
 const isFutureDate = (date) => {
   if (!date) return false;
@@ -32,7 +54,10 @@ export const getAllDependents = async (req, res) => {
         model: User,
         attributes: ['id', 'name', 'employeeCode', 'email']
       }],
-      order: [['createdAt', 'DESC']]
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC']
+      ]
     });
     
     return res.json({
@@ -162,11 +187,19 @@ export const createDependent = async (req, res) => {
       });
     }
 
-    const normalizedIdNumber = normalizeIdNumber(idNumber);
-    if (!isValidIdNumber(normalizedIdNumber)) {
+    if (!(await assertCanManageProfileSubresource(req, res, userId))) return;
+
+    let normalizedIdForStore = null;
+    if (idNumber != null && String(idNumber).trim() !== "") {
+      const parsed = parseDependentIdNumber(idNumber, req);
+      if (!parsed.ok) {
+        return res.status(400).json({ status: "error", message: parsed.message });
+      }
+      normalizedIdForStore = parsed.value;
+    } else if (!isStaffProfileEditor(req)) {
       return res.status(400).json({
         status: "error",
-        message: "ID Number must be 9 or 12 digits"
+        message: "ID Number is required"
       });
     }
 
@@ -192,7 +225,7 @@ export const createDependent = async (req, res) => {
       relationship,
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
       gender,
-      idNumber: normalizedIdNumber,
+      idNumber: normalizedIdForStore,
       address,
       phoneNumber,
       email,
@@ -229,12 +262,25 @@ export const updateDependent = async (req, res) => {
       });
     }
 
-    const normalizedIdNumber = idNumber !== undefined ? normalizeIdNumber(idNumber) : undefined;
-    if (idNumber !== undefined && !isValidIdNumber(normalizedIdNumber)) {
-      return res.status(400).json({
-        status: "error",
-        message: "ID Number must be 9 or 12 digits"
-      });
+    if (!(await assertCanManageProfileSubresource(req, res, dependent.userId))) return;
+
+    let nextIdNumber = dependent.idNumber;
+    if (idNumber !== undefined) {
+      if (idNumber === null || String(idNumber).trim() === "") {
+        if (!isStaffProfileEditor(req)) {
+          return res.status(400).json({
+            status: "error",
+            message: "ID Number is required"
+          });
+        }
+        nextIdNumber = null;
+      } else {
+        const parsed = parseDependentIdNumber(idNumber, req);
+        if (!parsed.ok) {
+          return res.status(400).json({ status: "error", message: parsed.message });
+        }
+        nextIdNumber = parsed.value;
+      }
     }
 
     if (dateOfBirth !== undefined && dateOfBirth && isFutureDate(dateOfBirth)) {
@@ -249,7 +295,7 @@ export const updateDependent = async (req, res) => {
       relationship: relationship || dependent.relationship,
       dateOfBirth: dateOfBirth !== undefined ? (dateOfBirth ? new Date(dateOfBirth) : null) : dependent.dateOfBirth,
       gender: gender !== undefined ? gender : dependent.gender,
-      idNumber: idNumber !== undefined ? normalizedIdNumber : dependent.idNumber,
+      idNumber: idNumber !== undefined ? nextIdNumber : dependent.idNumber,
       address: address !== undefined ? address : dependent.address,
       phoneNumber: phoneNumber !== undefined ? phoneNumber : dependent.phoneNumber,
       email: email !== undefined ? email : dependent.email,
@@ -285,6 +331,8 @@ export const deleteDependent = async (req, res) => {
       });
     }
 
+    if (!(await assertCanManageProfileSubresource(req, res, dependent.userId))) return;
+
     await dependent.destroy();
 
     return res.json({
@@ -300,7 +348,7 @@ export const deleteDependent = async (req, res) => {
   }
 };
 
-// Get my dependents (employee's own dependents - only approved ones for personal view)
+// Get my dependents (employee: all own records — pending / approved / rejected)
 export const getMyDependents = async (req, res) => {
   try {
     const userId = req.user?.userId;
@@ -312,8 +360,11 @@ export const getMyDependents = async (req, res) => {
     }
 
     const dependents = await Dependent.findAll({
-      where: { userId, approvalStatus: 'approved' },
-      order: [['createdAt', 'DESC']]
+      where: { userId },
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC']
+      ]
     });
 
     return res.json({
@@ -350,6 +401,20 @@ export const approveDependentRequest = async (req, res) => {
       rejectionReason: null
     });
 
+    await recordAction(req, {
+      action: "dependent.approve",
+      category: "other",
+      targetUserId: dependent.userId,
+      entityType: "dependent",
+      entityId: dependent.id,
+      summary: `Approved dependent: ${dependent.fullName || "—"}`,
+      metadata: {
+        relationship: dependent.relationship || null,
+      },
+    });
+
+    emitEmployeePortalRefresh(dependent.userId, "dependent");
+
     return res.json({
       status: "success",
       message: "Dependent approved successfully",
@@ -382,6 +447,20 @@ export const rejectDependentRequest = async (req, res) => {
       approvalStatus: 'rejected',
       rejectionReason: reason || 'No reason provided'
     });
+
+    await recordAction(req, {
+      action: "dependent.reject",
+      category: "other",
+      targetUserId: dependent.userId,
+      entityType: "dependent",
+      entityId: dependent.id,
+      summary: `Rejected dependent: ${dependent.fullName || "—"}`,
+      metadata: {
+        reason: reason || null,
+      },
+    });
+
+    emitEmployeePortalRefresh(dependent.userId, "dependent");
 
     return res.json({
       status: "success",

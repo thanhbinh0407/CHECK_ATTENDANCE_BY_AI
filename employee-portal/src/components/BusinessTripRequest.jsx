@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { vietnamProvinces } from "../data/vietnamProvinces.js";
 
-export default function BusinessTripRequest({ userId }) {
+export default function BusinessTripRequest({ userId, refreshVersion = 0 }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -18,7 +18,7 @@ export default function BusinessTripRequest({ userId }) {
 
   useEffect(() => {
     fetchRequests();
-  }, [userId]);
+  }, [userId, refreshVersion]);
 
   const fetchRequests = async () => {
     try {

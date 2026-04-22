@@ -254,41 +254,6 @@ export default function SalaryManagement() {
     }
   };
 
-  const handleCalculateSalary = async (userId) => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("authToken");
-      if (!token) return;
-
-      const res = await fetch(`${apiBase}/api/salary/calculate`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          userId,
-          month: selectedMonth,
-          year: selectedYear
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setMessage("");
-        setToastPopup("Salary calculated successfully!");
-        fetchSalaries();
-        setTimeout(() => setToastPopup(""), 5000);
-      } else {
-        setMessage("Error: " + (data.message || "Cannot calculate salary"));
-      }
-    } catch (error) {
-      setMessage("Error: " + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleMarkPaid = async (salaryId) => {
     try {
       setLoading(true);
@@ -964,29 +929,6 @@ export default function SalaryManagement() {
                           <span aria-hidden>📄</span>
                           Detail
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleCalculateSalary(salary.User?.id)}
-                          style={{
-                            padding: "8px 14px",
-                            backgroundColor: "#64748b",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: "8px",
-                            cursor: "pointer",
-                            fontSize: "13px",
-                            fontWeight: "600",
-                            transition: "background 0.2s",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = "#475569";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = "#64748b";
-                          }}
-                        >
-                          Recalculate
-                        </button>
                         {salary.status === "approved" && currentRole === "accountant" && (
                           <button
                             type="button"
@@ -1033,9 +975,17 @@ export default function SalaryManagement() {
             setSelectedEmployeeForModal(null);
           }}
           onUpdate={(updatedSalary) => {
-            setSalaryBreakdown(updatedSalary);
+            setSalaryBreakdown((prev) =>
+              prev && prev.id === updatedSalary.id
+                ? { ...prev, ...updatedSalary, User: updatedSalary.User ?? prev.User }
+                : updatedSalary
+            );
             setSalaries((prev) =>
-              prev.map((s) => (s.id === updatedSalary.id ? updatedSalary : s))
+              prev.map((s) =>
+                s.id === updatedSalary.id
+                  ? { ...s, ...updatedSalary, User: updatedSalary.User ?? s.User }
+                  : s
+              )
             );
           }}
         />

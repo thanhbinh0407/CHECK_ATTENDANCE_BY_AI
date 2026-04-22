@@ -145,36 +145,38 @@ export default function DocumentManagement() {
 
   const cardStyle = {
     backgroundColor: theme.neutral.white,
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.md,
     border: `1px solid ${theme.neutral.gray200}`,
     boxShadow: theme.shadows.sm,
-    padding: theme.spacing.xl,
+    padding: theme.spacing.md,
   };
 
-  const labelStyle = { display: "block", fontSize: "13px", fontWeight: 700, color: theme.neutral.gray700, marginBottom: 6 };
+  const labelStyle = { display: "block", fontSize: "12px", fontWeight: 600, color: theme.neutral.gray700, marginBottom: 4 };
   const inputStyle = {
     width: "100%",
-    padding: "12px 14px",
-    borderRadius: theme.radius.md,
+    padding: "8px 10px",
+    borderRadius: theme.radius.sm,
     border: `1px solid ${theme.neutral.gray300}`,
     outline: "none",
-    fontSize: "14px",
+    fontSize: "13px",
+    boxSizing: "border-box",
   };
 
   return (
-    <div style={{ display: "grid", gap: theme.spacing.xl }}>
+    <div style={{ display: "grid", gap: theme.spacing.md }}>
       <div style={{
         ...cardStyle,
         background: theme.gradients.primary,
         color: theme.neutral.white,
         border: "none",
+        padding: "14px 18px",
       }}>
-        <div style={{ fontSize: "28px", fontWeight: 800, marginBottom: 6 }}>📎 Document Management</div>
-        <div style={{ opacity: 0.95 }}>Store CCCD scans, signed contracts, certificates, and decisions in one place.</div>
+        <div style={{ fontSize: "20px", fontWeight: 700, marginBottom: 3, lineHeight: 1.25 }}>📎 Document Management</div>
+        <div style={{ opacity: 0.92, fontSize: "13px", lineHeight: 1.4 }}>CCCD, contracts, certificates, decisions.</div>
       </div>
 
       <div style={cardStyle}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.lg, alignItems: "end" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md, alignItems: "end" }}>
           <div>
             <label style={labelStyle}>Employee</label>
             <select
@@ -190,7 +192,7 @@ export default function DocumentManagement() {
               ))}
             </select>
           </div>
-          <div style={{ color: theme.neutral.gray600, fontSize: "13px" }}>
+          <div style={{ color: theme.neutral.gray600, fontSize: "12px", lineHeight: 1.4 }}>
             {selectedEmployee ? (
               <>
                 <div><b>Department:</b> {selectedEmployee.department || "-"}</div>
@@ -202,12 +204,12 @@ export default function DocumentManagement() {
           </div>
         </div>
 
-        <div style={{ height: 1, backgroundColor: theme.neutral.gray200, margin: `${theme.spacing.xl} 0` }} />
+        <div style={{ height: 1, backgroundColor: theme.neutral.gray200, margin: `${theme.spacing.md} 0` }} />
 
-        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: theme.spacing.xl }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: theme.spacing.md }}>
           <div>
-            <div style={{ fontWeight: 800, marginBottom: theme.spacing.md, color: theme.neutral.gray900 }}>Upload new document</div>
-            <div style={{ display: "grid", gap: theme.spacing.md }}>
+            <div style={{ fontWeight: 700, fontSize: "14px", marginBottom: theme.spacing.sm, color: theme.neutral.gray900 }}>Upload new document</div>
+            <div style={{ display: "grid", gap: theme.spacing.sm }}>
               <div>
                 <label style={labelStyle}>Document type</label>
                 <select
@@ -231,7 +233,7 @@ export default function DocumentManagement() {
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.md }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: theme.spacing.sm }}>
                 <div>
                   <label style={labelStyle}>Expiry date (optional)</label>
                   <input
@@ -257,7 +259,7 @@ export default function DocumentManagement() {
                 <textarea
                   value={uploadForm.description}
                   onChange={(e) => setUploadForm((s) => ({ ...s, description: e.target.value }))}
-                  style={{ ...inputStyle, minHeight: 84, resize: "vertical" }}
+                  style={{ ...inputStyle, minHeight: 64, resize: "vertical" }}
                   placeholder="Notes about this document..."
                 />
               </div>
@@ -266,12 +268,13 @@ export default function DocumentManagement() {
                 onClick={handleUpload}
                 disabled={loading}
                 style={{
-                  padding: "12px 16px",
-                  borderRadius: theme.radius.md,
+                  padding: "8px 14px",
+                  borderRadius: theme.radius.sm,
                   border: "none",
                   background: theme.secondary.gradient,
                   color: theme.neutral.white,
-                  fontWeight: 800,
+                  fontWeight: 600,
+                  fontSize: "13px",
                   cursor: loading ? "not-allowed" : "pointer",
                   boxShadow: theme.shadows.sm,
                 }}
@@ -282,49 +285,49 @@ export default function DocumentManagement() {
           </div>
 
           <div>
-            <div style={{ fontWeight: 800, marginBottom: theme.spacing.md, color: theme.neutral.gray900 }}>Documents</div>
+            <div style={{ fontWeight: 700, fontSize: "14px", marginBottom: theme.spacing.sm, color: theme.neutral.gray900 }}>Documents</div>
             {loading ? (
               <div style={{ color: theme.neutral.gray500 }}>Loading...</div>
             ) : documents.length === 0 ? (
               <div style={{ color: theme.neutral.gray500, fontStyle: "italic" }}>No documents.</div>
             ) : (
-              <div style={{ display: "grid", gap: theme.spacing.md }}>
+              <div style={{ display: "grid", gap: theme.spacing.sm }}>
                 {documents.map((doc) => (
                   <div key={doc.id} style={{
                     border: `1px solid ${theme.neutral.gray200}`,
-                    borderRadius: theme.radius.md,
-                    padding: theme.spacing.md,
+                    borderRadius: theme.radius.sm,
+                    padding: "10px 12px",
                     backgroundColor: theme.neutral.gray50,
                   }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: theme.spacing.md }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: theme.spacing.sm }}>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 800, color: theme.neutral.gray900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div style={{ fontWeight: 700, fontSize: "13px", color: theme.neutral.gray900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {doc.title}
                         </div>
-                        <div style={{ fontSize: "12px", color: theme.neutral.gray600, marginTop: 2 }}>
+                        <div style={{ fontSize: "11px", color: theme.neutral.gray600, marginTop: 2 }}>
                           {DOCUMENT_TYPES.find((t) => t.value === doc.documentType)?.label || doc.documentType} •{" "}
                           {doc.uploadDate ? new Date(doc.uploadDate).toLocaleDateString("vi-VN") : "-"}
                           {doc.expiryDate ? ` • Exp: ${new Date(doc.expiryDate).toLocaleDateString("vi-VN")}` : ""}
                         </div>
                         {doc.description ? (
-                          <div style={{ fontSize: "13px", color: theme.neutral.gray700, marginTop: 8 }}>
+                          <div style={{ fontSize: "12px", color: theme.neutral.gray700, marginTop: 4, lineHeight: 1.35 }}>
                             {doc.description}
                           </div>
                         ) : null}
                       </div>
-                      <div style={{ display: "flex", gap: 8, alignItems: "start", flexShrink: 0 }}>
+                      <div style={{ display: "flex", gap: 6, alignItems: "start", flexShrink: 0 }}>
                         <a
                           href={`${apiBase}${doc.documentPath}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{
-                            padding: "8px 10px",
-                            borderRadius: theme.radius.md,
+                            padding: "5px 10px",
+                            borderRadius: theme.radius.sm,
                             border: `1px solid ${theme.neutral.gray300}`,
                             backgroundColor: theme.neutral.white,
                             textDecoration: "none",
                             color: theme.primary.main,
-                            fontWeight: 700,
+                            fontWeight: 600,
                             fontSize: "12px",
                           }}
                         >
@@ -333,12 +336,12 @@ export default function DocumentManagement() {
                         <button
                           onClick={() => handleDelete(doc.id)}
                           style={{
-                            padding: "8px 10px",
-                            borderRadius: theme.radius.md,
+                            padding: "5px 10px",
+                            borderRadius: theme.radius.sm,
                             border: "none",
                             backgroundColor: theme.error.main,
                             color: theme.neutral.white,
-                            fontWeight: 800,
+                            fontWeight: 600,
                             fontSize: "12px",
                             cursor: "pointer",
                           }}
@@ -356,14 +359,14 @@ export default function DocumentManagement() {
 
         {message ? (
           <div style={{
-            marginTop: theme.spacing.lg,
-            padding: theme.spacing.md,
-            borderRadius: theme.radius.md,
+            marginTop: theme.spacing.md,
+            padding: "8px 12px",
+            borderRadius: theme.radius.sm,
             border: `1px solid ${theme.neutral.gray200}`,
             backgroundColor: theme.neutral.gray50,
             color: theme.neutral.gray800,
             fontWeight: 600,
-            fontSize: "13px",
+            fontSize: "12px",
           }}>
             {message}
           </div>

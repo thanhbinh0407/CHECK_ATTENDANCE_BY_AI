@@ -73,6 +73,7 @@ User.hasMany(SalaryAdvance, { foreignKey: "userId", as: "SalaryAdvances" });
 SalaryAdvance.belongsTo(User, { foreignKey: "userId" });
 SalaryAdvance.belongsTo(User, { foreignKey: "approvedBy", as: "Approver" });
 SalaryAdvance.belongsTo(User, { foreignKey: "currentApproverId", as: "CurrentApprover" });
+SalaryAdvance.belongsTo(User, { foreignKey: "disbursedBy", as: "Disburser" });
 
 // APPROVAL WORKFLOW ASSOCIATIONS
 ApprovalWorkflow.belongsTo(User, { foreignKey: "approverId", as: "Approver" });

@@ -252,6 +252,11 @@ export const getAllEmployees = async (req, res) => {
           attributes: ['id', 'name'],
           required: false
         },
+        {
+          model: SalaryGrade,
+          attributes: ['id', 'code', 'name', 'level', 'baseSalary'],
+          required: false
+        },
         { 
           model: User, 
           as: 'Manager', 
@@ -1398,9 +1403,9 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         { model: SalaryGrade, attributes: ['id', 'name', 'baseSalary'] },
         { model: User, as: 'Manager', attributes: ['id', 'name', 'employeeCode', 'email'] },
         // Family / Dependents - include address so frontend can display it
-        { 
-          model: Dependent, 
-          as: 'Dependents', 
+        {
+          model: Dependent,
+          as: 'Dependents',
           attributes: [
             'id',
             'fullName',
@@ -1412,11 +1417,26 @@ export const getEmployeeDetailedInfo = async (req, res) => {
             'phoneNumber',
             'email',
             'occupation',
+            'notes',
             'approvalStatus'
-          ] 
+          ],
+          separate: true,
+          order: [['updatedAt', 'DESC'], ['id', 'DESC']],
         },
-        { model: Qualification, as: 'Qualifications', attributes: ['id', 'type', 'name', 'issuedBy', 'issuedDate', 'expiryDate', 'certificateNumber', 'documentPath', 'description', 'approvalStatus'] },
-        { model: WorkExperience, as: 'WorkExperiences', attributes: ['id', 'companyName', 'position', 'startDate', 'endDate', 'description', 'responsibilities', 'achievements', 'isCurrent'], order: [['startDate', 'DESC']] }
+        {
+          model: Qualification,
+          as: 'Qualifications',
+          attributes: ['id', 'type', 'name', 'issuedBy', 'issuedDate', 'expiryDate', 'certificateNumber', 'documentPath', 'description', 'approvalStatus'],
+          separate: true,
+          order: [['updatedAt', 'DESC'], ['id', 'DESC']],
+        },
+        {
+          model: WorkExperience,
+          as: 'WorkExperiences',
+          attributes: ['id', 'companyName', 'position', 'startDate', 'endDate', 'description', 'responsibilities', 'achievements', 'isCurrent'],
+          separate: true,
+          order: [['startDate', 'DESC']],
+        }
       ]
       // Note: password is included by default, not excluded
     });
@@ -2036,7 +2056,7 @@ export const updateUserRole = async (req, res) => {
         return res.status(400).json({
           status: "error",
           message:
-            "Hồ sơ nhân viên chưa đủ để gán vai trò có quyền. Cập nhật đầy đủ: số điện thoại, phòng ban, chức danh, ngày sinh, CMND/CCCD — giống hồ sơ nhân viên thông thường — rồi thử lại.",
+            "The employee profile is incomplete for assigning a privileged role. Please fill in phone number, department, job title, date of birth, and national ID (CMND/CCCD)—the same fields as a standard employee profile—then try again.",
           missingFields: missing,
         });
       }
@@ -2899,17 +2919,26 @@ export const getHrAttendanceLogs = async (req, res) => {
       departmentId,
       type,
       search,
+      matchStatus,
       limit = "50",
       offset = "0",
     } = req.query;
 
     const where = {};
-    if (type === "IN" || type === "OUT") {
-      where.type = type;
+    const typeNorm = typeof type === "string" ? type.trim().toUpperCase() : "";
+    if (typeNorm === "IN" || typeNorm === "OUT") {
+      where.type = typeNorm;
     }
     const uid = toNumber(userId, NaN);
     if (Number.isFinite(uid) && uid > 0) {
       where.userId = uid;
+    } else {
+      const matchNorm = String(matchStatus || "all").toLowerCase();
+      if (matchNorm === "matched") {
+        where.userId = { [Op.ne]: null };
+      } else if (matchNorm === "unmatched") {
+        where.userId = { [Op.is]: null };
+      }
     }
 
     if (month && year) {
@@ -2921,10 +2950,17 @@ export const getHrAttendanceLogs = async (req, res) => {
         where.timestamp = { [Op.between]: [start, end] };
       }
     } else if (from && to) {
-      const start = new Date(from);
-      const end = new Date(to);
-      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
-        where.timestamp = { [Op.between]: [start, end] };
+      const startRaw = new Date(from);
+      const endRaw = new Date(to);
+      if (!Number.isNaN(startRaw.getTime()) && !Number.isNaN(endRaw.getTime())) {
+        // Inclusive calendar days in UTC (matches attendance_logs stored as Date.UTC)
+        const startUtc = new Date(
+          Date.UTC(startRaw.getUTCFullYear(), startRaw.getUTCMonth(), startRaw.getUTCDate(), 0, 0, 0, 0)
+        );
+        const endUtc = new Date(
+          Date.UTC(endRaw.getUTCFullYear(), endRaw.getUTCMonth(), endRaw.getUTCDate(), 23, 59, 59, 999)
+        );
+        where.timestamp = { [Op.between]: [startUtc, endUtc] };
       }
     }
 
@@ -2954,13 +2990,20 @@ export const getHrAttendanceLogs = async (req, res) => {
     const userWhere = userAnd.length > 0 ? { [Op.and]: userAnd } : undefined;
     const userRequired = Boolean(userWhere);
 
-    const lim = Math.min(Math.max(toNumber(limit, 50), 1), 1000);
+    const hasDateWindow = Boolean(
+      (from && to) || (month && year)
+    );
+    const maxLim = hasDateWindow ? 100000 : 10000;
+    const lim = Math.min(Math.max(toNumber(limit, 50), 1), maxLim);
     const off = Math.max(toNumber(offset, 0), 0);
 
+    // subQuery: false — required so filters on included User (department, search) are not lost
+    // when Sequelize wraps the main query in a LIMIT subquery (PostgreSQL).
     const { count, rows } = await AttendanceLog.findAndCountAll({
       where,
       distinct: true,
       col: "id",
+      subQuery: false,
       include: [
         {
           model: User,
