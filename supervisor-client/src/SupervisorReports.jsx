@@ -436,11 +436,7 @@ export default function SupervisorReports({ token }) {
   };
 
   return (
-    <div className="sup-rep-root sup-mgmt-page">
-      <div className="sup-mgmt-hero">
-        <h2>Reports</h2>
-        <p>Run attendance, payroll, overtime, and turnover reports. Export to Excel when needed.</p>
-      </div>
+    <div className="sup-rep-root">
       <div className="sup-rep-toolbar card">
         <div className="sup-rep-filters">
           <select value={reportType} onChange={(e) => onReportTypeChange(e.target.value)}>

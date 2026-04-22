@@ -10,6 +10,7 @@ function authHeaders(token) {
 const EMPTY_FORM = {
   code: '',
   name: '',
+  description: '',
   level: '',
   baseSalaryMin: '',
   baseSalaryMax: '',
@@ -53,7 +54,8 @@ export default function JobTitleManagement({ token }) {
     setForm({
       code: item.code || '',
       name: item.name || '',
-      level: item.level != null && item.level !== '' ? String(item.level) : '',
+      description: item.description || '',
+      level: item.level ?? '',
       baseSalaryMin: item.baseSalaryMin ?? '',
       baseSalaryMax: item.baseSalaryMax ?? '',
       isActive: item.isActive !== false,
@@ -72,8 +74,8 @@ export default function JobTitleManagement({ token }) {
       const payload = {
         code: form.code.trim(),
         name: form.name.trim(),
-        description: null,
-        level: form.level.trim() === '' ? null : form.level.trim(),
+        description: form.description.trim() || null,
+        level: form.level === '' ? null : Number(form.level),
         baseSalaryMin: form.baseSalaryMin === '' ? 0 : Number(form.baseSalaryMin),
         baseSalaryMax: form.baseSalaryMax === '' ? 0 : Number(form.baseSalaryMax),
         isActive: !!form.isActive,
@@ -129,18 +131,14 @@ export default function JobTitleManagement({ token }) {
 
   const q = search.trim().toLowerCase();
   const filtered = q
-    ? items.filter((it) => [it.code, it.name]
+    ? items.filter((it) => [it.code, it.name, it.description]
         .filter(Boolean).join(' ').toLowerCase().includes(q))
     : items;
 
   return (
-    <div className="sup-mgmt-page">
-      <div className="sup-mgmt-hero sup-mgmt-hero--compact">
-        <h2>Job title management</h2>
-        <p>Manage job titles, salary ranges, levels, and active status.</p>
-      </div>
-      <div className="sup-approval-toolbar card sup-approval-toolbar--filters sup-jt-toolbar-compact">
-        <div className="sup-approval-toolbar-inner sup-approval-toolbar-inner--search-status">
+    <div>
+      <div className="sup-approval-toolbar card">
+        <div className="sup-approval-toolbar-inner">
           <div className="sup-approval-search-wrap sup-approval-search-wrap--grow">
             <label className="sup-approval-label" htmlFor="sup-jt-search">Search</label>
             <input
@@ -149,15 +147,13 @@ export default function JobTitleManagement({ token }) {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Code, name…"
+              placeholder="Code, name, description…"
               autoComplete="off"
             />
           </div>
           <div className="sup-approval-filter-wrap">
             <label className="sup-approval-label">&nbsp;</label>
-            <button type="button" className="sup-mgmt-btn-add" onClick={openCreate}>
-              + New job title
-            </button>
+            <button className="btn btn-primary" onClick={openCreate}>+ New job title</button>
           </div>
           <div className="sup-approval-meta">
             {loading ? 'Loading…' : `${filtered.length} of ${items.length} shown`}
@@ -165,10 +161,10 @@ export default function JobTitleManagement({ token }) {
         </div>
       </div>
 
-      <div className="card sup-approval-table-card sup-mgmt-table-shell">
+      <div className="card sup-approval-table-card">
         {loading ? <div className="loading">Loading...</div> : (
           <div className="table-wrap">
-            <table className="sup-mgmt-table">
+            <table>
               <thead>
                 <tr>
                   <th>ID</th>
@@ -184,8 +180,13 @@ export default function JobTitleManagement({ token }) {
                 {filtered.map((item) => (
                   <tr key={item.id}>
                     <td>{item.id}</td>
-                    <td className="sup-mgmt-code">{item.code}</td>
-                    <td>{item.name}</td>
+                    <td><strong>{item.code}</strong></td>
+                    <td>
+                      {item.name}
+                      {item.description && (
+                        <div style={{ fontSize: 12, color: '#718096' }}>{item.description}</div>
+                      )}
+                    </td>
                     <td>{item.level ?? '—'}</td>
                     <td>
                       {Number(item.baseSalaryMin || 0).toLocaleString('en-US')}
@@ -198,18 +199,18 @@ export default function JobTitleManagement({ token }) {
                       </span>
                     </td>
                     <td>
-                      <div className="sup-mgmt-action-row">
-                        <button type="button" className="btn btn-secondary" onClick={() => openEdit(item)}>Edit</button>
-                        <button type="button" className="btn btn-reject" onClick={() => remove(item)}>Delete</button>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => openEdit(item)}>Edit</button>
+                        <button className="btn btn-reject" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => remove(item)}>Delete</button>
                       </div>
                     </td>
                   </tr>
                 ))}
                 {items.length === 0 && (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', color: '#718096', padding: '12px 14px' }}>No job titles</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No job titles</td></tr>
                 )}
                 {items.length > 0 && filtered.length === 0 && (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', color: '#718096', padding: '12px 14px' }}>No rows match your search</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No rows match your search</td></tr>
                 )}
               </tbody>
             </table>
@@ -244,14 +245,20 @@ export default function JobTitleManagement({ token }) {
                     style={{ padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: 6 }}
                   />
                 </div>
+                <div className="form-group" style={{ gridColumn: '1 / span 2' }}>
+                  <label>Description</label>
+                  <textarea
+                    rows={2}
+                    value={form.description}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  />
+                </div>
                 <div className="form-group">
                   <label>Level</label>
                   <input
-                    type="text"
+                    type="number"
                     value={form.level}
                     onChange={(e) => setForm((f) => ({ ...f, level: e.target.value }))}
-                    placeholder="e.g. Manager, Senior, Trainee"
-                    autoComplete="off"
                     style={{ padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: 6 }}
                   />
                 </div>

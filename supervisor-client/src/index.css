@@ -1,5 +1,5 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', sans-serif; background: #f1f5f9; color: #2d3748; }
+body { font-family: 'Segoe UI', sans-serif; background: #f7f0ff; color: #2d3748; }
 
 .app-layout { display: flex; height: 100vh; overflow: hidden; }
 
@@ -52,7 +52,7 @@ body { font-family: 'Segoe UI', sans-serif; background: #f1f5f9; color: #2d3748;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(90deg, #7029d1, #8b46ff);
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: #fff;
   font-weight: 700;
   font-size: 15px;
@@ -114,9 +114,7 @@ tr:hover td { background: #faf5ff; }
 /* ─── Badges ──────────────────────────────────────────────────── */
 .badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
 .badge-pending  { background: #fefcbf; color: #744210; }
-.badge-in-progress { background: #bee3f8; color: #2c5282; }
 .badge-approved { background: #c6f6d5; color: #276749; }
-.badge-paid { background: #e9d8fd; color: #553c9a; }
 .badge-rejected { background: #fed7d7; color: #9b2c2c; }
 
 /* ─── Filters ─────────────────────────────────────────────────── */

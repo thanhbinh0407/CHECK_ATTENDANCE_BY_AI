@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
-import { toastError, toastSuccess, toastWarning } from '../lib/notify.jsx';
-import { sortApprovalsByRecency } from '../utils/approvalSort.js';
-import socket from '../socket.js';
+import { useCallback, useEffect, useState } from 'react';
+import { toastError, toastInfo, toastWarning } from '../lib/notify.jsx';
 
 const API = 'http://localhost:5000/api';
 const API_BASE = 'http://localhost:5000';
@@ -51,11 +49,9 @@ export default function QualificationApprovals({ token }) {
   const [detail, setDetail] = useState(null); // qualification for detail modal
   const [actionModal, setActionModal] = useState(null); // { item, action }
   const [reason, setReason] = useState('');
-  const decisionLockRef = useRef(false);
 
-  const load = useCallback(async (opts = {}) => {
-    const silent = Boolean(opts.silent);
-    if (!silent) setLoading(true);
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
       const url = statusFilter
         ? `${API}/qualifications?approvalStatus=${statusFilter}`
@@ -67,46 +63,18 @@ export default function QualificationApprovals({ token }) {
         setItems([]);
         return;
       }
-      setItems(sortApprovalsByRecency(Array.isArray(data.qualifications) ? data.qualifications : []));
+      setItems(Array.isArray(data.qualifications) ? data.qualifications : []);
     } catch (err) {
       toastError(err.message || 'Network error');
     } finally {
-      if (!silent) setLoading(false);
+      setLoading(false);
     }
   }, [token, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
-    const onAudit = (payload) => {
-      if (payload?.kind !== 'action_audit') return;
-      const a = String(payload.action || '');
-      if (a.startsWith('qualification.')) load({ silent: true });
-    };
-    socket.on('audit:new', onAudit);
-    return () => socket.off('audit:new', onAudit);
-  }, [load]);
-
-  const patchListFromQual = (qual) => {
-    if (!qual?.id) return;
-    setItems((prev) => {
-      if (statusFilter === 'pending' && qual.approvalStatus !== 'pending') {
-        return sortApprovalsByRecency(prev.filter((x) => x.id !== qual.id));
-      }
-      const idx = prev.findIndex((x) => x.id === qual.id);
-      if (idx === -1) return prev;
-      const row = { ...prev[idx], ...qual, User: qual.User ?? prev[idx].User };
-      const next = [...prev];
-      next[idx] = row;
-      return sortApprovalsByRecency(next);
-    });
-    setDetail((d) => (d && d.id === qual.id ? { ...d, ...qual } : d));
-  };
-
   const approve = async () => {
     const { item } = actionModal;
-    if (!item || decisionLockRef.current) return;
-    decisionLockRef.current = true;
     try {
       const res = await fetch(`${API}/qualifications/${item.id}/approve`, {
         method: 'PUT',
@@ -117,15 +85,12 @@ export default function QualificationApprovals({ token }) {
         toastError(data.message || 'Approve failed');
         return;
       }
-      toastSuccess('Qualification approved.');
-      patchListFromQual(data.qualification);
+      toastInfo('Qualification approved');
       setActionModal(null);
       setReason('');
-      await load({ silent: true });
+      load();
     } catch (err) {
       toastError(err.message);
-    } finally {
-      decisionLockRef.current = false;
     }
   };
 
@@ -135,8 +100,6 @@ export default function QualificationApprovals({ token }) {
       toastWarning('Please enter a rejection reason.');
       return;
     }
-    if (!item || decisionLockRef.current) return;
-    decisionLockRef.current = true;
     try {
       const res = await fetch(`${API}/qualifications/${item.id}/reject`, {
         method: 'PUT',
@@ -148,15 +111,12 @@ export default function QualificationApprovals({ token }) {
         toastError(data.message || 'Reject failed');
         return;
       }
-      toastSuccess('Qualification rejected.');
-      patchListFromQual(data.qualification);
+      toastInfo('Qualification rejected');
       setActionModal(null);
       setReason('');
-      await load({ silent: true });
+      load();
     } catch (err) {
       toastError(err.message);
-    } finally {
-      decisionLockRef.current = false;
     }
   };
 
@@ -178,14 +138,10 @@ export default function QualificationApprovals({ token }) {
     : items;
 
   return (
-    <div className="sup-mgmt-page">
-      <div className="sup-mgmt-hero">
-        <h2>Qualification approvals</h2>
-        <p>Review certificates and qualifications submitted by employees. Open attachments when provided.</p>
-      </div>
-      <div className="sup-approval-toolbar card sup-approval-toolbar--filters">
-        <div className="sup-approval-toolbar-inner sup-approval-toolbar-inner--search-status">
-          <div className="sup-approval-search-wrap">
+    <div>
+      <div className="sup-approval-toolbar card">
+        <div className="sup-approval-toolbar-inner">
+          <div className="sup-approval-search-wrap sup-approval-search-wrap--grow">
             <label className="sup-approval-label" htmlFor="sup-qual-search">Search</label>
             <input
               id="sup-qual-search"
@@ -217,10 +173,10 @@ export default function QualificationApprovals({ token }) {
         </div>
       </div>
 
-      <div className="card sup-approval-table-card sup-mgmt-table-shell">
+      <div className="card sup-approval-table-card">
         {loading ? <div className="loading">Loading...</div> : (
           <div className="table-wrap">
-            <table className="sup-mgmt-table">
+            <table>
               <thead>
                 <tr>
                   <th>ID</th>
@@ -257,22 +213,22 @@ export default function QualificationApprovals({ token }) {
                         </span>
                       </td>
                       <td>
-                        <div className="sup-mgmt-action-row">
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                           <button
-                            type="button"
                             className="btn btn-secondary"
+                            style={{ fontSize: 12, padding: '4px 10px' }}
                             onClick={() => setDetail(item)}
                           >View</button>
                           {status === 'pending' && (
                             <>
                               <button
-                                type="button"
                                 className="btn btn-approve"
+                                style={{ fontSize: 12, padding: '4px 10px' }}
                                 onClick={() => { setActionModal({ item, action: 'approve' }); setReason(''); }}
                               >✓ Approve</button>
                               <button
-                                type="button"
                                 className="btn btn-reject"
+                                style={{ fontSize: 12, padding: '4px 10px' }}
                                 onClick={() => { setActionModal({ item, action: 'reject' }); setReason(''); }}
                               >✗ Reject</button>
                             </>
@@ -295,21 +251,7 @@ export default function QualificationApprovals({ token }) {
       </div>
 
       {detail && (
-        <QualificationDetailModal
-          detail={detail}
-          onClose={() => setDetail(null)}
-          showActions={(detail.approvalStatus || 'pending') === 'pending'}
-          onApprove={() => {
-            setActionModal({ item: detail, action: 'approve' });
-            setReason('');
-            setDetail(null);
-          }}
-          onReject={() => {
-            setActionModal({ item: detail, action: 'reject' });
-            setReason('');
-            setDetail(null);
-          }}
-        />
+        <QualificationDetailModal detail={detail} onClose={() => setDetail(null)} />
       )}
 
       {actionModal && (
@@ -370,7 +312,7 @@ function initialsOf(name) {
   return (a + b).toUpperCase() || name[0].toUpperCase();
 }
 
-function QualificationDetailModal({ detail, onClose, showActions, onApprove, onReject }) {
+function QualificationDetailModal({ detail, onClose }) {
   const status = detail.approvalStatus || 'pending';
   const meta = STATUS_META[status] || STATUS_META.pending;
   const typeLabel = qualificationTypeLabel(detail.type);
@@ -380,24 +322,15 @@ function QualificationDetailModal({ detail, onClose, showActions, onApprove, onR
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal"
-        style={{
-          width: 800,
-          maxWidth: '96vw',
-          padding: 0,
-          overflow: 'hidden',
-          maxHeight: '92vh',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
+        style={{ width: 720, maxWidth: '94vw', padding: 0, overflow: 'hidden' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div
           style={{
-            padding: '14px 18px 12px',
-            background: 'linear-gradient(90deg, #7029d1 0%, #8b46ff 100%)',
+            padding: '20px 24px 18px',
+            background: 'linear-gradient(135deg, #6d28d9 0%, #7c3aed 55%, #8b5cf6 100%)',
             color: '#fff',
             position: 'relative',
-            flexShrink: 0,
           }}
         >
           <button
@@ -420,32 +353,32 @@ function QualificationDetailModal({ detail, onClose, showActions, onApprove, onR
             aria-label="Close"
           >×</button>
 
-          <div style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>
+          <div style={{ fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>
             Qualification · #{detail.id}
           </div>
-          <div style={{ marginTop: 4, fontSize: 17, fontWeight: 700, lineHeight: 1.25, paddingRight: 40 }}>
+          <div style={{ marginTop: 6, fontSize: 20, fontWeight: 700, lineHeight: 1.3, paddingRight: 40 }}>
             {detail.name || 'Untitled qualification'}
           </div>
-          <div style={{ marginTop: 3, fontSize: 12, opacity: 0.9 }}>
+          <div style={{ marginTop: 4, fontSize: 13, opacity: 0.9 }}>
             {typeLabel}
             {detail.certificateNumber ? <> · <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{detail.certificateNumber}</span></> : null}
           </div>
 
-          <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <span
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 5,
-                padding: '4px 10px',
+                gap: 6,
+                padding: '5px 12px',
                 borderRadius: 999,
                 background: meta.bg,
                 color: meta.fg,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 600,
               }}
             >
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: meta.dot }} />
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.dot }} />
               {meta.label}
             </span>
             {expired && status !== 'rejected' && (
@@ -453,11 +386,11 @@ function QualificationDetailModal({ detail, onClose, showActions, onApprove, onR
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  padding: '4px 10px',
+                  padding: '5px 12px',
                   borderRadius: 999,
                   background: '#fee2e2',
                   color: '#991b1b',
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: 600,
                 }}
               >Expired</span>
@@ -465,51 +398,40 @@ function QualificationDetailModal({ detail, onClose, showActions, onApprove, onR
           </div>
         </div>
 
-        <div
-          style={{
-            padding: 16,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-            background: '#f9fafb',
-            overflowY: 'auto',
-            flex: 1,
-            minHeight: 0,
-          }}
-        >
+        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18, background: '#f9fafb' }}>
           <section
             style={{
               background: '#fff',
-              borderRadius: 10,
+              borderRadius: 12,
               border: '1px solid #e5e7eb',
-              padding: 12,
+              padding: 16,
               display: 'flex',
               alignItems: 'center',
-              gap: 12,
+              gap: 14,
             }}
           >
             <div
               style={{
-                width: 40,
-                height: 40,
+                width: 46,
+                height: 46,
                 borderRadius: '50%',
                 background: 'linear-gradient(135deg, #ede9fe, #ddd6fe)',
-                color: '#7029d1',
+                color: '#6d28d9',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 700,
-                fontSize: 14,
+                fontSize: 15,
                 flexShrink: 0,
               }}
             >
               {initialsOf(detail.User?.name)}
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>
                 {detail.User?.name || `User #${detail.userId}`}
               </div>
-              <div style={{ marginTop: 2, fontSize: 12, color: '#6b7280', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ marginTop: 2, fontSize: 13, color: '#6b7280', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 {detail.User?.employeeCode && <span>{detail.User.employeeCode}</span>}
                 {detail.User?.email && (
                   <>
@@ -524,9 +446,9 @@ function QualificationDetailModal({ detail, onClose, showActions, onApprove, onR
           <section
             style={{
               background: '#fff',
-              borderRadius: 10,
+              borderRadius: 12,
               border: '1px solid #e5e7eb',
-              padding: '12px 14px',
+              padding: '16px 18px',
             }}
           >
             <SectionTitle>Qualification</SectionTitle>
@@ -534,9 +456,9 @@ function QualificationDetailModal({ detail, onClose, showActions, onApprove, onR
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                columnGap: 14,
-                rowGap: 10,
-                marginTop: 8,
+                columnGap: 18,
+                rowGap: 14,
+                marginTop: 12,
               }}
             >
               <DetailRow label="Type" value={typeLabel} />
@@ -563,9 +485,9 @@ function QualificationDetailModal({ detail, onClose, showActions, onApprove, onR
           <section
             style={{
               background: '#fff',
-              borderRadius: 10,
+              borderRadius: 12,
               border: '1px solid #e5e7eb',
-              padding: '12px 14px',
+              padding: '16px 18px',
             }}
           >
             <SectionTitle>Review</SectionTitle>
@@ -573,9 +495,9 @@ function QualificationDetailModal({ detail, onClose, showActions, onApprove, onR
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                columnGap: 14,
-                rowGap: 10,
-                marginTop: 8,
+                columnGap: 18,
+                rowGap: 14,
+                marginTop: 12,
               }}
             >
               <DetailRow label="Status" value={meta.label} />
@@ -591,21 +513,13 @@ function QualificationDetailModal({ detail, onClose, showActions, onApprove, onR
           style={{
             display: 'flex',
             justifyContent: 'flex-end',
-            gap: 8,
-            flexWrap: 'wrap',
-            padding: '10px 16px',
+            gap: 10,
+            padding: '14px 24px',
             background: '#fff',
             borderTop: '1px solid #e5e7eb',
-            flexShrink: 0,
           }}
         >
-          {showActions && onApprove && onReject && (
-            <>
-              <button type="button" className="btn btn-reject" onClick={onReject}>✗ Reject</button>
-              <button type="button" className="btn btn-approve" onClick={onApprove}>✓ Approve</button>
-            </>
-          )}
-          <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
+          <button className="btn btn-secondary" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
@@ -621,17 +535,17 @@ function DocumentScanSection({ documentPath }) {
       <section
         style={{
           background: '#fff',
-          borderRadius: 10,
+          borderRadius: 12,
           border: '1px dashed #e5e7eb',
-          padding: '12px 14px',
+          padding: '16px 18px',
           color: '#6b7280',
-          fontSize: 12,
+          fontSize: 13,
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          gap: 10,
         }}
       >
-        <span style={{ fontSize: 16 }} aria-hidden>📄</span>
+        <span style={{ fontSize: 18 }} aria-hidden>📄</span>
         <span>No document scan was attached with this qualification.</span>
       </section>
     );
@@ -647,20 +561,20 @@ function DocumentScanSection({ documentPath }) {
     <section
       style={{
         background: '#fff',
-        borderRadius: 10,
+        borderRadius: 12,
         border: '1px solid #e5e7eb',
-        padding: '12px 14px',
+        padding: '16px 18px',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <SectionTitle>Document scan</SectionTitle>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <a
             href={url}
             target="_blank"
             rel="noreferrer"
             className="btn btn-secondary"
-            style={{ fontSize: 11, padding: '4px 8px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            style={{ fontSize: 12, padding: '4px 10px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
           >
             ↗ Open in new tab
           </a>
@@ -668,22 +582,22 @@ function DocumentScanSection({ documentPath }) {
             href={url}
             download={filename}
             className="btn btn-secondary"
-            style={{ fontSize: 11, padding: '4px 8px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            style={{ fontSize: 12, padding: '4px 10px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
           >
             ⬇ Download
           </a>
         </div>
       </div>
 
-      <div style={{ marginTop: 6, fontSize: 11, color: '#6b7280', wordBreak: 'break-all' }}>
+      <div style={{ marginTop: 10, fontSize: 12, color: '#6b7280', wordBreak: 'break-all' }}>
         {filename}
       </div>
 
       <div
         style={{
-          marginTop: 8,
+          marginTop: 12,
           background: '#f3f4f6',
-          borderRadius: 8,
+          borderRadius: 10,
           border: '1px solid #e5e7eb',
           overflow: 'hidden',
           position: 'relative',
@@ -710,7 +624,7 @@ function DocumentScanSection({ documentPath }) {
               style={{
                 display: 'block',
                 width: '100%',
-                maxHeight: 200,
+                maxHeight: 380,
                 objectFit: 'contain',
                 background: '#fff',
               }}
@@ -727,7 +641,7 @@ function DocumentScanSection({ documentPath }) {
             <iframe
               src={url}
               title="Qualification PDF"
-              style={{ width: '100%', height: 260, border: 'none', display: 'block' }}
+              style={{ width: '100%', height: 420, border: 'none', display: 'block' }}
             />
           </div>
         )}
@@ -751,16 +665,16 @@ function FallbackTile({ icon, text }) {
   return (
     <div
       style={{
-        padding: '14px 12px',
+        padding: '28px 20px',
         background: '#fff',
         color: '#4b5563',
-        fontSize: 12,
+        fontSize: 13,
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
+        gap: 12,
       }}
     >
-      <span style={{ fontSize: 22 }} aria-hidden>{icon}</span>
+      <span style={{ fontSize: 28 }} aria-hidden>{icon}</span>
       <span>{text}</span>
     </div>
   );
@@ -828,10 +742,10 @@ function SectionTitle({ children }) {
   return (
     <div
       style={{
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: 700,
         textTransform: 'uppercase',
-        color: '#7029d1',
+        color: '#7c3aed',
         letterSpacing: '0.08em',
       }}
     >
@@ -845,7 +759,7 @@ function DetailRow({ label, value, full }) {
     <div style={{ gridColumn: full ? '1 / span 2' : 'auto', minWidth: 0 }}>
       <div
         style={{
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: 600,
           textTransform: 'uppercase',
           color: '#6b7280',
@@ -854,7 +768,7 @@ function DetailRow({ label, value, full }) {
       >
         {label}
       </div>
-      <div style={{ marginTop: 2, color: '#111827', fontSize: 13, lineHeight: 1.4, wordBreak: 'break-word' }}>
+      <div style={{ marginTop: 4, color: '#111827', fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word' }}>
         {value || <span style={{ color: '#9ca3af' }}>—</span>}
       </div>
     </div>

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toastConfirm, toastError, toastInfo } from '../lib/notify.jsx';
-import { theme } from '../theme.js';
+
+const API = 'http://localhost:5000/api';
 
 function authHeaders(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -24,13 +25,6 @@ function toDateInput(d) {
   }
 }
 
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
-  }).format(amount || 0);
-}
-
 const EMPTY_FORM = {
   name: '',
   effectiveDate: '',
@@ -48,12 +42,6 @@ const EMPTY_FORM = {
 };
 
 export default function InsuranceConfigManagement({ token }) {
-  const apiRoot = useMemo(
-    () => (import.meta.env.VITE_API_BASE || 'http://localhost:5000').replace(/\/$/, ''),
-    []
-  );
-  const apiUrl = `${apiRoot}/api/insurance-configs`;
-
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -64,7 +52,7 @@ export default function InsuranceConfigManagement({ token }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(apiUrl, { headers: authHeaders(token) });
+      const res = await fetch(`${API}/insurance-configs`, { headers: authHeaders(token) });
       const data = await res.json();
       if (!res.ok || data.status !== 'success') {
         toastError(data.message || 'Cannot load insurance configs');
@@ -77,11 +65,9 @@ export default function InsuranceConfigManagement({ token }) {
     } finally {
       setLoading(false);
     }
-  }, [token, apiUrl]);
+  }, [token]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   const openCreate = () => {
     setForm(EMPTY_FORM);
@@ -130,7 +116,9 @@ export default function InsuranceConfigManagement({ token }) {
         isActive: !!form.isActive,
         description: form.description.trim() || null,
       };
-      const url = modal.mode === 'create' ? apiUrl : `${apiUrl}/${modal.item.id}`;
+      const url = modal.mode === 'create'
+        ? `${API}/insurance-configs`
+        : `${API}/insurance-configs/${modal.item.id}`;
       const method = modal.mode === 'create' ? 'POST' : 'PUT';
       const res = await fetch(url, {
         method,
@@ -155,17 +143,13 @@ export default function InsuranceConfigManagement({ token }) {
   const remove = async (item) => {
     const ok = await toastConfirm({
       title: 'Delete insurance config',
-      message: (
-        <span>
-          Delete configuration <strong>{item.name}</strong>?
-        </span>
-      ),
+      message: (<span>Delete configuration <strong>{item.name}</strong>?</span>),
       confirmText: 'Delete',
       cancelText: 'Cancel',
     });
     if (!ok) return;
     try {
-      const res = await fetch(`${apiUrl}/${item.id}`, {
+      const res = await fetch(`${API}/insurance-configs/${item.id}`, {
         method: 'DELETE',
         headers: authHeaders(token),
       });
@@ -183,9 +167,8 @@ export default function InsuranceConfigManagement({ token }) {
 
   const q = search.trim().toLowerCase();
   const filtered = q
-    ? items.filter((it) =>
-        [it.name, it.description].filter(Boolean).join(' ').toLowerCase().includes(q)
-      )
+    ? items.filter((it) => [it.name, it.description]
+        .filter(Boolean).join(' ').toLowerCase().includes(q))
     : items;
 
   const numInput = (field, step = '0.01') => (
@@ -194,30 +177,16 @@ export default function InsuranceConfigManagement({ token }) {
       step={step}
       value={form[field]}
       onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
+      style={{ padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: 6 }}
     />
   );
 
-  const cardShell = {
-    backgroundColor: theme.neutral.white,
-    borderRadius: theme.radius.lg,
-    border: `1px solid ${theme.neutral.gray200}`,
-    boxShadow: theme.shadows.sm,
-    padding: theme.spacing.xl,
-  };
-
   return (
-    <div className="sup-mgmt-page" style={{ display: 'grid', gap: theme.spacing.xl }}>
-      <div className="sup-mgmt-hero">
-        <h2>🛡️ Insurance &amp; cost configuration</h2>
-        <p>Manage insurance rates (BHXH, BHYT, BHTN) and other cost configurations for salary calculations.</p>
-      </div>
-
-      <div className="sup-approval-toolbar card sup-approval-toolbar--filters">
-        <div className="sup-approval-toolbar-inner sup-approval-toolbar-inner--search-status">
+    <div>
+      <div className="sup-approval-toolbar card">
+        <div className="sup-approval-toolbar-inner">
           <div className="sup-approval-search-wrap sup-approval-search-wrap--grow">
-            <label className="sup-approval-label" htmlFor="sup-ic-search">
-              Search
-            </label>
+            <label className="sup-approval-label" htmlFor="sup-ic-search">Search</label>
             <input
               id="sup-ic-search"
               className="sup-approval-search"
@@ -230,9 +199,7 @@ export default function InsuranceConfigManagement({ token }) {
           </div>
           <div className="sup-approval-filter-wrap">
             <label className="sup-approval-label">&nbsp;</label>
-            <button type="button" className="sup-mgmt-btn-add" onClick={openCreate}>
-              + Add configuration
-            </button>
+            <button className="btn btn-primary" onClick={openCreate}>+ New configuration</button>
           </div>
           <div className="sup-approval-meta">
             {loading ? 'Loading…' : `${filtered.length} of ${items.length} shown`}
@@ -240,262 +207,85 @@ export default function InsuranceConfigManagement({ token }) {
         </div>
       </div>
 
-      <div style={cardShell}>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: theme.spacing.lg,
-            flexWrap: 'wrap',
-            gap: theme.spacing.md,
-          }}
-        >
-          <h3 style={{ fontSize: 20, fontWeight: 800, color: theme.primary.main, margin: 0 }}>
-            Insurance Configurations
-          </h3>
-        </div>
-
-        {loading ? (
-          <div className="loading">Loading...</div>
-        ) : filtered.length === 0 && items.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: theme.spacing.xl, color: theme.neutral.gray500 }}>
-            <p>No insurance configurations found. Create your first configuration.</p>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: theme.spacing.lg, color: theme.neutral.gray500 }}>
-            No rows match your search.
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gap: theme.spacing.md }}>
-            {filtered.map((config) => (
-              <div
-                key={config.id}
-                style={{
-                  border: `2px solid ${config.isActive ? theme.success.main : theme.neutral.gray300}`,
-                  borderRadius: theme.radius.md,
-                  padding: theme.spacing.lg,
-                  backgroundColor: config.isActive ? theme.success.light : theme.neutral.white,
-                  transition: 'all 0.2s',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    marginBottom: theme.spacing.md,
-                    flexWrap: 'wrap',
-                    gap: theme.spacing.sm,
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.xs, flexWrap: 'wrap' }}>
-                      <h4 style={{ fontSize: 18, fontWeight: 700, color: theme.neutral.gray900, margin: 0 }}>
-                        {config.name}
-                      </h4>
-                      {config.isActive && (
-                        <span
-                          style={{
-                            padding: '4px 12px',
-                            borderRadius: theme.radius.sm,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            backgroundColor: theme.success.main,
-                            color: theme.neutral.white,
-                            textTransform: 'uppercase',
-                          }}
-                        >
-                          Active
-                        </span>
+      <div className="card sup-approval-table-card">
+        {loading ? <div className="loading">Loading...</div> : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Effective</th>
+                  <th>Expiry</th>
+                  <th>Employee SI/HI/UI (%)</th>
+                  <th>Employer SI/HI/UI (%)</th>
+                  <th>Active</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.id}</td>
+                    <td>
+                      {item.name}
+                      {item.description && (
+                        <div style={{ fontSize: 12, color: '#718096' }}>{item.description}</div>
                       )}
-                    </div>
-                    <div style={{ fontSize: 12, color: theme.neutral.gray600, marginBottom: theme.spacing.xs }}>
-                      Effective: {formatDate(config.effectiveDate)}
-                      {config.expiryDate && ` – ${formatDate(config.expiryDate)}`}
-                    </div>
-                    {config.description && (
-                      <div style={{ fontSize: 13, color: theme.neutral.gray700, marginTop: theme.spacing.xs }}>
-                        {config.description}
+                    </td>
+                    <td>{formatDate(item.effectiveDate)}</td>
+                    <td>{formatDate(item.expiryDate)}</td>
+                    <td>
+                      {Number(item.employeeSocialInsuranceRate || 0)}/
+                      {Number(item.employeeHealthInsuranceRate || 0)}/
+                      {Number(item.employeeUnemploymentInsuranceRate || 0)}
+                    </td>
+                    <td>
+                      {Number(item.employerSocialInsuranceRate || 0)}/
+                      {Number(item.employerHealthInsuranceRate || 0)}/
+                      {Number(item.employerUnemploymentInsuranceRate || 0)}
+                    </td>
+                    <td>
+                      <span className={`badge ${item.isActive ? 'badge-approved' : 'badge-rejected'}`}>
+                        {item.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => openEdit(item)}>Edit</button>
+                        <button className="btn btn-reject" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => remove(item)}>Delete</button>
                       </div>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', gap: theme.spacing.xs }}>
-                    <button
-                      type="button"
-                      onClick={() => openEdit(config)}
-                      style={{
-                        padding: '6px 12px',
-                        backgroundColor: theme.primary.main,
-                        color: theme.neutral.white,
-                        border: 'none',
-                        borderRadius: theme.radius.sm,
-                        cursor: 'pointer',
-                        fontSize: 12,
-                        fontWeight: 600,
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => remove(config)}
-                      style={{
-                        padding: '6px 12px',
-                        backgroundColor: theme.error.main,
-                        color: theme.neutral.white,
-                        border: 'none',
-                        borderRadius: theme.radius.sm,
-                        cursor: 'pointer',
-                        fontSize: 12,
-                        fontWeight: 600,
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                    gap: theme.spacing.md,
-                    padding: theme.spacing.md,
-                    backgroundColor: theme.neutral.gray50,
-                    borderRadius: theme.radius.md,
-                    marginTop: theme.spacing.md,
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: theme.neutral.gray700,
-                        marginBottom: theme.spacing.xs,
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Employee Rates (%)
-                    </div>
-                    <div style={{ fontSize: 13, color: theme.neutral.gray700, lineHeight: 1.8 }}>
-                      <div>
-                        BHXH: <strong>{config.employeeSocialInsuranceRate}%</strong>
-                      </div>
-                      <div>
-                        BHYT: <strong>{config.employeeHealthInsuranceRate}%</strong>
-                      </div>
-                      <div>
-                        BHTN: <strong>{config.employeeUnemploymentInsuranceRate}%</strong>
-                      </div>
-                      <div style={{ marginTop: 4, fontSize: 11, color: theme.neutral.gray600 }}>
-                        Total:{' '}
-                        <strong>
-                          {(
-                            parseFloat(config.employeeSocialInsuranceRate) +
-                            parseFloat(config.employeeHealthInsuranceRate) +
-                            parseFloat(config.employeeUnemploymentInsuranceRate)
-                          ).toFixed(2)}
-                          %
-                        </strong>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: theme.neutral.gray700,
-                        marginBottom: theme.spacing.xs,
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Employer Rates (%)
-                    </div>
-                    <div style={{ fontSize: 13, color: theme.neutral.gray700, lineHeight: 1.8 }}>
-                      <div>
-                        BHXH: <strong>{config.employerSocialInsuranceRate}%</strong>
-                      </div>
-                      <div>
-                        BHYT: <strong>{config.employerHealthInsuranceRate}%</strong>
-                      </div>
-                      <div>
-                        BHTN: <strong>{config.employerUnemploymentInsuranceRate}%</strong>
-                      </div>
-                      <div style={{ marginTop: 4, fontSize: 11, color: theme.neutral.gray600 }}>
-                        Total:{' '}
-                        <strong>
-                          {(
-                            parseFloat(config.employerSocialInsuranceRate) +
-                            parseFloat(config.employerHealthInsuranceRate) +
-                            parseFloat(config.employerUnemploymentInsuranceRate)
-                          ).toFixed(2)}
-                          %
-                        </strong>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {(config.maxInsuranceSalary || config.minInsuranceSalary) && (
-                  <div
-                    style={{
-                      marginTop: theme.spacing.md,
-                      padding: theme.spacing.md,
-                      backgroundColor: theme.neutral.gray50,
-                      borderRadius: theme.radius.md,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: theme.neutral.gray700,
-                        marginBottom: theme.spacing.xs,
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Salary Limits
-                    </div>
-                    <div style={{ fontSize: 13, color: theme.neutral.gray700 }}>
-                      {config.minInsuranceSalary != null && config.minInsuranceSalary !== '' && (
-                        <div>
-                          Min: <strong>{formatCurrency(config.minInsuranceSalary)}</strong>
-                        </div>
-                      )}
-                      {config.maxInsuranceSalary != null && config.maxInsuranceSalary !== '' && (
-                        <div>
-                          Max: <strong>{formatCurrency(config.maxInsuranceSalary)}</strong>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                    </td>
+                  </tr>
+                ))}
+                {items.length === 0 && (
+                  <tr><td colSpan={8} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No configurations</td></tr>
                 )}
-              </div>
-            ))}
+                {items.length > 0 && filtered.length === 0 && (
+                  <tr><td colSpan={8} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No rows match your search</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
 
       {modal && (
         <div className="modal-overlay" onClick={() => !saving && setModal(null)}>
-          <div className="modal sup-modal-compact" onClick={(e) => e.stopPropagation()}>
+          <div className="modal" style={{ width: 720 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{modal.mode === 'create' ? 'New insurance configuration' : `Edit configuration · #${modal.item.id}`}</h3>
-              <button type="button" className="close-btn" onClick={() => !saving && setModal(null)}>
-                ×
-              </button>
+              <button className="close-btn" onClick={() => !saving && setModal(null)}>×</button>
             </div>
             <form onSubmit={save}>
-              <div className="sup-modal-form-grid">
-                <div className="form-group sup-modal-span-2">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                <div className="form-group" style={{ gridColumn: '1 / span 2' }}>
                   <label>Name *</label>
                   <input
                     value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                     required
+                    style={{ padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: 6 }}
                   />
                 </div>
                 <div className="form-group">
@@ -505,6 +295,7 @@ export default function InsuranceConfigManagement({ token }) {
                     value={form.effectiveDate}
                     onChange={(e) => setForm((f) => ({ ...f, effectiveDate: e.target.value }))}
                     required
+                    style={{ padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: 6 }}
                   />
                 </div>
                 <div className="form-group">
@@ -513,77 +304,59 @@ export default function InsuranceConfigManagement({ token }) {
                     type="date"
                     value={form.expiryDate}
                     onChange={(e) => setForm((f) => ({ ...f, expiryDate: e.target.value }))}
+                    style={{ padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: 6 }}
+                  />
+                </div>
+
+                <div className="form-group"><label>Employee social insurance (%)</label>{numInput('employeeSocialInsuranceRate')}</div>
+                <div className="form-group"><label>Employer social insurance (%)</label>{numInput('employerSocialInsuranceRate')}</div>
+                <div className="form-group"><label>Employee health insurance (%)</label>{numInput('employeeHealthInsuranceRate')}</div>
+                <div className="form-group"><label>Employer health insurance (%)</label>{numInput('employerHealthInsuranceRate')}</div>
+                <div className="form-group"><label>Employee unemployment insurance (%)</label>{numInput('employeeUnemploymentInsuranceRate')}</div>
+                <div className="form-group"><label>Employer unemployment insurance (%)</label>{numInput('employerUnemploymentInsuranceRate')}</div>
+
+                <div className="form-group">
+                  <label>Min insurance salary (VND)</label>
+                  <input
+                    type="number"
+                    value={form.minInsuranceSalary}
+                    onChange={(e) => setForm((f) => ({ ...f, minInsuranceSalary: e.target.value }))}
+                    style={{ padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: 6 }}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Max insurance salary (VND)</label>
+                  <input
+                    type="number"
+                    value={form.maxInsuranceSalary}
+                    onChange={(e) => setForm((f) => ({ ...f, maxInsuranceSalary: e.target.value }))}
+                    style={{ padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: 6 }}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label>Emp. social (%)</label>
-                  {numInput('employeeSocialInsuranceRate')}
-                </div>
-                <div className="form-group">
-                  <label>Empl. social (%)</label>
-                  {numInput('employerSocialInsuranceRate')}
-                </div>
-                <div className="form-group">
-                  <label>Emp. health (%)</label>
-                  {numInput('employeeHealthInsuranceRate')}
-                </div>
-                <div className="form-group">
-                  <label>Empl. health (%)</label>
-                  {numInput('employerHealthInsuranceRate')}
-                </div>
-                <div className="form-group">
-                  <label>Emp. unemployment (%)</label>
-                  {numInput('employeeUnemploymentInsuranceRate')}
-                </div>
-                <div className="form-group">
-                  <label>Empl. unemployment (%)</label>
-                  {numInput('employerUnemploymentInsuranceRate')}
+                  <label>Active</label>
+                  <select
+                    value={form.isActive ? '1' : '0'}
+                    onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.value === '1' }))}
+                    style={{ padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: 6 }}
+                  >
+                    <option value="1">Active (will deactivate others)</option>
+                    <option value="0">Inactive</option>
+                  </select>
                 </div>
 
-                <div className="sup-modal-row-3">
-                  <div className="form-group">
-                    <label>Min salary (VND)</label>
-                    <input
-                      type="number"
-                      value={form.minInsuranceSalary}
-                      onChange={(e) => setForm((f) => ({ ...f, minInsuranceSalary: e.target.value }))}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Max salary (VND)</label>
-                    <input
-                      type="number"
-                      value={form.maxInsuranceSalary}
-                      onChange={(e) => setForm((f) => ({ ...f, maxInsuranceSalary: e.target.value }))}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Status</label>
-                    <select
-                      value={form.isActive ? '1' : '0'}
-                      onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.value === '1' }))}
-                    >
-                      <option value="1">Active (deactivates others)</option>
-                      <option value="0">Inactive</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-group sup-modal-span-2">
-                  <label>Description (optional)</label>
+                <div className="form-group" style={{ gridColumn: '1 / span 2' }}>
+                  <label>Description</label>
                   <textarea
                     rows={2}
-                    placeholder="Short note…"
                     value={form.description}
                     onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                   />
                 </div>
               </div>
-              <div className="sup-modal-form-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setModal(null)} disabled={saving}>
-                  Cancel
-                </button>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setModal(null)} disabled={saving}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={saving}>
                   {saving ? 'Saving…' : modal.mode === 'create' ? 'Create' : 'Save changes'}
                 </button>

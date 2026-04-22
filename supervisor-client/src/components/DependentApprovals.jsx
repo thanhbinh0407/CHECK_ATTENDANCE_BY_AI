@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
-import { toastError, toastSuccess, toastWarning } from '../lib/notify.jsx';
-import { sortApprovalsByRecency } from '../utils/approvalSort.js';
-import socket from '../socket.js';
+import { useCallback, useEffect, useState } from 'react';
+import { toastError, toastInfo, toastWarning } from '../lib/notify.jsx';
 
 const API = 'http://localhost:5000/api';
 
@@ -41,11 +39,9 @@ export default function DependentApprovals({ token }) {
   const [detail, setDetail] = useState(null);
   const [actionModal, setActionModal] = useState(null);
   const [reason, setReason] = useState('');
-  const decisionLockRef = useRef(false);
 
-  const load = useCallback(async (opts = {}) => {
-    const silent = Boolean(opts.silent);
-    if (!silent) setLoading(true);
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
       const url = statusFilter
         ? `${API}/dependents?approvalStatus=${statusFilter}`
@@ -57,46 +53,18 @@ export default function DependentApprovals({ token }) {
         setItems([]);
         return;
       }
-      setItems(sortApprovalsByRecency(Array.isArray(data.dependents) ? data.dependents : []));
+      setItems(Array.isArray(data.dependents) ? data.dependents : []);
     } catch (err) {
       toastError(err.message || 'Network error');
     } finally {
-      if (!silent) setLoading(false);
+      setLoading(false);
     }
   }, [token, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
-    const onAudit = (payload) => {
-      if (payload?.kind !== 'action_audit') return;
-      const a = String(payload.action || '');
-      if (a.startsWith('dependent.')) load({ silent: true });
-    };
-    socket.on('audit:new', onAudit);
-    return () => socket.off('audit:new', onAudit);
-  }, [load]);
-
-  const patchListFromDep = (dep) => {
-    if (!dep?.id) return;
-    setItems((prev) => {
-      if (statusFilter === 'pending' && dep.approvalStatus !== 'pending') {
-        return sortApprovalsByRecency(prev.filter((x) => x.id !== dep.id));
-      }
-      const idx = prev.findIndex((x) => x.id === dep.id);
-      if (idx === -1) return prev;
-      const row = { ...prev[idx], ...dep, User: dep.User ?? prev[idx].User };
-      const next = [...prev];
-      next[idx] = row;
-      return sortApprovalsByRecency(next);
-    });
-    setDetail((d) => (d && d.id === dep.id ? { ...d, ...dep } : d));
-  };
-
   const approve = async () => {
     const { item } = actionModal;
-    if (!item || decisionLockRef.current) return;
-    decisionLockRef.current = true;
     try {
       const res = await fetch(`${API}/dependents/${item.id}/approve`, {
         method: 'PUT',
@@ -107,15 +75,12 @@ export default function DependentApprovals({ token }) {
         toastError(data.message || 'Approve failed');
         return;
       }
-      toastSuccess('Dependent approved.');
-      patchListFromDep(data.dependent);
+      toastInfo('Dependent approved');
       setActionModal(null);
       setReason('');
-      await load({ silent: true });
+      load();
     } catch (err) {
       toastError(err.message);
-    } finally {
-      decisionLockRef.current = false;
     }
   };
 
@@ -125,8 +90,6 @@ export default function DependentApprovals({ token }) {
       toastWarning('Please enter a rejection reason.');
       return;
     }
-    if (!item || decisionLockRef.current) return;
-    decisionLockRef.current = true;
     try {
       const res = await fetch(`${API}/dependents/${item.id}/reject`, {
         method: 'PUT',
@@ -138,15 +101,12 @@ export default function DependentApprovals({ token }) {
         toastError(data.message || 'Reject failed');
         return;
       }
-      toastSuccess('Dependent rejected.');
-      patchListFromDep(data.dependent);
+      toastInfo('Dependent rejected');
       setActionModal(null);
       setReason('');
-      await load({ silent: true });
+      load();
     } catch (err) {
       toastError(err.message);
-    } finally {
-      decisionLockRef.current = false;
     }
   };
 
@@ -168,14 +128,10 @@ export default function DependentApprovals({ token }) {
     : items;
 
   return (
-    <div className="sup-mgmt-page">
-      <div className="sup-mgmt-hero">
-        <h2>Dependent approvals</h2>
-        <p>Review dependent registrations for benefits and payroll. Approve or reject with a clear reason when needed.</p>
-      </div>
-      <div className="sup-approval-toolbar card sup-approval-toolbar--filters">
-        <div className="sup-approval-toolbar-inner sup-approval-toolbar-inner--search-status">
-          <div className="sup-approval-search-wrap">
+    <div>
+      <div className="sup-approval-toolbar card">
+        <div className="sup-approval-toolbar-inner">
+          <div className="sup-approval-search-wrap sup-approval-search-wrap--grow">
             <label className="sup-approval-label" htmlFor="sup-dep-search">Search</label>
             <input
               id="sup-dep-search"
@@ -207,10 +163,10 @@ export default function DependentApprovals({ token }) {
         </div>
       </div>
 
-      <div className="card sup-approval-table-card sup-mgmt-table-shell">
+      <div className="card sup-approval-table-card">
         {loading ? <div className="loading">Loading...</div> : (
           <div className="table-wrap">
-            <table className="sup-mgmt-table">
+            <table>
               <thead>
                 <tr>
                   <th>ID</th>
@@ -247,22 +203,22 @@ export default function DependentApprovals({ token }) {
                         </span>
                       </td>
                       <td>
-                        <div className="sup-mgmt-action-row">
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                           <button
-                            type="button"
                             className="btn btn-secondary"
+                            style={{ fontSize: 12, padding: '4px 10px' }}
                             onClick={() => setDetail(item)}
                           >View</button>
                           {status === 'pending' && (
                             <>
                               <button
-                                type="button"
                                 className="btn btn-approve"
+                                style={{ fontSize: 12, padding: '4px 10px' }}
                                 onClick={() => { setActionModal({ item, action: 'approve' }); setReason(''); }}
                               >✓ Approve</button>
                               <button
-                                type="button"
                                 className="btn btn-reject"
+                                style={{ fontSize: 12, padding: '4px 10px' }}
                                 onClick={() => { setActionModal({ item, action: 'reject' }); setReason(''); }}
                               >✗ Reject</button>
                             </>
@@ -285,21 +241,7 @@ export default function DependentApprovals({ token }) {
       </div>
 
       {detail && (
-        <DependentDetailModal
-          detail={detail}
-          onClose={() => setDetail(null)}
-          showActions={(detail.approvalStatus || 'pending') === 'pending'}
-          onApprove={() => {
-            setActionModal({ item: detail, action: 'approve' });
-            setReason('');
-            setDetail(null);
-          }}
-          onReject={() => {
-            setActionModal({ item: detail, action: 'reject' });
-            setReason('');
-            setDetail(null);
-          }}
-        />
+        <DependentDetailModal detail={detail} onClose={() => setDetail(null)} />
       )}
 
       {actionModal && (
@@ -375,7 +317,7 @@ function ageFromDob(dob) {
   }
 }
 
-function DependentDetailModal({ detail, onClose, showActions, onApprove, onReject }) {
+function DependentDetailModal({ detail, onClose }) {
   const status = detail.approvalStatus || 'pending';
   const meta = STATUS_META[status] || STATUS_META.pending;
   const relLabel = relationshipLabel(detail.relationship);
@@ -387,24 +329,15 @@ function DependentDetailModal({ detail, onClose, showActions, onApprove, onRejec
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal"
-        style={{
-          width: 800,
-          maxWidth: '96vw',
-          padding: 0,
-          overflow: 'hidden',
-          maxHeight: '92vh',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
+        style={{ width: 720, maxWidth: '94vw', padding: 0, overflow: 'hidden' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div
           style={{
-            padding: '14px 18px 12px',
-            background: 'linear-gradient(90deg, #7029d1 0%, #8b46ff 100%)',
+            padding: '20px 24px 18px',
+            background: 'linear-gradient(135deg, #6d28d9 0%, #7c3aed 55%, #8b5cf6 100%)',
             color: '#fff',
             position: 'relative',
-            flexShrink: 0,
           }}
         >
           <button
@@ -427,32 +360,32 @@ function DependentDetailModal({ detail, onClose, showActions, onApprove, onRejec
             aria-label="Close"
           >×</button>
 
-          <div style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>
+          <div style={{ fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>
             Dependent · #{detail.id}
           </div>
-          <div style={{ marginTop: 4, fontSize: 17, fontWeight: 700, lineHeight: 1.25, paddingRight: 40 }}>
+          <div style={{ marginTop: 6, fontSize: 20, fontWeight: 700, lineHeight: 1.3, paddingRight: 40 }}>
             {detail.fullName || 'Unnamed dependent'}
           </div>
-          <div style={{ marginTop: 3, fontSize: 12, opacity: 0.9 }}>
+          <div style={{ marginTop: 4, fontSize: 13, opacity: 0.9 }}>
             <span aria-hidden>{relIcon}</span> {relLabel}
             {age !== null ? <> · {age} yrs old</> : null}
           </div>
 
-          <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <span
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 5,
-                padding: '4px 10px',
+                gap: 6,
+                padding: '5px 12px',
                 borderRadius: 999,
                 background: meta.bg,
                 color: meta.fg,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 600,
               }}
             >
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: meta.dot }} />
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.dot }} />
               {meta.label}
             </span>
             {isMinor && (
@@ -460,11 +393,11 @@ function DependentDetailModal({ detail, onClose, showActions, onApprove, onRejec
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  padding: '4px 10px',
+                  padding: '5px 12px',
                   borderRadius: 999,
                   background: 'rgba(255,255,255,0.18)',
                   color: '#fff',
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: 600,
                 }}
               >Minor</span>
@@ -472,54 +405,43 @@ function DependentDetailModal({ detail, onClose, showActions, onApprove, onRejec
           </div>
         </div>
 
-        <div
-          style={{
-            padding: 16,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-            background: '#f9fafb',
-            overflowY: 'auto',
-            flex: 1,
-            minHeight: 0,
-          }}
-        >
+        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18, background: '#f9fafb' }}>
           <section
             style={{
               background: '#fff',
-              borderRadius: 10,
+              borderRadius: 12,
               border: '1px solid #e5e7eb',
-              padding: 12,
+              padding: 16,
               display: 'flex',
               alignItems: 'center',
-              gap: 12,
+              gap: 14,
             }}
           >
             <div
               style={{
-                width: 40,
-                height: 40,
+                width: 46,
+                height: 46,
                 borderRadius: '50%',
                 background: 'linear-gradient(135deg, #ede9fe, #ddd6fe)',
-                color: '#7029d1',
+                color: '#6d28d9',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 700,
-                fontSize: 14,
+                fontSize: 15,
                 flexShrink: 0,
               }}
             >
               {initialsOf(detail.User?.name)}
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', letterSpacing: '0.06em' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: '#6b7280', letterSpacing: '0.06em' }}>
                 Registered by
               </div>
-              <div style={{ marginTop: 2, fontSize: 14, fontWeight: 600, color: '#111827' }}>
+              <div style={{ marginTop: 2, fontSize: 15, fontWeight: 600, color: '#111827' }}>
                 {detail.User?.name || `User #${detail.userId}`}
               </div>
-              <div style={{ marginTop: 2, fontSize: 12, color: '#6b7280', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ marginTop: 2, fontSize: 13, color: '#6b7280', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 {detail.User?.employeeCode && <span>{detail.User.employeeCode}</span>}
                 {detail.User?.email && (
                   <>
@@ -534,9 +456,9 @@ function DependentDetailModal({ detail, onClose, showActions, onApprove, onRejec
           <section
             style={{
               background: '#fff',
-              borderRadius: 10,
+              borderRadius: 12,
               border: '1px solid #e5e7eb',
-              padding: '12px 14px',
+              padding: '16px 18px',
             }}
           >
             <SectionTitle>Personal information</SectionTitle>
@@ -544,9 +466,9 @@ function DependentDetailModal({ detail, onClose, showActions, onApprove, onRejec
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                columnGap: 14,
-                rowGap: 10,
-                marginTop: 8,
+                columnGap: 18,
+                rowGap: 14,
+                marginTop: 12,
               }}
             >
               <DetailRow label="Relationship" value={relLabel} />
@@ -567,9 +489,9 @@ function DependentDetailModal({ detail, onClose, showActions, onApprove, onRejec
           <section
             style={{
               background: '#fff',
-              borderRadius: 10,
+              borderRadius: 12,
               border: '1px solid #e5e7eb',
-              padding: '12px 14px',
+              padding: '16px 18px',
             }}
           >
             <SectionTitle>Contact</SectionTitle>
@@ -577,16 +499,16 @@ function DependentDetailModal({ detail, onClose, showActions, onApprove, onRejec
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                columnGap: 14,
-                rowGap: 10,
-                marginTop: 8,
+                columnGap: 18,
+                rowGap: 14,
+                marginTop: 12,
               }}
             >
               <DetailRow
                 label="Phone"
                 value={
                   detail.phoneNumber
-                    ? <a href={`tel:${detail.phoneNumber}`} style={{ color: '#7029d1', textDecoration: 'none' }}>{detail.phoneNumber}</a>
+                    ? <a href={`tel:${detail.phoneNumber}`} style={{ color: '#6d28d9', textDecoration: 'none' }}>{detail.phoneNumber}</a>
                     : null
                 }
               />
@@ -594,7 +516,7 @@ function DependentDetailModal({ detail, onClose, showActions, onApprove, onRejec
                 label="Email"
                 value={
                   detail.email
-                    ? <a href={`mailto:${detail.email}`} style={{ color: '#7029d1', textDecoration: 'none', wordBreak: 'break-all' }}>{detail.email}</a>
+                    ? <a href={`mailto:${detail.email}`} style={{ color: '#6d28d9', textDecoration: 'none', wordBreak: 'break-all' }}>{detail.email}</a>
                     : null
                 }
               />
@@ -605,9 +527,9 @@ function DependentDetailModal({ detail, onClose, showActions, onApprove, onRejec
           <section
             style={{
               background: '#fff',
-              borderRadius: 10,
+              borderRadius: 12,
               border: '1px solid #e5e7eb',
-              padding: '12px 14px',
+              padding: '16px 18px',
             }}
           >
             <SectionTitle>Review</SectionTitle>
@@ -615,9 +537,9 @@ function DependentDetailModal({ detail, onClose, showActions, onApprove, onRejec
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                columnGap: 14,
-                rowGap: 10,
-                marginTop: 8,
+                columnGap: 18,
+                rowGap: 14,
+                marginTop: 12,
               }}
             >
               <DetailRow label="Status" value={meta.label} />
@@ -634,21 +556,13 @@ function DependentDetailModal({ detail, onClose, showActions, onApprove, onRejec
           style={{
             display: 'flex',
             justifyContent: 'flex-end',
-            gap: 8,
-            flexWrap: 'wrap',
-            padding: '10px 16px',
+            gap: 10,
+            padding: '14px 24px',
             background: '#fff',
             borderTop: '1px solid #e5e7eb',
-            flexShrink: 0,
           }}
         >
-          {showActions && onApprove && onReject && (
-            <>
-              <button type="button" className="btn btn-reject" onClick={onReject}>✗ Reject</button>
-              <button type="button" className="btn btn-approve" onClick={onApprove}>✓ Approve</button>
-            </>
-          )}
-          <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
+          <button className="btn btn-secondary" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
@@ -659,10 +573,10 @@ function SectionTitle({ children }) {
   return (
     <div
       style={{
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: 700,
         textTransform: 'uppercase',
-        color: '#7029d1',
+        color: '#7c3aed',
         letterSpacing: '0.08em',
       }}
     >
@@ -676,7 +590,7 @@ function DetailRow({ label, value, full, mono }) {
     <div style={{ gridColumn: full ? '1 / span 2' : 'auto', minWidth: 0 }}>
       <div
         style={{
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: 600,
           textTransform: 'uppercase',
           color: '#6b7280',
@@ -687,10 +601,10 @@ function DetailRow({ label, value, full, mono }) {
       </div>
       <div
         style={{
-          marginTop: 2,
+          marginTop: 4,
           color: '#111827',
-          fontSize: 13,
-          lineHeight: 1.4,
+          fontSize: 14,
+          lineHeight: 1.5,
           wordBreak: 'break-word',
           fontFamily: mono ? 'ui-monospace, SFMono-Regular, Menlo, monospace' : undefined,
         }}
