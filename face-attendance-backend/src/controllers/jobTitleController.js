@@ -5,7 +5,7 @@ import { Op } from "sequelize";
 export const getAllJobTitles = async (req, res) => {
   try {
     const jobTitles = await JobTitle.findAll({
-      order: [['id', 'ASC']]
+      order: [['name', 'ASC']]
     });
     return res.json({
       status: "success",

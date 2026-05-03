@@ -31,6 +31,7 @@ export default function AttendanceLog() {
   const [logsTotal, setLogsTotal] = useState(0);
   const [logsHasMore, setLogsHasMore] = useState(false);
   const [listOffset, setListOffset] = useState(0);
+  const [exportingKind, setExportingKind] = useState("");
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
   const filterKey = `${dateRange.start}|${dateRange.end}|${searchQuery}|${selectedEmployeeId}|${filterType}|${filterStatus}`;
@@ -141,6 +142,8 @@ export default function AttendanceLog() {
       const from = dateRange.start || daysAgoISO(31);
       const to = dateRange.end || todayISO();
       try {
+        setExportingKind(kind);
+        setError("");
         const qs = buildExportQuery();
         const res = await fetch(`${apiBase}/api/admin/attendance-logs?${qs}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -153,9 +156,11 @@ export default function AttendanceLog() {
         }
         const name = `attendance-history-${from}-${to}`;
         if (kind === "excel") exportAttendanceToExcel(rows, employees, name);
-        else exportAttendanceToPDF(rows, employees, name);
+        else await exportAttendanceToPDF(rows, employees, name);
       } catch (e) {
         setError("Export failed: " + e.message);
+      } finally {
+        setExportingKind("");
       }
     },
     [apiBase, buildExportQuery, employees, dateRange.start, dateRange.end]
@@ -451,7 +456,7 @@ export default function AttendanceLog() {
                   backgroundColor: "#f8f9fa",
                   border: "1px solid #e0e0e0",
                   borderRadius: "6px",
-                  cursor: "pointer",
+                  cursor: exportingKind !== "" ? "not-allowed" : "pointer",
                   fontSize: "12px",
                   fontWeight: "500"
                 }}
@@ -506,18 +511,20 @@ export default function AttendanceLog() {
               <button
                 type="button"
                 onClick={() => runExport("excel")}
+                disabled={exportingKind !== ""}
                 style={{
                   padding: "10px 20px",
                   backgroundColor: "#28a745",
                   color: "#fff",
                   border: "none",
                   borderRadius: "8px",
-                  cursor: "pointer",
+                  cursor: exportingKind !== "" ? "not-allowed" : "pointer",
                   fontWeight: "600",
                   fontSize: "14px",
                   display: "flex",
                   alignItems: "center",
-                  gap: "8px"
+                  gap: "8px",
+                  opacity: exportingKind !== "" ? 0.7 : 1
                 }}
               >
                 📥 Export Excel
@@ -525,24 +532,28 @@ export default function AttendanceLog() {
               <button
                 type="button"
                 onClick={() => runExport("pdf")}
+                disabled={exportingKind !== ""}
               style={{
                 padding: "10px 20px",
                 backgroundColor: "#dc3545",
                 color: "#fff",
                 border: "none",
                 borderRadius: "8px",
-                cursor: "pointer",
+                cursor: exportingKind !== "" ? "not-allowed" : "pointer",
                 fontWeight: "600",
                 fontSize: "14px",
                 display: "flex",
                 alignItems: "center",
-                gap: "8px"
+                gap: "8px",
+                opacity: exportingKind !== "" ? 0.7 : 1
               }}
               onMouseEnter={(e) => {
+                if (exportingKind !== "") return;
                 e.currentTarget.style.backgroundColor = "#c82333";
                 e.currentTarget.style.transform = "translateY(-2px)";
               }}
               onMouseLeave={(e) => {
+                if (exportingKind !== "") return;
                 e.currentTarget.style.backgroundColor = "#dc3545";
                 e.currentTarget.style.transform = "translateY(0)";
               }}
