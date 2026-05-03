@@ -165,12 +165,12 @@ export default function SalaryAdvanceRequest({ refreshVersion = 0 }) {
   const disbursementLabel = (advance) => {
     if (advance.approvalStatus !== "approved") return "—";
     if (advance.disbursedAt) {
-      return `Đã chuyển ${new Date(advance.disbursedAt).toLocaleDateString("vi-VN")}`;
+      return `Transferred on ${new Date(advance.disbursedAt).toLocaleDateString("en-US")}`;
     }
     const due = advance.payoutDueDate;
     const day = advance.configuredPayoutDay ?? 15;
-    if (due) return `Từ ${due} (ngày ${day}/tháng)`;
-    return "Chờ đến ngày giải ngân";
+    if (due) return `From ${due} (day ${day} of the month)`;
+    return "Waiting for disbursement date";
   };
 
   const getStatusBadge = (status) => {
@@ -734,7 +734,7 @@ export default function SalaryAdvanceRequest({ refreshVersion = 0 }) {
                     borderRight: "1px solid #868e96"
                   }}
                 >
-                  Giải ngân
+                  Disbursement
                 </th>
                 <th
                   style={{

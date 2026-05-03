@@ -127,7 +127,7 @@ export const login = async (req, res) => {
       return res.status(403).json({
         status: "error",
         message:
-          "Vai trò đăng nhập không khớp với tài khoản. Hãy chọn đúng vai trò hoặc dùng tài khoản tương ứng.",
+          "The selected sign-in role does not match this account. Please choose the correct role or use the corresponding account.",
       });
     }
 

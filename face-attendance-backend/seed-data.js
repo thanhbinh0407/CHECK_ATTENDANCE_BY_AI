@@ -1573,6 +1573,7 @@ async function seedDB() {
     let salCount = 0;
     const refYear = now.getUTCFullYear();
     const refMonth = now.getUTCMonth() + 1;
+    const payrollApprovalDemoMonths = new Set([1, 2, 3, refMonth]);
 
     for (let i = 0; i < employees.length; i += 1) {
       const emp = employees[i];
@@ -1591,13 +1592,13 @@ async function seedDB() {
 
           const { salary, attendance } = calc;
 
-          const isRefMonth = year === refYear && month === refMonth;
+          const isPayrollApprovalDemoMonth = year === refYear && payrollApprovalDemoMonths.has(month);
 
           let salaryStatus = 'paid';
           let calculatedAt = new Date(REFERENCE_DATE);
           let paidAt = new Date(REFERENCE_DATE);
 
-          if (isRefMonth) {
+          if (isPayrollApprovalDemoMonth) {
             const bucket = i % 3; // 0 => approved, 1 => paid, 2 => pending
             if (bucket === 0) {
               salaryStatus = 'approved';
@@ -1609,7 +1610,7 @@ async function seedDB() {
               paidAt = new Date(REFERENCE_DATE);
             } else {
               salaryStatus = 'pending';
-              calculatedAt = null;
+              calculatedAt = new Date(REFERENCE_DATE);
               paidAt = null;
             }
           }
@@ -2238,5 +2239,3 @@ async function seedDB() {
 }
 
 seedDB();
-
-
