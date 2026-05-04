@@ -3,6 +3,7 @@
  * Quản lý tài khoản người dùng và phân quyền - dành riêng cho Manager (Giám đốc)
  */
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import * as faceapi from "face-api.js";
 import {
   toastConfirm,
@@ -78,6 +79,8 @@ export default function UserManagement() {
   const [faceLoading, setFaceLoading] = useState(false);
   const [faceMessage, setFaceMessage] = useState("");
   const [openActionMenuId, setOpenActionMenuId] = useState(null);
+  /** Viewport coords for portaled actions menu (escapes overflow-x on table wrapper). */
+  const [actionMenuPos, setActionMenuPos] = useState(null);
 
   const actorUserId = getActorIdFromToken();
   const managerMayLifecycleMutate = (u) =>
@@ -498,15 +501,35 @@ export default function UserManagement() {
     return acc;
   }, {});
 
+  const closeActionMenu = useCallback(() => {
+    setOpenActionMenuId(null);
+    setActionMenuPos(null);
+  }, []);
+
   useEffect(() => {
     if (openActionMenuId == null) return;
-    const onDoc = () => setOpenActionMenuId(null);
+    const onDoc = () => closeActionMenu();
     const tid = setTimeout(() => document.addEventListener("click", onDoc), 0);
     return () => {
       clearTimeout(tid);
       document.removeEventListener("click", onDoc);
     };
-  }, [openActionMenuId]);
+  }, [openActionMenuId, closeActionMenu]);
+
+  useEffect(() => {
+    if (openActionMenuId == null) return;
+    const onScrollOrResize = () => closeActionMenu();
+    window.addEventListener("resize", onScrollOrResize);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    return () => {
+      window.removeEventListener("resize", onScrollOrResize);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+    };
+  }, [openActionMenuId, closeActionMenu]);
+
+  useEffect(() => {
+    if (openActionMenuId != null && !filtered.some((u) => u.id === openActionMenuId)) closeActionMenu();
+  }, [filtered, openActionMenuId, closeActionMenu]);
 
   const rolePlainLabel = (roleValue) => {
     const r = ROLE_OPTIONS.find((x) => x.value === roleValue);
@@ -534,6 +557,9 @@ export default function UserManagement() {
     padding: 12,
     border: "1px solid #e2e8f0",
   };
+
+  const actionMenuUser =
+    openActionMenuId != null ? filtered.find((u) => u.id === openActionMenuId) ?? null : null;
 
   return (
     <div className="user-management">
@@ -665,106 +691,20 @@ export default function UserManagement() {
                             aria-label={`Actions for ${user.name || user.employeeCode}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setOpenActionMenuId(menuOpen ? null : user.id);
+                              if (menuOpen) {
+                                closeActionMenu();
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setActionMenuPos({
+                                  top: rect.bottom + 4,
+                                  right: window.innerWidth - rect.right,
+                                });
+                                setOpenActionMenuId(user.id);
+                              }
                             }}
                           >
                             ···
                           </button>
-                          {menuOpen && (
-                            <div
-                              className="um-actions-menu"
-                              role="menu"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <button
-                                type="button"
-                                role="menuitem"
-                                className="um-actions-item"
-                                onClick={() => {
-                                  setOpenActionMenuId(null);
-                                  openEdit(user);
-                                }}
-                              >
-                                Edit / Role
-                              </button>
-                              <button
-                                type="button"
-                                role="menuitem"
-                                className="um-actions-item"
-                                onClick={() => {
-                                  setOpenActionMenuId(null);
-                                  openRoleChange(user);
-                                }}
-                              >
-                                Change Role
-                              </button>
-                              <button
-                                type="button"
-                                role="menuitem"
-                                className="um-actions-item"
-                                onClick={() => {
-                                  setOpenActionMenuId(null);
-                                  resetPassword(user.id, user.name);
-                                }}
-                              >
-                                Reset Password
-                              </button>
-                              <button
-                                type="button"
-                                role="menuitem"
-                                className="um-actions-item"
-                                onClick={() => {
-                                  setOpenActionMenuId(null);
-                                  openFaceModal(user);
-                                }}
-                              >
-                                Update Face
-                              </button>
-                              {listMode === "active" ? (
-                                managerMayLifecycleMutate(user) && (
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="um-actions-item um-actions-item--danger"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      deactivate(user);
-                                    }}
-                                  >
-                                    Deactivate
-                                  </button>
-                                )
-                              ) : (
-                                managerMayLifecycleMutate(user) && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      role="menuitem"
-                                      className="um-actions-item um-actions-item--ok"
-                                      onClick={() => {
-                                        setOpenActionMenuId(null);
-                                        restore(user);
-                                      }}
-                                    >
-                                      Restore
-                                    </button>
-                                    <button
-                                      type="button"
-                                      role="menuitem"
-                                      className="um-actions-item um-actions-item--danger"
-                                      title="Permanent delete (requires Manager password)"
-                                      onClick={() => {
-                                        setOpenActionMenuId(null);
-                                        permanentlyDeleteUser(user);
-                                      }}
-                                    >
-                                      Delete forever
-                                    </button>
-                                  </>
-                                )
-                              )}
-                            </div>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -781,6 +721,106 @@ export default function UserManagement() {
             </table>
           </div>
         )}
+        {!loading &&
+          actionMenuUser &&
+          actionMenuPos &&
+          createPortal(
+            <div
+              className="um-actions-menu um-actions-menu--portal"
+              style={{ top: actionMenuPos.top, right: actionMenuPos.right }}
+              role="menu"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                className="um-actions-item"
+                onClick={() => {
+                  closeActionMenu();
+                  openEdit(actionMenuUser);
+                }}
+              >
+                Edit / Role
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="um-actions-item"
+                onClick={() => {
+                  closeActionMenu();
+                  openRoleChange(actionMenuUser);
+                }}
+              >
+                Change Role
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="um-actions-item"
+                onClick={() => {
+                  closeActionMenu();
+                  resetPassword(actionMenuUser.id, actionMenuUser.name);
+                }}
+              >
+                Reset Password
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="um-actions-item"
+                onClick={() => {
+                  closeActionMenu();
+                  openFaceModal(actionMenuUser);
+                }}
+              >
+                Update Face
+              </button>
+              {listMode === "active" ? (
+                managerMayLifecycleMutate(actionMenuUser) && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="um-actions-item um-actions-item--danger"
+                    onClick={() => {
+                      closeActionMenu();
+                      deactivate(actionMenuUser);
+                    }}
+                  >
+                    Deactivate
+                  </button>
+                )
+              ) : (
+                managerMayLifecycleMutate(actionMenuUser) && (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="um-actions-item um-actions-item--ok"
+                      onClick={() => {
+                        closeActionMenu();
+                        restore(actionMenuUser);
+                      }}
+                    >
+                      Restore
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="um-actions-item um-actions-item--danger"
+                      title="Permanent delete (requires Manager password)"
+                      onClick={() => {
+                        closeActionMenu();
+                        permanentlyDeleteUser(actionMenuUser);
+                      }}
+                    >
+                      Delete forever
+                    </button>
+                  </>
+                )
+              )}
+            </div>,
+            document.body
+          )}
       </div>
 
       {/* Modal */}

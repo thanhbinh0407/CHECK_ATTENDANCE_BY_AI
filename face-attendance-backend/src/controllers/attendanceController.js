@@ -224,19 +224,24 @@ export const logAttendance = async (req, res) => {
 
 export const getTodayAttendance = async (req, res) => {
   try {
+    const { deviceId, userId } = req.query;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const logs = await AttendanceLog.findAll({
-      where: {
-        timestamp: {
-          [Op.gte]: today,
-          [Op.lt]: tomorrow
-        }
+    const where = {
+      timestamp: {
+        [Op.gte]: today,
+        [Op.lt]: tomorrow,
       },
+    };
+    if (deviceId) where.deviceId = String(deviceId);
+    if (userId) where.userId = Number(userId);
+
+    const logs = await AttendanceLog.findAll({
+      where,
       include: [{ model: User, as: "User", attributes: ['name', 'email', 'employeeCode', 'avatarUrl'] }],
       order: [['timestamp', 'DESC']]
     });

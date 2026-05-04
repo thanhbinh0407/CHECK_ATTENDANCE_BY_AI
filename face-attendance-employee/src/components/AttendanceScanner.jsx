@@ -1,8 +1,290 @@
 import { useState, useRef, useEffect } from "react";
 import { calculateAntiSpoofingScore, checkLiveness } from "../utils/antiSpoofing";
+import { evaluateSpoofEvidence } from "../utils/deviceSpoofDetector";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 const MODELS_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@latest/model/";
+
+// How many consecutive clean frames are required before the spoof latch resets.
+// At ~300 ms / frame this is roughly 2 seconds with the device fully out of frame.
+const SPOOF_CLEAN_FRAMES_REQUIRED = 6;
+// Maximum length of the evidence ring buffer.
+const EVIDENCE_BUFFER_LIMIT = 12;
+// How many consecutive frames of CLEAN single-face detection are required
+// before the system is allowed to open the confirm dialog. This prevents the
+// race where face-api fires once on a phone-displayed face before any of the
+// anti-spoof signals have accumulated enough evidence.
+const REQUIRED_STABLE_FRAMES = 4;
+
+// ---------------------------------------------------------------------------
+// Face-frame circle.
+// The kiosk renders a fixed circular region in the centre of the camera
+// preview. Users must place their face inside this circle for the system to
+// even consider running anti-spoof / matching. The area OUTSIDE the circle
+// is then aggressively scanned for device borders / rectangular bezels.
+// ---------------------------------------------------------------------------
+const FACE_CIRCLE = {
+  cxRatio: 0.5, // centre X
+  cyRatio: 0.45, // centre Y (slightly above middle so chin has room)
+  rRatio: 0.26, // radius = 26% of height -> diameter ~52%
+};
+const FACE_FIT = {
+  centerOffsetMax: 0.35, // face centre must stay within 35% of circle radius
+  minFaceRadiusRatio: 0.55, // face must be >= 55% of circle radius
+  maxFaceRadiusRatio: 1.20, // face must be <= 120% of circle radius
+};
+// Mean-luminance threshold (0..255). Below this the room is considered too
+// dark to verify a face reliably, so the scanner asks the user to brighten.
+const LOW_LIGHT_THRESHOLD = 55;
+
+const computeFaceCircle = (W, H) => ({
+  cx: W * FACE_CIRCLE.cxRatio,
+  cy: H * FACE_CIRCLE.cyRatio,
+  r: H * FACE_CIRCLE.rRatio,
+});
+
+const evaluateFaceFit = (faceBox, circle) => {
+  if (!faceBox || !circle) return { ok: false, reasons: ["no_face"] };
+  const fcx = faceBox.x + faceBox.width / 2;
+  const fcy = faceBox.y + faceBox.height / 2;
+  const fr = (faceBox.width + faceBox.height) / 4;
+  const dist = Math.hypot(fcx - circle.cx, fcy - circle.cy);
+  const reasons = [];
+  if (dist > circle.r * FACE_FIT.centerOffsetMax) reasons.push("off_center");
+  if (fr < circle.r * FACE_FIT.minFaceRadiusRatio) reasons.push("too_far");
+  if (fr > circle.r * FACE_FIT.maxFaceRadiusRatio) reasons.push("too_close");
+  return { ok: reasons.length === 0, reasons };
+};
+
+// Mean luminance of a video frame in 0..255. Sampled at 80x60 for speed; the
+// ITU-R BT.601 luma weights approximate perceptual brightness well enough.
+const measureLuminance = (video) => {
+  if (!video || !video.videoWidth) return 255;
+  const w = 80;
+  const h = 60;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const cx = c.getContext("2d", { willReadFrequently: true });
+  cx.drawImage(video, 0, 0, w, h);
+  const d = cx.getImageData(0, 0, w, h).data;
+  let sum = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  }
+  return sum / (w * h);
+};
+
+/**
+ * Scan the ring between the user's detected face bbox (+ a small margin) and
+ * the circle perimeter for long horizontal / vertical edges or right-angle
+ * corners. Real faces leave that ring sparse (skin / hair); a phone-displayed
+ * face leaves a sharp rectangular bezel inside it.
+ *
+ * @param {HTMLVideoElement} video
+ * @param {{cx:number, cy:number, r:number}} circle  In ORIGINAL video coords.
+ * @param {{x:number,y:number,width:number,height:number}} faceBox
+ * @returns {null|{detected:boolean, reasons:string[],
+ *                 longHorizontals:number, longVerticals:number,
+ *                 cornerCount:number, suspectBbox:object|null}}
+ */
+const detectRectangleInsideCircle = (video, circle, faceBox) => {
+  if (!video || !video.videoWidth || !circle || !faceBox) return null;
+  const W = 320;
+  const H = 240;
+  const sx = video.videoWidth / W;
+  const sy = video.videoHeight / H;
+
+  const ccx = circle.cx / sx;
+  const ccy = circle.cy / sy;
+  const cr = circle.r / Math.max(sx, sy);
+  const cr2 = cr * cr;
+
+  // Face bbox in working space + 8 px margin so eyes / brow / hairline are
+  // outside the ring.
+  const FACE_PAD = 8;
+  const fbx1 = faceBox.x / sx - FACE_PAD;
+  const fby1 = faceBox.y / sy - FACE_PAD;
+  const fbx2 = (faceBox.x + faceBox.width) / sx + FACE_PAD;
+  const fby2 = (faceBox.y + faceBox.height) / sy + FACE_PAD;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(video, 0, 0, W, H);
+  const data = ctx.getImageData(0, 0, W, H).data;
+
+  // Pre-compute grayscale + ring mask.
+  const gray = new Float32Array(W * H);
+  const mask = new Uint8Array(W * H);
+  let ringPixels = 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      const j = i * 4;
+      gray[i] = (data[j] + data[j + 1] + data[j + 2]) / 3;
+      const dx = x - ccx;
+      const dy = y - ccy;
+      const insideCircle = dx * dx + dy * dy <= cr2;
+      const insideFace =
+        x >= fbx1 && x <= fbx2 && y >= fby1 && y <= fby2;
+      if (insideCircle && !insideFace) {
+        mask[i] = 1;
+        ringPixels++;
+      }
+    }
+  }
+  if (ringPixels < 200) return null;
+
+  // Sobel magnitude + direction inside the ring.
+  const gx = new Float32Array(W * H);
+  const gy = new Float32Array(W * H);
+  const mag = new Float32Array(W * H);
+  const MAG_T = 60;
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      if (!mask[i]) continue;
+      const a =
+        -gray[i - W - 1] - 2 * gray[i - 1] - gray[i + W - 1] +
+        gray[i - W + 1] + 2 * gray[i + 1] + gray[i + W + 1];
+      const b =
+        -gray[i - W - 1] - 2 * gray[i - W] - gray[i - W + 1] +
+        gray[i + W - 1] + 2 * gray[i + W] + gray[i + W + 1];
+      gx[i] = a;
+      gy[i] = b;
+      mag[i] = Math.sqrt(a * a + b * b);
+    }
+  }
+
+  const MIN_RUN = 22;
+  const horizEnds = [];
+  const vertEnds = [];
+
+  // Long horizontal lines (gradient mostly vertical).
+  let longHorizontals = 0;
+  for (let y = 1; y < H - 1; y++) {
+    let runStart = -1;
+    for (let x = 1; x < W; x++) {
+      const i = y * W + x;
+      const accept =
+        mask[i] &&
+        mag[i] > MAG_T &&
+        Math.abs(gy[i]) > Math.abs(gx[i]) * 1.2;
+      if (accept) {
+        if (runStart < 0) runStart = x;
+      } else if (runStart >= 0) {
+        if (x - runStart >= MIN_RUN) {
+          longHorizontals++;
+          horizEnds.push({ x: runStart, y });
+          horizEnds.push({ x: x - 1, y });
+        }
+        runStart = -1;
+      }
+    }
+    if (runStart >= 0 && W - runStart >= MIN_RUN) {
+      longHorizontals++;
+      horizEnds.push({ x: runStart, y });
+      horizEnds.push({ x: W - 1, y });
+    }
+  }
+
+  // Long vertical lines (gradient mostly horizontal).
+  let longVerticals = 0;
+  for (let x = 1; x < W - 1; x++) {
+    let runStart = -1;
+    for (let y = 1; y < H; y++) {
+      const i = y * W + x;
+      const accept =
+        mask[i] &&
+        mag[i] > MAG_T &&
+        Math.abs(gx[i]) > Math.abs(gy[i]) * 1.2;
+      if (accept) {
+        if (runStart < 0) runStart = y;
+      } else if (runStart >= 0) {
+        if (y - runStart >= MIN_RUN) {
+          longVerticals++;
+          vertEnds.push({ x, y: runStart });
+          vertEnds.push({ x, y: y - 1 });
+        }
+        runStart = -1;
+      }
+    }
+    if (runStart >= 0 && H - runStart >= MIN_RUN) {
+      longVerticals++;
+      vertEnds.push({ x, y: runStart });
+      vertEnds.push({ x, y: H - 1 });
+    }
+  }
+
+  // Right-angle corners: a horizontal endpoint near a vertical endpoint.
+  const PROX = 8;
+  const PROX2 = PROX * PROX;
+  const buckets = new Map();
+  for (const v of vertEnds) {
+    const key = `${Math.floor(v.x / PROX)}:${Math.floor(v.y / PROX)}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(v);
+  }
+  let cornerCount = 0;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const seen = new Set();
+  for (const h of horizEnds) {
+    const cellX = Math.floor(h.x / PROX);
+    const cellY = Math.floor(h.y / PROX);
+    let matched = false;
+    for (let dy = -1; dy <= 1 && !matched; dy++) {
+      for (let dx = -1; dx <= 1 && !matched; dx++) {
+        const list = buckets.get(`${cellX + dx}:${cellY + dy}`);
+        if (!list) continue;
+        for (const v of list) {
+          const ddx = h.x - v.x;
+          const ddy = h.y - v.y;
+          if (ddx * ddx + ddy * ddy <= PROX2) {
+            const ckey = `${Math.round(h.x / PROX)}:${Math.round(h.y / PROX)}`;
+            if (seen.has(ckey)) continue;
+            seen.add(ckey);
+            cornerCount++;
+            if (h.x < minX) minX = h.x;
+            if (h.x > maxX) maxX = h.x;
+            if (h.y < minY) minY = h.y;
+            if (h.y > maxY) maxY = h.y;
+            matched = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  const reasons = [];
+  if (cornerCount >= 2) reasons.push(`corners:${cornerCount}`);
+  if (longHorizontals >= 2 && longVerticals >= 2) {
+    reasons.push(`grid:${longHorizontals}x${longVerticals}`);
+  }
+  const detected =
+    cornerCount >= 2 || (longHorizontals >= 2 && longVerticals >= 2);
+
+  let suspectBbox = null;
+  if (detected && minX < maxX && minY < maxY) {
+    suspectBbox = {
+      x: minX * sx,
+      y: minY * sy,
+      width: (maxX - minX) * sx,
+      height: (maxY - minY) * sy,
+    };
+  }
+
+  return {
+    detected,
+    reasons,
+    longHorizontals,
+    longVerticals,
+    cornerCount,
+    suspectBbox,
+  };
+};
 
 function resolveKioskAvatarSrc(avatarUrl) {
   if (!avatarUrl) return null;
@@ -62,10 +344,28 @@ function AttendanceScanner() {
   const [noFaceWarning, setNoFaceWarning] = useState(false);
   const [multiFaceWarning, setMultiFaceWarning] = useState(false);
   const [spoofWarning, setSpoofWarning] = useState(false);
-  const [antiInfo, setAntiInfo] = useState(null);
-  const [antiThreshold, setAntiThreshold] = useState(50);
-  const [useServerAnti, setUseServerAnti] = useState(false);
-  const [serverAntiLoading, setServerAntiLoading] = useState(false);
+  const [spoofReason, setSpoofReason] = useState(null);
+  const [faceFitGuide, setFaceFitGuide] = useState("place_in_circle");
+  const [lowLight, setLowLight] = useState(false);
+  // Pinned at the slider's strictest setting (was a user-facing range, now
+  // hidden from the UI). Server anti-spoof is OFF by default - the third-
+  // party endpoint frequently misclassifies real faces as "Printed Photo /
+  // Screen" which would block real users. The local detectors (rectangle-
+  // in-circle, temporal HF correlation, liveness, circle gate) cover the
+  // spoof surface without that false-positive risk.
+  const antiThreshold = 95;
+  const useServerAnti = false;
+  // Diagnostic panel was removed from the UI; these are kept as refs so the
+  // detection pipeline can still record the values for logging without
+  // pulling React renders.
+  const antiInfoRef = useRef(null);
+  const serverAntiLoadingRef = useRef(false);
+  const setAntiInfo = (v) => {
+    antiInfoRef.current = v;
+  };
+  const setServerAntiLoading = (v) => {
+    serverAntiLoadingRef.current = v;
+  };
   const detectionIntervalRef = useRef(null);
   const antiBufferRef = useRef([]);
   const antiFramesRef = useRef([]);
@@ -74,6 +374,14 @@ function AttendanceScanner() {
   const landmarkBufferRef = useRef([]);
   const centerBufferRef = useRef([]);
   const spoofDetectedRef = useRef(false);
+
+  // Anti-spoof rolling state
+  const evidenceBufferRef = useRef([]);
+  const cleanFrameCountRef = useRef(0);
+  const spoofLatchRef = useRef(false);
+  const spoofBoxRef = useRef(null);
+  const spoofReasonRef = useRef(null);
+  const stableFaceFramesRef = useRef(0);
 
   // Helper to convert dataURL -> Blob for faster multipart uploads
   const dataURLToBlob = (dataurl) => {
@@ -134,8 +442,20 @@ function AttendanceScanner() {
     // Load today's attendance logs from backend so they persist after reload
     fetchTodayLogs();
 
+    // Keep the "Today" list in sync with backend (other kiosks / devices)
+    const pollId = setInterval(() => {
+      fetchTodayLogs();
+    }, 5000);
+
+    const onVis = () => {
+      if (!document.hidden) fetchTodayLogs();
+    };
+    document.addEventListener("visibilitychange", onVis);
+
     // Cleanup
     return () => {
+      clearInterval(pollId);
+      document.removeEventListener("visibilitychange", onVis);
       if (detectionIntervalRef.current) {
         clearInterval(detectionIntervalRef.current);
       }
@@ -145,11 +465,12 @@ function AttendanceScanner() {
   // Fetch today's attendance logs from backend (so they persist after reload)
   const fetchTodayLogs = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/attendance/today`);
+      const res = await fetch(`${API_BASE}/api/attendance/today?deviceId=kiosk-1`);
       const data = await res.json();
       if (data.status === "success" && Array.isArray(data.logs)) {
         const mapped = data.logs.map((log) => ({
           id: log.id,
+          timestamp: log.timestamp ? new Date(log.timestamp).getTime() : 0,
           time: log.timestamp ? new Date(log.timestamp).toLocaleTimeString("en-US") : "",
           name: log.detectedName || "Unknown",
           status: "✓",
@@ -157,6 +478,7 @@ function AttendanceScanner() {
           logsCount: 0,
           avatarUrl: log.avatarUrl || null,
         }));
+        mapped.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         setAttendanceLogs(mapped);
       }
     } catch (e) {
@@ -166,6 +488,14 @@ function AttendanceScanner() {
 
   const startScanning = async () => {
     try {
+      // Reset all rolling state before a fresh scan so stale signals from a
+      // previous session can't keep the spoof latch engaged.
+      antiBufferRef.current = [];
+      antiFramesRef.current = [];
+      landmarkBufferRef.current = [];
+      centerBufferRef.current = [];
+      noFaceCountRef.current = 0;
+      resetSpoofState();
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: 640, height: 480 }
       });
@@ -187,6 +517,84 @@ function AttendanceScanner() {
     detectionIntervalRef.current = setInterval(detectFace, 300);
   };
 
+  // Push one frame's evidence into the rolling buffer, evaluate the latch,
+  // and synchronise React state. Returns the latch decision so callers can
+  // immediately gate any follow-up actions (e.g. opening the confirm dialog).
+  const pushEvidenceAndEvaluate = (evidence) => {
+    const buffer = evidenceBufferRef.current;
+    buffer.push(evidence);
+    if (buffer.length > EVIDENCE_BUFFER_LIMIT) buffer.shift();
+
+    const decision = evaluateSpoofEvidence(buffer, {
+      cleanFramesRequired: SPOOF_CLEAN_FRAMES_REQUIRED,
+    });
+
+    const hasAnySignal =
+      !!evidence.staticImage ||
+      !!evidence.lowLiveness ||
+      !!(evidence.rectInside && evidence.rectInside.detected) ||
+      !!(evidence.serverSpoof && (evidence.serverSpoof.lowScore || /Screen|Print|Replay|Encoding|Compressed/i.test(evidence.serverSpoof.spooType || "")));
+
+    if (decision.block) {
+      spoofLatchRef.current = true;
+      cleanFrameCountRef.current = 0;
+      if (decision.primaryBbox) {
+        spoofBoxRef.current = decision.primaryBbox;
+      }
+      if (decision.primaryReason) {
+        spoofReasonRef.current = decision.primaryReason;
+        setSpoofReason(decision.primaryReason);
+      }
+      if (!spoofWarning) setSpoofWarning(true);
+      console.warn(
+        `[SpoofGate] BLOCK reason=${decision.primaryReason || "n/a"} ` +
+          `high=${decision.highCount} medium=${decision.mediumCount}`
+      );
+      return { latched: true, decision };
+    }
+
+    if (spoofLatchRef.current) {
+      // Already latched – count clean (no-evidence) frames before releasing.
+      if (!hasAnySignal) {
+        cleanFrameCountRef.current += 1;
+      } else {
+        cleanFrameCountRef.current = 0;
+      }
+      if (cleanFrameCountRef.current >= SPOOF_CLEAN_FRAMES_REQUIRED) {
+        console.log(
+          `[SpoofGate] release after ${cleanFrameCountRef.current} clean frames`
+        );
+        spoofLatchRef.current = false;
+        spoofBoxRef.current = null;
+        spoofReasonRef.current = null;
+        cleanFrameCountRef.current = 0;
+        setSpoofWarning(false);
+        setSpoofReason(null);
+      }
+      return { latched: spoofLatchRef.current, decision };
+    }
+
+    if (!hasAnySignal) {
+      cleanFrameCountRef.current = Math.min(
+        cleanFrameCountRef.current + 1,
+        SPOOF_CLEAN_FRAMES_REQUIRED
+      );
+    }
+    return { latched: false, decision };
+  };
+
+  const resetSpoofState = () => {
+    evidenceBufferRef.current = [];
+    spoofLatchRef.current = false;
+    spoofBoxRef.current = null;
+    spoofReasonRef.current = null;
+    cleanFrameCountRef.current = 0;
+    stableFaceFramesRef.current = 0;
+    setSpoofWarning(false);
+    setSpoofReason(null);
+    setFaceFitGuide("place_in_circle");
+  };
+
   const detectFace = async () => {
     if (!videoRef.current || !canvasRef.current || !faceApiLoaded) return;
 
@@ -197,6 +605,21 @@ function AttendanceScanner() {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
+      // Low-light gate: if the room is too dark, ask the user to brighten
+      // before running any detection / spoof pipeline. Skipping the rest of
+      // the work also keeps the spoof latch from resetting prematurely.
+      const meanLum = measureLuminance(video);
+      if (meanLum < LOW_LIGHT_THRESHOLD) {
+        setLowLight(true);
+        setFaceFitGuide("low_light");
+        setConfirmDialog(null);
+        stableFaceFramesRef.current = 0;
+        const ctxLL = canvas.getContext("2d");
+        ctxLL.clearRect(0, 0, canvas.width, canvas.height);
+        return;
+      }
+      if (lowLight) setLowLight(false);
+
       const detections = await faceapi
         .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks()
@@ -205,6 +628,54 @@ function AttendanceScanner() {
       // Draw on canvas
       const ctx = canvas.getContext("2d");
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const faceCircle = computeFaceCircle(canvas.width, canvas.height);
+
+      // Draw the face-frame circle. Colour communicates current state:
+      //   red    -> spoof latched / device detected
+      //   green  -> face inside circle and clean
+      //   blue   -> waiting for face to enter the circle
+      const drawFaceCircle = (state) => {
+        const colour =
+          state === "spoof"
+            ? "#ff1f1f"
+            : state === "ok"
+            ? "#52c41a"
+            : "#1890ff";
+        ctx.save();
+        // Soft inner glow / dashed line
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = colour;
+        ctx.shadowColor = colour;
+        ctx.shadowBlur = state === "spoof" ? 18 : 10;
+        ctx.beginPath();
+        // Match the CSS overlay's near-round vertical ellipse (0.95:1).
+        ctx.ellipse(
+          faceCircle.cx,
+          faceCircle.cy,
+          faceCircle.r * 0.95,
+          faceCircle.r,
+          0,
+          0,
+          Math.PI * 2
+        );
+        ctx.stroke();
+        ctx.restore();
+      };
+
+      // If the spoof latch is on, paint the suspected region in bright red
+      // BEFORE the face overlays so it's clearly visible to the user.
+      const drawSpoofBox = () => {
+        const box = spoofBoxRef.current;
+        if (!spoofLatchRef.current || !box) return;
+        ctx.save();
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = "#ff1f1f";
+        ctx.shadowColor = "rgba(255, 31, 31, 0.55)";
+        ctx.shadowBlur = 14;
+        ctx.strokeRect(box.x, box.y, box.width, box.height);
+        ctx.restore();
+      };
 
       if (detections.length > 0) {
         setDetectedFaces(detections.length);
@@ -223,12 +694,35 @@ function AttendanceScanner() {
           setMultiFaceWarning(false);
         }
 
+        // Face fit assessment is computed up-front so the canvas overlays
+        // (circle colour, face bbox colour) reflect the same state that
+        // gates the detector pipeline below.
+        const primaryDet =
+          detections.length === 1 ? detections[0] : null;
+        const fit = primaryDet
+          ? evaluateFaceFit(primaryDet.detection.box, faceCircle)
+          : { ok: false, reasons: ["multi_face"] };
+
+        const circleState = spoofLatchRef.current
+          ? "spoof"
+          : fit.ok
+          ? "ok"
+          : "wait";
+        drawFaceCircle(circleState);
+
         detections.forEach((detection, idx) => {
           const box = detection.detection.box;
           const landmarks = detection.landmarks;
 
-          // Draw bounding box
-          ctx.strokeStyle = detections.length === 1 ? "#28a745" : "#ffc107";
+          // Draw bounding box (green for normal, yellow for multi-face,
+          // red while spoof latch is engaged so the user sees the issue).
+          ctx.strokeStyle = spoofLatchRef.current
+            ? "#ff1f1f"
+            : detections.length === 1
+            ? fit.ok
+              ? "#28a745"
+              : "#1890ff"
+            : "#ffc107";
           ctx.lineWidth = 3;
           ctx.strokeRect(box.x, box.y, box.width, box.height);
 
@@ -240,6 +734,22 @@ function AttendanceScanner() {
             ctx.fill();
           });
         });
+
+        drawSpoofBox();
+
+        // -----------------------------------------------------------------
+        // FACE-IN-CIRCLE GATE.
+        // Until the user puts their face inside the fixed circle, no
+        // anti-spoof / matching work runs. We surface a guide message and
+        // drop the stable counter so the confirm dialog can never open.
+        // -----------------------------------------------------------------
+        if (!fit.ok) {
+          setFaceFitGuide(fit.reasons[0] || "place_in_circle");
+          setConfirmDialog(null);
+          stableFaceFramesRef.current = 0;
+          return;
+        }
+        setFaceFitGuide(null);
 
         // If single face and confidence > 0.8, run anti-spoof + liveness checks then show confirmation
         if (detections.length === 1 && detections[0].detection.score > 0.8) {
@@ -358,20 +868,23 @@ function AttendanceScanner() {
           };
 
           const temporal = runTemporalChecks();
-          if (temporal.staticImage) {
-            console.log('[TemporalCheck] Static image detected', temporal);
-            setSpoofWarning(true);
-            spoofDetectedRef.current = true;
-            return;
-          }
 
-          // If server-side anti is enabled, first run a fast temporal multipart upload,
-          // then fall back to the detailed /advanced analysis.
+          // ----------------------------------------------------------------
+          // SPOOF SIGNAL COLLECTION
+          // The user's circle gate enforces a minimum face size, which in
+          // turn enforces a minimum real-world distance. At that distance a
+          // phone-displayed face is too small to fit. The remaining defense
+          // layers therefore focus on whether the imagery itself looks like
+          // a real, moving face: liveness, local anti-spoof (texture/moire),
+          // temporal HF correlation, and server-side anti-spoof.
+          // ----------------------------------------------------------------
+
+          // Server-side advanced analysis – signal only, never auto-passes.
+          let serverSpoof = null;
           if (useServerAnti) {
             try {
               setServerAntiLoading(true);
 
-              // Temporal pre-check: send binary frames to server for HF-correlation analysis
               if (antiFramesRef.current && antiFramesRef.current.length >= 4) {
                 try {
                   const fd = new FormData();
@@ -380,22 +893,17 @@ function AttendanceScanner() {
                     const blob = dataURLToBlob(framesToSend[i]);
                     if (blob) fd.append('frames', blob, `frame${i}.jpg`);
                   }
-
                   const tRes = await fetch(`${API_BASE}/api/anti-spoof/temporal-stream`, {
                     method: 'POST',
                     body: fd
                   });
-
                   if (tRes.ok) {
                     const tjson = await tRes.json();
                     if (tjson && tjson.temporal) {
                       const { temporalScore, staticImage } = tjson.temporal;
                       console.log('[ServerTemporal] avgCorr=', temporalScore, 'static=', staticImage);
                       if (staticImage) {
-                        setSpoofWarning(true);
-                        spoofDetectedRef.current = true;
-                        setServerAntiLoading(false);
-                        return; // early exit on static image
+                        temporal.staticImage = true;
                       }
                     }
                   }
@@ -404,25 +912,28 @@ function AttendanceScanner() {
                 }
               }
 
-              // Full advanced analysis (fallback / additional signal)
               const img = document.createElement('canvas');
-              const ctx = img.getContext('2d');
+              const ictx = img.getContext('2d');
               img.width = videoRef.current.videoWidth || 640;
               img.height = videoRef.current.videoHeight || 480;
-              ctx.drawImage(videoRef.current, 0, 0, img.width, img.height);
+              ictx.drawImage(videoRef.current, 0, 0, img.width, img.height);
               const imageBase64 = img.toDataURL('image/jpeg', 0.8);
-
               const res = await fetch(`${API_BASE}/api/anti-spoof/advanced`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ imageBase64, threshold: antiThreshold })
               });
-
               if (res.ok) {
                 const json = await res.json();
                 if (json && typeof json.score === 'number') {
                   const serverScore = json.score;
                   anti = { isFace: json.isReal === true, score: serverScore, details: { ...json.details, spooType: json.spooType, confidence: (json.confidence * 100).toFixed(0) + '%' } };
+                  serverSpoof = {
+                    spooType: json.spooType,
+                    isReal: json.isReal,
+                    score: serverScore,
+                    lowScore: serverScore < antiThreshold,
+                  };
                   console.log(`[Advanced Server Anti] Score: ${serverScore.toFixed(1)}, Type: ${json.spooType}, Real: ${json.isReal}`);
                 }
               }
@@ -438,23 +949,120 @@ function AttendanceScanner() {
           antiBufferRef.current.push(s);
           if (antiBufferRef.current.length > 6) antiBufferRef.current.shift();
           const avgAnti = antiBufferRef.current.reduce((a,b)=>a+b,0) / antiBufferRef.current.length;
-          // Save anti info for overlay (use averaged score)
           setAntiInfo({ ...anti, score: Math.round(avgAnti) });
           console.log(`[AntiCheck] avgAnti=${avgAnti.toFixed(1)}, anti.isFace=${anti.isFace}, live.isAlive=${live.isAlive}`);
 
-          // Gate logic: prefer liveness. Only block if NO liveness AND avg anti (valid number) below threshold
+          // Rectangle-inside-circle detector: scans the ring between the
+          // user's face bbox and the circle perimeter for long horizontal/
+          // vertical edges or right-angle corners. Real faces leave that
+          // ring sparse; a phone-displayed face leaves a sharp bezel.
+          let insideRect = null;
+          try {
+            insideRect = detectRectangleInsideCircle(
+              videoRef.current,
+              faceCircle,
+              primaryDet.detection.box
+            );
+          } catch (e) {
+            console.warn("rectangle-in-circle detector failed", e);
+            insideRect = null;
+          }
+
+          // Build the per-frame evidence record. Each signal is independent;
+          // the evaluator combines them to decide whether to latch.
+          // NOTE: lowAntiScore is intentionally NOT part of the evidence:
+          // with antiThreshold pinned at 95 the local heuristic would fire
+          // on virtually every real frame and silently block real users.
+          // The corroborated `live.isAlive AND avgAnti < threshold` gate
+          // below still uses it as a *combined* signal.
           const antiValid = Number.isFinite(avgAnti);
-          if (!live.isAlive && antiValid && avgAnti < antiThreshold) {
-            setSpoofWarning(true);
+          const evidence = {
+            timestamp: Date.now(),
+            staticImage: !!temporal.staticImage,
+            lowLiveness: !live.isAlive,
+            rectInside: insideRect,
+            serverSpoof,
+          };
+
+          const { latched } = pushEvidenceAndEvaluate(evidence);
+
+          // Any spoof signal AT ALL on this frame resets the stable-face
+          // counter so the confirm dialog can never open while a screen /
+          // photo / static signal is present.
+          const hasAnySpoofSignalThisFrame =
+            !!temporal.staticImage ||
+            evidence.lowLiveness ||
+            !!(insideRect && insideRect.detected) ||
+            !!(
+              serverSpoof &&
+              (serverSpoof.lowScore ||
+                /Screen|Print|Replay|Encoding|Compressed/i.test(
+                  serverSpoof.spooType || ""
+                ))
+            );
+
+          if (hasAnySpoofSignalThisFrame) {
+            stableFaceFramesRef.current = 0;
+          } else {
+            stableFaceFramesRef.current = Math.min(
+              stableFaceFramesRef.current + 1,
+              REQUIRED_STABLE_FRAMES * 2
+            );
+          }
+
+          if (latched) {
             spoofDetectedRef.current = true;
             setConfirmDialog(null);
             return;
           }
 
-          spoofDetectedRef.current = false;
-          setSpoofWarning(false);
+          // Per-frame fail-closed gate. Once any of the strong signals fire,
+          // never progress to confirm even if the multi-frame latch hasn't
+          // engaged yet.
+          if (temporal.staticImage) {
+            setConfirmDialog(null);
+            return;
+          }
+          if (insideRect && insideRect.detected) {
+            console.warn(
+              "[SpoofGate] rectangle-in-circle: " +
+                (insideRect.reasons || []).join(",")
+            );
+            setConfirmDialog(null);
+            return;
+          }
+          // Server spoof verdict alone is not enough to fail-close - the
+          // server's "Printed Photo / Screen" classifier mis-fires on real
+          // faces. Require corroboration with a local signal (no liveness
+          // OR low local anti-spoof) before blocking.
+          if (
+            serverSpoof &&
+            serverSpoof.spooType &&
+            /Screen|Print|Replay|Encoding|Compressed/i.test(serverSpoof.spooType) &&
+            (!live.isAlive || (antiValid && avgAnti < antiThreshold))
+          ) {
+            setConfirmDialog(null);
+            return;
+          }
+          if (!live.isAlive && antiValid && avgAnti < antiThreshold) {
+            setConfirmDialog(null);
+            return;
+          }
 
-          if (!lastMatch || Date.now() - lastMatch > 5000) {
+          spoofDetectedRef.current = false;
+
+          // Require N consecutive clean frames before opening the confirm
+          // dialog. This is the second layer of the fail-closed design – it
+          // protects against the case where face-api fires once on a phone
+          // before any of the spoof detectors have had a chance to run.
+          if (stableFaceFramesRef.current < REQUIRED_STABLE_FRAMES) {
+            return;
+          }
+
+          if (
+            !spoofLatchRef.current &&
+            (!lastMatch || Date.now() - lastMatch > 5000)
+          ) {
             showConfirmation(detections[0]);
           }
         }
@@ -462,15 +1070,25 @@ function AttendanceScanner() {
         setDetectedFaces(0);
         // Close dialog if no face detected
         setConfirmDialog(null);
-        setSpoofWarning(false);
         centerBufferRef.current = [];
         landmarkBufferRef.current = [];
         spoofDetectedRef.current = false;
+        stableFaceFramesRef.current = 0;
+        setFaceFitGuide("place_in_circle");
+        drawFaceCircle(spoofLatchRef.current ? "spoof" : "wait");
+        drawSpoofBox();
+
+        pushEvidenceAndEvaluate({
+          timestamp: Date.now(),
+          staticImage: false,
+          lowLiveness: false,
+          serverSpoof: null,
+        });
+
         // Count frames without face - show warning after ~7 frames (2 seconds at 300ms interval)
         noFaceCountRef.current += 1;
-        if (noFaceCountRef.current >= 7 && !noFaceWarning) {
+        if (noFaceCountRef.current >= 7 && !noFaceWarning && !spoofLatchRef.current) {
           setNoFaceWarning(true);
-          // Auto-hide warning after 2 seconds
           clearTimeout(noFaceWarningRef.current);
           noFaceWarningRef.current = setTimeout(() => {
             setNoFaceWarning(false);
@@ -639,6 +1257,16 @@ function AttendanceScanner() {
           return;
         }
 
+        // Final fail-closed check: the spoof latch may have engaged while
+        // the backend match request was in flight – never open the dialog
+        // in that case.
+        if (spoofLatchRef.current) {
+          console.warn(
+            "[Scanner] dropping match result because spoof latch engaged during request"
+          );
+          return;
+        }
+
         // Capture image from video
         let capturedImage = null;
         try {
@@ -673,6 +1301,18 @@ function AttendanceScanner() {
     
     if (!confirmDialog || isSubmitting) {
       console.log("Dialog validation failed");
+      return;
+    }
+
+    // Defence-in-depth: if a spoof signal arrived while the dialog was open
+    // (e.g. the user pulled out a phone after the dialog appeared) the latch
+    // is now engaged. Block the submission and surface the warning instead.
+    if (confirmed && spoofLatchRef.current) {
+      console.warn(
+        "[Scanner] CONFIRM pressed while spoof latch engaged – blocking"
+      );
+      setConfirmDialog(null);
+      setSpoofWarning(true);
       return;
     }
 
@@ -753,24 +1393,22 @@ function AttendanceScanner() {
       } finally {
         console.log("Attendance submission complete");
         setIsSubmitting(false);
-        // Reset spoof detection buffers for next scan
-        setSpoofWarning(false);
         centerBufferRef.current = [];
         landmarkBufferRef.current = [];
         spoofDetectedRef.current = false;
+        resetSpoofState();
       }
     } else {
       console.log("Confirmed NO - Closing dialog and restarting detection");
       setConfirmDialog(null);
       setLastMatch(Date.now());
-      // Reset spoof detection buffers for next scan
-      setSpoofWarning(false);
       setAntiInfo(null);
       antiBufferRef.current = [];
       centerBufferRef.current = [];
       landmarkBufferRef.current = [];
       spoofDetectedRef.current = false;
       noFaceCountRef.current = 0;
+      resetSpoofState();
       // Always restart detection (clear any existing interval first)
       if (detectionIntervalRef.current) {
         clearInterval(detectionIntervalRef.current);
@@ -942,30 +1580,9 @@ function AttendanceScanner() {
         </div>
       )}
 
-      {/* Spoof Warning */}
-      {spoofWarning && (
-        <div style={{
-          position: "fixed",
-          top: "24px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          backgroundColor: "#fff7e6",
-          color: "#d46b08",
-          padding: "16px 28px",
-          borderRadius: "12px",
-          border: "2px solid #ffd591",
-          boxShadow: "0 8px 24px rgba(212, 107, 8, 0.15)",
-          zIndex: 1999,
-          fontSize: "15px",
-          fontWeight: "600",
-          maxWidth: "500px"
-        }}>
-          <div style={{ fontWeight: "700", marginBottom: "4px" }}>SPOOFING DETECTED</div>
-          <div style={{ fontSize: "13px", fontWeight: "400", opacity: 0.9 }}>
-            Please use your real face, not a photo or video
-          </div>
-        </div>
-      )}
+      {/* Spoof / device-in-frame warning is rendered as an overlay on the
+          camera container further down. We keep this top-level toast empty
+          to avoid duplicating the message. */}
 
       {/* Success Toast */}
       {successMsg && (
@@ -1000,97 +1617,6 @@ function AttendanceScanner() {
             <div style={{ fontWeight: "700", marginBottom: "4px" }}>SUCCESS</div>
             <div style={{ fontSize: "14px", fontWeight: "400" }}>
               {successMsg}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Anti-spoof overlay & controls */}
-      {antiInfo && (
-        <div style={{
-          position: "fixed",
-          bottom: "24px",
-          right: "24px",
-          backgroundColor: "rgba(26, 31, 54, 0.95)",
-          backdropFilter: "blur(10px)",
-          color: "#ffffff",
-          padding: "16px 20px",
-          borderRadius: "12px",
-          zIndex: 2000,
-          fontSize: "13px",
-          maxWidth: "320px",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
-          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)"
-        }}>
-          <div style={{ 
-            fontWeight: 700, 
-            marginBottom: 10,
-            fontSize: "14px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center"
-          }}>
-            <span>Anti-Spoofing Score</span>
-            <span style={{ 
-              color: antiInfo.score >= antiThreshold ? "#52c41a" : "#ff4d4f",
-              fontSize: "16px"
-            }}>
-              {antiInfo.score || 0}/100
-            </span>
-          </div>
-          {serverAntiLoading && (
-            <div style={{ 
-              fontSize: 11, 
-              color: "#91d5ff",
-              marginBottom: 8
-            }}>
-              Processing on server...
-            </div>
-          )}
-          <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 12, lineHeight: 1.6 }}>
-            <div>Texture: <strong>{Number.isFinite(antiInfo.details?.texture?.textureScore) ? antiInfo.details.texture.textureScore.toFixed(1) : 'N/A'}</strong></div>
-            <div>Frequency: <strong>{Number.isFinite(antiInfo.details?.frequency?.frequencyScore) ? antiInfo.details.frequency.frequencyScore.toFixed(1) : 'N/A'}</strong></div>
-            <div>Color: <strong>{Number.isFinite(antiInfo.details?.color?.colorScore) ? antiInfo.details.color.colorScore.toFixed(2) : 'N/A'}</strong></div>
-          </div>
-          <div style={{ 
-            paddingTop: 12,
-            borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-            display: 'flex', 
-            flexDirection: "column",
-            gap: 10 
-          }}>
-            <label style={{ 
-              fontSize: 12, 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 8,
-              cursor: "pointer"
-            }}>
-              <input 
-                type="checkbox" 
-                checked={useServerAnti} 
-                onChange={(e) => setUseServerAnti(e.target.checked)}
-                style={{ cursor: "pointer" }}
-              />
-              <span>Enable Server-side Detection</span>
-            </label>
-            <div style={{ fontSize: 12, display: 'flex', flexDirection: "column", gap: 6 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Detection Threshold</span>
-                <strong>{antiThreshold}</strong>
-              </div>
-              <input 
-                type="range" 
-                min={40} 
-                max={95} 
-                value={antiThreshold} 
-                onChange={(e) => setAntiThreshold(Number(e.target.value))}
-                style={{ 
-                  width: "100%",
-                  accentColor: "#1890ff",
-                  cursor: "pointer"
-                }}
-              />
             </div>
           </div>
         </div>
@@ -1250,13 +1776,13 @@ function AttendanceScanner() {
                       e.preventDefault();
                       e.stopPropagation();
                       setConfirmDialog(null);
-                      setSpoofWarning(false);
                       setAntiInfo(null);
                       antiBufferRef.current = [];
                       centerBufferRef.current = [];
                       landmarkBufferRef.current = [];
                       spoofDetectedRef.current = false;
                       noFaceCountRef.current = 0;
+                      resetSpoofState();
                       if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
                       setIsScanning(false);
                     }}
@@ -1586,13 +2112,13 @@ function AttendanceScanner() {
                       e.preventDefault();
                       e.stopPropagation();
                       setConfirmDialog(null);
-                      setSpoofWarning(false);
                       setAntiInfo(null);
                       antiBufferRef.current = [];
                       centerBufferRef.current = [];
                       landmarkBufferRef.current = [];
                       spoofDetectedRef.current = false;
                       noFaceCountRef.current = 0;
+                      resetSpoofState();
                       if (!detectionIntervalRef.current) {
                         setIsScanning(true);
                         detectionIntervalRef.current = setInterval(detectFace, 300);
@@ -1771,7 +2297,75 @@ function AttendanceScanner() {
               <div style={cameraContainerStyle}>
                 <video ref={videoRef} style={videoStyle} />
                 <canvas ref={canvasRef} style={canvasStyle} />
-                
+
+                {/* Face-frame ring overlay. CSS-only so the ring keeps a
+                    near-perfect vertical circle regardless of the camera
+                    container's aspect ratio. The outer wrapper clips the
+                    box-shadow that paints the scrim outside the ring. */}
+                {isScanning && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      pointerEvents: "none",
+                      zIndex: 6,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: "50%",
+                        top: `${FACE_CIRCLE.cyRatio * 100}%`,
+                        transform: "translate(-50%, -50%)",
+                        height: `${FACE_CIRCLE.rRatio * 200}%`,
+                        aspectRatio: "0.95 / 1",
+                        borderRadius: "50%",
+                        border: `3px ${
+                          spoofWarning || faceFitGuide ? "dashed" : "solid"
+                        } ${
+                          spoofWarning
+                            ? "#ff1f1f"
+                            : lowLight || faceFitGuide
+                            ? "#1890ff"
+                            : "#52c41a"
+                        }`,
+                        boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.42)",
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Face-fit guide message. Hidden once the spoof overlay
+                    takes over (the user needs to deal with that first). */}
+                {isScanning && (lowLight || faceFitGuide) && !spoofWarning && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: "8%",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      backgroundColor: "rgba(0,0,0,0.6)",
+                      color: "#ffffff",
+                      padding: "10px 18px",
+                      borderRadius: "999px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      letterSpacing: "0.3px",
+                      zIndex: 7,
+                      pointerEvents: "none",
+                      maxWidth: "85%",
+                      textAlign: "center"
+                    }}
+                  >
+                    {lowLight
+                      ? "Lighting too low - please brighten the area"
+                      : faceFitGuide === "multi_face"
+                      ? "Only one person should be in frame"
+                      : "Place your face inside the circle"}
+                  </div>
+                )}
+
                 {/* Scanning Overlay */}
                 {isScanning && (
                   <div style={{
@@ -1790,6 +2384,82 @@ function AttendanceScanner() {
                     <div style={{ position: "absolute", top: "-2px", right: "-2px", width: "40px", height: "40px", borderTop: "4px solid #1890ff", borderRight: "4px solid #1890ff", borderRadius: "0 8px 0 0" }}></div>
                     <div style={{ position: "absolute", bottom: "-2px", left: "-2px", width: "40px", height: "40px", borderBottom: "4px solid #1890ff", borderLeft: "4px solid #1890ff", borderRadius: "0 0 0 8px" }}></div>
                     <div style={{ position: "absolute", bottom: "-2px", right: "-2px", width: "40px", height: "40px", borderBottom: "4px solid #1890ff", borderRight: "4px solid #1890ff", borderRadius: "0 0 8px 0" }}></div>
+                  </div>
+                )}
+
+                {/* INVALID ATTENDANCE overlay – shown while the spoof latch
+                    is engaged. Mirrors the design from the product mockup. */}
+                {spoofWarning && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "5%",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      backgroundColor: "rgba(255, 235, 235, 0.97)",
+                      border: "2px solid #ffb3b3",
+                      borderRadius: "14px",
+                      padding: "16px 24px",
+                      width: "min(86%, 520px)",
+                      textAlign: "center",
+                      boxShadow: "0 12px 32px rgba(207, 19, 34, 0.25)",
+                      zIndex: 20,
+                      pointerEvents: "none"
+                    }}
+                  >
+                    <div
+                      style={{
+                        color: "#cf1322",
+                        fontWeight: 800,
+                        fontSize: "18px",
+                        letterSpacing: "0.6px",
+                        marginBottom: "8px",
+                        textTransform: "uppercase"
+                      }}
+                    >
+                      INVALID ATTENDANCE
+                    </div>
+                    <div
+                      style={{
+                        color: "#1a1f36",
+                        fontSize: "14px",
+                        marginBottom: "6px",
+                        fontWeight: 500
+                      }}
+                    >
+                      A photo or video from a mobile device has been detected.
+                    </div>
+                    <div
+                      style={{
+                        color: "#cf1322",
+                        fontWeight: 700,
+                        fontSize: "14px",
+                        marginBottom: "6px"
+                      }}
+                    >
+                      Fraudulent attempts are strictly prohibited.
+                    </div>
+                    <div
+                      style={{
+                        color: "#697386",
+                        fontSize: "13px"
+                      }}
+                    >
+                      Please use your real presence for attendance.
+                    </div>
+                    {spoofReason && (
+                      <div
+                        style={{
+                          marginTop: "10px",
+                          fontSize: "11px",
+                          color: "#8c8c8c",
+                          fontFamily:
+                            "ui-monospace, SFMono-Regular, Menlo, monospace"
+                        }}
+                      >
+                        reason: {spoofReason}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

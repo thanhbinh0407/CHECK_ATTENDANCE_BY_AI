@@ -227,6 +227,12 @@ export default function AttendanceLog() {
     fontSize: "13px"
   };
 
+  const sortedLogs = [...allLogs].sort((a, b) => {
+    const ta = a?.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const tb = b?.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return tb - ta;
+  });
+
   return (
     <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "0" }}>
       {/* Welcome Header — compact */}
@@ -737,7 +743,7 @@ export default function AttendanceLog() {
                   </tr>
                 </thead>
                 <tbody>
-                  {allLogs.map((log) => {
+                  {sortedLogs.map((log) => {
                     const empName = getEmployeeName(log.userId);
                     const emp = employees.find(e => e.id === log.userId);
                     const isIn = log.type === 'IN';

@@ -181,6 +181,7 @@
   margin-bottom: 16px;
 }
 
+/* overflow-x:auto makes overflow-y compute to auto and clips dropdowns; actions menu is portaled to body. */
 .um-table-wrap {
   overflow-x: auto;
   margin: 0 -4px;
@@ -316,6 +317,13 @@
   border-radius: 10px;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
   z-index: 40;
+}
+
+.um-actions-menu--portal {
+  position: fixed;
+  z-index: 1100;
+  max-height: min(70vh, 22rem);
+  overflow-y: auto;
 }
 
 .um-actions-item {
