@@ -42,14 +42,26 @@ function normalizeEducationLevel(educationLevel) {
   return mapping[educationLevel] || "other";
 }
 
+function normalizeIdNumber(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, employeeCode, descriptor, password, jobTitle, educationLevel, certificates, dependents, baseSalary } = req.body;
+    const { name, idNumber, email, employeeCode, descriptor, password, jobTitle, educationLevel, certificates, dependents, baseSalary } = req.body;
+    const normalizedIdNumber = normalizeIdNumber(idNumber);
 
-    if (!name || !email || !employeeCode) {
+    if (!name || !email || !employeeCode || !normalizedIdNumber) {
       return res.status(400).json({
         status: "error",
         message: "Missing required fields"
+      });
+    }
+
+    if (!/^\d{12}$/.test(normalizedIdNumber)) {
+      return res.status(400).json({
+        status: "error",
+        message: "CCCD must be exactly 12 digits"
       });
     }
 
@@ -62,6 +74,17 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({
         status: "error",
         message: "Employee code already registered"
+      });
+    }
+
+    const existingIdNumber = await User.findOne({
+      where: { idNumber: normalizedIdNumber }
+    });
+
+    if (existingIdNumber) {
+      return res.status(400).json({
+        status: "error",
+        message: `CCCD "${normalizedIdNumber}" is already registered`
       });
     }
 
@@ -84,6 +107,7 @@ export const registerUser = async (req, res) => {
       name,
       email,
       employeeCode,
+      idNumber: normalizedIdNumber,
       password: hashedPassword,
       role: "employee",
       isActive: true,
@@ -132,6 +156,11 @@ export const registerUser = async (req, res) => {
         return res.status(400).json({
           status: "error",
           message: `Employee code "${value}" is already registered`
+        });
+      } else if (field === "idNumber") {
+        return res.status(400).json({
+          status: "error",
+          message: `CCCD "${value}" is already registered`
         });
       }
     }

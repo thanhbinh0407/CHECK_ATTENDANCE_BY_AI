@@ -37,6 +37,13 @@ const FACE_FIT = {
 // dark to verify a face reliably, so the scanner asks the user to brighten.
 const LOW_LIGHT_THRESHOLD = 55;
 
+const getNextAttendanceType = (matchData) => {
+  if (!matchData) return "IN";
+  if (matchData.nextType === "IN" || matchData.nextType === "OUT") return matchData.nextType;
+  const count = Array.isArray(matchData.logsToday) ? matchData.logsToday.length : 0;
+  return count % 2 === 0 ? "IN" : "OUT";
+};
+
 const computeFaceCircle = (W, H) => ({
   cx: W * FACE_CIRCLE.cxRatio,
   cy: H * FACE_CIRCLE.cyRatio,
@@ -1528,6 +1535,9 @@ function AttendanceScanner() {
     zIndex: 10
   };
 
+  const nextDialogType = getNextAttendanceType(confirmDialog?.matchData);
+  const nextDialogIsIn = nextDialogType === "IN";
+
   return (
     <div style={containerStyle}>
       {/* Header */}
@@ -1834,16 +1844,16 @@ function AttendanceScanner() {
               <>
                 {/* Matched Face - Confirm Attendance */}
                 <div style={{
-                  backgroundColor: confirmDialog.matchData.logsToday?.length === 0 ? "#e6f7ff" : "#fff7e6",
+                  backgroundColor: nextDialogIsIn ? "#e6f7ff" : "#fff7e6",
                   padding: "32px 32px 24px",
-                  borderBottom: `2px solid ${confirmDialog.matchData.logsToday?.length === 0 ? "#91d5ff" : "#ffd591"}`,
+                  borderBottom: `2px solid ${nextDialogIsIn ? "#91d5ff" : "#ffd591"}`,
                   textAlign: "center"
                 }}>
                   <div style={{
                     width: "72px",
                     height: "72px",
                     borderRadius: "50%",
-                    backgroundColor: confirmDialog.matchData.logsToday?.length === 0 ? "#1890ff" : "#fa8c16",
+                    backgroundColor: nextDialogIsIn ? "#1890ff" : "#fa8c16",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -1852,7 +1862,7 @@ function AttendanceScanner() {
                     color: "#ffffff",
                     fontWeight: "700"
                   }}>
-                    {confirmDialog.matchData.logsToday?.length === 0 ? "IN" : "OUT"}
+                    {nextDialogType}
                   </div>
                   <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
                     <KioskRoundAvatar
@@ -1861,7 +1871,7 @@ function AttendanceScanner() {
                       size={96}
                       borderColor="#ffffff"
                       ringColor={
-                        confirmDialog.matchData.logsToday?.length === 0
+                        nextDialogIsIn
                           ? "rgba(24, 144, 255, 0.35)"
                           : "rgba(250, 140, 22, 0.35)"
                       }
@@ -1881,14 +1891,14 @@ function AttendanceScanner() {
                     fontSize: "14px",
                     color: "#697386"
                   }}>
-                    Verify your {confirmDialog.matchData.logsToday?.length === 0 ? "check-in" : "check-out"} record
+                    Verify your {nextDialogIsIn ? "check-in" : "check-out"} record
                   </p>
                 </div>
                 
                 <div style={{ padding: "24px 32px 32px" }}>
                   <div style={{
-                    backgroundColor: confirmDialog.matchData.logsToday?.length === 0 ? "#e6f7ff" : "#fff7e6",
-                    border: `2px solid ${confirmDialog.matchData.logsToday?.length === 0 ? "#91d5ff" : "#ffd591"}`,
+                    backgroundColor: nextDialogIsIn ? "#e6f7ff" : "#fff7e6",
+                    border: `2px solid ${nextDialogIsIn ? "#91d5ff" : "#ffd591"}`,
                     borderRadius: "12px",
                     padding: "20px",
                     marginBottom: "24px",
@@ -1897,7 +1907,7 @@ function AttendanceScanner() {
                     <div style={{
                       display: "inline-block",
                       padding: "6px 14px",
-                      backgroundColor: confirmDialog.matchData.logsToday?.length === 0 ? "#1890ff" : "#fa8c16",
+                      backgroundColor: nextDialogIsIn ? "#1890ff" : "#fa8c16",
                       color: "#ffffff",
                       borderRadius: "20px",
                       fontSize: "12px",
@@ -1905,7 +1915,7 @@ function AttendanceScanner() {
                       letterSpacing: "0.5px",
                       marginBottom: "12px"
                     }}>
-                      {confirmDialog.matchData.logsToday?.length === 0 ? "CHECK IN" : "CHECK OUT"}
+                      {nextDialogIsIn ? "CHECK IN" : "CHECK OUT"}
                     </div>
                     <div style={{ 
                       fontSize: "20px", 
@@ -1921,9 +1931,9 @@ function AttendanceScanner() {
                       marginBottom: "16px",
                       lineHeight: "1.6"
                     }}>
-                      {confirmDialog.matchData.logsToday?.length === 0 
-                        ? "Starting your workday" 
-                        : "Ending your workday"}
+                      {nextDialogIsIn
+                        ? "Starting your work session"
+                        : "Ending your work session"}
                     </div>
                     <div style={{
                       padding: "12px",
@@ -2000,7 +2010,7 @@ function AttendanceScanner() {
                       style={{
                         flex: 1,
                         padding: "16px",
-                        backgroundColor: confirmDialog.matchData.logsToday?.length === 0 ? "#1890ff" : "#fa8c16",
+                        backgroundColor: nextDialogIsIn ? "#1890ff" : "#fa8c16",
                         color: "#ffffff",
                         fontWeight: "700",
                         opacity: isSubmitting ? 0.6 : 1,
@@ -2013,13 +2023,13 @@ function AttendanceScanner() {
                       }}
                       onMouseEnter={(e) => {
                         if (!isSubmitting) {
-                          e.target.style.backgroundColor = confirmDialog.matchData.logsToday?.length === 0 ? "#096dd9" : "#d46b08";
+                          e.target.style.backgroundColor = nextDialogIsIn ? "#096dd9" : "#d46b08";
                           e.target.style.transform = "translateY(-2px)";
                           e.target.style.boxShadow = "0 6px 16px rgba(0, 0, 0, 0.2)";
                         }
                       }}
                       onMouseLeave={(e) => {
-                        e.target.style.backgroundColor = confirmDialog.matchData.logsToday?.length === 0 ? "#1890ff" : "#fa8c16";
+                        e.target.style.backgroundColor = nextDialogIsIn ? "#1890ff" : "#fa8c16";
                         e.target.style.transform = "translateY(0)";
                         e.target.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.15)";
                       }}
