@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { theme } from '../theme.js';
 import { toastConfirm } from '../lib/notify.jsx';
 
@@ -51,10 +51,12 @@ const CancelIcon = ({ size = 18 }) => (
 /** Department Management — aligned with Manager Console (face-attendance-frontend) UI and CRUD behavior. */
 export default function DepartmentManagement({ token }) {
   const [departments, setDepartments] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingDept, setEditingDept] = useState(null);
+  const [expandedDepartmentId, setExpandedDepartmentId] = useState(null);
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -69,6 +71,7 @@ export default function DepartmentManagement({ token }) {
     if (!token) return;
     try {
       setLoading(true);
+      setMessage('');
       const res = await fetch(`${apiBase}/api/departments`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -77,6 +80,24 @@ export default function DepartmentManagement({ token }) {
         setDepartments(data.departments || []);
       } else {
         setMessage(data.message || 'Error loading departments list');
+      }
+
+      try {
+        const employeeRes = await fetch(`${apiBase}/api/admin/employees`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const employeeData = await employeeRes.json();
+        if (employeeRes.ok) {
+          setEmployees(Array.isArray(employeeData.employees) ? employeeData.employees : []);
+        } else if (res.ok) {
+          setEmployees([]);
+          setMessage(employeeData.message || 'Error loading employees list');
+        }
+      } catch {
+        if (res.ok) {
+          setEmployees([]);
+          setMessage('Error connecting to server while loading employees');
+        }
       }
     } catch {
       setMessage('Error connecting to server');
@@ -153,6 +174,10 @@ export default function DepartmentManagement({ token }) {
     } catch {
       setMessage('Error connecting to server');
     }
+  };
+
+  const toggleDepartmentEmployees = (departmentId) => {
+    setExpandedDepartmentId((current) => (current === departmentId ? null : departmentId));
   };
 
   const accentFocus = '#8b46ff';
@@ -605,111 +630,197 @@ export default function DepartmentManagement({ token }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {departments.map((dept, index) => (
-                    <tr
-                      key={dept.id}
-                      style={{
-                        animation: `supDeptTableRowFadeIn 0.4s ease-out ${index * 0.05}s both`,
-                      }}
-                    >
-                      <td className="sup-mgmt-code">
-                        {dept.code}
-                      </td>
-                      <td style={{ fontWeight: 600, color: theme.neutral.gray900 }}>
-                        {dept.name}
-                      </td>
-                      <td
-                        className="sup-mgmt-desc-cell"
-                        style={{
-                          color: theme.neutral.gray600,
-                          lineHeight: 1.5,
-                          fontSize: 13,
-                        }}
-                      >
-                        {dept.description?.trim() ? dept.description : '—'}
-                      </td>
-                      <td>
-                        <span
+                  {departments.map((dept, index) => {
+                    const departmentEmployees = employees.filter((employee) => Number(employee.departmentId) === Number(dept.id));
+                    const isExpanded = expandedDepartmentId === dept.id;
+
+                    return (
+                      <Fragment key={dept.id}>
+                        <tr
                           style={{
-                            padding: '4px 10px',
-                            borderRadius: theme.radius.md,
-                            backgroundColor: dept.isActive ? '#d4edda' : '#f8d7da',
-                            color: dept.isActive ? '#155724' : '#721c24',
-                            fontSize: '11px',
-                            fontWeight: '700',
-                            border: `1px solid ${dept.isActive ? '#c3e6cb' : '#f5c6cb'}`,
-                            fontFamily: theme.typography.fontFamily,
+                            animation: `supDeptTableRowFadeIn 0.4s ease-out ${index * 0.05}s both`,
                           }}
                         >
-                          {dept.isActive ? '✓ Active' : '✗ Inactive'}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: theme.spacing.sm, justifyContent: 'flex-end' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleEdit(dept)}
-                            title="Edit"
+                          <td className="sup-mgmt-code">
+                            {dept.code}
+                          </td>
+                          <td style={{ fontWeight: 600, color: theme.neutral.gray900 }}>
+                            {dept.name}
+                          </td>
+                          <td
+                            className="sup-mgmt-desc-cell"
                             style={{
-                              padding: '7px',
-                              backgroundColor: accentFocus,
-                              color: theme.neutral.white,
-                              border: 'none',
-                              borderRadius: theme.radius.md,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '34px',
-                              height: '34px',
-                              transition: 'all 0.3s',
-                              boxShadow: '0 2px 8px rgba(102, 126, 234, 0.2)',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.transform = 'scale(1.1) rotate(5deg)';
-                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
-                              e.currentTarget.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.2)';
+                              color: theme.neutral.gray600,
+                              lineHeight: 1.5,
+                              fontSize: 13,
                             }}
                           >
-                            <EditIcon size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(dept.id)}
-                            title="Delete"
-                            style={{
-                              padding: '7px',
-                              backgroundColor: theme.error.main,
-                              color: theme.neutral.white,
-                              border: 'none',
-                              borderRadius: theme.radius.md,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '34px',
-                              height: '34px',
-                              transition: 'all 0.3s',
-                              boxShadow: '0 2px 8px rgba(239, 68, 68, 0.2)',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.transform = 'scale(1.1) rotate(-5deg)';
-                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
-                              e.currentTarget.style.boxShadow = '0 2px 8px rgba(239, 68, 68, 0.2)';
-                            }}
-                          >
-                            <DeleteIcon size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {dept.description?.trim() ? dept.description : '—'}
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: theme.radius.md,
+                                backgroundColor: dept.isActive ? '#d4edda' : '#f8d7da',
+                                color: dept.isActive ? '#155724' : '#721c24',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                border: `1px solid ${dept.isActive ? '#c3e6cb' : '#f5c6cb'}`,
+                                fontFamily: theme.typography.fontFamily,
+                              }}
+                            >
+                              {dept.isActive ? '✓ Active' : '✗ Inactive'}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => toggleDepartmentEmployees(dept.id)}
+                              title="View employees"
+                              style={{
+                                padding: '7px 12px',
+                                marginRight: theme.spacing.sm,
+                                backgroundColor: isExpanded ? '#7c3aed' : '#eef2ff',
+                                color: isExpanded ? theme.neutral.white : '#4338ca',
+                                border: '1px solid rgba(99, 102, 241, 0.18)',
+                                borderRadius: theme.radius.md,
+                                cursor: 'pointer',
+                                fontWeight: 700,
+                                fontSize: 12,
+                                transition: 'all 0.2s',
+                                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.1)',
+                              }}
+                            >
+                              {departmentEmployees.length} staff
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleEdit(dept)}
+                              title="Edit"
+                              style={{
+                                padding: '7px',
+                                backgroundColor: accentFocus,
+                                color: theme.neutral.white,
+                                border: 'none',
+                                borderRadius: theme.radius.md,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '34px',
+                                height: '34px',
+                                transition: 'all 0.3s',
+                                boxShadow: '0 2px 8px rgba(102, 126, 234, 0.2)',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = 'scale(1.1) rotate(5deg)';
+                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
+                                e.currentTarget.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.2)';
+                              }}
+                            >
+                              <EditIcon size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(dept.id)}
+                              title="Delete"
+                              style={{
+                                padding: '7px',
+                                backgroundColor: theme.error.main,
+                                color: theme.neutral.white,
+                                border: 'none',
+                                borderRadius: theme.radius.md,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '34px',
+                                height: '34px',
+                                transition: 'all 0.3s',
+                                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.2)',
+                                marginLeft: theme.spacing.sm,
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = 'scale(1.1) rotate(-5deg)';
+                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
+                                e.currentTarget.style.boxShadow = '0 2px 8px rgba(239, 68, 68, 0.2)';
+                              }}
+                            >
+                              <DeleteIcon size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={5} style={{ padding: 0, backgroundColor: '#f8fafc' }}>
+                              <div style={{ padding: '14px 18px 18px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+                                  <div>
+                                    <div style={{ fontWeight: 700, color: theme.neutral.gray900, marginBottom: 4 }}>
+                                      Employees in {dept.name}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: theme.neutral.gray600 }}>
+                                      {departmentEmployees.length} people assigned to this department
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleDepartmentEmployees(dept.id)}
+                                    style={{
+                                      border: 'none',
+                                      background: 'transparent',
+                                      color: '#4f46e5',
+                                      cursor: 'pointer',
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    Hide list
+                                  </button>
+                                </div>
+                                {departmentEmployees.length === 0 ? (
+                                  <div style={{ padding: '14px 16px', borderRadius: 12, backgroundColor: theme.neutral.white, border: '1px dashed #cbd5e1', color: theme.neutral.gray600 }}>
+                                    No employees assigned to this department yet.
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                                    {departmentEmployees.map((employee) => (
+                                      <div
+                                        key={employee.id}
+                                        style={{
+                                          padding: '12px 14px',
+                                          borderRadius: 14,
+                                          backgroundColor: theme.neutral.white,
+                                          border: '1px solid #e2e8f0',
+                                          boxShadow: '0 6px 18px rgba(15, 23, 42, 0.05)',
+                                        }}
+                                      >
+                                        <div style={{ fontWeight: 700, color: theme.neutral.gray900, marginBottom: 4 }}>
+                                          {employee.name}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: theme.neutral.gray600, marginBottom: 6 }}>
+                                          {employee.employeeCode || 'No code'} · {employee.JobTitle?.name || employee.role || 'Employee'}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: theme.neutral.gray500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {employee.email}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
