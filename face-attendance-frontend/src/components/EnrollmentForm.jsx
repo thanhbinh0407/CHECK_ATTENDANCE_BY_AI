@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { theme } from "../styles/theme.js";
 import * as faceapi from "face-api.js";
+import socket from "../socket.js";
 import { EDUCATION_COEFFICIENTS } from "../utils/salaryCalculation.js";
 import { filterNumbersFromName, validateName, validateEmail, validateEmployeeCode, validatePassword } from "../utils/validationUtils.js";
 import { calculateAntiSpoofingScore } from "../utils/antiSpoofing.js";
@@ -38,6 +39,7 @@ export default function EnrollmentForm() {
   const [jobTitlesLoading, setJobTitlesLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
+    idNumber: "",
     email: "",
     employeeCode: "",
     password: "",
@@ -67,6 +69,7 @@ export default function EnrollmentForm() {
   // Validation errors state
   const [errors, setErrors] = useState({
     name: "",
+    idNumber: "",
     email: "",
     employeeCode: "",
     password: "",
@@ -77,6 +80,7 @@ export default function EnrollmentForm() {
   
   const [touched, setTouched] = useState({
     name: false,
+    idNumber: false,
     email: false,
     employeeCode: false,
     password: false,
@@ -97,6 +101,13 @@ export default function EnrollmentForm() {
       case "name":
         const nameCheck = validateName(value);
         if (!nameCheck.valid) error = nameCheck.message;
+        break;
+      case "idNumber":
+        if (!value || !String(value).trim()) {
+          error = "CCCD is required";
+        } else if (!/^\d{12}$/.test(String(value).trim())) {
+          error = "CCCD must be exactly 12 digits";
+        }
         break;
       case "email":
         const emailCheck = validateEmail(value);
@@ -446,6 +457,7 @@ export default function EnrollmentForm() {
     // Mark all fields as touched
     setTouched({
       name: true,
+      idNumber: true,
       email: true,
       employeeCode: true,
       password: useCustomPassword,
@@ -455,6 +467,7 @@ export default function EnrollmentForm() {
     
     // Validate all fields
     const nameValid = validateField("name", formData.name);
+    const idNumberValid = validateField("idNumber", formData.idNumber);
     const emailValid = validateField("email", formData.email);
     const codeValid = validateField("employeeCode", normalizedEmployeeCode);
     const passwordValid = useCustomPassword ? validateField("password", formData.password) : true;
@@ -463,7 +476,7 @@ export default function EnrollmentForm() {
 
     setErrors(prev => ({ ...prev, faceCapture: "" }));
     
-    if (!nameValid || !emailValid || !codeValid || !passwordValid || !salaryValid || !jobTitleValid) {
+    if (!nameValid || !idNumberValid || !emailValid || !codeValid || !passwordValid || !salaryValid || !jobTitleValid) {
       setMessage("❌ Please fix all validation errors before submitting");
       return;
     }
@@ -480,6 +493,7 @@ export default function EnrollmentForm() {
       
       const payload = {
         name: formData.name,
+        idNumber: String(formData.idNumber || "").replace(/\D/g, ""),
         email: formData.email,
         employeeCode: normalizedEmployeeCode,
         password: useCustomPassword ? formData.password : undefined,
@@ -513,6 +527,7 @@ export default function EnrollmentForm() {
         setPasswordGenerated(data.passwordGenerated || false);
         setFormData({ 
           name: "", 
+          idNumber: "",
           email: "", 
           employeeCode: "", 
           password: "",
@@ -525,6 +540,7 @@ export default function EnrollmentForm() {
         setCapturedDescriptor(null);
         setErrors({
           name: "",
+          idNumber: "",
           email: "",
           employeeCode: "",
           password: "",
@@ -534,12 +550,22 @@ export default function EnrollmentForm() {
         });
         setTouched({
           name: false,
+          idNumber: false,
           email: false,
           employeeCode: false,
           password: false,
           baseSalary: false,
           jobTitle: false
         });
+        // Notify other admin views that a new employee was created so they can update immediately
+        try {
+          const created = data?.employee || data?.user || (data?.employeeCode ? { employeeCode: data.employeeCode, id: data.userId || null, name: formData.name, email: formData.email } : null);
+          if (created && socket && socket.connected) {
+            socket.emit("employee-created", { user: created });
+          }
+        } catch (err) {
+          // ignore socket errors
+        }
       } else {
         setMessage("❌ Registration failed: " + data.message);
         setGeneratedPassword(null);
@@ -732,6 +758,32 @@ export default function EnrollmentForm() {
                 <div style={errorMessageStyle}>
                   <span>⚠️</span>
                   <span>{errors.name}</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: "14px" }}>
+              <label style={labelStyle}>
+                <span style={{ fontSize: "15px" }}>🪪</span>
+                <span>CCCD *</span>
+              </label>
+              <input
+                type="text"
+                style={getInputStyle("idNumber")}
+                value={formData.idNumber}
+                onChange={(e) => handleFieldChange("idNumber", e.target.value.replace(/\D/g, "").slice(0, 12))}
+                onBlur={(e) => { handleBlur("idNumber"); Object.assign(e.target.style, getInputStyle("idNumber")); }}
+                placeholder="Enter 12-digit CCCD"
+                inputMode="numeric"
+                maxLength={12}
+                onFocus={(e) => Object.assign(e.target.style, getInputFocusStyle("idNumber"))}
+                onMouseEnter={(e) => { if (e.target !== document.activeElement && !errors.idNumber) Object.assign(e.target.style, inputHoverStyle) }}
+                onMouseLeave={(e) => { if (e.target !== document.activeElement) Object.assign(e.target.style, getInputStyle("idNumber")) }}
+              />
+              {touched.idNumber && errors.idNumber && (
+                <div style={errorMessageStyle}>
+                  <span>⚠️</span>
+                  <span>{errors.idNumber}</span>
                 </div>
               )}
             </div>

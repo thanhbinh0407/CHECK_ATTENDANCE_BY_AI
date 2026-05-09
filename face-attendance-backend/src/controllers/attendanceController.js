@@ -1,4 +1,4 @@
-import { AttendanceLog, User } from "../models/pg/index.js";
+import { AttendanceLog, User, OvertimeRequest } from "../models/pg/index.js";
 import { matchDescriptor } from "../services/matchService.js";
 import { Op } from "sequelize";
 import { ShiftSetting } from "../models/pg/index.js";
@@ -9,6 +9,42 @@ async function userAvatarUrl(userId) {
   if (!userId) return null;
   const u = await User.findByPk(userId, { attributes: ["avatarUrl"] });
   return u?.avatarUrl || null;
+}
+
+function parseShiftPlan(shift) {
+  const fallbackMainShifts = [{ startTime: shift?.startTime || "08:00", endTime: shift?.endTime || "17:00" }];
+  const fallback = {
+    mainShifts: fallbackMainShifts,
+    overtimeStart: null,
+    overtimeThresholdMinutes: Number(shift?.overtimeThresholdMinutes || 15),
+    expectedLogsPerDay: fallbackMainShifts.length * 2,
+  };
+
+  if (!shift?.note) return fallback;
+  try {
+    const parsed = JSON.parse(shift.note);
+    const mainShifts = Array.isArray(parsed?.mainShifts) && parsed.mainShifts.length > 0
+      ? parsed.mainShifts
+          .map((s) => ({ startTime: s?.startTime, endTime: s?.endTime }))
+          .filter((s) => typeof s.startTime === "string" && typeof s.endTime === "string")
+      : fallbackMainShifts;
+
+    const overtimeStart = typeof parsed?.overtime?.startTime === "string" ? parsed.overtime.startTime : null;
+    const overtimeThresholdMinutes = Number(parsed?.overtime?.thresholdMinutes ?? shift?.overtimeThresholdMinutes ?? 15);
+
+    return {
+      mainShifts,
+      overtimeStart,
+      overtimeThresholdMinutes: Number.isFinite(overtimeThresholdMinutes) ? overtimeThresholdMinutes : 15,
+      expectedLogsPerDay: mainShifts.length * 2,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function nextTypeFromCount(count) {
+  return count % 2 === 0 ? "IN" : "OUT";
 }
 
 export const logAttendance = async (req, res) => {
@@ -89,9 +125,19 @@ export const logAttendance = async (req, res) => {
         order: [['timestamp','ASC']]
       });
 
-      if (todayLogs.length >= 2) {
-        // User already checked in and out for the day
-        console.log(`User ${match.userId} already has ${todayLogs.length} logs today`);
+      const shiftPlan = parseShiftPlan(applicableShift);
+      const hasOvertimeRequestToday = await OvertimeRequest.findOne({
+        where: {
+          userId: match.userId,
+          date: todayStart.toISOString().split('T')[0],
+          approvalStatus: { [Op.in]: ['pending', 'approved'] }
+        }
+      });
+      const expectedLogsPerDay = (shiftPlan.mainShifts.length * 2) + (hasOvertimeRequestToday ? 2 : 0);
+
+      if (todayLogs.length >= expectedLogsPerDay) {
+        // User completed all check in/out actions for the day according to configured shifts
+        console.log(`User ${match.userId} already has ${todayLogs.length}/${expectedLogsPerDay} logs today`);
         const avatarUrl = await userAvatarUrl(match.userId);
         return res.json({
           status: 'success',
@@ -102,13 +148,16 @@ export const logAttendance = async (req, res) => {
           distance: match.distance,
           threshold: THRESHOLD,
           avatarUrl,
+          finished: true,
+          nextType: null,
+          expectedLogsPerDay,
           logsToday: todayLogs.map(l => ({ id: l.id, timestamp: l.timestamp, type: l.type }))
         });
       }
 
-      const type = todayLogs.length === 0 ? 'IN' : 'OUT';
+      const type = nextTypeFromCount(todayLogs.length);
 
-      // Compute flags based on company-wide shift settings
+      // Compute flags based on configured shift session
       let isLate = false, isEarlyLeave = false, isOvertime = false;
       let linkedShiftId = null;
       let note = null;
@@ -116,25 +165,43 @@ export const logAttendance = async (req, res) => {
       try {
         if (applicableShift) {
           linkedShiftId = applicableShift.id;
-          const start = parseTimeToday(applicableShift.startTime);
-          const end = parseTimeToday(applicableShift.endTime);
           const graceMinutes = applicableShift.gracePeriodMinutes || 5;
-          const overtimeThresholdMins = applicableShift.overtimeThresholdMinutes || 15;
+
+          const sessionIndex = Math.floor(todayLogs.length / 2);
+          const totalMainSessions = shiftPlan.mainShifts.length;
+          const isOvertimeSession = sessionIndex >= totalMainSessions;
+          const session = isOvertimeSession
+            ? { startTime: shiftPlan.overtimeStart, endTime: null }
+            : shiftPlan.mainShifts[sessionIndex] || shiftPlan.mainShifts[totalMainSessions - 1];
+          const start = parseTimeToday(session?.startTime || applicableShift.startTime);
+          const end = parseTimeToday(session?.endTime || applicableShift.endTime);
 
           if (type === 'IN') {
-            if (start && now > new Date(start.getTime() + graceMinutes*60000)) {
-              isLate = true; 
-              note = `Late by ${Math.round((now - start)/60000)} min`;
+            if (isOvertimeSession) {
+              isOvertime = true;
+              note = `Overtime check-in`;
+            } else if (start && now > new Date(start.getTime() + graceMinutes * 60000)) {
+              isLate = true;
+              note = `Late by ${Math.round((now - start) / 60000)} min`;
             }
           } else {
             // OUT
-            if (end && now < end) {
-              isEarlyLeave = true; 
-              note = `Left early by ${Math.round((end - now)/60000)} min`;
-            }
-            if (end && now > new Date(end.getTime() + overtimeThresholdMins*60000)) {
-              isOvertime = true; 
-              note = `Overtime ${Math.round((now - end)/60000)} min`;
+            if (isOvertimeSession) {
+              isOvertime = true;
+              note = `Overtime check-out`;
+            } else {
+              if (end && now < end) {
+                isEarlyLeave = true;
+                note = `Left early by ${Math.round((end - now) / 60000)} min`;
+              }
+
+              const overtimeStart = shiftPlan.overtimeStart
+                ? parseTimeToday(shiftPlan.overtimeStart)
+                : (end ? new Date(end.getTime() + (shiftPlan.overtimeThresholdMinutes || 15) * 60000) : null);
+              if (overtimeStart && now > overtimeStart) {
+                isOvertime = true;
+                note = `Overtime ${Math.round((now - overtimeStart) / 60000)} min`;
+              }
             }
           }
         }
@@ -169,12 +236,15 @@ export const logAttendance = async (req, res) => {
         isOvertime
       });
 
-      const finished = type === 'OUT';
+      const expectedLogsPerDayAfterLog = expectedLogsPerDay;
+      const nextCount = todayLogs.length + 1;
+      const finished = nextCount >= expectedLogsPerDayAfterLog;
+      const nextType = finished ? null : nextTypeFromCount(nextCount);
       const avatarUrl = await userAvatarUrl(match.userId);
 
       return res.json({
         status: "success",
-        message: finished ? 'Điểm danh ra: Bạn đã kết thúc 1 ngày công' : 'Điểm danh vào thành công',
+        message: finished ? 'Điểm danh ra: Bạn đã kết thúc 1 ngày công' : 'Điểm danh thành công',
         matched: true,
         userId: match.userId,
         detectedName: match.detectedName || 'Unknown',
@@ -184,6 +254,8 @@ export const logAttendance = async (req, res) => {
         logId: log.id,
         type: type,
         finished,
+        nextType,
+        expectedLogsPerDay: expectedLogsPerDayAfterLog,
         flags: { isLate, isEarlyLeave, isOvertime },
         shiftId: linkedShiftId,
         avatarUrl
@@ -240,17 +312,47 @@ export const getTodayAttendance = async (req, res) => {
     if (deviceId) where.deviceId = String(deviceId);
     if (userId) where.userId = Number(userId);
 
+    const activeShift = await ShiftSetting.findOne({ where: { active: true } });
+    const shiftPlan = parseShiftPlan(activeShift);
+    const allowedLateMinutes = Number(activeShift?.gracePeriodMinutes ?? 5);
+    const overtimeStartMs = shiftPlan.overtimeStart ? (() => {
+      const [hh, mm] = shiftPlan.overtimeStart.split(':').map(Number);
+      const d = new Date(today);
+      d.setHours(hh, mm, 0, 0);
+      return d.getTime();
+    })() : null;
+
     const logs = await AttendanceLog.findAll({
       where,
       include: [{ model: User, as: "User", attributes: ['name', 'email', 'employeeCode', 'avatarUrl'] }],
       order: [['timestamp', 'DESC']]
     });
 
-    return res.json({
-      status: "success",
-      date: today.toISOString().split('T')[0],
-      count: logs.length,
-      logs: logs.map(log => ({
+    const hasOvertimeRequestToday = userId
+      ? Boolean(await OvertimeRequest.findOne({
+          where: {
+            userId: Number(userId),
+            date: today.toISOString().split('T')[0],
+            approvalStatus: { [Op.in]: ['pending', 'approved'] }
+          }
+        }))
+      : false;
+    const totalLogCapacity = shiftPlan.mainShifts.length * 2 + (hasOvertimeRequestToday ? 2 : 0);
+
+    const logsAsc = [...logs].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const items = logsAsc.map((log, index) => {
+      const timestamp = log.timestamp;
+      const sessionIndex = Math.floor(index / 2);
+      const isOvertime = Boolean(log.isOvertime) || sessionIndex >= shiftPlan.mainShifts.length;
+      const shiftLabel = isOvertime
+        ? 'Overtime shift'
+        : `Shift ${Math.min(sessionIndex + 1, shiftPlan.mainShifts.length)}`;
+      const flags = {
+        isLate: Boolean(log.isLate),
+        isEarlyLeave: Boolean(log.isEarlyLeave),
+        isOvertime: Boolean(log.isOvertime) || sessionIndex >= shiftPlan.mainShifts.length
+      };
+      return {
         id: log.id,
         userId: log.userId,
         detectedName: log.detectedName,
@@ -258,8 +360,27 @@ export const getTodayAttendance = async (req, res) => {
         type: log.type || 'IN',
         confidence: log.confidence,
         matchDistance: log.matchDistance,
+        note: log.note || null,
+        shiftId: log.shiftId || null,
+        flags,
+        shiftLabel,
+        allowedLateMinutes,
         avatarUrl: log.User?.avatarUrl || null
-      }))
+      };
+    }).reverse();
+
+    return res.json({
+      status: "success",
+      date: today.toISOString().split('T')[0],
+      count: logs.length,
+      allowedLateMinutes,
+      shiftPlan: {
+        mainShifts: shiftPlan.mainShifts,
+        overtimeStart: shiftPlan.overtimeStart,
+        overtimeThresholdMinutes: shiftPlan.overtimeThresholdMinutes,
+        expectedLogsPerDay: totalLogCapacity
+      },
+      logs: items
     });
   } catch (err) {
     console.error("Error fetching today's attendance:", err);
@@ -294,9 +415,11 @@ export const matchFace = async (req, res) => {
     const input = descriptors && Array.isArray(descriptors) ? descriptors : descriptor;
     const match = await matchDescriptor(input, THRESHOLD);
 
-    // If matched, fetch today's logs to determine IN/OUT status and finished flag
+    // If matched, fetch today's logs to determine next IN/OUT action based on configured shifts
     let logsToday = [];
     let finished = false;
+    let nextType = "IN";
+    let expectedLogsPerDay = 2;
     let avatarUrl = null;
     if (match.matched && match.userId) {
       // Short-circuit: deactivated accounts cannot check in
@@ -338,8 +461,11 @@ export const matchFace = async (req, res) => {
         attributes: ['id', 'type', 'timestamp']
       });
 
-      // If already 2+ logs, mark as finished
-      finished = logsToday.length >= 2;
+      const activeShift = await ShiftSetting.findOne({ where: { active: true } });
+      const shiftPlan = parseShiftPlan(activeShift);
+      expectedLogsPerDay = shiftPlan.expectedLogsPerDay || 2;
+      finished = logsToday.length >= expectedLogsPerDay;
+      nextType = finished ? null : nextTypeFromCount(logsToday.length);
     }
 
     return res.json({
@@ -354,6 +480,8 @@ export const matchFace = async (req, res) => {
       meanVariance: match.meanVariance || null,
       logsToday: logsToday.map(l => ({ id: l.id, type: l.type, timestamp: l.timestamp })),
       finished: finished,
+      nextType,
+      expectedLogsPerDay,
       avatarUrl
     });
   } catch (err) {

@@ -126,8 +126,23 @@ export default function AdminDashboard() {
     socket.emit("join-room", { room: "admin" });
     const onUpdate = () => fetchTodayPresence();
     socket.on("attendance-update", onUpdate);
+    const onEmployeeCreated = (payload) => {
+      try {
+        const emp = payload?.user || payload?.employee || payload;
+        if (!emp || !emp.id) return;
+        setEmployees((prev) => {
+          const filtered = prev.filter((e) => Number(e.id) !== Number(emp.id));
+          return [emp, ...filtered];
+        });
+        fetchTodayPresence();
+      } catch (err) {
+        console.warn("employee-created handler error:", err);
+      }
+    };
+    socket.on("employee-created", onEmployeeCreated);
     return () => {
       socket.off("attendance-update", onUpdate);
+      socket.off("employee-created", onEmployeeCreated);
     };
   }, [fetchTodayPresence]);
 
