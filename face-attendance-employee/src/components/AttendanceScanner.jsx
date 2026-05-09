@@ -341,6 +341,7 @@ function AttendanceScanner() {
   const [isScanning, setIsScanning] = useState(false);
   const [detectedFaces, setDetectedFaces] = useState(null);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [workShiftPlan, setWorkShiftPlan] = useState(null);
   // "Today's Attendance Log" should show ONLY the current matched user.
   const [activeUserId, setActiveUserId] = useState(null);
   const activeUserIdRef = useRef(null);
@@ -498,9 +499,14 @@ function AttendanceScanner() {
           type: log.type || "IN",
           logsCount: 0,
           avatarUrl: log.avatarUrl || null,
+          note: log.note || "",
+          flags: log.flags || {},
+          shiftLabel: log.shiftLabel || "Main shift",
+          allowedLateMinutes: log.allowedLateMinutes || data.allowedLateMinutes || 0,
         }));
         mapped.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         setAttendanceLogs(mapped);
+        setWorkShiftPlan(data.shiftPlan || null);
       }
     } catch (e) {
       console.warn("Fetch today logs failed:", e);
@@ -531,6 +537,27 @@ function AttendanceScanner() {
       console.error("Camera error:", error);
       setErrorMsg("Cannot access camera: " + error.message);
     }
+  };
+
+  const renderDetailText = (log) => {
+    if (log.flags.isLate) {
+      const lateMinutesMatch = log.note?.match(/(-?\d+)\s*min/);
+      const minutes = lateMinutesMatch ? Number(lateMinutesMatch[1]) : null;
+      return minutes !== null
+        ? `Late by ${minutes} min beyond Allowed late time (${log.allowedLateMinutes} min)`
+        : `Late beyond Allowed late time (${log.allowedLateMinutes} min)`;
+    }
+    if (log.flags.isEarlyLeave) {
+      const earlyMinutesMatch = log.note?.match(/(-?\d+)\s*min/);
+      const minutes = earlyMinutesMatch ? Number(earlyMinutesMatch[1]) : null;
+      return minutes !== null
+        ? `Left early by ${minutes} min`
+        : `Left early`;
+    }
+    if (log.flags.isOvertime) {
+      return `Overtime shift`;
+    }
+    return log.shiftLabel || "Main shift";
   };
 
   const startDetection = () => {
@@ -2691,9 +2718,18 @@ function AttendanceScanner() {
                           fontSize: "14px",
                           color: textColor,
                           opacity: 0.8,
-                          fontWeight: "500"
+                          fontWeight: "500",
+                          marginBottom: "4px"
                         }}>
                           {log.time}
+                        </div>
+                        <div style={{
+                          fontSize: "12px",
+                          color: "#4b5563",
+                          lineHeight: 1.5,
+                          fontWeight: 500
+                        }}>
+                          {renderDetailText(log)}
                         </div>
                         </div>
                       </div>

@@ -35,7 +35,7 @@ export const getOvertimeRequests = async (req, res) => {
     const requests = await OvertimeRequest.findAll({
       where,
       include: [
-        { model: User, as: 'User', attributes: ['id', 'name', 'employeeCode', 'email'] },
+        { model: User, as: 'User', attributes: ['id', 'name', 'employeeCode', 'email', 'overtimeMonthlyLimit', 'overtimeAnnualLimit'] },
         { model: User, as: 'Approver', attributes: ['id', 'name', 'email'] },
         { model: User, as: 'CurrentApprover', attributes: ['id', 'name', 'email'] }
       ],
@@ -45,9 +45,63 @@ export const getOvertimeRequests = async (req, res) => {
       ]
     });
 
+    const userMonthKeys = [...new Set(requests.map((request) => {
+      if (!request.userId || !request.date) return null;
+      const date = new Date(request.date);
+      return `${request.userId}:${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    }).filter(Boolean))];
+
+    const usageMap = {};
+    if (userMonthKeys.length > 0) {
+      const months = userMonthKeys.map((key) => {
+        const [, ym] = key.split(':');
+        const [year, month] = ym.split('-').map(Number);
+        return { year, month };
+      });
+      const minYear = Math.min(...months.map((m) => m.year));
+      const maxYear = Math.max(...months.map((m) => m.year));
+      const minMonth = Math.min(...months.map((m) => m.month));
+      const maxMonth = Math.max(...months.map((m) => m.month));
+
+      const startDate = new Date(minYear, minMonth - 1, 1);
+      const endDate = new Date(maxYear, maxMonth, 0, 23, 59, 59);
+
+      const usageRows = await OvertimeRequest.findAll({
+        where: {
+          userId: requests.map((r) => r.userId).filter(Boolean),
+          approvalStatus: { [Op.in]: ['pending', 'approved'] },
+          date: { [Op.between]: [startDate, endDate] }
+        },
+        attributes: ['userId', 'date', 'totalHours']
+      });
+
+      usageRows.forEach((row) => {
+        const date = row.date ? new Date(row.date) : null;
+        if (!date) return;
+        const key = `${row.userId}:${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        usageMap[key] = (usageMap[key] || 0) + Number(row.totalHours || 0);
+      });
+    }
+
+    const enrichedRequests = requests.map((request) => {
+      const date = request.date ? new Date(request.date) : null;
+      const monthKey = date ? `${request.userId}:${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` : null;
+      const used = monthKey ? usageMap[monthKey] || 0 : 0;
+      const monthlyLimit = Number(request.User?.overtimeMonthlyLimit ?? 40);
+      const annualLimit = Number(request.User?.overtimeAnnualLimit ?? 200);
+      return {
+        ...request.toJSON(),
+        userOvertimeLimit: monthlyLimit,
+        userOvertimeMonthlyLimit: monthlyLimit,
+        userOvertimeAnnualLimit: annualLimit,
+        userOvertimeUsed: Number(used.toFixed(2)),
+        userOvertimeRemaining: Number(Math.max(0, monthlyLimit - used).toFixed(2))
+      };
+    });
+
     return res.json({
       status: "success",
-      requests
+      requests: enrichedRequests
     });
   } catch (err) {
     console.error("Error fetching overtime requests:", err);
@@ -81,6 +135,36 @@ export const createOvertimeRequest = async (req, res) => {
       });
     }
 
+    // Block duplicate requests for the same date if there is already a pending or approved request
+    const duplicateRequest = await OvertimeRequest.findOne({
+      where: {
+        userId,
+        date,
+        approvalStatus: { [Op.in]: ['pending', 'approved'] }
+      }
+    });
+    if (duplicateRequest) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'You already have an overtime request for this date. Please wait for it to be processed or rejected before submitting again.'
+      });
+    }
+
+    // Load the user so limits can be enforced per employee
+    const user = await User.findByPk(userId, {
+      include: [{ model: User, as: 'Manager' }]
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found'
+      });
+    }
+
+    const monthlyLimit = Number(user.overtimeMonthlyLimit ?? 40);
+    const annualLimit = Number(user.overtimeAnnualLimit ?? 200);
+
     // Calculate total hours
     // Handle both same-day and overnight scenarios
     const start = new Date(`${date}T${startTime}`);
@@ -108,10 +192,49 @@ export const createOvertimeRequest = async (req, res) => {
       });
     }
 
-    // Get user's manager for approval
-    const user = await User.findByPk(userId, {
-      include: [{ model: User, as: 'Manager' }]
+    const requestYear = new Date(date).getFullYear();
+    const yearStart = new Date(requestYear, 0, 1);
+    const yearEnd = new Date(requestYear, 11, 31, 23, 59, 59, 999);
+    const yearlyRequests = await OvertimeRequest.findAll({
+      where: {
+        userId,
+        approvalStatus: { [Op.in]: ['pending', 'approved'] },
+        date: {
+          [Op.between]: [yearStart, yearEnd]
+        }
+      },
+      attributes: ['totalHours']
     });
+    const yearTotalHours = yearlyRequests.reduce((sum, row) => sum + Number(row.totalHours || 0), 0);
+    if (yearTotalHours + totalHours > annualLimit) {
+      return res.status(400).json({
+        status: "error",
+        message: `This overtime request would exceed the allowed ${annualLimit} OT hours for the calendar year.`
+      });
+    }
+
+    const requestMonth = new Date(date).getMonth();
+    const monthStart = new Date(requestYear, requestMonth, 1);
+    const monthEnd = new Date(requestYear, requestMonth + 1, 0, 23, 59, 59, 999);
+    const monthlyRequests = await OvertimeRequest.findAll({
+      where: {
+        userId,
+        approvalStatus: { [Op.in]: ['pending', 'approved'] },
+        date: {
+          [Op.between]: [monthStart, monthEnd]
+        }
+      },
+      attributes: ['totalHours']
+    });
+    const monthTotalHours = monthlyRequests.reduce((sum, row) => sum + Number(row.totalHours || 0), 0);
+    if (monthTotalHours + totalHours > monthlyLimit) {
+      return res.status(400).json({
+        status: "error",
+        message: `This overtime request would exceed the allowed ${monthlyLimit} OT hours for the month.`
+      });
+    }
+
+    // Get user's manager for approval
 
     const approverChain = await resolveApprovalChain('overtime', user);
     const initialApproverId = approverChain[0] || null;

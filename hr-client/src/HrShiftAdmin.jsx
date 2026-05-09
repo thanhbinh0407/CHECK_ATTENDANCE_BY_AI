@@ -172,8 +172,19 @@ export default function HrShiftAdmin({ token }) {
       setMessage('Please set overtime start and overtime end time.');
       return;
     }
-    if (draftOvertimeStart === draftOvertimeEnd) {
-      setMessage('Overtime end time must be different from overtime start time.');
+
+    const overtimeStartMinutes = timeToMinutes(draftOvertimeStart);
+    const overtimeEndMinutes = timeToMinutes(draftOvertimeEnd);
+    if (!Number.isFinite(overtimeStartMinutes) || !Number.isFinite(overtimeEndMinutes)) {
+      setMessage('Please provide valid overtime times.');
+      return;
+    }
+    if (!(overtimeStartMinutes < overtimeEndMinutes)) {
+      setMessage('Overtime end time must be later than overtime start time.');
+      return;
+    }
+    if (overtimeStartMinutes < s2e) {
+      setMessage('Overtime shift cannot overlap Shift 1 or Shift 2. It must start after Shift 2 end.');
       return;
     }
 

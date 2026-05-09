@@ -7,49 +7,22 @@ import Department from "../models/pg/Department.js";
 import JobTitle from "../models/pg/JobTitle.js";
 import SalaryGrade from "../models/pg/SalaryGrade.js";
 import Dependent from "../models/pg/Dependent.js";
-import DependentDocument from "../models/pg/DependentDocument.js";
 import Qualification from "../models/pg/Qualification.js";
 import WorkExperience from "../models/pg/WorkExperience.js";
 import JobHistory from "../models/pg/JobHistory.js";
 import SalaryHistory from "../models/pg/SalaryHistory.js";
 import RoleChangeAudit from "../models/pg/RoleChangeAudit.js";
-import Document from "../models/pg/Document.js";
-import Notification from "../models/pg/Notification.js";
-import Payroll from "../models/pg/Payroll.js";
-import PayrollDetail from "../models/pg/PayrollDetail.js";
-import OvertimeRequest from "../models/pg/OvertimeRequest.js";
-import BusinessTripRequest from "../models/pg/BusinessTripRequest.js";
-import SalaryAdvance from "../models/pg/SalaryAdvance.js";
 import ApprovalWorkflow from "../models/pg/ApprovalWorkflow.js";
-import InsuranceForm from "../models/pg/InsuranceForm.js";
+import ActionAudit from "../models/pg/ActionAudit.js";
 import sequelize from "../db/sequelize.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
 import { recalculatePendingSalariesForUsers } from "../services/salaryCalculationService.js";
-import { createNotification } from "./notificationController.js";
-import ActionAudit from "../models/pg/ActionAudit.js";
-import { recordAction } from "../services/actionAuditService.js";
+import { sendNotification } from "./notificationController.js";
 
 const toNumber = (value, fallback = 0) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
-};
-
-/**
- * Sinh mật khẩu mặc định ngẫu nhiên theo format: AAA#9999
- * - 3 chữ cái hoa ngẫu nhiên
- * - dấu #
- * - 4 chữ số ngẫu nhiên
- * Ví dụ: HMA#9940, AMZ#2234, KPX#0571
- * Mật khẩu được trả về trong response để HR/Manager thông báo cho nhân viên.
- */
-const generateDefaultPassword = () => {
-  const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const prefix = Array.from({ length: 3 }, () =>
-    LETTERS[Math.floor(Math.random() * LETTERS.length)]
-  ).join('');
-  const digits = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-  return `${prefix}#${digits}`;
 };
 
 const sumAllowances = (obj) => {
@@ -60,175 +33,6 @@ const sumAllowances = (obj) => {
     toNumber(obj?.responsibilityAllowance)
   );
 };
-
-/**
- * Xóa dữ liệu phụ thuộc user trước khi xóa bản ghi users (tránh lỗi FK như salaries_userId_fkey).
- */
-async function purgeEmployeeRelatedRows(userId, transaction) {
-  const t = { transaction };
-  const uid = Number(userId);
-  if (!Number.isFinite(uid)) return;
-
-  await User.update({ managerId: null }, { where: { managerId: uid }, ...t });
-  await Department.update({ managerId: null }, { where: { managerId: uid }, ...t });
-  await Document.update({ uploadedBy: null }, { where: { uploadedBy: uid }, ...t });
-  await Payroll.update({ approvedBy: null }, { where: { approvedBy: uid }, ...t });
-
-  const leaves = await LeaveRequest.findAll({ where: { userId: uid }, attributes: ["id"], ...t });
-  const leaveIds = leaves.map((r) => r.id);
-  if (leaveIds.length) {
-    await ApprovalWorkflow.destroy({
-      where: { requestType: "leave", requestId: { [Op.in]: leaveIds } },
-      ...t,
-    });
-  }
-
-  const otRows = await OvertimeRequest.findAll({ where: { userId: uid }, attributes: ["id"], ...t });
-  const otIds = otRows.map((r) => r.id);
-  if (otIds.length) {
-    await ApprovalWorkflow.destroy({
-      where: { requestType: "overtime", requestId: { [Op.in]: otIds } },
-      ...t,
-    });
-  }
-
-  const trips = await BusinessTripRequest.findAll({ where: { userId: uid }, attributes: ["id"], ...t });
-  const tripIds = trips.map((r) => r.id);
-  if (tripIds.length) {
-    await ApprovalWorkflow.destroy({
-      where: { requestType: "business_trip", requestId: { [Op.in]: tripIds } },
-      ...t,
-    });
-  }
-
-  const advances = await SalaryAdvance.findAll({ where: { userId: uid }, attributes: ["id"], ...t });
-  const advIds = advances.map((r) => r.id);
-  if (advIds.length) {
-    await ApprovalWorkflow.destroy({
-      where: { requestType: "salary_advance", requestId: { [Op.in]: advIds } },
-      ...t,
-    });
-  }
-
-  await ApprovalWorkflow.destroy({ where: { approverId: uid }, ...t });
-
-  await LeaveRequest.destroy({ where: { userId: uid }, ...t });
-  await OvertimeRequest.destroy({ where: { userId: uid }, ...t });
-  await BusinessTripRequest.destroy({ where: { userId: uid }, ...t });
-  await SalaryAdvance.destroy({ where: { userId: uid }, ...t });
-
-  const payrolls = await Payroll.findAll({ where: { userId: uid }, attributes: ["id"], ...t });
-  for (const p of payrolls) {
-    await PayrollDetail.destroy({ where: { payrollId: p.id }, ...t });
-  }
-  await Payroll.destroy({ where: { userId: uid }, ...t });
-
-  await Salary.destroy({ where: { userId: uid }, ...t });
-  await Notification.destroy({ where: { userId: uid }, ...t });
-  await Qualification.destroy({ where: { userId: uid }, ...t });
-  const dependents = await Dependent.findAll({ where: { userId: uid }, attributes: ["id"], ...t });
-  const depIds = dependents.map((d) => d.id);
-  if (depIds.length) {
-    await DependentDocument.destroy({
-      where: { dependentId: { [Op.in]: depIds } },
-      ...t,
-    });
-  }
-  await Dependent.destroy({ where: { userId: uid }, ...t });
-  await WorkExperience.destroy({ where: { userId: uid }, ...t });
-  await Document.destroy({ where: { userId: uid }, ...t });
-  await InsuranceForm.destroy({ where: { userId: uid }, ...t });
-  await JobHistory.destroy({ where: { userId: uid }, ...t });
-  await SalaryHistory.destroy({ where: { userId: uid }, ...t });
-  await RoleChangeAudit.destroy({
-    where: { [Op.or]: [{ userId: uid }, { changedBy: uid }] },
-    ...t,
-  });
-  await AttendanceLog.destroy({ where: { userId: uid }, ...t });
-  await FaceProfile.destroy({ where: { userId: uid }, ...t });
-}
-
-/**
- * Manager: mọi vai trò trừ chính mình.
- * HR: chỉ tài khoản role `employee`; không được thao tác manager (admin) hoặc chính mình.
- */
-function getAccountLifecyclePolicyViolation(req, targetUser, action = "deactivate") {
-  const actorRole = req.user?.role;
-  const actorId = req.user?.userId ?? req.user?.id ?? null;
-  const targetId = targetUser?.id != null ? Number(targetUser.id) : NaN;
-  const aid = actorId != null ? Number(actorId) : NaN;
-
-  if (!Number.isFinite(targetId)) return null;
-
-  if (Number.isFinite(aid) && aid === targetId) {
-    const selfMessages = {
-      deactivate: "Cannot deactivate your own account",
-      permanent: "Cannot permanently delete your own account",
-      restore: "Cannot restore your own account",
-    };
-    return {
-      status: 400,
-      code: "SELF_ACTION",
-      message: selfMessages[action] || selfMessages.deactivate,
-    };
-  }
-
-  if (actorRole === "manager") return null;
-
-  if (actorRole === "hr") {
-    if (targetUser.role === "manager") {
-      return { status: 403, code: "NO_PERMISSION_ADMIN", message: "Bạn không có quyền này" };
-    }
-    if (targetUser.role !== "employee") {
-      return {
-        status: 403,
-        code: "HR_EMPLOYEE_ONLY",
-        message: "Chỉ có thể thao tác với tài khoản nhân viên.",
-      };
-    }
-    return null;
-  }
-
-  return { status: 403, message: "Forbidden" };
-}
-
-async function verifyActorPasswordOrThrow(req, transaction, actionLabel = "perform this action") {
-  const actorId = req.user?.userId ?? req.user?.id;
-  if (!actorId) {
-    const err = new Error("Unauthorized");
-    err.statusCode = 401;
-    throw err;
-  }
-
-  const actor = await User.findByPk(actorId, { transaction });
-  if (!actor) {
-    const err = new Error("Unauthorized");
-    err.statusCode = 401;
-    throw err;
-  }
-
-  const password = req.body?.password;
-  if (!password || typeof password !== "string") {
-    const err = new Error(`Password is required to ${actionLabel}`);
-    err.statusCode = 400;
-    throw err;
-  }
-
-  if (!actor.password) {
-    const err = new Error("Actor has no password set");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const ok = await bcrypt.compare(password, actor.password);
-  if (!ok) {
-    const err = new Error("Incorrect password");
-    err.statusCode = 403;
-    throw err;
-  }
-
-  return actor;
-}
 
 // Get all employees
 export const getAllEmployees = async (req, res) => {
@@ -250,11 +54,6 @@ export const getAllEmployees = async (req, res) => {
         { 
           model: JobTitle, 
           attributes: ['id', 'name'],
-          required: false
-        },
-        {
-          model: SalaryGrade,
-          attributes: ['id', 'code', 'name', 'level', 'baseSalary'],
           required: false
         },
         { 
@@ -315,30 +114,35 @@ export const getEmployeeById = async (req, res) => {
   }
 };
 
-// Check if an ID Number (CCCD) is already used by another employee
+// Check if idNumber is already used by another employee
 export const checkIdNumber = async (req, res) => {
   try {
     const { idNumber, excludeId } = req.query;
-    if (!idNumber || String(idNumber).trim().length === 0) {
-      return res.status(400).json({ status: 'error', message: 'idNumber query is required' });
+    if (!idNumber || String(idNumber).trim() === "") {
+      return res.status(400).json({
+        status: "error",
+        message: "idNumber is required"
+      });
     }
 
-    const normalized = String(idNumber || '').replace(/\D/g, '');
-
-    const where = { idNumber: normalized };
-    if (excludeId) {
+    const where = {
+      idNumber: String(idNumber).trim()
+    };
+    if (excludeId && !Number.isNaN(Number(excludeId))) {
       where.id = { [Op.ne]: Number(excludeId) };
     }
 
     const existing = await User.findOne({ where });
-    if (existing) {
-      return res.json({ status: 'success', exists: true, userId: existing.id });
-    }
-
-    return res.json({ status: 'success', exists: false });
+    return res.json({
+      status: "success",
+      exists: !!existing
+    });
   } catch (err) {
-    console.error('Error checking idNumber:', err);
-    return res.status(500).json({ status: 'error', message: err.message });
+    console.error("Error checking idNumber uniqueness:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
   }
 };
 
@@ -421,6 +225,8 @@ export const updateEmployee = async (req, res) => {
       transportAllowance,
       phoneAllowance,
       responsibilityAllowance,
+      overtimeMonthlyLimit,
+      overtimeAnnualLimit,
       socialInsuranceNumber,
       healthInsuranceProvider,
       dependentCount,
@@ -471,25 +277,7 @@ export const updateEmployee = async (req, res) => {
     if (permanentAddress !== undefined) updateData.permanentAddress = permanentAddress;
     if (temporaryAddress !== undefined) updateData.temporaryAddress = temporaryAddress;
     if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
-    if (idNumber !== undefined) {
-      const normalizedId = String(idNumber || "").replace(/\D/g, "");
-      if (normalizedId === "") {
-        updateData.idNumber = null;
-      } else {
-        // enforce format: 12 digits for employee ID numbers
-        if (!/^\d{12}$/.test(normalizedId)) {
-          return res.status(400).json({ status: "error", message: "ID Number must be exactly 12 digits" });
-        }
-
-        // Check uniqueness (exclude current employee)
-        const existing = await User.findOne({ where: { idNumber: normalizedId, id: { [Op.ne]: Number(id) } } });
-        if (existing) {
-          return res.status(400).json({ status: "error", message: "CCCD is already registered to another employee" });
-        }
-
-        updateData.idNumber = normalizedId;
-      }
-    }
+    if (idNumber !== undefined) updateData.idNumber = idNumber;
     if (idIssueDate !== undefined) updateData.idIssueDate = idIssueDate ? new Date(idIssueDate) : null;
     if (idIssuePlace !== undefined) updateData.idIssuePlace = idIssuePlace;
     if (personalEmail !== undefined) updateData.personalEmail = personalEmail;
@@ -509,6 +297,8 @@ export const updateEmployee = async (req, res) => {
     if (transportAllowance !== undefined) updateData.transportAllowance = parseFloat(transportAllowance) || 0;
     if (phoneAllowance !== undefined) updateData.phoneAllowance = parseFloat(phoneAllowance) || 0;
     if (responsibilityAllowance !== undefined) updateData.responsibilityAllowance = parseFloat(responsibilityAllowance) || 0;
+    if (overtimeMonthlyLimit !== undefined) updateData.overtimeMonthlyLimit = parseFloat(overtimeMonthlyLimit) || 0;
+    if (overtimeAnnualLimit !== undefined) updateData.overtimeAnnualLimit = parseFloat(overtimeAnnualLimit) || 0;
     if (socialInsuranceNumber !== undefined) updateData.socialInsuranceNumber = socialInsuranceNumber;
     if (healthInsuranceProvider !== undefined) updateData.healthInsuranceProvider = healthInsuranceProvider;
     if (dependentCount !== undefined) updateData.dependentCount = parseInt(dependentCount) || 0;
@@ -592,8 +382,6 @@ export const updateEmployee = async (req, res) => {
       await employee.update(updateData, { transaction });
 
       if (roleAuditPayload) {
-        // Force logout for the target user if role changed
-        await employee.update({ tokenVersion: Number(employee.tokenVersion || 0) + 1 }, { transaction });
         await RoleChangeAudit.create(
           {
             userId: employee.id,
@@ -658,52 +446,21 @@ export const updateEmployee = async (req, res) => {
 
     console.log(`Employee updated: ${employee.name} (ID: ${id})${salaryFieldsChanged ? ` - ${recalculatedSalaryCount} salary record(s) recalculated` : ''}`);
 
-    // Audit: employee update (+ optional role change)
-    const changedFieldKeys = Object.keys(updateData || {});
-    await recordAction(req, {
-      action: roleAuditPayload ? "employee.update_role" : "employee.update",
-      category: roleAuditPayload ? "role_change" : "employee_update",
-      targetUserId: employee.id,
-      entityType: "user",
-      entityId: employee.id,
-      summary: roleAuditPayload
-        ? `Changed role of ${employee.name} (${employee.employeeCode}): ${roleAuditPayload.oldRole} → ${roleAuditPayload.newRole}`
-        : `Updated employee ${employee.name} (${employee.employeeCode})`,
-      metadata: {
-        changedFields: changedFieldKeys,
-        roleChange: roleAuditPayload || null,
-        jobChanged,
-        salaryChanged,
-        recalculatedSalaryCount,
-      },
-    });
-
-    if (roleAuditPayload) {
-      await createNotification(
-        null, 'system', 'Employee Role Updated',
-        `Employee ${employee.name} (${employee.employeeCode}) role changed: ${roleAuditPayload.oldRole} → ${roleAuditPayload.newRole}.`,
-        { employeeId: employee.id, changeType: 'role', oldRole: roleAuditPayload.oldRole, newRole: roleAuditPayload.newRole }
-      );
-    }
-
+    // Send broadcast notifications for important changes
     if (jobChanged) {
-      const changeTypeText = getJobChangeType() === 'promotion' ? 'promoted' :
-                             getJobChangeType() === 'transfer'  ? 'transferred' : 'updated';
-      await createNotification(
-        null, 'system', 'Employee Position Updated',
-        `Employee ${employee.name} (${employee.employeeCode}) has been ${changeTypeText}.`,
-        { employeeId: employee.id, changeType: 'job', type: getJobChangeType() }
-      );
+      const changeTypeText = getJobChangeType() === 'promotion' ? 'promoted' : 
+                            getJobChangeType() === 'transfer' ? 'transferred' : 'updated';
+      await sendNotification(null, 'system', 'Employee Position Updated', 
+        `Employee ${employee.name} (${employee.employeeCode}) has been ${changeTypeText}.`, 
+        { employeeId: employee.id, changeType: 'job', type: getJobChangeType() });
     }
 
     if (salaryChanged) {
-      const changeTypeText = getSalaryChangeType() === 'increase' ? 'increased' :
-                             getSalaryChangeType() === 'decrease' ? 'decreased' : 'updated';
-      await createNotification(
-        null, 'system', 'Employee Salary Updated',
-        `Employee ${employee.name} (${employee.employeeCode}) salary has been ${changeTypeText}.`,
-        { employeeId: employee.id, changeType: 'salary', type: getSalaryChangeType() }
-      );
+      const changeTypeText = getSalaryChangeType() === 'increase' ? 'increased' : 
+                            getSalaryChangeType() === 'decrease' ? 'decreased' : 'updated';
+      await sendNotification(null, 'system', 'Employee Salary Updated', 
+        `Employee ${employee.name} (${employee.employeeCode}) salary has been ${changeTypeText}.`, 
+        { employeeId: employee.id, changeType: 'salary', type: getSalaryChangeType() });
     }
 
     return res.json({
@@ -747,6 +504,8 @@ export const updateEmployee = async (req, res) => {
         transportAllowance: employee.transportAllowance,
         phoneAllowance: employee.phoneAllowance,
         responsibilityAllowance: employee.responsibilityAllowance,
+        overtimeMonthlyLimit: employee.overtimeMonthlyLimit,
+        overtimeAnnualLimit: employee.overtimeAnnualLimit,
         socialInsuranceNumber: employee.socialInsuranceNumber,
         healthInsuranceProvider: employee.healthInsuranceProvider,
         dependentCount: employee.dependentCount,
@@ -769,13 +528,13 @@ export const updateEmployee = async (req, res) => {
   }
 };
 
-// Delete employee (soft delete / deactivate)
+// Delete employee (hard delete - remove completely)
 export const deleteEmployee = async (req, res) => {
   try {
     const { id } = req.params;
 
     const employee = await User.findOne({
-      where: { id }
+      where: { id, role: "employee" }
     });
 
     if (!employee) {
@@ -785,109 +544,34 @@ export const deleteEmployee = async (req, res) => {
       });
     }
 
-    const policy = getAccountLifecyclePolicyViolation(req, employee, "deactivate");
-    if (policy) {
-      return res.status(policy.status).json({
-        status: "error",
-        message: policy.message,
-        ...(policy.code ? { code: policy.code } : {}),
-      });
-    }
+    const employeeName = employee.name;
 
-    if (employee.isActive === false) {
-      return res.json({
-        status: "success",
-        message: "User already inactive",
-        user: { id: employee.id, name: employee.name, isActive: false },
-      });
-    }
+    // Delete attendance logs first (foreign key dependency)
+    await AttendanceLog.destroy({ where: { userId: id } });
+    console.log(`Deleted attendance logs for employee ${id}`);
 
-    await verifyActorPasswordOrThrow(req, null, "deactivate employee");
+    // Delete face profiles
+    await FaceProfile.destroy({ where: { userId: id } });
+    console.log(`Deleted face profiles for employee ${id}`);
 
-    await employee.update({
-      isActive: false,
-      deactivatedAt: new Date(),
-      employmentStatus: "terminated",
-    });
-    console.log(`User deactivated: ${employee.name} (ID: ${id})`);
-
-    await recordAction(req, {
-      action: "employee.deactivate",
-      category: "employee_lifecycle",
-      targetUserId: employee.id,
-      entityType: "user",
-      entityId: employee.id,
-      summary: `Deactivated employee ${employee.name} (${employee.employeeCode})`,
-      metadata: { role: employee.role, email: employee.email },
-    });
+    // Delete user
+    await employee.destroy();
+    console.log(`Employee permanently deleted: ${employeeName} (ID: ${id})`);
 
     return res.json({
       status: "success",
-      message: "User deactivated successfully",
-      user: { id: employee.id, name: employee.name, isActive: employee.isActive },
+      message: "Employee deleted successfully",
+      deletedEmployee: {
+        id: id,
+        name: employeeName
+      }
     });
   } catch (err) {
     console.error("Error deleting employee:", err);
-    const statusCode = err.statusCode || 500;
-    return res.status(statusCode).json({
+    return res.status(500).json({
       status: "error",
       message: err.message
     });
-  }
-};
-
-// Restore employee (reactivate)
-export const restoreEmployee = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const employee = await User.findByPk(id);
-    if (!employee) {
-      return res.status(404).json({ status: "error", message: "Employee not found" });
-    }
-
-    const policy = getAccountLifecyclePolicyViolation(req, employee, "restore");
-    if (policy) {
-      return res.status(policy.status).json({
-        status: "error",
-        message: policy.message,
-        ...(policy.code ? { code: policy.code } : {}),
-      });
-    }
-
-    if (employee.isActive === true) {
-      return res.json({
-        status: "success",
-        message: "User already active",
-        user: { id: employee.id, name: employee.name, isActive: true },
-      });
-    }
-
-    await employee.update({
-      isActive: true,
-      deactivatedAt: null,
-      employmentStatus: employee.employmentStatus === "terminated" ? "active" : employee.employmentStatus,
-    });
-    console.log(`User restored: ${employee.name} (ID: ${id})`);
-
-    await recordAction(req, {
-      action: "employee.restore",
-      category: "employee_lifecycle",
-      targetUserId: employee.id,
-      entityType: "user",
-      entityId: employee.id,
-      summary: `Restored employee ${employee.name} (${employee.employeeCode})`,
-      metadata: { role: employee.role, email: employee.email },
-    });
-
-    return res.json({
-      status: "success",
-      message: "User restored successfully",
-      user: { id: employee.id, name: employee.name, isActive: employee.isActive },
-    });
-  } catch (err) {
-    console.error("Error restoring employee:", err);
-    return res.status(500).json({ status: "error", message: err.message });
   }
 };
 
@@ -897,7 +581,7 @@ export const permanentlyDeleteEmployee = async (req, res) => {
     const { id } = req.params;
 
     const employee = await User.findOne({
-      where: { id }
+      where: { id, role: "employee" }
     });
 
     if (!employee) {
@@ -907,46 +591,13 @@ export const permanentlyDeleteEmployee = async (req, res) => {
       });
     }
 
-    const policy = getAccountLifecyclePolicyViolation(req, employee, "permanent");
-    if (policy) {
-      return res.status(policy.status).json({
-        status: "error",
-        message: policy.message,
-        ...(policy.code ? { code: policy.code } : {}),
-      });
-    }
+    // Delete face profiles first
+    await FaceProfile.destroy({ where: { userId: id } });
 
-    if (employee.isActive !== false) {
-      return res.status(400).json({
-        status: "error",
-        message: "User must be inactive (deactivated) before permanent delete"
-      });
-    }
-
-    const snapshot = {
-      name: employee.name,
-      email: employee.email,
-      employeeCode: employee.employeeCode,
-      role: employee.role,
-    };
-
-    await sequelize.transaction(async (transaction) => {
-      await verifyActorPasswordOrThrow(req, transaction);
-      await purgeEmployeeRelatedRows(id, transaction);
-      await employee.destroy({ transaction });
-    });
+    // Delete user
+    await employee.destroy();
 
     console.log(`Employee permanently deleted: ${employee.name} (ID: ${id})`);
-
-    await recordAction(req, {
-      action: "employee.delete_permanent",
-      category: "employee_lifecycle",
-      targetUserId: null, // user no longer exists
-      entityType: "user",
-      entityId: Number(id) || null,
-      summary: `Permanently deleted employee ${snapshot.name} (${snapshot.employeeCode})`,
-      metadata: snapshot,
-    });
 
     return res.json({
       status: "success",
@@ -954,8 +605,7 @@ export const permanentlyDeleteEmployee = async (req, res) => {
     });
   } catch (err) {
     console.error("Error permanently deleting employee:", err);
-    const statusCode = err.statusCode || 500;
-    return res.status(statusCode).json({
+    return res.status(500).json({
       status: "error",
       message: err.message
     });
@@ -979,29 +629,18 @@ export const resetEmployeePassword = async (req, res) => {
       });
     }
 
-    const passwordToUse = newPassword || generateDefaultPassword();
+    // Default password if not provided
+    const passwordToUse = newPassword || "Password123!";
     const hashedPassword = await bcrypt.hash(passwordToUse, 10);
 
     await employee.update({ password: hashedPassword });
 
-    console.log(`Password reset for employee: ${employee.name} (ID: ${id}) → ${passwordToUse}`);
-
-    await recordAction(req, {
-      action: "employee.reset_password",
-      category: "password",
-      targetUserId: employee.id,
-      entityType: "user",
-      entityId: employee.id,
-      summary: `Reset password for ${employee.name} (${employee.employeeCode})`,
-      metadata: { customPassword: Boolean(newPassword) },
-    });
+    console.log(`Password reset for employee: ${employee.name} (ID: ${id})`);
 
     return res.json({
       status: "success",
       message: "Password reset successfully",
-      newPassword: passwordToUse,
-      employeeName: employee.name,
-      employeeCode: employee.employeeCode,
+      newPassword: passwordToUse // Return password so admin can share it
     });
   } catch (err) {
     console.error("Error resetting password:", err);
@@ -1089,7 +728,8 @@ export const createEmployee = async (req, res) => {
       });
     }
 
-    const defaultPassword = generateDefaultPassword();
+    // Generate default password
+    const defaultPassword = "Password123!";
     const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
     const normalizedEffectiveDate = effectiveDate || startDate || new Date().toISOString().slice(0, 10);
@@ -1176,25 +816,9 @@ export const createEmployee = async (req, res) => {
 
     console.log(`Employee created: ${name} (${employeeCode})`);
 
-    await recordAction(req, {
-      action: "employee.create",
-      category: "employee_lifecycle",
-      targetUserId: employee.id,
-      entityType: "user",
-      entityId: employee.id,
-      summary: `Created employee ${employee.name} (${employee.employeeCode})`,
-      metadata: {
-        email: employee.email,
-        baseSalary: employee.baseSalary,
-        departmentId: employee.departmentId || null,
-        jobTitleId: employee.jobTitleId || null,
-      },
-    });
-
     return res.json({
       status: "success",
       message: "Employee created successfully",
-      newPassword: defaultPassword,
       employee: {
         id: employee.id,
         name: employee.name,
@@ -1300,19 +924,6 @@ export const bulkCreateEmployees = async (req, res) => {
         console.error(`Error creating employee ${empData.employeeCode}:`, err);
       }
     }
-
-    await recordAction(req, {
-      action: "employee.bulk_create",
-      category: "employee_lifecycle",
-      entityType: "user_bulk",
-      summary: `Bulk created ${results.success.length} employee(s); ${results.failed.length} failed`,
-      metadata: {
-        successCount: results.success.length,
-        failedCount: results.failed.length,
-        success: results.success.map((s) => ({ id: s.id, code: s.employeeCode, name: s.name })),
-        failed: results.failed,
-      },
-    });
 
     return res.json({
       status: "success",
@@ -1448,9 +1059,9 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         { model: SalaryGrade, attributes: ['id', 'name', 'baseSalary'] },
         { model: User, as: 'Manager', attributes: ['id', 'name', 'employeeCode', 'email'] },
         // Family / Dependents - include address so frontend can display it
-        {
-          model: Dependent,
-          as: 'Dependents',
+        { 
+          model: Dependent, 
+          as: 'Dependents', 
           attributes: [
             'id',
             'fullName',
@@ -1462,26 +1073,11 @@ export const getEmployeeDetailedInfo = async (req, res) => {
             'phoneNumber',
             'email',
             'occupation',
-            'notes',
             'approvalStatus'
-          ],
-          separate: true,
-          order: [['updatedAt', 'DESC'], ['id', 'DESC']],
+          ] 
         },
-        {
-          model: Qualification,
-          as: 'Qualifications',
-          attributes: ['id', 'type', 'name', 'issuedBy', 'issuedDate', 'expiryDate', 'certificateNumber', 'documentPath', 'description', 'approvalStatus'],
-          separate: true,
-          order: [['updatedAt', 'DESC'], ['id', 'DESC']],
-        },
-        {
-          model: WorkExperience,
-          as: 'WorkExperiences',
-          attributes: ['id', 'companyName', 'position', 'startDate', 'endDate', 'description', 'responsibilities', 'achievements', 'isCurrent'],
-          separate: true,
-          order: [['startDate', 'DESC']],
-        }
+        { model: Qualification, as: 'Qualifications', attributes: ['id', 'type', 'name', 'issuedBy', 'issuedDate', 'expiryDate', 'certificateNumber', 'documentPath', 'description', 'approvalStatus'] },
+        { model: WorkExperience, as: 'WorkExperiences', attributes: ['id', 'companyName', 'position', 'startDate', 'endDate', 'description', 'responsibilities', 'achievements', 'isCurrent'], order: [['startDate', 'DESC']] }
       ]
       // Note: password is included by default, not excluded
     });
@@ -1672,7 +1268,6 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         name: employee.name,
         email: employee.email,
         employeeCode: employee.employeeCode,
-        role: employee.role,
         phoneNumber: employee.phoneNumber,
         address: employee.address,
         permanentAddress: employee.permanentAddress,
@@ -1895,14 +1490,7 @@ export const getEmployeeHistory = async (req, res) => {
     const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '10', 10), 1), 100);
     const offset = (page - 1) * pageSize;
 
-    const employee = await User.findOne({
-      where: { id },
-      attributes: ['id'],
-      include: [
-        { model: Department, attributes: ['id', 'name'] },
-        { model: JobTitle, attributes: ['id', 'name'] },
-      ],
-    });
+    const employee = await User.findOne({ where: { id }, attributes: ['id'] });
     if (!employee) {
       return res.status(404).json({ status: 'error', message: 'Employee not found' });
     }
@@ -1932,79 +1520,28 @@ export const getEmployeeHistory = async (req, res) => {
         limit: pageSize,
       });
 
-      const currentDepartmentName = employee.Department?.name || null;
-      const currentJobTitleName = employee.JobTitle?.name || null;
-
-      response.jobHistory = rows.map((history) => {
-        let fromDepartmentName = history.FromDepartment?.name || null;
-        let toDepartmentName = history.ToDepartment?.name || null;
-        let fromJobTitleName = history.FromJobTitle?.name || null;
-        let toJobTitleName = history.ToJobTitle?.name || null;
-
-        // promotion/demotion: department is unchanged.
-        if (history.changeType === 'promotion' || history.changeType === 'demotion') {
-          const stableDept = fromDepartmentName || toDepartmentName;
-          if (stableDept) {
-            fromDepartmentName = stableDept;
-            toDepartmentName = stableDept;
-          }
-        }
-
-        // transfer: job title is unchanged.
-        if (history.changeType === 'transfer') {
-          const stableTitle = fromJobTitleName || toJobTitleName;
-          if (stableTitle) {
-            fromJobTitleName = stableTitle;
-            toJobTitleName = stableTitle;
-          }
-        }
-
-        // If IDs are equal, normalize both sides from whichever side is available.
-        if (history.fromDepartmentId != null && history.fromDepartmentId === history.toDepartmentId) {
-          const stableDept = fromDepartmentName || toDepartmentName;
-          if (stableDept) {
-            fromDepartmentName = stableDept;
-            toDepartmentName = stableDept;
-          }
-        }
-
-        if (history.fromJobTitleId != null && history.fromJobTitleId === history.toJobTitleId) {
-          const stableTitle = fromJobTitleName || toJobTitleName;
-          if (stableTitle) {
-            fromJobTitleName = stableTitle;
-            toJobTitleName = stableTitle;
-          }
-        }
-
-        // Final fallback: keep User Detail consistent with current Work Information when history side is missing.
-        if (!fromDepartmentName) fromDepartmentName = toDepartmentName || currentDepartmentName;
-        if (!toDepartmentName) toDepartmentName = fromDepartmentName || currentDepartmentName;
-        if (!fromJobTitleName) fromJobTitleName = toJobTitleName || currentJobTitleName;
-        if (!toJobTitleName) toJobTitleName = fromJobTitleName || currentJobTitleName;
-
-        return {
-          id: history.id,
-          fromDepartmentId: history.fromDepartmentId,
-          toDepartmentId: history.toDepartmentId,
-          fromDepartmentName,
-          toDepartmentName,
-          fromJobTitleId: history.fromJobTitleId,
-          toJobTitleId: history.toJobTitleId,
-          fromJobTitleName,
-          toJobTitleName,
-          changeType: history.changeType,
-          effectiveDate: history.effectiveDate,
-          notes: history.notes,
-          changedBy: history.ChangedByUser
-            ? {
-                id: history.ChangedByUser.id,
-                name: history.ChangedByUser.name,
-                employeeCode: history.ChangedByUser.employeeCode,
-                role: history.ChangedByUser.role,
-              }
-            : null,
-        };
-      });
+      response.jobHistory = rows.map((history) => ({
+        id: history.id,
+        fromDepartmentId: history.fromDepartmentId,
+        toDepartmentId: history.toDepartmentId,
+        fromDepartmentName: history.FromDepartment?.name || null,
+        toDepartmentName: history.ToDepartment?.name || null,
+        fromJobTitleId: history.fromJobTitleId,
+        toJobTitleId: history.toJobTitleId,
+        fromJobTitleName: history.FromJobTitle?.name || null,
+        toJobTitleName: history.ToJobTitle?.name || null,
+        changeType: history.changeType,
+        effectiveDate: history.effectiveDate,
+        notes: history.notes,
+        changedBy: history.ChangedByUser
+          ? {
+              id: history.ChangedByUser.id,
+              name: history.ChangedByUser.name,
+              employeeCode: history.ChangedByUser.employeeCode,
+              role: history.ChangedByUser.role,
+            }
+          : null,
+      }));
       response.jobPagination = { page, pageSize, total: count, totalPages: Math.max(1, Math.ceil(count / pageSize)) };
     }
 
@@ -2047,19 +1584,6 @@ export const getEmployeeHistory = async (req, res) => {
   }
 };
 
-const ELEVATED_ROLES = new Set(["manager", "hr", "accountant", "supervisor"]);
-
-function profileGapsForElevatedRole(user) {
-  if (!user) return ["user"];
-  const missing = [];
-  if (!user.phoneNumber || !String(user.phoneNumber).trim()) missing.push("phoneNumber");
-  if (!user.departmentId) missing.push("departmentId");
-  if (!user.jobTitleId) missing.push("jobTitleId");
-  if (!user.dateOfBirth) missing.push("dateOfBirth");
-  if (!user.idNumber || !String(user.idNumber).trim()) missing.push("idNumber");
-  return missing;
-}
-
 export const updateUserRole = async (req, res) => {
   try {
     const { id } = req.params;
@@ -2072,19 +1596,7 @@ export const updateUserRole = async (req, res) => {
     }
 
     const targetUser = await User.findByPk(id, {
-      attributes: [
-        "id",
-        "name",
-        "email",
-        "employeeCode",
-        "role",
-        "isActive",
-        "phoneNumber",
-        "departmentId",
-        "jobTitleId",
-        "dateOfBirth",
-        "idNumber",
-      ],
+      attributes: ["id", "name", "email", "employeeCode", "role", "isActive"],
     });
 
     if (!targetUser) {
@@ -2095,39 +1607,17 @@ export const updateUserRole = async (req, res) => {
       return res.status(400).json({ status: "error", message: "Cannot change your own role" });
     }
 
-    if (ELEVATED_ROLES.has(role)) {
-      const missing = profileGapsForElevatedRole(targetUser);
-      if (missing.length) {
-        return res.status(400).json({
-          status: "error",
-          message:
-            "The employee profile is incomplete for assigning a privileged role. Please fill in phone number, department, job title, date of birth, and national ID (CMND/CCCD)—the same fields as a standard employee profile—then try again.",
-          missingFields: missing,
-        });
-      }
-    }
-
     if (targetUser.role === role) {
       return res.json({
         status: "success",
         message: "Role unchanged",
-        user: {
-          id: targetUser.id,
-          name: targetUser.name,
-          email: targetUser.email,
-          employeeCode: targetUser.employeeCode,
-          role: targetUser.role,
-          isActive: targetUser.isActive,
-        },
+        user: targetUser,
       });
     }
 
     const oldRole = targetUser.role;
     await sequelize.transaction(async (transaction) => {
-      await targetUser.update(
-        { role, tokenVersion: Number(targetUser.tokenVersion || 0) + 1 },
-        { transaction }
-      );
+      await targetUser.update({ role }, { transaction });
       await RoleChangeAudit.create(
         {
           userId: targetUser.id,
@@ -2140,16 +1630,6 @@ export const updateUserRole = async (req, res) => {
         },
         { transaction }
       );
-    });
-
-    await recordAction(req, {
-      action: "employee.update_role",
-      category: "role_change",
-      targetUserId: targetUser.id,
-      entityType: "user",
-      entityId: targetUser.id,
-      summary: `Changed role of ${targetUser.name} (${targetUser.employeeCode}): ${oldRole} → ${role}`,
-      metadata: { oldRole, newRole: role, reason: reason || null },
     });
 
     return res.json({
@@ -2211,508 +1691,23 @@ export const getApprovalAuditLogs = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
     const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || "20", 10), 1), 100);
-
-    const role = (req.query.role || "").trim().toLowerCase();
-    const rawRequestType = (req.query.requestType || "").trim().toLowerCase();
-    // "other" / "payroll" are no longer surfaced in the UI because the Payroll
-    // approval feature is not wired into the main backend. If an older client
-    // sends them, treat the filter as unset to avoid returning empty results.
-    const requestType = rawRequestType === "other" || rawRequestType === "payroll"
-      ? ""
-      : rawRequestType;
-    const status = (req.query.status || "").trim().toLowerCase();
-    const fromDate = (req.query.fromDate || "").trim();
-    const toDate = (req.query.toDate || "").trim();
-
-    const approverInclude = {
-      model: User,
-      as: "Approver",
-      attributes: ["id", "name", "email", "employeeCode", "role"],
-      required: Boolean(role),
-      where: role ? { role } : undefined,
-    };
-
-    // Date inputs are local calendar days in Asia/Ho_Chi_Minh (UTC+7).
-    // Convert to UTC boundaries so filters match the day the user sees in the UI.
-    const TZ_OFFSET_MS = 7 * 60 * 60 * 1000;
-    const actedAtRange = {};
-    if (fromDate) actedAtRange[Op.gte] = new Date(new Date(`${fromDate}T00:00:00.000Z`).getTime() - TZ_OFFSET_MS);
-    if (toDate) actedAtRange[Op.lte] = new Date(new Date(`${toDate}T23:59:59.999Z`).getTime() - TZ_OFFSET_MS);
-
-    const applyDateFilter = (baseWhere = {}) => {
-      if (!fromDate && !toDate) return baseWhere;
-      return { ...baseWhere, approvedAt: actedAtRange };
-    };
-
-    const shouldLoad = (type) => !requestType || requestType === type;
-
-    const TARGET_USER_ATTRS = ["id", "name", "email", "employeeCode"];
-    const toPlainUser = (u) =>
-      u
-        ? {
-            id: u.id,
-            name: u.name,
-            email: u.email,
-            employeeCode: u.employeeCode,
-          }
-        : null;
-
-    const buildLeaveDetails = (r) => ({
-      type: r.type,
-      startDate: r.startDate,
-      endDate: r.endDate,
-      days: r.days,
-      reason: r.reason,
-    });
-    const buildOvertimeDetails = (r) => ({
-      date: r.date,
-      startTime: r.startTime,
-      endTime: r.endTime,
-      totalHours: r.totalHours,
-      reason: r.reason,
-      projectName: r.projectName,
-    });
-    const buildTripDetails = (r) => ({
-      startDate: r.startDate,
-      endDate: r.endDate,
-      destination: r.destination,
-      purpose: r.purpose,
-      estimatedCost: r.estimatedCost,
-      transportType: r.transportType,
-    });
-    const buildAdvanceDetails = (r) => ({
-      amount: r.amount,
-      reason: r.reason,
-      requestDate: r.requestDate,
-      month: r.month,
-      year: r.year,
-    });
-    const tasks = [];
-    if (shouldLoad("leave")) {
-      tasks.push(
-        LeaveRequest.findAll({
-          where: applyDateFilter({ approvedBy: { [Op.ne]: null } }),
-          include: [
-            approverInclude,
-            { model: User, as: "User", attributes: TARGET_USER_ATTRS },
-          ],
-          order: [["approvedAt", "DESC"]],
-          limit: 1000,
-        }).then((rows) =>
-          rows.map((r) => ({
-            id: `leave-${r.id}`,
-            requestType: "leave",
-            requestId: r.id,
-            level: 1,
-            status: r.status,
-            comments: r.rejectionReason || null,
-            approvedAt: r.approvedAt,
-            updatedAt: r.updatedAt,
-            Approver: r.Approver || null,
-            TargetEmployee: toPlainUser(r.User),
-            details: buildLeaveDetails(r),
-          }))
-        )
-      );
-    }
-
-    if (shouldLoad("overtime")) {
-      tasks.push(
-        OvertimeRequest.findAll({
-          where: applyDateFilter({ approvedBy: { [Op.ne]: null } }),
-          include: [
-            approverInclude,
-            { model: User, as: "User", attributes: TARGET_USER_ATTRS },
-          ],
-          order: [["approvedAt", "DESC"]],
-          limit: 1000,
-        }).then((rows) =>
-          rows.map((r) => ({
-            id: `overtime-${r.id}`,
-            requestType: "overtime",
-            requestId: r.id,
-            level: r.approvalLevel || 1,
-            status: r.approvalStatus,
-            comments: r.rejectionReason || null,
-            approvedAt: r.approvedAt,
-            updatedAt: r.updatedAt,
-            Approver: r.Approver || null,
-            TargetEmployee: toPlainUser(r.User),
-            details: buildOvertimeDetails(r),
-          }))
-        )
-      );
-    }
-
-    if (shouldLoad("business_trip")) {
-      tasks.push(
-        BusinessTripRequest.findAll({
-          where: applyDateFilter({ approvedBy: { [Op.ne]: null } }),
-          include: [
-            approverInclude,
-            { model: User, as: "User", attributes: TARGET_USER_ATTRS },
-          ],
-          order: [["approvedAt", "DESC"]],
-          limit: 1000,
-        }).then((rows) =>
-          rows.map((r) => ({
-            id: `trip-${r.id}`,
-            requestType: "business_trip",
-            requestId: r.id,
-            level: r.approvalLevel || 1,
-            status: r.approvalStatus,
-            comments: r.rejectionReason || null,
-            approvedAt: r.approvedAt,
-            updatedAt: r.updatedAt,
-            Approver: r.Approver || null,
-            TargetEmployee: toPlainUser(r.User),
-            details: buildTripDetails(r),
-          }))
-        )
-      );
-    }
-
-    if (shouldLoad("salary_advance")) {
-      tasks.push(
-        SalaryAdvance.findAll({
-          where: applyDateFilter({ approvedBy: { [Op.ne]: null } }),
-          include: [
-            approverInclude,
-            { model: User, attributes: TARGET_USER_ATTRS },
-          ],
-          order: [["approvedAt", "DESC"]],
-          limit: 1000,
-        }).then((rows) =>
-          rows.map((r) => ({
-            id: `advance-${r.id}`,
-            requestType: "salary_advance",
-            requestId: r.id,
-            level: r.approvalLevel || 1,
-            status: r.approvalStatus,
-            comments: r.rejectionReason || null,
-            approvedAt: r.approvedAt,
-            updatedAt: r.updatedAt,
-            Approver: r.Approver || null,
-            TargetEmployee: toPlainUser(r.User),
-            details: buildAdvanceDetails(r),
-          }))
-        )
-      );
-    }
-
-    // Always surface ApprovalWorkflow rows that have an `approvedAt` timestamp
-    // (covers skipped / pending / approved / rejected levels). When the user
-    // filters by a specific requestType we scope the query; otherwise we load
-    // all of them and rely on the merge step downstream.
-    if (!requestType) {
-      tasks.push(
-        ApprovalWorkflow.findAll({
-          where: applyDateFilter({ approvedAt: { [Op.ne]: null } }),
-          include: [approverInclude],
-          order: [["approvedAt", "DESC"]],
-          limit: 1000,
-        }).then((rows) =>
-          rows.map((r) => ({
-            id: `workflow-${r.id}`,
-            requestType: r.requestType || "other",
-            requestId: r.requestId,
-            level: r.level,
-            status: r.status,
-            comments: r.comments || null,
-            approvedAt: r.approvedAt,
-            updatedAt: r.updatedAt,
-            Approver: r.Approver || null,
-            _needsEnrichment: true,
-          }))
-        )
-      );
-    } else if (shouldLoad(requestType)) {
-      tasks.push(
-        ApprovalWorkflow.findAll({
-          where: applyDateFilter({
-            approvedAt: { [Op.ne]: null },
-            requestType,
-          }),
-          include: [approverInclude],
-          order: [["approvedAt", "DESC"]],
-          limit: 1000,
-        }).then((rows) =>
-          rows.map((r) => ({
-            id: `workflow-${r.id}`,
-            requestType: r.requestType || "other",
-            requestId: r.requestId,
-            level: r.level,
-            status: r.status,
-            comments: r.comments || null,
-            approvedAt: r.approvedAt,
-            updatedAt: r.updatedAt,
-            Approver: r.Approver || null,
-            _needsEnrichment: true,
-          }))
-        )
-      );
-    }
-
-    const merged = (await Promise.all(tasks)).flat();
-
-    // Batch-enrich workflow rows with TargetEmployee + details
-    const workflowRows = merged.filter((r) => r._needsEnrichment);
-    if (workflowRows.length > 0) {
-      const byType = {
-        leave: new Set(),
-        overtime: new Set(),
-        business_trip: new Set(),
-        salary_advance: new Set(),
-      };
-      workflowRows.forEach((r) => {
-        if (byType[r.requestType]) byType[r.requestType].add(r.requestId);
-      });
-
-      const [leaves, overtimes, trips, advances] = await Promise.all([
-        byType.leave.size
-          ? LeaveRequest.findAll({
-              where: { id: Array.from(byType.leave) },
-              include: [{ model: User, as: "User", attributes: TARGET_USER_ATTRS }],
-            })
-          : [],
-        byType.overtime.size
-          ? OvertimeRequest.findAll({
-              where: { id: Array.from(byType.overtime) },
-              include: [{ model: User, as: "User", attributes: TARGET_USER_ATTRS }],
-            })
-          : [],
-        byType.business_trip.size
-          ? BusinessTripRequest.findAll({
-              where: { id: Array.from(byType.business_trip) },
-              include: [{ model: User, as: "User", attributes: TARGET_USER_ATTRS }],
-            })
-          : [],
-        byType.salary_advance.size
-          ? SalaryAdvance.findAll({
-              where: { id: Array.from(byType.salary_advance) },
-              include: [{ model: User, attributes: TARGET_USER_ATTRS }],
-            })
-          : [],
-      ]);
-
-      const maps = {
-        leave: new Map(leaves.map((x) => [x.id, x])),
-        overtime: new Map(overtimes.map((x) => [x.id, x])),
-        business_trip: new Map(trips.map((x) => [x.id, x])),
-        salary_advance: new Map(advances.map((x) => [x.id, x])),
-      };
-
-      const detailBuilders = {
-        leave: buildLeaveDetails,
-        overtime: buildOvertimeDetails,
-        business_trip: buildTripDetails,
-        salary_advance: buildAdvanceDetails,
-      };
-
-      workflowRows.forEach((row) => {
-        const src = maps[row.requestType]?.get(row.requestId);
-        if (src) {
-          row.TargetEmployee = toPlainUser(src.User);
-          row.details = detailBuilders[row.requestType]
-            ? detailBuilders[row.requestType](src)
-            : null;
-        } else {
-          row.TargetEmployee = null;
-          row.details = null;
-        }
-        delete row._needsEnrichment;
-      });
-    }
-
-    const filteredByStatus = status ? merged.filter((r) => String(r.status || "").toLowerCase() === status) : merged;
-
-    // ────────────────────────────────────────────────────────────────
-    // Unified actor-daily summary:
-    //   Every mutating action (ActionAudit rows + approval workflow
-    //   events) is collapsed into ONE row per (actorId, local-date),
-    //   regardless of role. The UI opens a "Daily Timeline" modal
-    //   (grouped by hour) when "Details" is clicked.
-    // ────────────────────────────────────────────────────────────────
-    const actionCategory = (req.query.actionCategory || "").trim().toLowerCase();
-
-    // ActionAudit is only loaded when no approval-specific filter is active
-    // (requestType / status), because those filters don't apply to it.
-    const canIncludeActionAudit = !requestType && !status;
-
-    let actionAuditRows = [];
-    if (canIncludeActionAudit) {
-      const auditWhere = {};
-      if (fromDate || toDate) {
-        auditWhere.createdAt = {};
-        if (fromDate) auditWhere.createdAt[Op.gte] = new Date(new Date(`${fromDate}T00:00:00.000Z`).getTime() - TZ_OFFSET_MS);
-        if (toDate) auditWhere.createdAt[Op.lte] = new Date(new Date(`${toDate}T23:59:59.999Z`).getTime() - TZ_OFFSET_MS);
-      }
-      if (actionCategory) auditWhere.category = actionCategory;
-      if (role) auditWhere.actorRole = role;
-
-      actionAuditRows = await ActionAudit.findAll({
-        where: auditWhere,
-        include: [
-          { model: User, as: "Actor", attributes: ["id", "name", "email", "employeeCode", "role"] },
-          { model: User, as: "TargetUser", attributes: ["id", "name", "email", "employeeCode"] },
-        ],
-        order: [["createdAt", "DESC"]],
-        limit: 10000,
-      });
-    }
-
-    // actionCategory is ActionAudit-specific: when set, drop approval activities.
-    const approvalActivities = actionCategory
-      ? []
-      : filteredByStatus
-          .filter((r) => r.Approver && r.Approver.id)
-          .map((r) => ({
-            actorId: r.Approver.id,
-            actorRole: String(r.Approver.role || "").toLowerCase(),
-            actorName: r.Approver.name,
-            actorCode: r.Approver.employeeCode,
-            actorEmail: r.Approver.email,
-            createdAt: r.approvedAt || r.updatedAt,
-            action: `${r.requestType}.${String(r.status || "").toLowerCase()}`,
-            category: r.requestType,
-          }));
-
-    const auditActivities = actionAuditRows.map((a) => ({
-      actorId: a.actorId,
-      actorRole: String(a.actorRole || "").toLowerCase(),
-      actorName: a.Actor?.name || null,
-      actorCode: a.Actor?.employeeCode || null,
-      actorEmail: a.Actor?.email || null,
-      createdAt: a.createdAt,
-      action: a.action,
-      category: a.category,
-    }));
-
-    // Drop any item whose timestamp is in the future relative to the server
-    // clock. Such rows can appear when seeds stamp demo data with fixed hours
-    // (e.g. 15:00 today) that haven't actually occurred yet — surfacing them
-    // would make a daily summary claim an action the actor hasn't taken,
-    // which in turn breaks the "most recent first" ordering the UI promises.
-    // A 60-second buffer absorbs minor clock skew between app / DB hosts.
-    const nowMs = Date.now();
-    const FUTURE_BUFFER_MS = 60 * 1000;
-    const isNotFuture = (it) => {
-      const ts = new Date(it.createdAt || 0).getTime();
-      return Number.isFinite(ts) && ts > 0 && ts <= nowMs + FUTURE_BUFFER_MS;
-    };
-
-    const activities = [...approvalActivities, ...auditActivities].filter(
-      isNotFuture
-    );
-
-    const tz = "Asia/Ho_Chi_Minh";
-    const dayKeyOf = (d) =>
-      new Date(d).toLocaleDateString("sv-SE", { timeZone: tz });
-
-    // Virtual actorId used to group rows that don't have a human actor
-    // (typically scheduled / system jobs). The timeline endpoint understands
-    // this special id and loads rows where `actorId IS NULL`.
-    const SYSTEM_VIRTUAL_ID = 0;
-
-    const groupMap = new Map();
-    for (const it of activities) {
-      const isSystem = !it.actorId && it.actorRole === "system";
-      if (!it.actorId && !isSystem) continue;
-
-      const effectiveActorId = it.actorId ?? SYSTEM_VIRTUAL_ID;
-      const dayKey = dayKeyOf(it.createdAt);
-      const gkey = `${effectiveActorId}|${dayKey}`;
-      if (!groupMap.has(gkey)) {
-        groupMap.set(gkey, {
-          actorId: effectiveActorId,
-          actorRole: it.actorRole || "employee",
-          actorName: isSystem ? "System" : it.actorName || null,
-          actorCode: isSystem ? "SYSTEM" : it.actorCode || null,
-          actorEmail: it.actorEmail || null,
-          dayKey,
-          items: [],
-        });
-      }
-      const g = groupMap.get(gkey);
-      // Prefer a non-empty actor role / name from any item.
-      if (!g.actorName && it.actorName) g.actorName = it.actorName;
-      if (!g.actorCode && it.actorCode) g.actorCode = it.actorCode;
-      if (!g.actorEmail && it.actorEmail) g.actorEmail = it.actorEmail;
-      if ((!g.actorRole || g.actorRole === "employee") && it.actorRole) g.actorRole = it.actorRole;
-      g.items.push(it);
-    }
-
-    const summaryRows = Array.from(groupMap.values()).map((g) => {
-      const breakdown = {};
-      const categoryBreakdown = {};
-      for (const it of g.items) {
-        breakdown[it.action] = (breakdown[it.action] || 0) + 1;
-        if (it.category) {
-          categoryBreakdown[it.category] = (categoryBreakdown[it.category] || 0) + 1;
-        }
-      }
-      g.items.sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-      const firstAt = g.items[0]?.createdAt || null;
-      const lastAt = g.items[g.items.length - 1]?.createdAt || null;
-      const topCategory =
-        Object.entries(categoryBreakdown).sort((a, b) => b[1] - a[1])[0]?.[0] ||
-        null;
-
-      return {
-        id: `actorday-${g.actorId}-${g.dayKey}`,
-        kind: "actor_daily_summary",
-        requestType: "actor_daily_summary",
-        requestId: g.actorId,
-        level: null,
-        status: `${g.items.length} actions`,
-        comments: null,
-        approvedAt: lastAt,
-        updatedAt: lastAt,
-        Approver: {
-          id: g.actorId,
-          name: g.actorName,
-          email: g.actorEmail,
-          employeeCode: g.actorCode,
-          role: g.actorRole,
-        },
-        TargetEmployee: null,
-        dayKey: g.dayKey,
-        count: g.items.length,
-        breakdown,
-        categoryBreakdown,
-        topCategory,
-        firstAt,
-        lastAt,
-      };
-    });
-
-    // Defensive role filter (already applied to both sources, but guarantees
-    // no cross-role leaks from approval rows with missing role metadata).
-    const filteredSummaries = role
-      ? summaryRows.filter((r) => r.Approver?.role === role)
-      : summaryRows;
-
-    // Strict chronological ordering (24h, newest first).
-    // Tiebreakers never use role so the display never looks "role-priority".
-    filteredSummaries.sort((a, b) => {
-      const ta = new Date(a.lastAt || a.approvedAt || 0).getTime();
-      const tb = new Date(b.lastAt || b.approvedAt || 0).getTime();
-      if (tb !== ta) return tb - ta;
-      const fa = new Date(a.firstAt || 0).getTime();
-      const fb = new Date(b.firstAt || 0).getTime();
-      if (fb !== fa) return fb - fa;
-      if (b.count !== a.count) return b.count - a.count;
-      return String(a.Approver?.name || "").localeCompare(
-        String(b.Approver?.name || ""),
-        "vi"
-      );
-    });
-
-    const count = filteredSummaries.length;
     const offset = (page - 1) * pageSize;
-    const rows = filteredSummaries.slice(offset, offset + pageSize);
+    const userId = req.query.userId ? parseInt(req.query.userId, 10) : null;
+    const requestType = req.query.requestType || null; // 'leave', 'overtime', 'business_trip', 'salary_advance'
+
+    const where = {};
+    if (Number.isInteger(userId)) where.approverId = userId;
+    if (requestType) where.requestType = requestType;
+
+    const { rows, count } = await ApprovalWorkflow.findAndCountAll({
+      where,
+      include: [
+        { model: User, as: "Approver", attributes: ["id", "name", "email", "employeeCode", "role"] },
+      ],
+      order: [["createdAt", "DESC"]],
+      offset,
+      limit: pageSize,
+    });
 
     return res.json({
       status: "success",
@@ -2730,218 +1725,76 @@ export const getApprovalAuditLogs = async (req, res) => {
   }
 };
 
-/**
- * Actor daily-action timeline for the Approval Responsibility Log.
- * Returns every mutating action by `employeeId` (any role) on `date`
- * (YYYY-MM-DD, Asia/Ho_Chi_Minh): both ActionAudit rows (self-service +
- * admin mutations) and approval-workflow events (leave/overtime/trip/
- * advance/payroll) the actor approved or rejected. The result is grouped
- * by hour for nicer rendering. (The route path is kept for backward
- * compatibility; `employeeId` is really an actorId of any role.)
- */
 export const getEmployeeDayActions = async (req, res) => {
   try {
-    const employeeId = Number(req.params.employeeId);
-    if (!Number.isFinite(employeeId)) {
-      return res.status(400).json({ status: "error", message: "Invalid employeeId" });
+    const { employeeId } = req.params;
+    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || "20", 10), 1), 100);
+    const offset = (page - 1) * pageSize;
+
+    const userId = parseInt(employeeId, 10);
+    if (!Number.isInteger(userId)) {
+      return res.status(400).json({ status: "error", message: "Invalid employee ID" });
     }
-    const dateStr = (req.query.date || "").trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      return res
-        .status(400)
-        .json({ status: "error", message: "`date` must be YYYY-MM-DD" });
-    }
 
-    // Day boundaries in Asia/Ho_Chi_Minh (UTC+7) expressed as UTC range.
-    const tzOffsetMinutes = 7 * 60;
-    const startLocal = new Date(`${dateStr}T00:00:00.000Z`);
-    const startUtc = new Date(startLocal.getTime() - tzOffsetMinutes * 60 * 1000);
-    const endUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000);
+    // Get daily summaries for employee self-service actions
+    const { rows, count } = await ActionAudit.findAndCountAll({
+      where: {
+        targetUserId: userId,
+        category: {
+          [Op.in]: ['own_request', 'own_profile', 'own_document', 'own_qualification', 'own_dependent', 'own_work_experience', 'own_notification']
+        }
+      },
+      attributes: [
+        [sequelize.fn('DATE', sequelize.col('createdAt')), 'date'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'actionCount'],
+        [sequelize.fn('MAX', sequelize.col('createdAt')), 'lastActionAt']
+      ],
+      group: [sequelize.fn('DATE', sequelize.col('createdAt'))],
+      order: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'DESC']],
+      offset,
+      limit: pageSize,
+      raw: true,
+    });
 
-    const TARGET_USER_ATTRS = ["id", "name", "email", "employeeCode"];
-
-    // employeeId === 0 is the virtual "System" actor (ActionAudit rows where
-    // actorId IS NULL and actorRole = 'system').
-    const isSystemActor = employeeId === 0;
-
-    const actor = isSystemActor
-      ? { id: 0, name: "System", email: null, employeeCode: "SYSTEM", role: "system" }
-      : await User.findByPk(employeeId, {
-          attributes: ["id", "name", "email", "employeeCode", "role"],
+    // For each day, get the detailed actions
+    const dailySummaries = await Promise.all(
+      rows.map(async (summary) => {
+        const actions = await ActionAudit.findAll({
+          where: {
+            targetUserId: userId,
+            category: {
+              [Op.in]: ['own_request', 'own_profile', 'own_document', 'own_qualification', 'own_dependent', 'own_work_experience', 'own_notification']
+            },
+            [Op.and]: [
+              sequelize.where(sequelize.fn('DATE', sequelize.col('createdAt')), summary.date)
+            ]
+          },
+          include: [
+            { model: User, as: "Actor", attributes: ["id", "name", "employeeCode"] },
+          ],
+          order: [['createdAt', 'ASC']],
         });
 
-    const approvedRange = {
-      approvedBy: employeeId,
-      approvedAt: { [Op.gte]: startUtc, [Op.lt]: endUtc },
-    };
-
-    const auditWhere = isSystemActor
-      ? {
-          actorId: null,
-          actorRole: "system",
-          createdAt: { [Op.gte]: startUtc, [Op.lt]: endUtc },
-        }
-      : {
-          actorId: employeeId,
-          createdAt: { [Op.gte]: startUtc, [Op.lt]: endUtc },
+        return {
+          date: summary.date,
+          actionCount: parseInt(summary.actionCount),
+          lastActionAt: summary.lastActionAt,
+          actions: actions,
         };
-
-    const [
-      auditRows,
-      leaves,
-      overtimes,
-      trips,
-      advances,
-      payrolls,
-    ] = await Promise.all([
-      ActionAudit.findAll({
-        where: auditWhere,
-        order: [["createdAt", "ASC"]],
-        include: [
-          { model: User, as: "TargetUser", attributes: TARGET_USER_ATTRS },
-        ],
-        limit: 5000,
-      }),
-      // System actor never approves workflows, so skip those lookups.
-      isSystemActor
-        ? []
-        : LeaveRequest.findAll({
-            where: approvedRange,
-            include: [{ model: User, as: "User", attributes: TARGET_USER_ATTRS }],
-          }),
-      isSystemActor
-        ? []
-        : OvertimeRequest.findAll({
-            where: approvedRange,
-            include: [{ model: User, as: "User", attributes: TARGET_USER_ATTRS }],
-          }),
-      isSystemActor
-        ? []
-        : BusinessTripRequest.findAll({
-            where: approvedRange,
-            include: [{ model: User, as: "User", attributes: TARGET_USER_ATTRS }],
-          }),
-      isSystemActor
-        ? []
-        : SalaryAdvance.findAll({
-            where: approvedRange,
-            include: [{ model: User, attributes: TARGET_USER_ATTRS }],
-          }),
-      isSystemActor
-        ? []
-        : Payroll.findAll({
-            where: {
-              approvedBy: employeeId,
-              approvedAt: { [Op.gte]: startUtc, [Op.lt]: endUtc },
-              status: { [Op.in]: ["approved", "rejected", "paid"] },
-            },
-            include: [{ model: User, attributes: TARGET_USER_ATTRS }],
-          }),
-    ]);
-
-    const toPlainUser = (u) =>
-      u
-        ? {
-            id: u.id,
-            name: u.name,
-            email: u.email,
-            employeeCode: u.employeeCode,
-          }
-        : null;
-
-    const buildApprovalItem = (r, type, targetUser) => {
-      const st = String(r.status || r.approvalStatus || "").toLowerCase();
-      const verb =
-        st === "approved"
-          ? "Approved"
-          : st === "rejected"
-            ? "Rejected"
-            : st === "paid"
-              ? "Marked paid"
-              : st
-                ? st.charAt(0).toUpperCase() + st.slice(1)
-                : "Acted on";
-      const prettyType = type.replace(/_/g, " ");
-      let summary = `${verb} ${prettyType} request`;
-      if (targetUser?.name) summary += ` for ${targetUser.name}`;
-      return {
-        id: `${type}-${r.id}`,
-        kind: "approval",
-        action: `${type}.${st || "act"}`,
-        category: type,
-        summary,
-        entityType: `${type}_request`,
-        entityId: r.id,
-        metadata: null,
-        createdAt: r.approvedAt,
-        TargetUser: toPlainUser(targetUser),
-      };
-    };
-
-    const auditItems = auditRows.map((r) => ({
-      id: `audit-${r.id}`,
-      kind: "admin_action",
-      action: r.action,
-      category: r.category,
-      summary: r.summary,
-      entityType: r.entityType,
-      entityId: r.entityId,
-      metadata: r.metadata || null,
-      createdAt: r.createdAt,
-      TargetUser: toPlainUser(r.TargetUser),
-    }));
-
-    const approvalItems = [
-      ...leaves.map((r) => buildApprovalItem(r, "leave", r.User)),
-      ...overtimes.map((r) => buildApprovalItem(r, "overtime", r.User)),
-      ...trips.map((r) => buildApprovalItem(r, "business_trip", r.User)),
-      ...advances.map((r) => buildApprovalItem(r, "salary_advance", r.User)),
-      ...payrolls.map((r) => buildApprovalItem(r, "payroll", r.User)),
-    ];
-
-    // Hide any item whose timestamp is in the future (keeps the day-timeline
-    // consistent with the summary list, which also suppresses future rows).
-    const nowMs = Date.now();
-    const FUTURE_BUFFER_MS = 60 * 1000;
-    const items = [...auditItems, ...approvalItems]
-      .filter((it) => {
-        const ts = new Date(it.createdAt || 0).getTime();
-        return Number.isFinite(ts) && ts > 0 && ts <= nowMs + FUTURE_BUFFER_MS;
       })
-      .sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-
-    const tz = "Asia/Ho_Chi_Minh";
-    const hourOf = (d) => {
-      const parts = new Intl.DateTimeFormat("en-GB", {
-        timeZone: tz,
-        hour: "2-digit",
-        hour12: false,
-      }).formatToParts(new Date(d));
-      const h = parts.find((p) => p.type === "hour")?.value || "00";
-      return String(h).padStart(2, "0");
-    };
-
-    const buckets = new Map();
-    for (const it of items) {
-      const hr = hourOf(it.createdAt);
-      if (!buckets.has(hr)) buckets.set(hr, []);
-      buckets.get(hr).push(it);
-    }
-
-    const hourGroups = Array.from(buckets.entries())
-      .sort((a, b) => Number(a[0]) - Number(b[0]))
-      .map(([hour, list]) => ({ hour, count: list.length, items: list }));
+    );
 
     return res.json({
       status: "success",
-      employee: actor || { id: employeeId, name: null },
-      date: dateStr,
-      total: items.length,
-      hourGroups,
-      items,
+      employeeId: userId,
+      dailySummaries,
+      pagination: {
+        page,
+        pageSize,
+        total: count.length, // count is an array when using GROUP BY
+        totalPages: Math.max(1, Math.ceil(count.length / pageSize)),
+      },
     });
   } catch (err) {
     console.error("Error fetching employee day actions:", err);
@@ -2949,10 +1802,6 @@ export const getEmployeeDayActions = async (req, res) => {
   }
 };
 
-/**
- * Filtered attendance logs for HR / managers / roles with attendance:read.
- * Supervisors are limited to their own department when departmentId is set on the user.
- */
 export const getHrAttendanceLogs = async (req, res) => {
   try {
     const {
@@ -2964,104 +1813,73 @@ export const getHrAttendanceLogs = async (req, res) => {
       departmentId,
       type,
       search,
-      matchStatus,
-      limit = "50",
-      offset = "0",
+      limit = 50,
+      offset = 0
     } = req.query;
 
     const where = {};
-    const typeNorm = typeof type === "string" ? type.trim().toUpperCase() : "";
-    if (typeNorm === "IN" || typeNorm === "OUT") {
-      where.type = typeNorm;
+
+    // Date range filters
+    if (from && to) {
+      where.timestamp = {
+        [Op.between]: [new Date(from), new Date(to)]
+      };
+    } else if (month && year) {
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 1);
+      where.timestamp = {
+        [Op.gte]: startDate,
+        [Op.lt]: endDate
+      };
     }
-    const uid = toNumber(userId, NaN);
-    if (Number.isFinite(uid) && uid > 0) {
-      where.userId = uid;
+
+    // User filter
+    if (userId) {
+      where.userId = parseInt(userId, 10);
+    }
+
+    // Type filter (IN/OUT)
+    if (type) {
+      where.type = type.toUpperCase();
+    }
+
+    // Department filter (join with User)
+    let include = [];
+    if (departmentId) {
+      include.push({
+        model: User,
+        as: 'User',
+        where: { departmentId: parseInt(departmentId, 10) },
+        attributes: []
+      });
     } else {
-      const matchNorm = String(matchStatus || "all").toLowerCase();
-      if (matchNorm === "matched") {
-        where.userId = { [Op.ne]: null };
-      } else if (matchNorm === "unmatched") {
-        where.userId = { [Op.is]: null };
-      }
-    }
-
-    if (month && year) {
-      const m = toNumber(month, NaN);
-      const y = toNumber(year, NaN);
-      if (m >= 1 && m <= 12 && y > 2000) {
-        const start = new Date(y, m - 1, 1, 0, 0, 0, 0);
-        const end = new Date(y, m, 0, 23, 59, 59, 999);
-        where.timestamp = { [Op.between]: [start, end] };
-      }
-    } else if (from && to) {
-      const startRaw = new Date(from);
-      const endRaw = new Date(to);
-      if (!Number.isNaN(startRaw.getTime()) && !Number.isNaN(endRaw.getTime())) {
-        // Inclusive calendar days in UTC (matches attendance_logs stored as Date.UTC)
-        const startUtc = new Date(
-          Date.UTC(startRaw.getUTCFullYear(), startRaw.getUTCMonth(), startRaw.getUTCDate(), 0, 0, 0, 0)
-        );
-        const endUtc = new Date(
-          Date.UTC(endRaw.getUTCFullYear(), endRaw.getUTCMonth(), endRaw.getUTCDate(), 23, 59, 59, 999)
-        );
-        where.timestamp = { [Op.between]: [startUtc, endUtc] };
-      }
-    }
-
-    const userAnd = [];
-    const deptQ = toNumber(departmentId, NaN);
-    if (Number.isFinite(deptQ) && deptQ > 0) {
-      userAnd.push({ departmentId: deptQ });
-    }
-
-    const role = String(req.user?.role || "").toLowerCase();
-    const supervisorDept = toNumber(req.user?.departmentId, NaN);
-    if (role === "supervisor" && Number.isFinite(supervisorDept) && supervisorDept > 0) {
-      userAnd.push({ departmentId: supervisorDept });
-    }
-
-    const q = search != null ? String(search).trim() : "";
-    if (q.length > 0) {
-      const like = `%${q}%`;
-      userAnd.push({
-        [Op.or]: [
-          { name: { [Op.iLike]: like } },
-          { employeeCode: { [Op.iLike]: like } },
-        ],
+      include.push({
+        model: User,
+        as: 'User',
+        attributes: ['id', 'name', 'employeeCode', 'departmentId']
       });
     }
 
-    const userWhere = userAnd.length > 0 ? { [Op.and]: userAnd } : undefined;
-    const userRequired = Boolean(userWhere);
-
-    const hasDateWindow = Boolean(
-      (from && to) || (month && year)
-    );
-    const maxLim = hasDateWindow ? 100000 : 10000;
-    const lim = Math.min(Math.max(toNumber(limit, 50), 1), maxLim);
-    const off = Math.max(toNumber(offset, 0), 0);
-
-    // subQuery: false — required so filters on included User (department, search) are not lost
-    // when Sequelize wraps the main query in a LIMIT subquery (PostgreSQL).
-    const { count, rows } = await AttendanceLog.findAndCountAll({
-      where,
-      distinct: true,
-      col: "id",
-      subQuery: false,
-      include: [
-        {
+    // Search filter
+    if (search) {
+      where[Op.or] = [
+        { '$User.name$': { [Op.iLike]: `%${search}%` } },
+        { '$User.employeeCode$': { [Op.iLike]: `%${search}%` } }
+      ];
+      if (!include.length) {
+        include.push({
           model: User,
-          as: "User",
-          attributes: ["id", "name", "email", "employeeCode", "departmentId"],
-          required: userRequired,
-          where: userWhere,
-          include: [{ model: Department, attributes: ["id", "name"], required: false }],
-        },
-      ],
-      order: [["timestamp", "DESC"]],
-      limit: lim,
-      offset: off,
+          attributes: ['id', 'name', 'employeeCode', 'departmentId']
+        });
+      }
+    }
+
+    const { rows, count } = await AttendanceLog.findAndCountAll({
+      where,
+      include,
+      order: [['timestamp', 'DESC']],
+      limit: Math.min(parseInt(limit, 10) || 50, 1000),
+      offset: parseInt(offset, 10) || 0,
     });
 
     return res.json({
@@ -3069,14 +1887,57 @@ export const getHrAttendanceLogs = async (req, res) => {
       logs: rows,
       pagination: {
         total: count,
-        limit: lim,
-        offset: off,
-        hasMore: off + rows.length < count,
+        limit: Math.min(parseInt(limit, 10) || 50, 1000),
+        offset: parseInt(offset, 10) || 0,
       },
     });
   } catch (err) {
-    console.error("Error fetching attendance logs:", err);
+    console.error("Error fetching HR attendance logs:", err);
     return res.status(500).json({ status: "error", message: err.message });
+  }
+};
+
+export const restoreEmployee = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const employee = await User.findByPk(id);
+    if (!employee) {
+      return res.status(404).json({
+        status: "error",
+        message: "Employee not found"
+      });
+    }
+
+    if (!employee.deactivatedAt) {
+      return res.status(400).json({
+        status: "error",
+        message: "Employee is not deactivated"
+      });
+    }
+
+    await employee.update({
+      isActive: true,
+      deactivatedAt: null
+    });
+
+    return res.json({
+      status: "success",
+      message: "Employee restored successfully",
+      employee: await User.findByPk(id, {
+        include: [
+          { model: Department, attributes: ['id', 'name'] },
+          { model: JobTitle, attributes: ['id', 'name'] },
+          { model: SalaryGrade, attributes: ['id', 'name'] }
+        ]
+      })
+    });
+  } catch (err) {
+    console.error("Error restoring employee:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message
+    });
   }
 };
 
