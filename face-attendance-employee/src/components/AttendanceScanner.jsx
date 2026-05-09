@@ -334,6 +334,9 @@ function AttendanceScanner() {
   const [isScanning, setIsScanning] = useState(false);
   const [detectedFaces, setDetectedFaces] = useState(null);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
+  // "Today's Attendance Log" should show ONLY the current matched user.
+  const [activeUserId, setActiveUserId] = useState(null);
+  const activeUserIdRef = useRef(null);
   const [lastMatch, setLastMatch] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [faceApiLoaded, setFaceApiLoaded] = useState(false);
@@ -399,6 +402,10 @@ function AttendanceScanner() {
     }
   };
 
+  useEffect(() => {
+    activeUserIdRef.current = activeUserId;
+  }, [activeUserId]);
+
   // Load face-api.js and models
   useEffect(() => {
     const loadFaceApi = async () => {
@@ -463,9 +470,16 @@ function AttendanceScanner() {
   }, []);
 
   // Fetch today's attendance logs from backend (so they persist after reload)
-  const fetchTodayLogs = async () => {
+  const fetchTodayLogs = async (userIdOverride = null) => {
     try {
-      const res = await fetch(`${API_BASE}/api/attendance/today?deviceId=kiosk-1`);
+      const uid = userIdOverride ?? activeUserIdRef.current;
+      if (!uid) {
+        // No active user yet -> don't show other people's rows.
+        if (attendanceLogs.length) setAttendanceLogs([]);
+        return;
+      }
+      const qs = new URLSearchParams({ userId: String(uid) });
+      const res = await fetch(`${API_BASE}/api/attendance/today?${qs.toString()}`);
       const data = await res.json();
       if (data.status === "success" && Array.isArray(data.logs)) {
         const mapped = data.logs.map((log) => ({
@@ -1287,6 +1301,11 @@ function AttendanceScanner() {
           timestamp: new Date(),
           imageBase64: capturedImage
         });
+        // When a user is matched, show ONLY their "today" rows.
+        if (matchData?.matched && matchData?.userId) {
+          setActiveUserId(matchData.userId);
+          fetchTodayLogs(matchData.userId);
+        }
         setLastMatch(Date.now());
       } else {
         console.error("Match response error:", matchResponse.status);
@@ -1363,8 +1382,9 @@ function AttendanceScanner() {
           }
 
           console.log("Attendance logged:", result);
+          if (result?.userId) setActiveUserId(result.userId);
           // Reload today's logs from server so list stays in sync and persists after reload
-          await fetchTodayLogs();
+          await fetchTodayLogs(result?.userId || null);
 
           // Show success or finished toast for 3 seconds
           if (result.finished) {
