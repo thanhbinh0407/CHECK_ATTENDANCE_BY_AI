@@ -73,6 +73,9 @@ function isStatutoryDeductionRow(row) {
   );
 }
 
+/** `false` — không hiển thị nút Edit trong modal "Monthly salary details" */
+const SHOW_SALARY_EDIT_BUTTON = false;
+
 export default function SalaryBreakdownModal({ salary, employee, rules, onClose, onUpdate }) {
   const [editMode, setEditMode] = useState(false);
   const [adjustments, setAdjustments] = useState({
@@ -383,7 +386,13 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
       if (res.ok) {
         const data = await res.json();
         const updatedSalary = data.salary ?? data;
-        if (onUpdate) onUpdate(updatedSalary);
+        const rec = salaryRecord ?? salary;
+        if (onUpdate) {
+          onUpdate({
+            ...updatedSalary,
+            User: updatedSalary.User ?? rec?.User
+          });
+        }
         try {
           const r2 = await fetch(`${apiBase}/api/salary/${updatedSalary.id}`, {
             headers: { Authorization: `Bearer ${token}` }
@@ -1369,7 +1378,7 @@ export default function SalaryBreakdownModal({ salary, employee, rules, onClose,
             </>
           )}
 
-          {!editMode && (
+          {!editMode && SHOW_SALARY_EDIT_BUTTON && (
             <button
               onClick={() => {
                 setAdjustments({

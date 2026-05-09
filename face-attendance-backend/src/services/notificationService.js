@@ -62,7 +62,7 @@ export const notifyBirthdays = async () => {
           type: 'birthday',
           title: 'Employee Birthday',
           message: `Today is ${employee.name}'s birthday! 🎉`,
-          isRead: false
+          read: false
         });
       }
     }
@@ -103,7 +103,7 @@ export const notifyWorkAnniversaries = async () => {
           type: 'anniversary',
           title: 'Work Anniversary',
           message: `Congratulations on your ${years} year${years > 1 ? 's' : ''} work anniversary! 🎉`,
-          isRead: false
+          read: false
         });
 
         // Notify HR + Manager
@@ -114,7 +114,7 @@ export const notifyWorkAnniversaries = async () => {
             type: 'anniversary',
             title: 'Work Anniversary',
             message: `${employee.name} celebrates ${years} year${years > 1 ? 's' : ''} with the company today!`,
-            isRead: false
+            read: false
           });
         }
       }
@@ -160,7 +160,7 @@ export const checkLateArrivals = async () => {
           type: 'attendance_warning',
           title: 'Late Arrival Warning',
           message: `You have been late ${lateCount} times this month. Please be more punctual.`,
-          isRead: false
+          read: false
         });
 
         // Notify manager
@@ -170,7 +170,7 @@ export const checkLateArrivals = async () => {
             type: 'attendance_warning',
             title: 'Employee Late Arrival Warning',
             message: `${employee.name} has been late ${lateCount} times this month.`,
-            isRead: false
+            read: false
           });
         }
       }

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { theme } from "../styles/theme.js";
 import * as faceapi from "face-api.js";
 import { EDUCATION_COEFFICIENTS } from "../utils/salaryCalculation.js";
@@ -32,7 +32,8 @@ export default function EnrollmentForm() {
   const [cameraActive, setCameraActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [faceDetected, setFaceDetected] = useState(false);
+  /** Number of faces in frame; capture allowed only when exactly 1 */
+  const [detectedFaceCount, setDetectedFaceCount] = useState(0);
   const [jobTitles, setJobTitles] = useState([]);
   const [jobTitlesLoading, setJobTitlesLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -51,6 +52,16 @@ export default function EnrollmentForm() {
   const [passwordGenerated, setPasswordGenerated] = useState(false);
   const detectionIntervalRef = useRef(null);
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+  /** Slightly larger input + lower threshold so a second (smaller/distant) face is more likely to be detected */
+  const faceDetectorOptions = useMemo(
+    () =>
+      new faceapi.TinyFaceDetectorOptions({
+        inputSize: 416,
+        scoreThreshold: 0.38
+      }),
+    []
+  );
   const normalizedEmployeeCode = String(formData.employeeCode || "").trim().toUpperCase();
 
   // Validation errors state
@@ -228,24 +239,29 @@ export default function EnrollmentForm() {
       detectionIntervalRef.current = setInterval(async () => {
         try {
           const detections = await faceapi
-            .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+            .detectAllFaces(videoRef.current, faceDetectorOptions)
             .withFaceLandmarks();
 
-          setFaceDetected(detections.length > 0);
+          const count = detections.length;
+          setDetectedFaceCount(count);
 
           const canvas = canvasRef.current;
           const ctx = canvas.getContext("2d");
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+          const warnMulti = count >= 2;
+          const stroke = warnMulti ? "#ff4444" : "#00ff00";
+          const fill = warnMulti ? "#ff4444" : "#00ff00";
+
           detections.forEach((detection) => {
             const box = detection.detection.box;
-            ctx.strokeStyle = "#00ff00";
+            ctx.strokeStyle = stroke;
             ctx.lineWidth = 3;
             ctx.strokeRect(box.x, box.y, box.width, box.height);
 
             if (detection.landmarks) {
-              ctx.fillStyle = "#00ff00";
-              ctx.strokeStyle = "#00ff00";
+              ctx.fillStyle = fill;
+              ctx.strokeStyle = fill;
               ctx.lineWidth = 2;
 
               // Draw jawline
@@ -290,7 +306,7 @@ export default function EnrollmentForm() {
               ctx.stroke();
 
               // Draw keypoints
-              ctx.fillStyle = "#00ff00";
+              ctx.fillStyle = fill;
               detection.landmarks.positions.forEach((point) => {
                 ctx.fillRect(point.x - 2, point.y - 2, 4, 4);
               });
@@ -305,7 +321,15 @@ export default function EnrollmentForm() {
         if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
       };
     }
-  }, [cameraActive, modelsLoaded]);
+  }, [cameraActive, modelsLoaded, faceDetectorOptions]);
+
+  useEffect(() => {
+    if (detectedFaceCount !== 1) return;
+    setErrors((prev) => {
+      if (prev.faceCapture !== "Multiple faces in frame") return prev;
+      return { ...prev, faceCapture: "" };
+    });
+  }, [detectedFaceCount]);
 
   const loadModels = async () => {
     try {
@@ -357,6 +381,7 @@ export default function EnrollmentForm() {
     if (videoRef.current?.srcObject) {
       videoRef.current.srcObject.getTracks().forEach(t => t.stop());
       setCameraActive(false);
+      setDetectedFaceCount(0);
       setMessage("Camera stopped");
     }
   };
@@ -369,17 +394,23 @@ export default function EnrollmentForm() {
       setMessage("Capturing face...");
 
       const allDetections = await faceapi
-        .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+        .detectAllFaces(videoRef.current, faceDetectorOptions)
         .withFaceLandmarks();
 
       if (allDetections.length > 1) {
-        setMessage(`${allDetections.length} faces detected! Only 1 face is allowed. Please remove others from the frame.`);
+        setMessage(
+          `Warning: ${allDetections.length} faces detected. Only one person is allowed — please ask others to leave the frame.`
+        );
+        setErrors((prev) => ({
+          ...prev,
+          faceCapture: "Multiple faces in frame"
+        }));
         setLoading(false);
         return;
       }
 
       const detection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+        .detectSingleFace(videoRef.current, faceDetectorOptions)
         .withFaceLandmarks()
         .withFaceDescriptor();
 
@@ -528,35 +559,35 @@ export default function EnrollmentForm() {
   };
 
   const welcomeStyle = {
-    padding: "40px 32px",
-    borderRadius: "16px 16px 0 0",
+    padding: "18px 22px",
+    borderRadius: "12px 12px 0 0",
     marginBottom: "0"
   };
 
   const contentCardStyle = {
     backgroundColor: theme.neutral.white,
-    borderRadius: "0 0 16px 16px",
-    padding: "40px 32px",
-    boxShadow: (theme.shadows && theme.shadows.lg) || "0 4px 24px rgba(0,0,0,0.1)"
+    borderRadius: "0 0 12px 12px",
+    padding: "20px 22px",
+    boxShadow: (theme.shadows && theme.shadows.md) || "0 2px 16px rgba(0,0,0,0.08)"
   };
 
   const labelStyle = {
     display: "flex",
     alignItems: "center",
-    gap: "8px",
-    marginBottom: "10px",
+    gap: "6px",
+    marginBottom: "6px",
     fontWeight: "700",
     color: "#1f2937",
-    fontSize: "15px",
-    letterSpacing: "0.3px"
+    fontSize: "13px",
+    letterSpacing: "0.2px"
   };
 
   const inputStyle = {
     width: "100%",
-    padding: "14px 18px",
-    border: `2px solid ${theme.neutral.gray200}`,
-    borderRadius: "12px",
-    fontSize: "15px",
+    padding: "10px 12px",
+    border: `1px solid ${theme.neutral.gray200}`,
+    borderRadius: "8px",
+    fontSize: "14px",
     boxSizing: "border-box",
     transition: "all 0.3s ease",
     backgroundColor: "#fafafa",
@@ -565,28 +596,28 @@ export default function EnrollmentForm() {
   
   const inputErrorStyle = {
     ...inputStyle,
-    border: "2px solid #ef4444",
+    border: "1px solid #ef4444",
     backgroundColor: "#fef2f2"
   };
   
   const inputHoverStyle = {
-    border: `2px solid ${theme.info.main}`,
+    border: `1px solid ${theme.info.main}`,
     backgroundColor: "#ffffff",
-    boxShadow: "0 0 0 3px rgba(59, 130, 246, 0.1)"
+    boxShadow: "0 0 0 2px rgba(59, 130, 246, 0.1)"
   };
   
   const inputFocusStyle = {
     outline: "none",
-    border: `2px solid ${theme.info.main}`,
+    border: `1px solid ${theme.info.main}`,
     backgroundColor: "#ffffff",
-    boxShadow: "0 0 0 4px rgba(59, 130, 246, 0.15)"
+    boxShadow: "0 0 0 3px rgba(59, 130, 246, 0.15)"
   };
   
   const inputFocusErrorStyle = {
     outline: "none",
-    border: "2px solid #ef4444",
+    border: "1px solid #ef4444",
     backgroundColor: "#ffffff",
-    boxShadow: "0 0 0 4px rgba(239, 68, 68, 0.15)"
+    boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.15)"
   };
   
   const getInputStyle = (fieldName) => {
@@ -608,8 +639,8 @@ export default function EnrollmentForm() {
   };
 
   const buttonStyle = {
-    padding: "10px 16px",
-    fontSize: "14px",
+    padding: "8px 14px",
+    fontSize: "13px",
     fontWeight: "600",
     border: "none",
     borderRadius: "6px",
@@ -649,11 +680,11 @@ export default function EnrollmentForm() {
     <div style={containerStyle}>
       {/* Welcome Header */}
       <div style={{ ...welcomeStyle, background: "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)" }}>
-        <h1 style={{ margin: "0 0 12px 0", fontSize: "28px", fontWeight: "700", color: "#fff" }}>
+        <h1 style={{ margin: "0 0 6px 0", fontSize: "22px", fontWeight: "700", color: "#fff", lineHeight: 1.25 }}>
           New Employee Registration
         </h1>
-        <p style={{ margin: 0, fontSize: "15px", opacity: 0.95, color: "#fff" }}>
-          Fill in the form below to create employee information first. Face can be captured now or updated later. Fields marked with * are required.
+        <p style={{ margin: 0, fontSize: "13px", opacity: 0.92, color: "#fff", lineHeight: 1.45 }}>
+          Create employee profile; face capture optional now. * Required fields.
         </p>
       </div>
 
@@ -661,13 +692,13 @@ export default function EnrollmentForm() {
       <div style={contentCardStyle}>
         {message && (
           <div style={{
-            padding: "16px 20px",
-            backgroundColor: /success|captured successfully/i.test(message) ? theme.success.bg : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted/i.test(message) ? theme.error.bg : theme.info.bg,
-            border: `2px solid ${/success|captured successfully/i.test(message) ? theme.success.border : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted/i.test(message) ? theme.error.border : theme.info.border}`,
-            borderRadius: "10px",
-            color: /success|captured successfully/i.test(message) ? theme.success.text : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted/i.test(message) ? theme.error.text : theme.info.text,
-            marginBottom: "24px",
-            fontSize: "14px",
+            padding: "10px 14px",
+            backgroundColor: /success|captured successfully/i.test(message) ? theme.success.bg : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted|Warning:|faces detected|Multiple faces/i.test(message) ? theme.error.bg : theme.info.bg,
+            border: `1px solid ${/success|captured successfully/i.test(message) ? theme.success.border : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted|Warning:|faces detected|Multiple faces/i.test(message) ? theme.error.border : theme.info.border}`,
+            borderRadius: "8px",
+            color: /success|captured successfully/i.test(message) ? theme.success.text : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted|Warning:|faces detected|Multiple faces/i.test(message) ? theme.error.text : theme.info.text,
+            marginBottom: "16px",
+            fontSize: "13px",
             fontWeight: "500",
             display: "flex",
             alignItems: "center",
@@ -677,13 +708,13 @@ export default function EnrollmentForm() {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "32px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
         {/* Left: Form */}
         <div>
           <form onSubmit={handleSubmitEnrollment}>
-            <div style={{ marginBottom: "20px" }}>
+            <div style={{ marginBottom: "14px" }}>
               <label style={labelStyle}>
-                <span style={{ fontSize: "18px" }}>👤</span>
+                <span style={{ fontSize: "15px" }}>👤</span>
                 <span>Full Name *</span>
               </label>
               <input
@@ -705,9 +736,9 @@ export default function EnrollmentForm() {
               )}
             </div>
 
-            <div style={{ marginBottom: "20px" }}>
+            <div style={{ marginBottom: "14px" }}>
               <label style={labelStyle}>
-                <span style={{ fontSize: "18px" }}>📧</span>
+                <span style={{ fontSize: "15px" }}>📧</span>
                 <span>Email Address *</span>
               </label>
               <input
@@ -729,9 +760,9 @@ export default function EnrollmentForm() {
               )}
             </div>
 
-            <div style={{ marginBottom: "20px" }}>
+            <div style={{ marginBottom: "14px" }}>
               <label style={labelStyle}>
-                <span style={{ fontSize: "18px" }}>🆔</span>
+                <span style={{ fontSize: "15px" }}>🆔</span>
                 <span>Employee Code *</span>
               </label>
               <input
@@ -755,9 +786,9 @@ export default function EnrollmentForm() {
             </div>
 
             {/* Job Title - loaded from Job Title Management */}
-            <div style={{ marginBottom: "20px" }}>
+            <div style={{ marginBottom: "14px" }}>
               <label style={labelStyle}>
-                <span style={{ fontSize: "18px" }}>💼</span>
+                <span style={{ fontSize: "15px" }}>💼</span>
                 <span>Job Title *</span>
               </label>
               <select
@@ -810,9 +841,9 @@ export default function EnrollmentForm() {
             </div>
 
             {/* Education Level */}
-            <div style={{ marginBottom: "20px" }}>
+            <div style={{ marginBottom: "14px" }}>
               <label style={labelStyle}>
-                <span style={{ fontSize: "18px" }}>🎓</span>
+                <span style={{ fontSize: "15px" }}>🎓</span>
                 <span>Education Level *</span>
               </label>
               <select
@@ -830,9 +861,9 @@ export default function EnrollmentForm() {
             </div>
 
             {/* Base Salary */}
-            <div style={{ marginBottom: "20px" }}>
+            <div style={{ marginBottom: "14px" }}>
               <label style={labelStyle}>
-                <span style={{ fontSize: "18px" }}>💰</span>
+                <span style={{ fontSize: "15px" }}>💰</span>
                 <span>Base Salary (VND) *</span>
               </label>
               <input
@@ -856,8 +887,8 @@ export default function EnrollmentForm() {
               )}
             </div>
 
-            <div style={{ marginBottom: "24px", paddingTop: "20px", borderTop: "2px solid #e5e7eb" }}>
-              <div style={{ display: "flex", alignItems: "center", marginBottom: "12px", padding: "12px", backgroundColor: "#f9fafb", borderRadius: "10px" }}>
+            <div style={{ marginBottom: "16px", paddingTop: "14px", borderTop: "1px solid #e5e7eb" }}>
+              <div style={{ display: "flex", alignItems: "center", marginBottom: "10px", padding: "10px 12px", backgroundColor: "#f9fafb", borderRadius: "8px" }}>
                 <input
                   type="checkbox"
                   id="useCustomPassword"
@@ -880,7 +911,7 @@ export default function EnrollmentForm() {
               {useCustomPassword && (
                 <div style={{ marginTop: "16px" }}>
                   <label style={{...labelStyle}}>
-                    <span style={{ fontSize: "18px" }}>🔑</span>
+                    <span style={{ fontSize: "15px" }}>🔑</span>
                     <span>Password *</span>
                   </label>
                   <input
@@ -911,24 +942,24 @@ export default function EnrollmentForm() {
             </div>
 
             <div style={{ 
-              marginBottom: "24px", 
-              paddingTop: "20px", 
-              borderTop: `2px solid ${theme.neutral.gray200}`
+              marginBottom: "16px", 
+              paddingTop: "14px", 
+              borderTop: `1px solid ${theme.neutral.gray200}`
             }}>
               <label style={{...labelStyle}}>
-                <span style={{ fontSize: "18px" }}>📸</span>
+                <span style={{ fontSize: "15px" }}>📸</span>
                 <span>Face Recognition Status</span>
               </label>
               <div style={{
-                padding: "12px 16px",
-                borderRadius: "10px",
-                fontSize: "13px",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                fontSize: "12px",
                 fontWeight: "500",
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
                 backgroundColor: capturedDescriptor ? theme.success.bg : (errors.faceCapture ? "#fef2f2" : theme.warning.bg),
-                border: `2px solid ${capturedDescriptor ? theme.success.border : (errors.faceCapture ? "#ef4444" : theme.warning.border)}`,
+                border: `1px solid ${capturedDescriptor ? theme.success.border : (errors.faceCapture ? "#ef4444" : theme.warning.border)}`,
                 color: capturedDescriptor ? theme.success.text : (errors.faceCapture ? "#ef4444" : theme.warning.text)
               }}>
                 <span style={{
@@ -1006,7 +1037,25 @@ export default function EnrollmentForm() {
                   Camera not active
               </div>
             )}
-            {cameraActive && faceDetected && (
+            {cameraActive && detectedFaceCount >= 2 && (
+              <div style={{
+                position: "absolute",
+                top: "10px",
+                left: "10px",
+                right: "10px",
+                backgroundColor: "rgba(220, 38, 38, 0.95)",
+                color: "#fff",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: "600",
+                zIndex: 20,
+                lineHeight: 1.35
+              }}>
+                Warning: {detectedFaceCount} faces detected — only one person allowed
+              </div>
+            )}
+            {cameraActive && detectedFaceCount === 1 && (
               <div style={{
                 position: "absolute",
                 top: "10px",
@@ -1022,7 +1071,7 @@ export default function EnrollmentForm() {
                 Face Detected
               </div>
             )}
-            {cameraActive && !faceDetected && (
+            {cameraActive && detectedFaceCount === 0 && (
               <div style={{
                 position: "absolute",
                 top: "10px",
@@ -1055,9 +1104,9 @@ export default function EnrollmentForm() {
               onClick={captureFace}
               style={{
                 ...successButtonStyle,
-                opacity: !cameraActive || loading || !faceDetected ? 0.6 : 1
+                opacity: !cameraActive || loading || detectedFaceCount !== 1 ? 0.6 : 1
               }}
-              disabled={!cameraActive || loading || !faceDetected}
+              disabled={!cameraActive || loading || detectedFaceCount !== 1}
             >
               {loading ? "Capturing..." : "Capture Face"}
             </button>
@@ -1079,12 +1128,12 @@ export default function EnrollmentForm() {
       {generatedPassword && (
         <div style={{
           marginTop: "32px",
-          padding: "24px",
+          padding: "16px 18px",
           backgroundColor: theme.success.bg,
           borderRadius: "12px",
           border: `2px solid ${theme.success.border}`
         }}>
-          <div style={{ fontWeight: "700", marginBottom: "16px", color: theme.success.text, fontSize: "18px" }}>
+          <div style={{ fontWeight: "700", marginBottom: "12px", color: theme.success.text, fontSize: "16px" }}>
             {passwordGenerated ? "Password was auto-generated" : "Password was created"}
           </div>
           <div style={{

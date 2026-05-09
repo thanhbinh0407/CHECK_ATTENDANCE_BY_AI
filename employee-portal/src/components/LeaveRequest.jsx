@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 
-export default function LeaveRequest({ userId }) {
+export default function LeaveRequest({ userId, refreshVersion = 0 }) {
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -24,7 +24,7 @@ export default function LeaveRequest({ userId }) {
   useEffect(() => {
     fetchLeaveRequests();
     fetchLeaveBalance();
-  }, [userId]);
+  }, [userId, refreshVersion]);
 
   const fetchLeaveRequests = async () => {
     try {

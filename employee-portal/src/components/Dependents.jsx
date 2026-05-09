@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 
-export default function Dependents({ userId }) {
+export default function Dependents({ userId, refreshVersion = 0 }) {
   const [dependents, setDependents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
-    relationship: "spouse",
+    relationship: "",
     dateOfBirth: "",
-    gender: "male",
+    gender: "",
     idNumber: "",
     address: "",
     phoneNumber: "",
@@ -21,10 +21,12 @@ export default function Dependents({ userId }) {
   const [deleteId, setDeleteId] = useState(null);
   const [errors, setErrors] = useState({
     fullName: "",
+    relationship: "",
     phoneNumber: "",
     email: "",
     dateOfBirth: "",
-    idNumber: ""
+    idNumber: "",
+    address: ""
   });
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [fileUploadError, setFileUploadError] = useState("");
@@ -51,7 +53,7 @@ export default function Dependents({ userId }) {
   useEffect(() => {
     console.log("Component mounted/updated with userId:", userId);
     fetchDependents();
-  }, [userId]);
+  }, [userId, refreshVersion]);
 
   const fetchDependents = async () => {
     try {
@@ -96,46 +98,45 @@ export default function Dependents({ userId }) {
     }
   };
 
-  // Validation functions
+  // Validation (employee: ID/CCCD bắt buộc 9 hoặc 12 chữ số — khớp backend)
   const validateFullName = (value) => {
-    if (!value || value.trim() === "") {
-      return "Full Name is required";
-    }
-    // Check for numbers
-    if (/\d/.test(value)) {
-      return "Full Name cannot contain numbers";
-    }
-    // Check for special characters (allow spaces, hyphens, apostrophes, and all Vietnamese characters)
-    // Only block: numbers, and special characters except spaces, hyphens, apostrophes
-    if (/[0-9!@#$%^&*()_+=\[\]{};:"\\|,.<>\/?~`]/.test(value)) {
-      return "Full Name cannot contain numbers or special characters";
+    const t = (value || "").trim();
+    if (!t) return "Full name is required";
+    if (t.length < 2) return "Full name is too short";
+    if (t.length > 120) return "Full name must be at most 120 characters";
+    if (!/^[\p{L}\s'.-]+$/u.test(t)) {
+      return "Full name may only contain letters, spaces, and . ' -";
     }
     return "";
   };
 
+  const validateRelationship = (value) => {
+    if (!value || String(value).trim() === "") return "Relationship is required";
+    return "";
+  };
+
   const validatePhoneNumber = (value) => {
-    if (!value || value.trim() === "") {
-      return "Phone Number is required";
-    }
-    // Only allow numbers
-    if (!/^\d+$/.test(value)) {
-      return "Phone Number must contain only numbers";
-    }
-    // Maximum 10 digits
-    if (value.length > 10) {
-      return "Phone Number must be maximum 10 digits";
+    const t = String(value || "").trim();
+    if (!t) return "";
+    const digits = t.replace(/\D/g, "");
+    if (digits.length < 8 || digits.length > 15) {
+      return "Phone must contain 8–15 digits (optional field)";
     }
     return "";
   };
 
   const validateEmail = (value) => {
-    if (!value || value.trim() === "") {
-      return "Email is required";
+    const t = String(value || "").trim();
+    if (!t) return "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) {
+      return "Enter a valid email address";
     }
-    // Must end with @gmail.com
-    if (!value.toLowerCase().endsWith("@gmail.com")) {
-      return "Email must end with @gmail.com";
-    }
+    return "";
+  };
+
+  const validateAddress = (value) => {
+    const t = (value || "").trim();
+    if (t.length > 500) return "Address must be at most 500 characters";
     return "";
   };
 
@@ -156,11 +157,10 @@ export default function Dependents({ userId }) {
   const validateIdNumber = (value) => {
     const normalized = String(value || "").replace(/\D/g, "");
     if (!normalized) {
-      return "ID Number is required";
+      return "ID / CCCD is required";
     }
-    // Vietnamese ID documents: old CMND (9 digits) or CCCD (12 digits)
     if (!/^(\d{9}|\d{12})$/.test(normalized)) {
-      return "ID Number must be 9 or 12 digits";
+      return "ID / CCCD must be exactly 9 or 12 digits";
     }
     return "";
   };
@@ -191,21 +191,19 @@ export default function Dependents({ userId }) {
 
     // Process and validate based on field name
     if (name === "fullName") {
-      // Remove only numbers and special characters (keep all letters including Vietnamese with accents)
-      // Allow: all Unicode letters, spaces, hyphens, apostrophes
-      // Block: numbers and special characters like !@#$%^&*() etc.
-      processedValue = value.replace(/[0-9!@#$%^&*()_+=\[\]{};:"\\|,.<>\/?~`]/g, "");
-      // Don't capitalize while typing, only on blur (and only if needed)
+      processedValue = value.replace(/\d/g, "");
       error = validateFullName(processedValue);
+    } else if (name === "relationship") {
+      processedValue = value;
+      error = validateRelationship(value);
     } else if (name === "phoneNumber") {
-      // Only allow numbers
       processedValue = value.replace(/\D/g, "");
-      // Limit to 10 digits
-      if (processedValue.length > 10) {
-        processedValue = processedValue.substring(0, 10);
+      if (processedValue.length > 15) {
+        processedValue = processedValue.substring(0, 15);
       }
       error = validatePhoneNumber(processedValue);
     } else if (name === "email") {
+      processedValue = value;
       error = validateEmail(value);
     } else if (name === "dateOfBirth") {
       error = validateDateOfBirth(value);
@@ -215,6 +213,12 @@ export default function Dependents({ userId }) {
         processedValue = processedValue.substring(0, 12);
       }
       error = validateIdNumber(processedValue);
+    } else if (name === "address") {
+      processedValue = value;
+      if (value.length > 500) {
+        processedValue = value.substring(0, 500);
+      }
+      error = validateAddress(processedValue);
     }
 
     setFormData(prev => ({
@@ -234,8 +238,6 @@ export default function Dependents({ userId }) {
     let error = "";
 
     if (name === "fullName") {
-      // Only capitalize if first letter of each word is lowercase (a-z), preserve Vietnamese accents
-      // This way "nguyễn" becomes "Nguyễn" but "Nguyễn" stays "Nguyễn"
       const capitalized = capitalizeWords(value);
       if (capitalized !== value) {
         setFormData(prev => ({
@@ -246,6 +248,8 @@ export default function Dependents({ userId }) {
       } else {
         error = validateFullName(value);
       }
+    } else if (name === "relationship") {
+      error = validateRelationship(value);
     } else if (name === "phoneNumber") {
       error = validatePhoneNumber(value);
     } else if (name === "email") {
@@ -254,6 +258,8 @@ export default function Dependents({ userId }) {
       error = validateDateOfBirth(value);
     } else if (name === "idNumber") {
       error = validateIdNumber(value);
+    } else if (name === "address") {
+      error = validateAddress(value);
     }
 
     setErrors(prev => ({
@@ -324,23 +330,33 @@ export default function Dependents({ userId }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validate all fields
     const fullNameError = validateFullName(formData.fullName);
+    const relationshipError = validateRelationship(formData.relationship);
     const phoneNumberError = validatePhoneNumber(formData.phoneNumber);
     const emailError = validateEmail(formData.email);
     const dateOfBirthError = validateDateOfBirth(formData.dateOfBirth);
     const idNumberError = validateIdNumber(formData.idNumber);
+    const addressError = validateAddress(formData.address);
 
     setErrors({
       fullName: fullNameError,
+      relationship: relationshipError,
       phoneNumber: phoneNumberError,
       email: emailError,
       dateOfBirth: dateOfBirthError,
-      idNumber: idNumberError
+      idNumber: idNumberError,
+      address: addressError
     });
 
-    // If there are validation errors, don't submit
-    if (fullNameError || phoneNumberError || emailError || dateOfBirthError || idNumberError) {
+    if (
+      fullNameError ||
+      relationshipError ||
+      phoneNumberError ||
+      emailError ||
+      dateOfBirthError ||
+      idNumberError ||
+      addressError
+    ) {
       showMessage("Please fix the validation errors before submitting.", "error");
       return;
     }
@@ -375,10 +391,14 @@ export default function Dependents({ userId }) {
         console.log("Cannot decode token, using prop userId:", userId);
       }
 
-      // Send userId from token in the request
       const payload = {
         userId: userIdFromToken,
-        ...formData
+        ...formData,
+        fullName: formData.fullName.trim(),
+        address: formData.address?.trim() || null,
+        phoneNumber: formData.phoneNumber?.trim() || null,
+        email: formData.email?.trim() || null,
+        gender: formData.gender || null
       };
 
       console.log("Submitting dependent data:", payload);
@@ -415,9 +435,9 @@ export default function Dependents({ userId }) {
           setEditingId(null);
           setFormData({
             fullName: "",
-            relationship: "spouse",
+            relationship: "",
             dateOfBirth: "",
-            gender: "male",
+            gender: "",
             idNumber: "",
             address: "",
             phoneNumber: "",
@@ -425,10 +445,12 @@ export default function Dependents({ userId }) {
           });
           setErrors({
             fullName: "",
+            relationship: "",
             phoneNumber: "",
             email: "",
             dateOfBirth: "",
-            idNumber: ""
+            idNumber: "",
+            address: ""
           });
           setUploadedFiles([]);
           setFileUploadError("");
@@ -448,9 +470,9 @@ export default function Dependents({ userId }) {
     setEditingId(dep.id);
     setFormData({
       fullName: dep.fullName,
-      relationship: dep.relationship,
+      relationship: dep.relationship || "",
       dateOfBirth: dep.dateOfBirth ? dep.dateOfBirth.split("T")[0] : "",
-      gender: dep.gender || "male",
+      gender: dep.gender || "",
       idNumber: dep.idNumber || "",
       address: dep.address || "",
       phoneNumber: dep.phoneNumber || "",
@@ -458,6 +480,15 @@ export default function Dependents({ userId }) {
     });
     setUploadedFiles([]);
     setFileUploadError("");
+    setErrors({
+      fullName: "",
+      relationship: "",
+      phoneNumber: "",
+      email: "",
+      dateOfBirth: "",
+      idNumber: "",
+      address: ""
+    });
     setShowForm(true);
   };
 
@@ -509,6 +540,15 @@ export default function Dependents({ userId }) {
     return labels[gender] || gender;
   };
 
+  const getApprovalStatusLabel = (status) => {
+    const labels = {
+      pending: "Pending approval",
+      approved: "Approved",
+      rejected: "Rejected"
+    };
+    return labels[status] || status || "—";
+  };
+
   const stats = {
     total: dependents.length,
     spouse: dependents.filter(d => d.relationship === 'spouse').length,
@@ -545,7 +585,32 @@ export default function Dependents({ userId }) {
         
         {!showForm && (
           <button
-            onClick={() => setShowForm(true)}
+            type="button"
+            onClick={() => {
+              setEditingId(null);
+              setUploadedFiles([]);
+              setFileUploadError("");
+              setFormData({
+                fullName: "",
+                relationship: "",
+                dateOfBirth: "",
+                gender: "",
+                idNumber: "",
+                address: "",
+                phoneNumber: "",
+                email: ""
+              });
+              setErrors({
+                fullName: "",
+                relationship: "",
+                phoneNumber: "",
+                email: "",
+                dateOfBirth: "",
+                idNumber: "",
+                address: ""
+              });
+              setShowForm(true);
+            }}
             style={{
               padding: "12px 24px",
               backgroundColor: "#2196F3",
@@ -861,9 +926,9 @@ export default function Dependents({ userId }) {
                   setEditingId(null);
                   setFormData({ 
                     fullName: "", 
-                    relationship: "spouse", 
+                    relationship: "", 
                     dateOfBirth: "", 
-                    gender: "male", 
+                    gender: "", 
                     idNumber: "", 
                     address: "", 
                     phoneNumber: "", 
@@ -872,8 +937,12 @@ export default function Dependents({ userId }) {
                   setMessage("");
                   setErrors({
                     fullName: "",
+                    relationship: "",
                     phoneNumber: "",
-                    email: ""
+                    email: "",
+                    dateOfBirth: "",
+                    idNumber: "",
+                    address: ""
                   });
                 }}
                 style={{
@@ -991,11 +1060,10 @@ export default function Dependents({ userId }) {
                     name="relationship" 
                     value={formData.relationship} 
                     onChange={handleInputChange} 
-                    required
                     style={{
                       width: "100%",
                       padding: "14px 16px",
-                      border: "2px solid #e0e0e0",
+                      border: `2px solid ${errors.relationship ? "#dc3545" : "#e0e0e0"}`,
                       borderRadius: "10px",
                       fontSize: "15px",
                       transition: "all 0.3s ease",
@@ -1014,6 +1082,7 @@ export default function Dependents({ userId }) {
                       e.target.style.boxShadow = "none";
                     }}
                   >
+                    <option value="">— Select relationship —</option>
                     <option value="spouse">💑 Spouse</option>
                     <option value="child">👶 Child</option>
                     <option value="parent">👨‍👩‍👦 Parent</option>
@@ -1021,6 +1090,12 @@ export default function Dependents({ userId }) {
                     <option value="sibling">👫 Sibling</option>
                     <option value="other">👤 Other</option>
                   </select>
+                  {errors.relationship && (
+                    <div style={{ marginTop: "6px", fontSize: "12px", color: "#dc3545", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span>⚠️</span>
+                      <span>{errors.relationship}</span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label style={{ 
@@ -1034,6 +1109,7 @@ export default function Dependents({ userId }) {
                   }}>
                     <span>⚧️</span>
                     <span>Gender</span>
+                    <span style={{ fontSize: "12px", fontWeight: 500, color: "#6c757d" }}>(optional)</span>
                   </label>
                   <select 
                     name="gender" 
@@ -1061,6 +1137,7 @@ export default function Dependents({ userId }) {
                       e.target.style.boxShadow = "none";
                     }}
                   >
+                    <option value="">— Not specified —</option>
                     <option value="male">👨 Male</option>
                     <option value="female">👩 Female</option>
                     <option value="other">⚧️ Other</option>
@@ -1140,19 +1217,20 @@ export default function Dependents({ userId }) {
                     marginBottom: "10px"
                   }}>
                     <span>🆔</span>
-                    <span>ID Number</span>
+                    <span>ID / CCCD</span>
                     <span style={{ color: "#dc3545" }}>*</span>
                   </label>
+                  <div style={{ fontSize: "11px", color: "#6c757d", marginBottom: "8px", lineHeight: 1.45 }}>
+                    Employees: enter exactly 9 or 12 digits (CMND/CCCD). This field is required.
+                  </div>
                   <input
                     type="text"
                     name="idNumber"
                     value={formData.idNumber}
                     onChange={handleInputChange}
-                    onBlur={handleBlur}
-                    required
                     inputMode="numeric"
                     maxLength={12}
-                    placeholder="Enter 9 or 12 digits"
+                    placeholder="9 or 12 digits"
                     style={{
                       width: "100%",
                       padding: "14px 16px",
@@ -1300,27 +1378,36 @@ export default function Dependents({ userId }) {
                   name="address"
                   value={formData.address}
                   onChange={handleInputChange}
-                  placeholder="Home address"
+                  onBlur={handleBlur}
+                  placeholder="Home address (optional)"
+                  maxLength={500}
                   style={{
                     width: "100%",
                     padding: "14px 16px",
-                    border: "2px solid #e0e0e0",
+                    border: `2px solid ${errors.address ? "#dc3545" : "#e0e0e0"}`,
                     borderRadius: "10px",
                     fontSize: "15px",
                     transition: "all 0.3s ease",
                     backgroundColor: "#f8f9fa"
                   }}
                   onFocus={(e) => {
-                    e.target.style.borderColor = "#A2B9ED";
+                    e.target.style.borderColor = errors.address ? "#dc3545" : "#A2B9ED";
                     e.target.style.backgroundColor = "white";
-                    e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    e.target.style.boxShadow = `0 0 0 3px ${errors.address ? "rgba(220, 53, 69, 0.1)" : "rgba(162, 185, 237, 0.1)"}`;
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = "#e0e0e0";
+                    handleBlur(e);
+                    e.target.style.borderColor = errors.address ? "#dc3545" : "#e0e0e0";
                     e.target.style.backgroundColor = "#f8f9fa";
                     e.target.style.boxShadow = "none";
                   }}
                 />
+                {errors.address && (
+                  <div style={{ marginTop: "6px", fontSize: "12px", color: "#dc3545", display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span>⚠️</span>
+                    <span>{errors.address}</span>
+                  </div>
+                )}
               </div>
 
               {/* Phone & Email */}
@@ -1341,16 +1428,16 @@ export default function Dependents({ userId }) {
                     marginBottom: "10px"
                   }}>
                     <span>📞</span>
-                    <span>Phone Number</span>
+                    <span>Phone</span>
+                    <span style={{ fontSize: "12px", fontWeight: 500, color: "#6c757d" }}>(optional)</span>
                   </label>
                   <input
                     type="tel"
                     name="phoneNumber"
                     value={formData.phoneNumber}
                     onChange={handleInputChange}
-                    required
-                    placeholder="Enter phone number (max 10 digits)"
-                    maxLength={10}
+                    placeholder="8–15 digits (e.g. 09xxxxxxxx)"
+                    maxLength={15}
                     style={{
                       width: "100%",
                       padding: "14px 16px",
@@ -1398,14 +1485,14 @@ export default function Dependents({ userId }) {
                   }}>
                     <span>📧</span>
                     <span>Email</span>
+                    <span style={{ fontSize: "12px", fontWeight: 500, color: "#6c757d" }}>(optional)</span>
                   </label>
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    required
-                    placeholder="example@gmail.com"
+                    placeholder="name@example.com"
                     style={{
                       width: "100%",
                       padding: "14px 16px",
@@ -1475,9 +1562,9 @@ export default function Dependents({ userId }) {
                     setEditingId(null);
                     setFormData({ 
                       fullName: "", 
-                      relationship: "spouse", 
+                      relationship: "", 
                       dateOfBirth: "", 
-                      gender: "male", 
+                      gender: "", 
                       idNumber: "", 
                       address: "", 
                       phoneNumber: "", 
@@ -1486,8 +1573,12 @@ export default function Dependents({ userId }) {
                     setMessage("");
                     setErrors({
                       fullName: "",
+                      relationship: "",
                       phoneNumber: "",
-                      email: ""
+                      email: "",
+                      dateOfBirth: "",
+                      idNumber: "",
+                      address: ""
                     });
                   }}
                   style={{ 
@@ -1626,6 +1717,18 @@ export default function Dependents({ userId }) {
                     letterSpacing: "0.8px",
                     borderBottom: "2px solid #dee2e6"
                   }}>
+                    Status
+                  </th>
+                  <th style={{ 
+                    padding: "14px 16px", 
+                    textAlign: "left",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    color: "#495057",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #dee2e6"
+                  }}>
                     Date of Birth
                   </th>
                   <th style={{ 
@@ -1687,6 +1790,32 @@ export default function Dependents({ userId }) {
                       fontWeight: "600"
                     }}>
                       {getRelationshipLabel(dep.relationship)}
+                    </td>
+                    <td style={{ 
+                      padding: "16px", 
+                      borderBottom: "1px solid #e9ecef",
+                      fontSize: "12px"
+                    }}>
+                      <span style={{
+                        display: "inline-block",
+                        padding: "4px 10px",
+                        borderRadius: "999px",
+                        fontWeight: "600",
+                        backgroundColor:
+                          dep.approvalStatus === "approved"
+                            ? "#d4edda"
+                            : dep.approvalStatus === "rejected"
+                              ? "#f8d7da"
+                              : "#fff3cd",
+                        color:
+                          dep.approvalStatus === "approved"
+                            ? "#155724"
+                            : dep.approvalStatus === "rejected"
+                              ? "#721c24"
+                              : "#856404"
+                      }}>
+                        {getApprovalStatusLabel(dep.approvalStatus)}
+                      </span>
                     </td>
                     <td style={{ 
                       padding: "16px", 

@@ -1,7 +1,12 @@
 /**
  * Payroll Controller
  * Business logic for payroll management
- * 
+ *
+ * NOTE (multi-tenant / product scope): This module uses the `Payroll` / `PayrollDetail`
+ * tables and its own approval states. The main HRMS apps (accountant-client, supervisor-client,
+ * employee-portal) use the `Salary` model and `/api/salary/*` for monthly payroll. Treat one
+ * path as canonical per deployment to avoid duplicated or divergent payroll data.
+ *
  * Author: Senior Development Team
  * Version: 2.0
  * Date: 25-01-2026

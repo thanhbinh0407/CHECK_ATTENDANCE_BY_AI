@@ -1,9 +1,10 @@
 import OvertimeRequest from "../models/pg/OvertimeRequest.js";
 import ApprovalWorkflow from "../models/pg/ApprovalWorkflow.js";
 import User from "../models/pg/User.js";
-import Notification from "../models/pg/Notification.js";
 import { Op } from "sequelize";
 import { resolveApprovalChain } from "../services/approvalPolicyService.js";
+import { emitApprovalEvent } from "../services/actionAuditService.js";
+import { createNotification } from "./notificationController.js";
 
 // Get all overtime requests
 export const getOvertimeRequests = async (req, res) => {
@@ -11,13 +12,15 @@ export const getOvertimeRequests = async (req, res) => {
     const { userId: queryUserId, status, month, year } = req.query;
     // Token contains userId, not id
     const tokenUserId = req.user?.userId ?? req.user?.id;
+    const isStaff = req.user?.role && req.user.role !== "employee";
 
     const where = {};
-    // If userId is provided in query, use it (for admin), otherwise use token userId (for employee)
-    if (queryUserId) {
-      where.userId = queryUserId;
-    } else if (tokenUserId) {
+    // Employee: only own rows (ignore ?userId=). Staff may filter by userId or list all.
+    if (!isStaff && tokenUserId != null) {
       where.userId = tokenUserId;
+    } else if (queryUserId != null && queryUserId !== "") {
+      const parsed = parseInt(queryUserId, 10);
+      if (!Number.isNaN(parsed)) where.userId = parsed;
     }
     if (status) where.approvalStatus = status;
     if (month && year) {
@@ -36,7 +39,10 @@ export const getOvertimeRequests = async (req, res) => {
         { model: User, as: 'Approver', attributes: ['id', 'name', 'email'] },
         { model: User, as: 'CurrentApprover', attributes: ['id', 'name', 'email'] }
       ],
-      order: [['date', 'DESC'], ['createdAt', 'DESC']]
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC']
+      ]
     });
 
     return res.json({
@@ -132,14 +138,13 @@ export const createOvertimeRequest = async (req, res) => {
         status: 'pending'
       });
 
-      // Notify manager
-      await Notification.create({
-        userId: initialApproverId,
-        type: 'overtime_request',
-        title: 'New Overtime Request',
-        message: `${user.name} has submitted an overtime request for ${date}`,
-        isRead: false
-      });
+      await createNotification(
+        initialApproverId,
+        "overtime_request",
+        "New Overtime Request",
+        `${user.name} has submitted an overtime request for ${date}`,
+        { overtimeRequestId: request.id }
+      );
     }
 
     return res.json({
@@ -184,11 +189,18 @@ export const approveOvertimeRequest = async (req, res) => {
       });
     }
 
-    // Check if current user is the approver
-    if (request.currentApproverId !== approverId) {
-      return res.status(403).json({
-        status: "error",
-        message: "You are not authorized to approve this request"
+    // Role middleware (supervisorOrManager) already restricts who can reach
+    // this endpoint. We no longer require `currentApproverId === req.user.id`
+    // — any supervisor or manager on duty may decide any pending request at
+    // the current level. The actual approver is recorded below for audit.
+
+    const decisionLevel = request.approvalLevel || 1;
+    let emittedStatus = null;
+
+    if (action !== 'approve' && action !== 'reject') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Request body must include action: "approve" or "reject"'
       });
     }
 
@@ -196,24 +208,37 @@ export const approveOvertimeRequest = async (req, res) => {
       await request.update({
         approvalStatus: 'rejected',
         approvedBy: approverId,
-        approvedAt: new Date(),
-        rejectionReason: comments || null
+        approvedAt: null,
+        rejectionReason: comments != null && String(comments).trim() !== '' ? String(comments).trim() : null
       });
 
-      // Update workflow
-      await ApprovalWorkflow.update(
-        { status: 'rejected', approvedAt: new Date(), comments },
-        { where: { requestType: 'overtime', requestId: id, approverId } }
+      // Record this approver's decision on the matching workflow row if it
+      // exists; otherwise create one so the audit log always has a trace.
+      const [workflowRowsUpdated] = await ApprovalWorkflow.update(
+        { status: 'rejected', approvedAt: new Date(), comments, approverId },
+        { where: { requestType: 'overtime', requestId: id, level: decisionLevel, status: 'pending' } }
+      );
+      if (!workflowRowsUpdated) {
+        await ApprovalWorkflow.create({
+          requestType: 'overtime',
+          requestId: id,
+          level: decisionLevel,
+          approverId,
+          status: 'rejected',
+          approvedAt: new Date(),
+          comments: comments || null,
+        });
+      }
+
+      await createNotification(
+        request.userId,
+        "overtime_request",
+        "Overtime Request Rejected",
+        `Your overtime request for ${request.date} has been rejected`,
+        { overtimeRequestId: request.id }
       );
 
-      // Notify employee
-      await Notification.create({
-        userId: request.userId,
-        type: 'overtime_request',
-        title: 'Overtime Request Rejected',
-        message: `Your overtime request for ${request.date} has been rejected`,
-        isRead: false
-      });
+      emittedStatus = 'rejected';
     } else if (action === 'approve') {
       const approverChain = await resolveApprovalChain('overtime', request.User);
       const currentIndex = Math.max(request.approvalLevel - 1, 0);
@@ -228,19 +253,31 @@ export const approveOvertimeRequest = async (req, res) => {
           approvedAt: new Date()
         });
 
-        await ApprovalWorkflow.update(
-          { status: 'approved', approvedAt: new Date(), comments },
-          { where: { requestType: 'overtime', requestId: id, approverId } }
+        const [finalWorkflowRowsUpdated] = await ApprovalWorkflow.update(
+          { status: 'approved', approvedAt: new Date(), comments, approverId },
+          { where: { requestType: 'overtime', requestId: id, level: decisionLevel, status: 'pending' } }
+        );
+        if (!finalWorkflowRowsUpdated) {
+          await ApprovalWorkflow.create({
+            requestType: 'overtime',
+            requestId: id,
+            level: decisionLevel,
+            approverId,
+            status: 'approved',
+            approvedAt: new Date(),
+            comments: comments || null,
+          });
+        }
+
+        await createNotification(
+          request.userId,
+          "overtime_request",
+          "Overtime Request Approved",
+          `Your overtime request for ${request.date} has been approved`,
+          { overtimeRequestId: request.id }
         );
 
-        // Notify employee
-        await Notification.create({
-          userId: request.userId,
-          type: 'overtime_request',
-          title: 'Overtime Request Approved',
-          message: `Your overtime request for ${request.date} has been approved`,
-          isRead: false
-        });
+        emittedStatus = 'approved';
       } else {
         // Move to next approval level from policy chain
         const nextLevel = request.approvalLevel + 1;
@@ -250,10 +287,21 @@ export const approveOvertimeRequest = async (req, res) => {
           currentApproverId: nextApproverId
         });
 
-        await ApprovalWorkflow.update(
-          { status: 'approved', approvedAt: new Date(), comments },
-          { where: { requestType: 'overtime', requestId: id, approverId } }
+        const [midWorkflowRowsUpdated] = await ApprovalWorkflow.update(
+          { status: 'approved', approvedAt: new Date(), comments, approverId },
+          { where: { requestType: 'overtime', requestId: id, level: decisionLevel, status: 'pending' } }
         );
+        if (!midWorkflowRowsUpdated) {
+          await ApprovalWorkflow.create({
+            requestType: 'overtime',
+            requestId: id,
+            level: decisionLevel,
+            approverId,
+            status: 'approved',
+            approvedAt: new Date(),
+            comments: comments || null,
+          });
+        }
 
         if (nextApproverId) {
           await ApprovalWorkflow.create({
@@ -264,15 +312,42 @@ export const approveOvertimeRequest = async (req, res) => {
             status: 'pending'
           });
 
-          // Notify next approver
-          await Notification.create({
-            userId: nextApproverId,
-            type: 'overtime_request',
-            title: 'Overtime Request Pending Approval',
-            message: `${request.User.name}'s overtime request needs your approval`,
-            isRead: false
-          });
+          await createNotification(
+            nextApproverId,
+            "overtime_request",
+            "Overtime Request Pending Approval",
+            `${request.User.name}'s overtime request needs your approval`,
+            { overtimeRequestId: request.id }
+          );
         }
+
+        // Intermediate approval: this decision is "approved" at this level
+        // even though the overall request is still pending the next approver.
+        emittedStatus = 'approved';
+      }
+    }
+
+    if (emittedStatus) {
+      try {
+        const owner = request.User
+          ? {
+              id: request.User.id,
+              name: request.User.name,
+              email: request.User.email,
+              employeeCode: request.User.employeeCode,
+            }
+          : null;
+        emitApprovalEvent({
+          actor: req.user,
+          requestType: 'overtime',
+          requestId: request.id,
+          status: emittedStatus,
+          level: decisionLevel,
+          targetUser: owner,
+          comments: comments || null,
+        });
+      } catch (emitErr) {
+        console.warn('[overtime.approve] realtime emit failed:', emitErr.message);
       }
     }
 

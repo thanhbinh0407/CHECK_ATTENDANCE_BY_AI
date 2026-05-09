@@ -172,43 +172,56 @@ export default function LeaveManagement() {
 
   return (
     <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "0" }}>
+      <style>{`
+        @keyframes lmFadeInUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes lmFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes lmSlideUp {
+          from { opacity: 0; transform: translateY(12px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
       {/* Welcome Header */}
       <div style={{
         background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
         color: "#fff",
-        padding: "48px 40px",
-        borderRadius: "16px 16px 0 0",
-        boxShadow: "0 4px 20px rgba(102, 126, 234, 0.3)"
+        padding: "18px 22px",
+        borderRadius: "12px 12px 0 0",
+        boxShadow: "0 2px 12px rgba(102, 126, 234, 0.25)"
       }}>
-        <h1 style={{ margin: "0 0 12px 0", fontSize: "36px", fontWeight: "700" }}>
+        <h1 style={{ margin: "0 0 4px 0", fontSize: "22px", fontWeight: "700", lineHeight: 1.25 }}>
           📅 Leave Management
         </h1>
-        <p style={{ margin: 0, fontSize: "16px", opacity: 0.95 }}>
-          Review and manage employee leave requests. View history and status of all leave applications.
+        <p style={{ margin: 0, fontSize: "13px", opacity: 0.92, lineHeight: 1.4 }}>
+          Review and approve employee leave requests.
         </p>
       </div>
 
       {/* Main Content */}
       <div style={{
         backgroundColor: "#ffffff",
-        borderRadius: "0 0 16px 16px",
-        padding: "40px",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.1)"
+        borderRadius: "0 0 12px 12px",
+        padding: "18px 22px",
+        boxShadow: "0 2px 16px rgba(0,0,0,0.08)"
       }}>
         {message && (
           <div style={{
-            padding: "16px 20px",
+            padding: "10px 14px",
             backgroundColor: message.includes("successfully") ? "#d4edda" : "#f8d7da",
-            border: `2px solid ${message.includes("successfully") ? "#c3e6cb" : "#f5c6cb"}`,
-            borderRadius: "12px",
+            border: `1px solid ${message.includes("successfully") ? "#c3e6cb" : "#f5c6cb"}`,
+            borderRadius: "8px",
             color: message.includes("successfully") ? "#155724" : "#721c24",
-            marginBottom: "24px",
-            fontSize: "14px",
+            marginBottom: "14px",
+            fontSize: "13px",
             fontWeight: "500",
             display: "flex",
             alignItems: "center",
-            gap: "8px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+            gap: "8px"
           }}>
             {message.includes("successfully") ? "✅" : "❌"} {message}
           </div>
@@ -217,48 +230,48 @@ export default function LeaveManagement() {
         {/* Filters */}
         <div style={{
           backgroundColor: "#fff",
-          borderRadius: "16px",
-          padding: "20px 24px",
-          marginBottom: "32px",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+          borderRadius: "10px",
+          padding: "10px 14px",
+          marginBottom: "16px",
+          boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
           border: "1px solid #e8e8e8",
           display: "inline-block",
           width: "fit-content"
         }}>
           <div style={{ 
             display: "flex", 
-            gap: "20px", 
+            gap: "12px", 
             alignItems: "center",
             flexWrap: "wrap"
           }}>
             <div style={{ 
               display: "flex", 
               alignItems: "center", 
-              gap: "12px"
+              gap: "8px"
             }}>
               <label style={{ 
-                fontWeight: "700", 
-                fontSize: "15px", 
+                fontWeight: "600", 
+                fontSize: "13px", 
                 color: "#495057",
                 whiteSpace: "nowrap"
               }}>
-                Filter by Status:
+                Status:
               </label>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 style={{
-                  padding: "12px 20px",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "10px",
-                  fontSize: "15px",
+                  padding: "6px 12px",
+                  border: "1px solid #d8d8d8",
+                  borderRadius: "8px",
+                  fontSize: "13px",
                   fontWeight: "500",
                   cursor: "pointer",
                   backgroundColor: "#fff",
                   transition: "all 0.2s",
                   outline: "none",
                   width: "auto",
-                  minWidth: "180px"
+                  minWidth: "150px"
                 }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = "#667eea";
@@ -279,23 +292,23 @@ export default function LeaveManagement() {
         </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: "60px", color: "#666" }}>
-            <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏳</div>
-            <div style={{ fontSize: "16px", fontWeight: "500" }}>Loading leave requests...</div>
+          <div style={{ textAlign: "center", padding: "28px", color: "#666" }}>
+            <div style={{ fontSize: "28px", marginBottom: "8px" }}>⏳</div>
+            <div style={{ fontSize: "13px", fontWeight: "500" }}>Loading leave requests...</div>
           </div>
         ) : leaveRequests.length === 0 ? (
           <div style={{
             textAlign: "center",
-            padding: "60px 40px",
+            padding: "28px 20px",
             backgroundColor: "#f8f9fa",
-            borderRadius: "16px",
-            border: "2px dashed #dee2e6"
+            borderRadius: "10px",
+            border: "1px dashed #dee2e6"
           }}>
-            <div style={{ fontSize: "64px", marginBottom: "16px" }}>📭</div>
-            <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#333", marginBottom: "8px" }}>
+            <div style={{ fontSize: "36px", marginBottom: "8px" }}>📭</div>
+            <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#333", marginBottom: "6px" }}>
               No Leave Requests
             </h3>
-            <p style={{ fontSize: "14px", color: "#666" }}>
+            <p style={{ fontSize: "13px", color: "#666" }}>
               {filterStatus === "all" 
                 ? "No leave requests found in the system"
                 : `No leave requests with status "${filterStatus}"`
@@ -305,8 +318,8 @@ export default function LeaveManagement() {
         ) : (
           <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))",
-            gap: "28px"
+            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+            gap: "14px"
           }}>
             {leaveRequests.map((request, index) => {
               const statusBadge = getStatusBadge(request.status);
@@ -315,260 +328,136 @@ export default function LeaveManagement() {
                   key={request.id}
                   style={{
                     backgroundColor: "#fff",
-                    borderRadius: "20px",
+                    borderRadius: "12px",
                     padding: "0",
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                    boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
                     border: "1px solid #e8e8e8",
-                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                    transition: "box-shadow 0.2s ease, border-color 0.2s ease",
                     position: "relative",
                     overflow: "hidden",
-                    animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`
+                    animation: `lmFadeInUp 0.35s ease-out ${Math.min(index, 8) * 0.04}s both`
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-6px)";
-                    e.currentTarget.style.boxShadow = "0 12px 40px rgba(0,0,0,0.15)";
-                    e.currentTarget.style.borderColor = "#667eea";
+                    e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.1)";
+                    e.currentTarget.style.borderColor = "#c5cae8";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.08)";
+                    e.currentTarget.style.boxShadow = "0 1px 6px rgba(0,0,0,0.06)";
                     e.currentTarget.style.borderColor = "#e8e8e8";
                   }}
                 >
-                  <style>{`
-                    @keyframes fadeInUp {
-                      from {
-                        opacity: 0;
-                        transform: translateY(20px);
-                      }
-                      to {
-                        opacity: 1;
-                        transform: translateY(0);
-                      }
-                    }
-                  `}</style>
-                  
                   {/* Status Badge */}
                   <div style={{
                     position: "absolute",
-                    top: "20px",
-                    right: "20px",
-                    padding: "8px 16px",
-                    borderRadius: "12px",
-                    fontSize: "12px",
+                    top: "10px",
+                    right: "10px",
+                    padding: "3px 8px",
+                    borderRadius: "6px",
+                    fontSize: "10px",
                     fontWeight: "700",
                     textTransform: "uppercase",
-                    letterSpacing: "0.8px",
+                    letterSpacing: "0.4px",
                     backgroundColor: statusBadge.bg,
                     color: statusBadge.color,
-                    border: `2px solid ${statusBadge.color}20`,
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                    border: `1px solid ${statusBadge.color}33`,
                     zIndex: 10
                   }}>
                     {statusBadge.text}
                   </div>
 
                   {/* Card Content */}
-                  <div style={{ padding: "28px" }}>
+                  <div style={{ padding: "14px 14px 12px", paddingRight: "120px" }}>
                     {/* Employee Info */}
                     <div style={{ 
-                      marginBottom: "24px",
+                      marginBottom: "10px",
                       display: "flex",
                       alignItems: "center",
-                      gap: "16px"
+                      gap: "10px"
                     }}>
                       <div style={{
-                        width: "64px",
-                        height: "64px",
-                        borderRadius: "16px",
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "10px",
                         background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: "28px",
+                        fontSize: "17px",
                         fontWeight: "700",
                         color: "#fff",
-                        boxShadow: "0 6px 16px rgba(102, 126, 234, 0.4)",
                         flexShrink: 0
                       }}>
                         {request.User?.name?.charAt(0)?.toUpperCase() || "?"}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <h3 style={{
-                          margin: "0 0 6px 0",
-                          fontSize: "20px",
+                          margin: "0 0 2px 0",
+                          fontSize: "15px",
                           fontWeight: "700",
                           color: "#1a1a1a",
-                          lineHeight: "1.3"
+                          lineHeight: 1.25
                         }}>
                           {request.User?.name || "N/A"}
                         </h3>
                         <div style={{
-                          fontSize: "14px",
-                          color: "#667eea",
-                          fontWeight: "600",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px"
+                          fontSize: "12px",
+                          color: "#5c6bc0",
+                          fontWeight: "600"
                         }}>
-                          <span>👤</span>
                           {request.User?.employeeCode || "N/A"}
                         </div>
                       </div>
                     </div>
 
-                    {/* Leave Details */}
+                    {/* Leave Details — compact row */}
                     <div style={{
                       backgroundColor: "#f8f9fa",
-                      borderRadius: "16px",
-                      padding: "20px",
-                      marginBottom: "24px",
-                      border: "1px solid #e8e8e8"
+                      borderRadius: "8px",
+                      padding: "10px 12px",
+                      marginBottom: "10px",
+                      border: "1px solid #eceff1",
+                      fontSize: "12px",
+                      lineHeight: 1.45,
+                      color: "#333"
                     }}>
-                      <div style={{ 
-                        display: "grid", 
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: "16px",
-                        marginBottom: "16px"
-                      }}>
-                        <div style={{ 
-                          padding: "12px",
-                          backgroundColor: "#fff",
-                          borderRadius: "10px",
-                          border: "1px solid #e8e8e8"
-                        }}>
-                          <div style={{ 
-                            fontSize: "11px", 
-                            color: "#999", 
-                            fontWeight: "600",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                            marginBottom: "6px"
-                          }}>
-                            Type
-                          </div>
-                          <div style={{ 
-                            fontSize: "14px", 
-                            color: "#1a1a1a", 
-                            fontWeight: "700"
-                          }}>
-                            {getTypeLabel(request.type)}
-                          </div>
-                        </div>
-                        <div style={{ 
-                          padding: "12px",
-                          backgroundColor: "#fff",
-                          borderRadius: "10px",
-                          border: "1px solid #e8e8e8"
-                        }}>
-                          <div style={{ 
-                            fontSize: "11px", 
-                            color: "#999", 
-                            fontWeight: "600",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                            marginBottom: "6px"
-                          }}>
-                            Duration
-                          </div>
-                          <div style={{ 
-                            fontSize: "18px", 
-                            color: "#667eea", 
-                            fontWeight: "700"
-                          }}>
-                            {request.days} {request.days === 1 ? "day" : "days"}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ 
-                        display: "grid", 
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: "16px",
-                        marginBottom: request.reason || request.rejectionReason ? "16px" : "0"
-                      }}>
-                        <div style={{ 
-                          padding: "12px",
-                          backgroundColor: "#fff",
-                          borderRadius: "10px",
-                          border: "1px solid #e8e8e8"
-                        }}>
-                          <div style={{ 
-                            fontSize: "11px", 
-                            color: "#999", 
-                            fontWeight: "600",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                            marginBottom: "6px"
-                          }}>
-                            From Date
-                          </div>
-                          <div style={{ 
-                            fontSize: "14px", 
-                            color: "#1a1a1a", 
-                            fontWeight: "600"
-                          }}>
-                            {new Date(request.startDate).toLocaleDateString("en-US", { 
-                              month: "short", 
-                              day: "numeric", 
-                              year: "numeric" 
-                            })}
-                          </div>
-                        </div>
-                        <div style={{ 
-                          padding: "12px",
-                          backgroundColor: "#fff",
-                          borderRadius: "10px",
-                          border: "1px solid #e8e8e8"
-                        }}>
-                          <div style={{ 
-                            fontSize: "11px", 
-                            color: "#999", 
-                            fontWeight: "600",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                            marginBottom: "6px"
-                          }}>
-                            To Date
-                          </div>
-                          <div style={{ 
-                            fontSize: "14px", 
-                            color: "#1a1a1a", 
-                            fontWeight: "600"
-                          }}>
-                            {new Date(request.endDate).toLocaleDateString("en-US", { 
-                              month: "short", 
-                              day: "numeric", 
-                              year: "numeric" 
-                            })}
-                          </div>
-                        </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "baseline" }}>
+                        <span>
+                          <span style={{ color: "#888", fontWeight: 600, fontSize: "10px", textTransform: "uppercase" }}>Type </span>
+                          <strong>{getTypeLabel(request.type)}</strong>
+                        </span>
+                        <span>
+                          <span style={{ color: "#888", fontWeight: 600, fontSize: "10px", textTransform: "uppercase" }}>Days </span>
+                          <strong style={{ color: "#5c6bc0" }}>{request.days}</strong>
+                        </span>
+                        <span>
+                          <span style={{ color: "#888", fontWeight: 600, fontSize: "10px", textTransform: "uppercase" }}>From </span>
+                          <strong>{new Date(request.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</strong>
+                        </span>
+                        <span>
+                          <span style={{ color: "#888", fontWeight: 600, fontSize: "10px", textTransform: "uppercase" }}>To </span>
+                          <strong>{new Date(request.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</strong>
+                        </span>
                       </div>
 
                       {request.reason && (
                         <div style={{
-                          marginTop: "16px",
-                          paddingTop: "16px",
-                          borderTop: "2px solid #e8e8e8"
+                          marginTop: "8px",
+                          paddingTop: "8px",
+                          borderTop: "1px solid #e0e0e0"
                         }}>
                           <div style={{ 
-                            fontSize: "11px", 
-                            color: "#999", 
+                            fontSize: "10px", 
+                            color: "#888", 
                             fontWeight: "600",
                             textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                            marginBottom: "10px"
+                            marginBottom: "4px"
                           }}>
                             Reason
                           </div>
                           <div style={{ 
-                            fontSize: "14px", 
+                            fontSize: "12px", 
                             color: "#1a1a1a", 
-                            lineHeight: "1.6",
-                            padding: "12px",
-                            backgroundColor: "#fff",
-                            borderRadius: "8px",
-                            border: "1px solid #e8e8e8"
+                            lineHeight: 1.45
                           }}>
                             {request.reason}
                           </div>
@@ -576,28 +465,23 @@ export default function LeaveManagement() {
                       )}
                       {request.rejectionReason && (
                         <div style={{
-                          marginTop: "16px",
-                          paddingTop: "16px",
-                          borderTop: "2px solid #e8e8e8"
+                          marginTop: "8px",
+                          paddingTop: "8px",
+                          borderTop: "1px solid #fecaca"
                         }}>
                           <div style={{ 
-                            fontSize: "11px", 
+                            fontSize: "10px", 
                             color: "#dc3545", 
                             fontWeight: "600",
                             textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                            marginBottom: "10px"
+                            marginBottom: "4px"
                           }}>
-                            Rejection Reason
+                            Rejection
                           </div>
                           <div style={{ 
-                            fontSize: "14px", 
+                            fontSize: "12px", 
                             color: "#721c24", 
-                            lineHeight: "1.6",
-                            padding: "12px",
-                            backgroundColor: "#fff5f5",
-                            borderRadius: "8px",
-                            border: "1px solid #fecaca"
+                            lineHeight: 1.45
                           }}>
                             {request.rejectionReason}
                           </div>
@@ -609,9 +493,9 @@ export default function LeaveManagement() {
                     {request.status === "pending" && (
                       <div style={{ 
                         display: "flex", 
-                        gap: "12px", 
-                        justifyContent: "center",
-                        paddingTop: "8px"
+                        gap: "8px", 
+                        justifyContent: "stretch",
+                        paddingTop: "2px"
                       }}>
                         <button
                           onClick={() => {
@@ -621,37 +505,25 @@ export default function LeaveManagement() {
                           }}
                           title="Approve Leave Request"
                           style={{
-                            padding: "14px 24px",
+                            padding: "8px 14px",
                             backgroundColor: "#28a745",
                             color: "#fff",
                             border: "none",
-                            borderRadius: "12px",
+                            borderRadius: "8px",
                             cursor: "pointer",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            gap: "8px",
-                            fontWeight: "700",
-                            fontSize: "14px",
-                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                            boxShadow: "0 4px 12px rgba(40, 167, 69, 0.3)",
+                            gap: "6px",
+                            fontWeight: "600",
+                            fontSize: "12px",
+                            transition: "background 0.2s",
                             flex: 1
                           }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = "#218838";
-                            e.currentTarget.style.transform = "translateY(-2px)";
-                            e.currentTarget.style.boxShadow = "0 6px 16px rgba(40, 167, 69, 0.4)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = "#28a745";
-                            e.currentTarget.style.transform = "translateY(0)";
-                            e.currentTarget.style.boxShadow = "0 4px 12px rgba(40, 167, 69, 0.3)";
-                          }}
-                          onMouseDown={(e) => {
-                            e.currentTarget.style.transform = "translateY(0)";
-                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#218838"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#28a745"; }}
                         >
-                          <CheckIcon size={18} />
+                          <CheckIcon size={15} />
                           Approve
                         </button>
                         <button
@@ -663,37 +535,25 @@ export default function LeaveManagement() {
                           }}
                           title="Reject Leave Request"
                           style={{
-                            padding: "14px 24px",
+                            padding: "8px 14px",
                             backgroundColor: "#dc3545",
                             color: "#fff",
                             border: "none",
-                            borderRadius: "12px",
+                            borderRadius: "8px",
                             cursor: "pointer",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            gap: "8px",
-                            fontWeight: "700",
-                            fontSize: "14px",
-                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                            boxShadow: "0 4px 12px rgba(220, 53, 69, 0.3)",
+                            gap: "6px",
+                            fontWeight: "600",
+                            fontSize: "12px",
+                            transition: "background 0.2s",
                             flex: 1
                           }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = "#c82333";
-                            e.currentTarget.style.transform = "translateY(-2px)";
-                            e.currentTarget.style.boxShadow = "0 6px 16px rgba(220, 53, 69, 0.4)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = "#dc3545";
-                            e.currentTarget.style.transform = "translateY(0)";
-                            e.currentTarget.style.boxShadow = "0 4px 12px rgba(220, 53, 69, 0.3)";
-                          }}
-                          onMouseDown={(e) => {
-                            e.currentTarget.style.transform = "translateY(0)";
-                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#c82333"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#dc3545"; }}
                         >
-                          <XIcon size={18} />
+                          <XIcon size={15} />
                           Reject
                         </button>
                       </div>
@@ -701,45 +561,44 @@ export default function LeaveManagement() {
 
                     {request.status === "approved" && request.Approver && (
                       <div style={{
-                        marginTop: "20px",
-                        paddingTop: "20px",
-                        borderTop: "2px solid #e8e8e8",
+                        marginTop: "8px",
+                        paddingTop: "8px",
+                        borderTop: "1px solid #e8e8e8",
                         display: "flex",
                         alignItems: "center",
-                        gap: "10px",
-                        padding: "14px",
+                        gap: "8px",
+                        padding: "8px 10px",
                         backgroundColor: "#f0f9ff",
-                        borderRadius: "12px",
+                        borderRadius: "8px",
                         border: "1px solid #bae6fd"
                       }}>
                         <div style={{
-                          width: "40px",
-                          height: "40px",
-                          borderRadius: "10px",
+                          width: "28px",
+                          height: "28px",
+                          borderRadius: "8px",
                           background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                           color: "#fff",
-                          fontSize: "18px",
+                          fontSize: "14px",
                           fontWeight: "700",
                           flexShrink: 0
                         }}>
                           ✓
                         </div>
-                        <div style={{ flex: 1 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{
-                            fontSize: "12px",
+                            fontSize: "10px",
                             color: "#059669",
                             fontWeight: "600",
                             textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                            marginBottom: "4px"
+                            marginBottom: "2px"
                           }}>
-                            Approved By
+                            Approved by
                           </div>
                           <div style={{
-                            fontSize: "14px",
+                            fontSize: "12px",
                             color: "#1a1a1a",
                             fontWeight: "600"
                           }}>
@@ -747,9 +606,9 @@ export default function LeaveManagement() {
                           </div>
                           {request.approvedAt && (
                             <div style={{
-                              fontSize: "12px",
+                              fontSize: "11px",
                               color: "#666",
-                              marginTop: "4px"
+                              marginTop: "2px"
                             }}>
                               {new Date(request.approvedAt).toLocaleDateString("en-US", { 
                                 month: "short", 
@@ -784,55 +643,39 @@ export default function LeaveManagement() {
               left: 0,
               right: 0,
               bottom: 0,
-              backgroundColor: "rgba(0,0,0,0.6)",
-              backdropFilter: "blur(4px)",
+              backgroundColor: "rgba(0,0,0,0.55)",
+              backdropFilter: "blur(3px)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               zIndex: 9999,
-              animation: "fadeIn 0.2s ease-out"
+              animation: "lmFadeIn 0.15s ease-out"
             }}
           >
-            <style>{`
-              @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-              }
-              @keyframes slideUp {
-                from {
-                  opacity: 0;
-                  transform: translateY(20px) scale(0.95);
-                }
-                to {
-                  opacity: 1;
-                  transform: translateY(0) scale(1);
-                }
-              }
-            `}</style>
             <div
               onClick={(e) => e.stopPropagation()}
               style={{
                 backgroundColor: "#fff",
-                borderRadius: "20px",
+                borderRadius: "14px",
                 padding: "0",
-                maxWidth: approvalAction === "reject" ? "600px" : "500px",
-                width: "90%",
-                boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-                animation: "slideUp 0.3s ease-out",
+                maxWidth: approvalAction === "reject" ? "480px" : "420px",
+                width: "92%",
+                boxShadow: "0 16px 48px rgba(0,0,0,0.28)",
+                animation: "lmSlideUp 0.22s ease-out",
                 overflow: "hidden"
               }}
             >
               {/* Modal Header */}
               <div style={{
-                padding: "32px 32px 24px 32px",
+                padding: "14px 18px",
                 background: approvalAction === "approve" 
                   ? "linear-gradient(135deg, #28a745 0%, #20c997 100%)"
                   : "linear-gradient(135deg, #dc3545 0%, #c82333 100%)",
                 color: "#fff"
               }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "700" }}>
-                    {approvalAction === "approve" ? "✅ Approve Leave Request" : "❌ Reject Leave Request"}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
+                  <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "700", lineHeight: 1.3 }}>
+                    {approvalAction === "approve" ? "✅ Approve request" : "❌ Reject request"}
                   </h2>
                   <button
                     onClick={() => {
@@ -841,7 +684,7 @@ export default function LeaveManagement() {
                       setRejectionReason("");
                     }}
                     style={{
-                      padding: "8px",
+                      padding: "6px",
                       backgroundColor: "rgba(255,255,255,0.2)",
                       color: "#fff",
                       border: "none",
@@ -850,8 +693,9 @@ export default function LeaveManagement() {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      width: "36px",
-                      height: "36px",
+                      width: "32px",
+                      height: "32px",
+                      flexShrink: 0,
                       transition: "all 0.2s"
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.3)"}
@@ -863,55 +707,56 @@ export default function LeaveManagement() {
               </div>
 
               {/* Modal Body */}
-              <div style={{ padding: "32px" }}>
+              <div style={{ padding: "16px 18px 18px" }}>
                 {/* Employee Info Card */}
                 <div style={{
                   backgroundColor: "#f8f9fa",
-                  borderRadius: "12px",
-                  padding: "20px",
-                  marginBottom: "24px",
-                  border: "1px solid #e8e8e8"
+                  borderRadius: "10px",
+                  padding: "12px 14px",
+                  marginBottom: "14px",
+                  border: "1px solid #e8e8e8",
+                  fontSize: "13px"
                 }}>
-                  <div style={{ marginBottom: "12px" }}>
-                    <span style={{ fontSize: "13px", color: "#666", fontWeight: "500" }}>Employee:</span>
-                    <strong style={{ fontSize: "16px", color: "#1a1a1a", marginLeft: "8px" }}>
+                  <div style={{ marginBottom: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#666", fontWeight: "500" }}>Employee:</span>
+                    <strong style={{ fontSize: "14px", color: "#1a1a1a", marginLeft: "6px" }}>
                       {selectedRequest.User?.name}
                     </strong>
                   </div>
-                  <div style={{ marginBottom: "12px" }}>
-                    <span style={{ fontSize: "13px", color: "#666", fontWeight: "500" }}>Employee Code:</span>
-                    <span style={{ fontSize: "14px", color: "#1a1a1a", marginLeft: "8px", fontWeight: "600" }}>
+                  <div style={{ marginBottom: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#666", fontWeight: "500" }}>Code:</span>
+                    <span style={{ fontSize: "13px", color: "#1a1a1a", marginLeft: "6px", fontWeight: "600" }}>
                       {selectedRequest.User?.employeeCode || "N/A"}
                     </span>
                   </div>
-                  <div style={{ marginBottom: "12px" }}>
-                    <span style={{ fontSize: "13px", color: "#666", fontWeight: "500" }}>Leave Type:</span>
-                    <span style={{ fontSize: "14px", color: "#1a1a1a", marginLeft: "8px", fontWeight: "600" }}>
+                  <div style={{ marginBottom: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#666", fontWeight: "500" }}>Type:</span>
+                    <span style={{ fontSize: "13px", color: "#1a1a1a", marginLeft: "6px", fontWeight: "600" }}>
                       {getTypeLabel(selectedRequest.type)}
                     </span>
                   </div>
-                  <div style={{ marginBottom: "12px" }}>
-                    <span style={{ fontSize: "13px", color: "#666", fontWeight: "500" }}>Period:</span>
-                    <span style={{ fontSize: "14px", color: "#1a1a1a", marginLeft: "8px", fontWeight: "600" }}>
-                      {new Date(selectedRequest.startDate).toLocaleDateString("en-US")} - {new Date(selectedRequest.endDate).toLocaleDateString("en-US")}
+                  <div style={{ marginBottom: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#666", fontWeight: "500" }}>Period:</span>
+                    <span style={{ fontSize: "13px", color: "#1a1a1a", marginLeft: "6px", fontWeight: "600" }}>
+                      {new Date(selectedRequest.startDate).toLocaleDateString("en-US")} – {new Date(selectedRequest.endDate).toLocaleDateString("en-US")}
                     </span>
                   </div>
                   <div>
-                    <span style={{ fontSize: "13px", color: "#666", fontWeight: "500" }}>Duration:</span>
-                    <span style={{ fontSize: "16px", color: "#667eea", fontWeight: "700", marginLeft: "8px" }}>
+                    <span style={{ fontSize: "12px", color: "#666", fontWeight: "500" }}>Duration:</span>
+                    <span style={{ fontSize: "14px", color: "#5c6bc0", fontWeight: "700", marginLeft: "6px" }}>
                       {selectedRequest.days} {selectedRequest.days === 1 ? "day" : "days"}
                     </span>
                   </div>
                   {selectedRequest.reason && (
                     <div style={{
-                      marginTop: "16px",
-                      paddingTop: "16px",
+                      marginTop: "10px",
+                      paddingTop: "10px",
                       borderTop: "1px solid #e0e0e0"
                     }}>
-                      <div style={{ fontSize: "13px", color: "#666", fontWeight: "500", marginBottom: "8px" }}>
+                      <div style={{ fontSize: "12px", color: "#666", fontWeight: "500", marginBottom: "4px" }}>
                         Reason:
                       </div>
-                      <div style={{ fontSize: "14px", color: "#1a1a1a", lineHeight: "1.6" }}>
+                      <div style={{ fontSize: "13px", color: "#1a1a1a", lineHeight: 1.45 }}>
                         {selectedRequest.reason}
                       </div>
                     </div>
@@ -919,31 +764,32 @@ export default function LeaveManagement() {
                 </div>
 
                 {approvalAction === "reject" && (
-                  <div style={{ marginBottom: "24px" }}>
+                  <div style={{ marginBottom: "14px" }}>
                     <label style={{ 
                       display: "block", 
-                      marginBottom: "12px", 
-                      fontWeight: "700", 
-                      fontSize: "15px", 
+                      marginBottom: "6px", 
+                      fontWeight: "600", 
+                      fontSize: "13px", 
                       color: "#495057" 
                     }}>
-                      Rejection Reason <span style={{ color: "#dc3545" }}>*</span>
+                      Rejection reason <span style={{ color: "#dc3545" }}>*</span>
                     </label>
                     <textarea
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
-                      placeholder="Please enter the reason for rejection..."
-                      rows={4}
+                      placeholder="Reason for rejection..."
+                      rows={3}
                       style={{
                         width: "100%",
-                        padding: "14px 18px",
-                        border: "2px solid #e0e0e0",
-                        borderRadius: "12px",
-                        fontSize: "14px",
+                        padding: "10px 12px",
+                        border: "1px solid #e0e0e0",
+                        borderRadius: "8px",
+                        fontSize: "13px",
                         fontFamily: "inherit",
                         resize: "vertical",
                         transition: "all 0.2s",
-                        outline: "none"
+                        outline: "none",
+                        boxSizing: "border-box"
                       }}
                       onFocus={(e) => {
                         e.target.style.borderColor = "#dc3545";
@@ -971,23 +817,23 @@ export default function LeaveManagement() {
                   <div style={{
                     backgroundColor: "#d4edda",
                     border: "1px solid #c3e6cb",
-                    borderRadius: "12px",
-                    padding: "16px",
-                    marginBottom: "24px"
+                    borderRadius: "8px",
+                    padding: "10px 12px",
+                    marginBottom: "14px"
                   }}>
                     <p style={{ 
                       margin: 0, 
-                      fontSize: "14px", 
+                      fontSize: "13px", 
                       color: "#155724",
-                      lineHeight: "1.6"
+                      lineHeight: 1.45
                     }}>
-                      Are you sure you want to approve this leave request? This action cannot be undone.
+                      Approve this leave request? This cannot be undone.
                     </p>
                   </div>
                 )}
 
                 {/* Action Buttons */}
-                <div style={{ display: "flex", gap: "12px" }}>
+                <div style={{ display: "flex", gap: "8px" }}>
                   <button
                     onClick={() => {
                       setShowApprovalModal(false);
@@ -996,24 +842,18 @@ export default function LeaveManagement() {
                     }}
                     style={{
                       flex: 1,
-                      padding: "14px 24px",
+                      padding: "10px 16px",
                       backgroundColor: "#6c757d",
                       color: "#fff",
                       border: "none",
-                      borderRadius: "12px",
+                      borderRadius: "8px",
                       cursor: "pointer",
-                      fontWeight: "700",
-                      fontSize: "15px",
+                      fontWeight: "600",
+                      fontSize: "13px",
                       transition: "all 0.2s"
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#5a6268";
-                      e.currentTarget.style.transform = "translateY(-1px)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "#6c757d";
-                      e.currentTarget.style.transform = "translateY(0)";
-                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#5a6268"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#6c757d"; }}
                   >
                     Cancel
                   </button>
@@ -1030,29 +870,27 @@ export default function LeaveManagement() {
                     disabled={approvalAction === "reject" && !rejectionReason.trim()}
                     style={{
                       flex: 1,
-                      padding: "14px 24px",
+                      padding: "10px 16px",
                       backgroundColor: approvalAction === "approve" ? "#28a745" : "#dc3545",
                       color: "#fff",
                       border: "none",
-                      borderRadius: "12px",
+                      borderRadius: "8px",
                       cursor: approvalAction === "reject" && !rejectionReason.trim() ? "not-allowed" : "pointer",
                       opacity: approvalAction === "reject" && !rejectionReason.trim() ? 0.6 : 1,
-                      fontWeight: "700",
-                      fontSize: "15px",
+                      fontWeight: "600",
+                      fontSize: "13px",
                       transition: "all 0.2s"
                     }}
                     onMouseEnter={(e) => {
                       if (!(approvalAction === "reject" && !rejectionReason.trim())) {
                         e.currentTarget.style.backgroundColor = approvalAction === "approve" ? "#218838" : "#c82333";
-                        e.currentTarget.style.transform = "translateY(-1px)";
                       }
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.backgroundColor = approvalAction === "approve" ? "#28a745" : "#dc3545";
-                      e.currentTarget.style.transform = "translateY(0)";
                     }}
                   >
-                    {approvalAction === "approve" ? "Confirm Approval" : "Confirm Rejection"}
+                    {approvalAction === "approve" ? "Confirm" : "Reject"}
                   </button>
                 </div>
               </div>

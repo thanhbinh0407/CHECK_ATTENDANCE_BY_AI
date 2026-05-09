@@ -5,8 +5,11 @@ import SalaryCalculation from "./components/SalaryCalculation.jsx";
 import SalaryApprovalDashboard from "./components/SalaryApprovalDashboard.jsx";
 import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
 import EmployeeManagement from "./components/EmployeeManagement.jsx";
+import SalaryGradeManagement from "./components/SalaryGradeManagement.jsx";
+import InsuranceConfigManagement from "./components/InsuranceConfigManagement.jsx";
 import D02LTReport from "./components/D02LTReport.jsx";
 import TK1TSForm from "./components/TK1TSForm.jsx";
+import RegulatoryExports from "./components/RegulatoryExports.jsx";
 import { theme } from "./theme.js";
 import socket from "./socket.js";
 import "./App.css";
@@ -126,6 +129,7 @@ function App() {
     socket.on('connect', () => {
       console.log('Connected to server');
       socket.emit('join-room', { room: 'admin' });
+      socket.emit('join-room', { room: 'audit-managers' });
     });
 
     socket.on('attendance-update', (data) => {
@@ -137,6 +141,11 @@ function App() {
       console.log('Real-time notification:', data);
       toastInfo(`New notification: ${data.title}`);
     });
+
+    if (socket.connected) {
+      socket.emit('join-room', { room: 'admin' });
+      socket.emit('join-room', { room: 'audit-managers' });
+    }
 
     return () => {
       socket.off('connect');
@@ -297,8 +306,11 @@ function App() {
   const navFinance = financeExtraRoles.includes(user?.role)
     ? [
         { id: "rules", label: "Salary rules", icon: "⚙️" },
+        { id: "salary-grades", label: "Salary grades", icon: "📈" },
+        { id: "insurance-config", label: "Insurance settings", icon: "🏥" },
         { id: "d02-lt-report", label: "D02-LT report", icon: "📄" },
-        { id: "tk1-ts-form", label: "TK1-TS form", icon: "🏥" },
+        { id: "tk1-ts-form", label: "TK1-TS form", icon: "📋" },
+        { id: "regulatory-exports", label: "Annual tax (Excel)", icon: "🧾" },
       ]
     : [];
 
@@ -310,8 +322,11 @@ function App() {
     "salary-management": "Salary management",
     "salary-approval": "Payroll approval",
     rules: "Salary rules",
+    "salary-grades": "Salary grades",
+    "insurance-config": "Insurance settings",
     "d02-lt-report": "D02-LT report",
     "tk1-ts-form": "TK1-TS form",
+    "regulatory-exports": "Annual tax export",
     "employee-management": "Employees",
   };
 
@@ -373,9 +388,6 @@ function App() {
           <span style={{ display: "block", marginTop: 6, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", opacity: 0.6 }}>
             {user?.role || "accountant"}
           </span>
-          <button type="button" className="acc-logout" onClick={handleLogout}>
-            Log out
-          </button>
         </div>
       </aside>
 
@@ -387,8 +399,8 @@ function App() {
               type="button"
               className="portal-avatar-btn"
               onClick={() => setProfileOpen(true)}
-              title="Hồ sơ cá nhân"
-              aria-label="Mở hồ sơ cá nhân"
+              title="Personal profile"
+              aria-label="Open personal profile"
             >
               {portalAvatarSrc(API_BASE, user?.avatarUrl) ? (
                 <img className="portal-avatar-img" src={portalAvatarSrc(API_BASE, user?.avatarUrl)} alt="" />
@@ -398,14 +410,10 @@ function App() {
                 </span>
               )}
             </button>
-            <span className="acc-topbar-meta">
-              {new Intl.DateTimeFormat("en-US", {
-                weekday: "short",
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              }).format(new Date())}
-            </span>
+            <span className="acc-topbar-meta">{user?.email}</span>
+            <button type="button" className="acc-btn-logout" onClick={handleLogout}>
+              Sign out
+            </button>
           </div>
         </header>
         <div className="acc-content" style={{ animation: "accShellIn 0.45s ease-out" }}>
@@ -414,8 +422,13 @@ function App() {
           {currentView === "salary-management" && <SalaryManagement />}
           {currentView === "salary-approval" && <SalaryApprovalDashboard onNavigate={setCurrentView} />}
           {currentView === "rules" && <SalaryRulesManagement />}
+          {currentView === "salary-grades" && <SalaryGradeManagement />}
+          {currentView === "insurance-config" && <InsuranceConfigManagement />}
           {currentView === "d02-lt-report" && <D02LTReport />}
           {currentView === "tk1-ts-form" && <TK1TSForm />}
+          {currentView === "regulatory-exports" && (
+            <RegulatoryExports apiBase={API_BASE} token={authToken} />
+          )}
           {currentView === "employee-management" && <EmployeeManagement />}
         </div>
       </div>

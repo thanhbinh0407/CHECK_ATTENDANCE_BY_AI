@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-export default function OvertimeRequest({ userId }) {
+export default function OvertimeRequest({ userId, refreshVersion = 0 }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -15,7 +15,7 @@ export default function OvertimeRequest({ userId }) {
 
   useEffect(() => {
     fetchRequests();
-  }, [userId]);
+  }, [userId, refreshVersion]);
 
   const fetchRequests = async () => {
     try {
@@ -89,9 +89,15 @@ export default function OvertimeRequest({ userId }) {
   const calculateHours = () => {
     if (!formData.startTime || !formData.endTime) return 0;
     const start = new Date(`${formData.date}T${formData.startTime}`);
-    const end = new Date(`${formData.date}T${formData.endTime}`);
+    let end = new Date(`${formData.date}T${formData.endTime}`);
+    // Overnight shift: if end <= start, treat end as next day (matches backend).
+    if (end <= start) {
+      end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+    }
     const hours = (end - start) / (1000 * 60 * 60);
-    return hours > 0 ? hours : 0;
+    if (!Number.isFinite(hours) || hours <= 0) return 0;
+    // Cap at 24h (same as backend validation).
+    return Math.min(hours, 24);
   };
 
   // Chuyển số giờ thập phân (vd: 12.05) thành định dạng HH:MM (vd: 12:03)
@@ -375,18 +381,30 @@ export default function OvertimeRequest({ userId }) {
                       fontSize: "14px"
                     }}
                   />
-                  {calculateHours() > 0 && (
-                    <div style={{
-                      padding: "8px 12px",
-                      backgroundColor: "#e3f2fd",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      fontWeight: "600",
-                      color: "#1976d2"
-                    }}>
-                      {formatHoursToHHMM(calculateHours())}
-                    </div>
-                  )}
+                  {calculateHours() > 0 && (() => {
+                    const isOvernight =
+                      formData.startTime &&
+                      formData.endTime &&
+                      formData.endTime <= formData.startTime;
+                    return (
+                      <div style={{
+                        padding: "8px 12px",
+                        backgroundColor: isOvernight ? "#fff3e0" : "#e3f2fd",
+                        borderRadius: "8px",
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        color: isOvernight ? "#e65100" : "#1976d2",
+                        whiteSpace: "nowrap"
+                      }}>
+                        {formatHoursToHHMM(calculateHours())}
+                        {isOvernight && (
+                          <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 500 }}>
+                            (overnight)
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

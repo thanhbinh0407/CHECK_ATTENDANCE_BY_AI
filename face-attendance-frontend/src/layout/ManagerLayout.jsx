@@ -5,8 +5,8 @@ import './managerShell.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
-// Các nhóm nav bị ẩn khỏi sidebar của Manager (do Accountant xử lý)
-const HIDDEN_GROUPS_FOR_MANAGER = new Set(['Payroll & Insurance']);
+// Sidebar groups hidden for Manager: Organization → HR/Supervisor; payroll → Accountant; requests → Supervisor/HR; profiles/docs → HR
+const HIDDEN_GROUPS_FOR_MANAGER = new Set(['Organization', 'Payroll & Insurance', 'Requests', 'Profiles & Documents']);
 
 const NAV_GROUPS = [
   {
@@ -30,10 +30,7 @@ const NAV_GROUPS = [
   },
   {
     label: 'Attendance',
-    items: [
-      { to: '/camera', label: 'Face Recognition Kiosk', icon: '📷' },
-      { to: '/attendance-logs', label: 'Attendance Logs', icon: '📅' },
-    ],
+    items: [{ to: '/attendance-logs', label: 'Attendance Logs', icon: '📅' }],
   },
   {
     label: 'Requests',

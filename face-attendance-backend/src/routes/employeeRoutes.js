@@ -1,5 +1,6 @@
 import express from "express";
 import { authMiddleware } from "../middleware/authMiddleware.js";
+import { auditMutation } from "../services/actionAuditService.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import Salary from "../models/pg/Salary.js";
 import User from "../models/pg/User.js";
@@ -81,6 +82,11 @@ router.get("/salary", async (req, res) => {
     if (month) where.month = month;
     if (year) where.year = year;
 
+    // Employees only see finalized payroll rows (not draft pending recalculation/approval).
+    if (String(req.user?.role || "").toLowerCase() === "employee") {
+      where.status = { [Op.in]: ["approved", "paid"] };
+    }
+
     const salaries = await Salary.findAll({
       where,
       order: [['year', 'DESC'], ['month', 'DESC']]
@@ -110,6 +116,19 @@ router.get("/salary/breakdown", async (req, res) => {
         status: "error",
         message: "Month and year are required"
       });
+    }
+
+    if (String(req.user?.role || "").toLowerCase() === "employee") {
+      const sal = await Salary.findOne({
+        where: { userId, month: parseInt(month, 10), year: parseInt(year, 10) },
+        attributes: ["id", "status"],
+      });
+      if (!sal || sal.status === "pending") {
+        return res.status(404).json({
+          status: "error",
+          message: "Salary breakdown is available after payroll is approved.",
+        });
+      }
     }
 
     const breakdown = await getSalaryBreakdownDetail(userId, parseInt(month, 10), parseInt(year, 10));
@@ -166,7 +185,14 @@ router.get("/profile", async (req, res) => {
 });
 
 // Self-service: cập nhật các trường cá nhân (không đổi email đăng nhập, role, lương, phòng ban…)
-router.patch("/profile", async (req, res) => {
+router.patch("/profile", auditMutation({
+  action: "profile.update",
+  category: "own_profile",
+  entityType: "user",
+  entityIdFrom: (req) => req.user?.userId ?? req.user?.id ?? null,
+  summary: () => "Updated own profile",
+  metadata: (req) => ({ changedFields: Object.keys(req.body || {}) }),
+}), async (req, res) => {
   try {
     const userId = req.user.userId;
     const body = req.body || {};
@@ -221,7 +247,13 @@ router.patch("/profile", async (req, res) => {
 });
 
 // Ảnh đại diện (JPEG/PNG/WebP, tối đa 2MB)
-router.post("/profile/avatar", (req, res) => {
+router.post("/profile/avatar", auditMutation({
+  action: "profile.avatar_update",
+  category: "own_profile",
+  entityType: "user",
+  entityIdFrom: (req) => req.user?.userId ?? req.user?.id ?? null,
+  summary: () => "Updated profile avatar",
+}), (req, res) => {
   uploadAvatar.single("avatar")(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ status: "error", message: err.message || "Tải ảnh thất bại" });

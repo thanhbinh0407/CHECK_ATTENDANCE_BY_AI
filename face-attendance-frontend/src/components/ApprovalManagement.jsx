@@ -264,52 +264,53 @@ export default function ApprovalManagement() {
           }
         }
       `}</style>
-      <div style={{ padding: theme.spacing.xl }}>
-        <h2 style={{ ...theme.typography.h2, marginBottom: theme.spacing.lg }}>Approval Management</h2>
+      <div style={{ padding: theme.spacing.md }}>
+        <h2 style={{ fontSize: "20px", fontWeight: 700, margin: "0 0 8px 0", color: theme.neutral.gray900 }}>Approval Flow (HR)</h2>
 
       {message && (
         <div style={{
-          padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-          marginBottom: theme.spacing.md,
+          padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+          marginBottom: theme.spacing.sm,
           backgroundColor: message.includes("successfully") ? "#d4edda" : "#f8d7da",
           color: message.includes("successfully") ? "#155724" : "#721c24",
-          borderRadius: theme.radius.md,
+          borderRadius: theme.radius.sm,
           display: "inline-block",
           width: "fit-content",
           border: `1px solid ${message.includes("successfully") ? "#c3e6cb" : "#f5c6cb"}`,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-          fontSize: "14px",
+          fontSize: "13px",
           fontWeight: "500"
         }}>
           {message.includes("successfully") ? "✅" : "❌"} {message}
         </div>
       )}
 
-      <div style={{ display: "flex", gap: theme.spacing.md, marginBottom: theme.spacing.lg }}>
+      <div style={{ display: "flex", gap: theme.spacing.sm, marginBottom: theme.spacing.md, flexWrap: "wrap" }}>
         <button
           onClick={() => setActiveTab("leave")}
           style={{
-            padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+            padding: `${theme.spacing.sm} ${theme.spacing.md}`,
             backgroundColor: activeTab === "leave" ? theme.primary.main : theme.neutral.gray200,
             color: activeTab === "leave" ? theme.neutral.white : theme.neutral.gray700,
             border: "none",
             borderRadius: theme.radius.md,
             cursor: "pointer",
-            fontWeight: 600
+            fontWeight: 600,
+            fontSize: "13px"
           }}
         >
-          Leave Requests ({leaveRequests.length})
+          Leave requests ({leaveRequests.length})
         </button>
         <button
           onClick={() => setActiveTab("dependents")}
           style={{
-            padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+            padding: `${theme.spacing.sm} ${theme.spacing.md}`,
             backgroundColor: activeTab === "dependents" ? theme.primary.main : theme.neutral.gray200,
             color: activeTab === "dependents" ? theme.neutral.white : theme.neutral.gray700,
             border: "none",
             borderRadius: theme.radius.md,
             cursor: "pointer",
-            fontWeight: 600
+            fontWeight: 600,
+            fontSize: "13px"
           }}
         >
           Dependents ({dependents.length})
@@ -317,13 +318,14 @@ export default function ApprovalManagement() {
         <button
           onClick={() => setActiveTab("qualifications")}
           style={{
-            padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+            padding: `${theme.spacing.sm} ${theme.spacing.md}`,
             backgroundColor: activeTab === "qualifications" ? theme.primary.main : theme.neutral.gray200,
             color: activeTab === "qualifications" ? theme.neutral.white : theme.neutral.gray700,
             border: "none",
             borderRadius: theme.radius.md,
             cursor: "pointer",
-            fontWeight: 600
+            fontWeight: 600,
+            fontSize: "13px"
           }}
         >
           Qualifications ({qualifications.length})
@@ -338,7 +340,7 @@ export default function ApprovalManagement() {
             <div style={{
               backgroundColor: theme.neutral.white,
               borderRadius: theme.radius.lg,
-              padding: theme.spacing.lg,
+              padding: theme.spacing.md,
               boxShadow: theme.shadows.md
             }}>
               {leaveRequests.length === 0 ? (
@@ -348,7 +350,7 @@ export default function ApprovalManagement() {
                   <div 
                     key={req.id} 
                     style={{
-                      padding: theme.spacing.lg,
+                      padding: theme.spacing.md,
                       borderBottom: `1px solid ${theme.neutral.gray200}`,
                       marginBottom: theme.spacing.md,
                       backgroundColor: theme.neutral.white,
@@ -360,7 +362,7 @@ export default function ApprovalManagement() {
                       cursor: "default"
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateY(-4px)";
+                      e.currentTarget.style.transform = "translateY(-2px)";
                       e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
                       e.currentTarget.style.borderColor = "#667eea";
                     }}
@@ -386,8 +388,8 @@ export default function ApprovalManagement() {
                         }}
                       >
                         <h4 style={{ 
-                          margin: "0 0 8px 0",
-                          fontSize: "18px",
+                          margin: "0 0 4px 0",
+                          fontSize: "15px",
                           fontWeight: "700",
                           color: theme.neutral.gray900
                         }}>
@@ -515,7 +517,7 @@ export default function ApprovalManagement() {
             <div style={{
               backgroundColor: theme.neutral.white,
               borderRadius: theme.radius.lg,
-              padding: theme.spacing.lg,
+              padding: theme.spacing.md,
               boxShadow: theme.shadows.md
             }}>
               {dependents.length === 0 ? (
@@ -525,7 +527,7 @@ export default function ApprovalManagement() {
                   <div 
                     key={dep.id} 
                     style={{
-                      padding: theme.spacing.lg,
+                      padding: theme.spacing.md,
                       borderBottom: `1px solid ${theme.neutral.gray200}`,
                       marginBottom: theme.spacing.md,
                       backgroundColor: theme.neutral.white,
@@ -537,7 +539,7 @@ export default function ApprovalManagement() {
                       cursor: "default"
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateY(-4px)";
+                      e.currentTarget.style.transform = "translateY(-2px)";
                       e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
                       e.currentTarget.style.borderColor = "#f59e0b";
                     }}
@@ -563,8 +565,8 @@ export default function ApprovalManagement() {
                         }}
                       >
                         <h4 style={{ 
-                          margin: "0 0 8px 0",
-                          fontSize: "18px",
+                          margin: "0 0 4px 0",
+                          fontSize: "15px",
                           fontWeight: "700",
                           color: theme.neutral.gray900
                         }}>
@@ -692,7 +694,7 @@ export default function ApprovalManagement() {
             <div style={{
               backgroundColor: theme.neutral.white,
               borderRadius: theme.radius.lg,
-              padding: theme.spacing.lg,
+              padding: theme.spacing.md,
               boxShadow: theme.shadows.md
             }}>
               {qualifications.length === 0 ? (
@@ -702,7 +704,7 @@ export default function ApprovalManagement() {
                   <div 
                     key={qual.id} 
                     style={{
-                      padding: theme.spacing.lg,
+                      padding: theme.spacing.md,
                       borderBottom: `1px solid ${theme.neutral.gray200}`,
                       marginBottom: theme.spacing.md,
                       backgroundColor: theme.neutral.white,
@@ -714,7 +716,7 @@ export default function ApprovalManagement() {
                       cursor: "default"
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateY(-4px)";
+                      e.currentTarget.style.transform = "translateY(-2px)";
                       e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
                       e.currentTarget.style.borderColor = "#fef3c7";
                     }}
@@ -740,8 +742,8 @@ export default function ApprovalManagement() {
                         }}
                       >
                         <h4 style={{ 
-                          margin: "0 0 8px 0",
-                          fontSize: "18px",
+                          margin: "0 0 4px 0",
+                          fontSize: "15px",
                           fontWeight: "700",
                           color: theme.neutral.gray900
                         }}>
@@ -910,7 +912,7 @@ export default function ApprovalManagement() {
           alignItems: "center",
           justifyContent: "center",
           zIndex: 10000,
-          padding: theme.spacing.xl
+          padding: theme.spacing.md
         }} onClick={() => setSelectedDetail(null)}>
           <div style={{
             backgroundColor: theme.neutral.white,
@@ -926,7 +928,7 @@ export default function ApprovalManagement() {
             <div style={{
               background: theme.gradients.primary,
               color: theme.neutral.white,
-              padding: theme.spacing.xl,
+              padding: theme.spacing.md,
               borderRadius: `${theme.radius.xl} ${theme.radius.xl} 0 0`,
               display: "flex",
               justifyContent: "space-between",
@@ -962,15 +964,15 @@ export default function ApprovalManagement() {
             </div>
 
             {/* Content */}
-            <div style={{ padding: theme.spacing.xl }}>
+            <div style={{ padding: theme.spacing.md }}>
               {detailType === "leave" && selectedDetail && (
                 <div>
                   {/* Employee Info Card */}
                   <div style={{
-                    padding: theme.spacing.lg,
+                    padding: theme.spacing.md,
                     backgroundColor: "#f0f9ff",
                     borderRadius: theme.radius.lg,
-                    marginBottom: theme.spacing.xl,
+                    marginBottom: theme.spacing.md,
                     border: "1px solid #bae6fd",
                     display: "flex",
                     alignItems: "center",
@@ -1010,10 +1012,10 @@ export default function ApprovalManagement() {
                     display: "grid", 
                     gridTemplateColumns: "repeat(2, 1fr)", 
                     gap: theme.spacing.md, 
-                    marginBottom: theme.spacing.xl 
+                    marginBottom: theme.spacing.md 
                   }}>
                     <div style={{ 
-                      padding: theme.spacing.lg, 
+                      padding: theme.spacing.md, 
                       backgroundColor: "#fff",
                       borderRadius: theme.radius.lg, 
                       border: "1px solid #e8e8e8",
@@ -1034,7 +1036,7 @@ export default function ApprovalManagement() {
                       </div>
                     </div>
                     <div style={{ 
-                      padding: theme.spacing.lg, 
+                      padding: theme.spacing.md, 
                       backgroundColor: "#fff",
                       borderRadius: theme.radius.lg, 
                       border: "1px solid #e8e8e8",
@@ -1055,7 +1057,7 @@ export default function ApprovalManagement() {
                       </div>
                     </div>
                     <div style={{ 
-                      padding: theme.spacing.lg, 
+                      padding: theme.spacing.md, 
                       backgroundColor: "#fff",
                       borderRadius: theme.radius.lg, 
                       border: "1px solid #e8e8e8",
@@ -1080,7 +1082,7 @@ export default function ApprovalManagement() {
                       </div>
                     </div>
                     <div style={{ 
-                      padding: theme.spacing.lg, 
+                      padding: theme.spacing.md, 
                       backgroundColor: "#fff",
                       borderRadius: theme.radius.lg, 
                       border: "1px solid #e8e8e8",
@@ -1105,7 +1107,7 @@ export default function ApprovalManagement() {
                       </div>
                     </div>
                     <div style={{ 
-                      padding: theme.spacing.lg, 
+                      padding: theme.spacing.md, 
                       backgroundColor: "#fff",
                       borderRadius: theme.radius.lg, 
                       border: "1px solid #e8e8e8",
@@ -1140,10 +1142,10 @@ export default function ApprovalManagement() {
 
                   {/* Reason Section */}
                   <div style={{ 
-                    padding: theme.spacing.lg, 
+                    padding: theme.spacing.md, 
                     backgroundColor: "#f8f9fa",
                     borderRadius: theme.radius.lg, 
-                    marginBottom: theme.spacing.xl,
+                    marginBottom: theme.spacing.md,
                     border: "1px solid #e8e8e8"
                   }}>
                     <div style={{ 
@@ -1176,10 +1178,10 @@ export default function ApprovalManagement() {
                 <div>
                   {/* Employee Info Card */}
                   <div style={{
-                    padding: theme.spacing.lg,
+                    padding: theme.spacing.md,
                     backgroundColor: "#f0f9ff",
                     borderRadius: theme.radius.lg,
-                    marginBottom: theme.spacing.xl,
+                    marginBottom: theme.spacing.md,
                     border: "1px solid #bae6fd",
                     display: "flex",
                     alignItems: "center",
@@ -1216,10 +1218,10 @@ export default function ApprovalManagement() {
 
                   {/* Dependent Info Card */}
                   <div style={{
-                    padding: theme.spacing.lg,
+                    padding: theme.spacing.md,
                     backgroundColor: "#fff5f5",
                     borderRadius: theme.radius.lg,
-                    marginBottom: theme.spacing.xl,
+                    marginBottom: theme.spacing.md,
                     border: "1px solid #fecaca",
                     display: "flex",
                     alignItems: "center",
@@ -1256,10 +1258,10 @@ export default function ApprovalManagement() {
                     display: "grid", 
                     gridTemplateColumns: "repeat(2, 1fr)", 
                     gap: theme.spacing.md, 
-                    marginBottom: theme.spacing.xl 
+                    marginBottom: theme.spacing.md 
                   }}>
                     <div style={{ 
-                      padding: theme.spacing.lg, 
+                      padding: theme.spacing.md, 
                       backgroundColor: "#fff",
                       borderRadius: theme.radius.lg, 
                       border: "1px solid #e8e8e8",
@@ -1284,7 +1286,7 @@ export default function ApprovalManagement() {
                       </div>
                     </div>
                     <div style={{ 
-                      padding: theme.spacing.lg, 
+                      padding: theme.spacing.md, 
                       backgroundColor: "#fff",
                       borderRadius: theme.radius.lg, 
                       border: "1px solid #e8e8e8",
@@ -1305,7 +1307,7 @@ export default function ApprovalManagement() {
                       </div>
                     </div>
                     <div style={{ 
-                      padding: theme.spacing.lg, 
+                      padding: theme.spacing.md, 
                       backgroundColor: "#fff",
                       borderRadius: theme.radius.lg, 
                       border: "1px solid #e8e8e8",
@@ -1328,7 +1330,7 @@ export default function ApprovalManagement() {
                     </div>
                     {selectedDetail.phoneNumber && (
                       <div style={{ 
-                        padding: theme.spacing.lg, 
+                        padding: theme.spacing.md, 
                         backgroundColor: "#fff",
                         borderRadius: theme.radius.lg, 
                         border: "1px solid #e8e8e8",
@@ -1351,7 +1353,7 @@ export default function ApprovalManagement() {
                     )}
                     {selectedDetail.email && (
                       <div style={{ 
-                        padding: theme.spacing.lg, 
+                        padding: theme.spacing.md, 
                         backgroundColor: "#fff",
                         borderRadius: theme.radius.lg, 
                         border: "1px solid #e8e8e8",
@@ -1380,10 +1382,10 @@ export default function ApprovalManagement() {
                 <div>
                   {/* Employee Info Card */}
                   <div style={{
-                    padding: theme.spacing.lg,
+                    padding: theme.spacing.md,
                     backgroundColor: "#f0f9ff",
                     borderRadius: theme.radius.lg,
-                    marginBottom: theme.spacing.xl,
+                    marginBottom: theme.spacing.md,
                     border: "1px solid #bae6fd",
                     display: "flex",
                     alignItems: "center",
@@ -1420,10 +1422,10 @@ export default function ApprovalManagement() {
 
                   {/* Qualification Name Card */}
                   <div style={{
-                    padding: theme.spacing.lg,
+                    padding: theme.spacing.md,
                     backgroundColor: "#fef3c7",
                     borderRadius: theme.radius.lg,
-                    marginBottom: theme.spacing.xl,
+                    marginBottom: theme.spacing.md,
                     border: "1px solid #fde68a",
                     textAlign: "center"
                   }}>
@@ -1441,10 +1443,10 @@ export default function ApprovalManagement() {
                     display: "grid", 
                     gridTemplateColumns: "repeat(2, 1fr)", 
                     gap: theme.spacing.md, 
-                    marginBottom: theme.spacing.xl 
+                    marginBottom: theme.spacing.md 
                   }}>
                     <div style={{ 
-                      padding: theme.spacing.lg, 
+                      padding: theme.spacing.md, 
                       backgroundColor: "#fff",
                       borderRadius: theme.radius.lg, 
                       border: "1px solid #e8e8e8",
@@ -1465,7 +1467,7 @@ export default function ApprovalManagement() {
                       </div>
                     </div>
                     <div style={{ 
-                      padding: theme.spacing.lg, 
+                      padding: theme.spacing.md, 
                       backgroundColor: "#fff",
                       borderRadius: theme.radius.lg, 
                       border: "1px solid #e8e8e8",
@@ -1486,7 +1488,7 @@ export default function ApprovalManagement() {
                       </div>
                     </div>
                     <div style={{ 
-                      padding: theme.spacing.lg, 
+                      padding: theme.spacing.md, 
                       backgroundColor: "#fff",
                       borderRadius: theme.radius.lg, 
                       border: "1px solid #e8e8e8",
@@ -1511,7 +1513,7 @@ export default function ApprovalManagement() {
                       </div>
                     </div>
                     <div style={{ 
-                      padding: theme.spacing.lg, 
+                      padding: theme.spacing.md, 
                       backgroundColor: "#fff",
                       borderRadius: theme.radius.lg, 
                       border: "1px solid #e8e8e8",
@@ -1537,7 +1539,7 @@ export default function ApprovalManagement() {
                     </div>
                     {selectedDetail.description && (
                       <div style={{ 
-                        padding: theme.spacing.lg, 
+                        padding: theme.spacing.md, 
                         backgroundColor: "#f8f9fa",
                         borderRadius: theme.radius.lg, 
                         border: "1px solid #e8e8e8",
@@ -1571,7 +1573,7 @@ export default function ApprovalManagement() {
 
                   {/* Document Preview */}
                   {selectedDetail.documentPath && (
-                    <div style={{ marginBottom: theme.spacing.xl }}>
+                    <div style={{ marginBottom: theme.spacing.md }}>
                       <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: theme.neutral.gray900, marginBottom: theme.spacing.md }}>
                         📄 Certificate/Qualification Document Scan
                       </label>
@@ -1582,14 +1584,14 @@ export default function ApprovalManagement() {
                         backgroundColor: theme.neutral.gray50
                       }}>
                         {selectedDetail.documentPath.toLowerCase().endsWith('.pdf') ? (
-                          <div style={{ textAlign: "center", padding: theme.spacing.xl }}>
+                          <div style={{ textAlign: "center", padding: theme.spacing.md }}>
                             <div style={{ fontSize: "48px", marginBottom: theme.spacing.md }}>📄</div>
                             <a
                               href={`${apiBase}${selectedDetail.documentPath}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               style={{
-                                padding: `${theme.spacing.md} ${theme.spacing.xl}`,
+                                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
                                 backgroundColor: theme.primary.main,
                                 color: theme.neutral.white,
                                 textDecoration: "none",
@@ -1634,7 +1636,7 @@ export default function ApprovalManagement() {
               )}
 
               {/* Action Buttons */}
-              <div style={{ display: "flex", gap: theme.spacing.md, justifyContent: "flex-end", marginTop: theme.spacing.xl, paddingTop: theme.spacing.xl, borderTop: `1px solid ${theme.neutral.gray200}` }}>
+              <div style={{ display: "flex", gap: theme.spacing.md, justifyContent: "flex-end", marginTop: theme.spacing.md, paddingTop: theme.spacing.md, borderTop: `1px solid ${theme.neutral.gray200}` }}>
                 <button
                   onClick={() => setSelectedDetail(null)}
                   title="Close"

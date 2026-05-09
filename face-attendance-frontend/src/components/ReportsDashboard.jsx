@@ -70,18 +70,20 @@ export default function ReportsDashboard() {
 
   const cardStyle = {
     backgroundColor: theme.neutral.white,
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.md,
     border: `1px solid ${theme.neutral.gray200}`,
     boxShadow: theme.shadows.sm,
-    padding: theme.spacing.xl,
+    padding: theme.spacing.md,
   };
 
   const inputStyle = {
     width: "100%",
-    padding: "10px 12px",
-    borderRadius: theme.radius.md,
+    padding: "6px 10px",
+    borderRadius: theme.radius.sm,
     border: `1px solid ${theme.neutral.gray300}`,
     fontWeight: 600,
+    fontSize: "13px",
+    boxSizing: "border-box",
   };
 
   // Load analytics dashboard data
@@ -253,7 +255,7 @@ export default function ReportsDashboard() {
   return (
       <div style={{ marginTop: theme.spacing.xl }}>
         <div style={{ ...cardStyle, marginBottom: theme.spacing.lg }}>
-          <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: theme.spacing.md, color: theme.primary.main }}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: theme.spacing.sm, color: theme.primary.main }}>
             📊 Attendance Report - {reportData.month}/{reportData.year}
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: theme.spacing.md }}>
@@ -317,7 +319,7 @@ export default function ReportsDashboard() {
     return (
       <div style={{ marginTop: theme.spacing.xl }}>
         <div style={{ ...cardStyle, marginBottom: theme.spacing.lg }}>
-          <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: theme.spacing.md, color: theme.primary.main }}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: theme.spacing.sm, color: theme.primary.main }}>
             💰 Payroll Cost Report - {reportData.month}/{reportData.year}
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: theme.spacing.md }}>
@@ -327,19 +329,19 @@ export default function ReportsDashboard() {
             </div>
             <div style={{ padding: theme.spacing.md, background: theme.success.light, borderRadius: theme.radius.md }}>
               <div style={{ fontSize: 12, color: theme.neutral.gray700, marginBottom: 4 }}>Total Gross Salary</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: theme.success.main }}>{formatCurrency(reportData.summary.totalGrossSalary)}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: theme.success.main }}>{formatCurrency(reportData.summary.totalGrossSalary)}</div>
             </div>
             <div style={{ padding: theme.spacing.md, background: theme.warning.light, borderRadius: theme.radius.md }}>
               <div style={{ fontSize: 12, color: theme.neutral.gray700, marginBottom: 4 }}>Total Insurance</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: theme.warning.main }}>{formatCurrency(reportData.summary.totalInsurance)}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: theme.warning.main }}>{formatCurrency(reportData.summary.totalInsurance)}</div>
             </div>
             <div style={{ padding: theme.spacing.md, background: theme.error.light, borderRadius: theme.radius.md }}>
               <div style={{ fontSize: 12, color: theme.neutral.gray700, marginBottom: 4 }}>Total Tax</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: theme.error.main }}>{formatCurrency(reportData.summary.totalTax)}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: theme.error.main }}>{formatCurrency(reportData.summary.totalTax)}</div>
             </div>
             <div style={{ padding: theme.spacing.md, background: theme.secondary.light, borderRadius: theme.radius.md }}>
               <div style={{ fontSize: 12, color: theme.neutral.gray700, marginBottom: 4 }}>Total Cost</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: theme.secondary.main }}>{formatCurrency(reportData.summary.totalCost)}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: theme.secondary.main }}>{formatCurrency(reportData.summary.totalCost)}</div>
             </div>
           </div>
         </div>
@@ -386,7 +388,7 @@ export default function ReportsDashboard() {
     return (
       <div style={{ marginTop: theme.spacing.xl }}>
         <div style={{ ...cardStyle, marginBottom: theme.spacing.lg }}>
-          <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: theme.spacing.md, color: theme.primary.main }}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: theme.spacing.sm, color: theme.primary.main }}>
             🔄 Employee Turnover Report
           </h3>
           <div style={{ marginBottom: theme.spacing.md, padding: theme.spacing.md, background: theme.info.bg, borderRadius: theme.radius.md }}>
@@ -457,7 +459,7 @@ export default function ReportsDashboard() {
     return (
       <div style={{ marginTop: theme.spacing.xl }}>
         <div style={{ ...cardStyle, marginBottom: theme.spacing.lg }}>
-          <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: theme.spacing.md, color: theme.primary.main }}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: theme.spacing.sm, color: theme.primary.main }}>
             🏢 Employee Structure Report
           </h3>
           <div style={{ padding: theme.spacing.md, background: theme.primary.light, borderRadius: theme.radius.md, marginBottom: theme.spacing.md }}>
@@ -548,7 +550,7 @@ export default function ReportsDashboard() {
 
   return (
     <div style={{ 
-      padding: theme.spacing.xl, 
+      padding: theme.spacing.md, 
       backgroundColor: theme.neutral.gray50,
       minHeight: "100vh" 
     }}>
@@ -557,24 +559,25 @@ export default function ReportsDashboard() {
         background: theme.gradients.primary, 
         color: theme.neutral.white, 
         border: "none",
-        marginBottom: theme.spacing.xxl 
+        padding: "14px 18px",
+        marginBottom: theme.spacing.md 
       }}>
-        <div style={{ fontSize: 32, fontWeight: 900, marginBottom: 8 }}>📊 Reporting & Analytics Dashboard</div>
-        <div style={{ opacity: 0.95, fontSize: 15 }}>Comprehensive reports with visual charts and analytics dashboard.</div>
+        <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4, lineHeight: 1.25 }}>📊 Reports & Analytics</div>
+        <div style={{ opacity: 0.92, fontSize: 13, lineHeight: 1.4 }}>Generate reports and view dashboard charts.</div>
       </div>
 
       {/* ===== ANALYTICS DASHBOARD SECTION ===== */}
       {analyticsLoading && (
         <div style={cardStyle}>
-          <div style={{ textAlign: "center", padding: theme.spacing.xl }}>
-            <div style={{ fontSize: 18, fontWeight: 600, color: theme.neutral.gray600 }}>🔄 Loading analytics...</div>
+          <div style={{ textAlign: "center", padding: theme.spacing.md }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: theme.neutral.gray600 }}>🔄 Loading analytics...</div>
           </div>
         </div>
       )}
       {!analyticsLoading && analyticsData && (
         <div style={{ 
-          marginBottom: theme.spacing.xxxl,
-          paddingBottom: theme.spacing.xxxl,
+          marginBottom: theme.spacing.lg,
+          paddingBottom: theme.spacing.lg,
           borderBottom: `4px solid ${theme.neutral.gray300}`
         }}>
           <div style={{ 
@@ -582,34 +585,34 @@ export default function ReportsDashboard() {
             background: "#ffffff",
             border: "1px solid #e0e0e0",
             boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
-            marginBottom: theme.spacing.xl
+            marginBottom: theme.spacing.md
           }}>
             <div style={{ 
-              fontSize: 24, 
+              fontSize: 17, 
               fontWeight: 700, 
-              marginBottom: 8, 
+              marginBottom: 4, 
               color: "#333",
               display: "flex",
               alignItems: "center",
               gap: theme.spacing.sm
             }}>
-              📈 <span>Analytics Dashboard - {month}/{year}</span>
+              📈 <span>Dashboard — {month}/{year}</span>
             </div>
-            <div style={{ fontSize: 14, color: "#666" }}>
-              Overview of key performance metrics and trends
+            <div style={{ fontSize: 12, color: "#666", lineHeight: 1.4 }}>
+              Key metrics and trends
             </div>
           </div>
 
           {/* Summary Cards */}
           <div style={{ 
             display: "grid", 
-            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", 
-            gap: theme.spacing.lg, 
-            marginBottom: theme.spacing.xxxl 
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", 
+            gap: theme.spacing.sm, 
+            marginBottom: theme.spacing.lg 
           }}>
             <div style={{ 
               ...cardStyle,
-              padding: theme.spacing.lg, 
+              padding: theme.spacing.md, 
               background: "#ffffff",
               textAlign: "center",
               transition: "all 0.3s ease",
@@ -625,12 +628,12 @@ export default function ReportsDashboard() {
               e.currentTarget.style.transform = "translateY(0)";
               e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.08)";
             }}>
-              <div style={{ fontSize: 40, fontWeight: 700, color: "#333", marginBottom: 12 }}>{analyticsData.summary?.totalEmployees || 0}</div>
-              <div style={{ fontSize: 14, color: "#666", fontWeight: 600 }}>Total Employees</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: "#333", marginBottom: 6, lineHeight: 1.1 }}>{analyticsData.summary?.totalEmployees || 0}</div>
+              <div style={{ fontSize: 12, color: "#666", fontWeight: 600 }}>Total Employees</div>
             </div>
             <div style={{ 
               ...cardStyle,
-              padding: theme.spacing.lg, 
+              padding: theme.spacing.md, 
               background: "#ffffff",
               textAlign: "center",
               transition: "all 0.3s ease",
@@ -646,14 +649,14 @@ export default function ReportsDashboard() {
               e.currentTarget.style.transform = "translateY(0)";
               e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.08)";
             }}>
-              <div style={{ fontSize: 40, fontWeight: 700, color: "#333", marginBottom: 12 }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: "#333", marginBottom: 6, lineHeight: 1.1 }}>
                 {analyticsData.summary?.currentMonthAttendance?.averageAttendanceRate || 0}%
               </div>
-              <div style={{ fontSize: 14, color: "#666", fontWeight: 600 }}>Avg Attendance Rate</div>
+              <div style={{ fontSize: 12, color: "#666", fontWeight: 600 }}>Avg Attendance Rate</div>
             </div>
             <div style={{ 
               ...cardStyle,
-              padding: theme.spacing.lg, 
+              padding: theme.spacing.md, 
               background: "#ffffff",
               textAlign: "center",
               transition: "all 0.3s ease",
@@ -669,14 +672,14 @@ export default function ReportsDashboard() {
               e.currentTarget.style.transform = "translateY(0)";
               e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.08)";
             }}>
-              <div style={{ fontSize: 32, fontWeight: 700, color: "#333", marginBottom: 12 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: "#333", marginBottom: 6, lineHeight: 1.15 }}>
                 {analyticsData.summary?.currentMonthPayroll?.totalCost?.toLocaleString('en-US') || 0} VND
               </div>
-              <div style={{ fontSize: 14, color: "#666", fontWeight: 600 }}>Total Payroll Cost</div>
+              <div style={{ fontSize: 12, color: "#666", fontWeight: 600 }}>Total Payroll Cost</div>
             </div>
             <div style={{ 
               ...cardStyle,
-              padding: theme.spacing.lg, 
+              padding: theme.spacing.md, 
               background: "#ffffff",
               textAlign: "center",
               transition: "all 0.3s ease",
@@ -692,15 +695,15 @@ export default function ReportsDashboard() {
               e.currentTarget.style.transform = "translateY(0)";
               e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.08)";
             }}>
-              <div style={{ fontSize: 40, fontWeight: 700, color: "#333", marginBottom: 12 }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: "#333", marginBottom: 6, lineHeight: 1.1 }}>
                 {analyticsData.summary?.currentMonthOvertime?.totalHours || 0}h
               </div>
-              <div style={{ fontSize: 14, color: "#666", fontWeight: 600 }}>Total Overtime Hours</div>
+              <div style={{ fontSize: 12, color: "#666", fontWeight: 600 }}>Total Overtime Hours</div>
             </div>
           </div>
 
           {/* Charts Grid - Structure Analysis */}
-          <div style={{ marginBottom: theme.spacing.xxxl }}>
+          <div style={{ marginBottom: theme.spacing.lg }}>
             <div style={{ 
               ...cardStyle,
               background: "#ffffff",
@@ -710,7 +713,7 @@ export default function ReportsDashboard() {
               marginBottom: theme.spacing.lg
             }}>
               <h4 style={{ 
-                fontSize: 20, 
+                fontSize: 15, 
                 fontWeight: 700, 
                 margin: 0,
                 color: "#333",
@@ -724,7 +727,7 @@ export default function ReportsDashboard() {
             <div style={{ 
               display: "grid", 
               gridTemplateColumns: "repeat(auto-fit, minmax(480px, 1fr))", 
-              gap: theme.spacing.xxl 
+              gap: theme.spacing.md 
             }}>
             {/* Pie Chart: Structure by Department */}
             {analyticsData.charts?.structureByDepartment && analyticsData.charts.structureByDepartment.length > 0 && (
@@ -907,7 +910,7 @@ export default function ReportsDashboard() {
               marginBottom: theme.spacing.lg
             }}>
               <h4 style={{ 
-                fontSize: 20, 
+                fontSize: 15, 
                 fontWeight: 700, 
                 margin: 0,
                 color: "#333",
@@ -918,7 +921,7 @@ export default function ReportsDashboard() {
                 📊 Performance Trends (6 Months)
               </h4>
             </div>
-            <div style={{ display: "grid", gap: theme.spacing.xxl }}>
+            <div style={{ display: "grid", gap: theme.spacing.md }}>
             {/* Turnover Rate Trend */}
             {analyticsData.charts?.turnoverTrend && analyticsData.charts.turnoverTrend.length > 0 && (
               <div style={{
@@ -938,7 +941,7 @@ export default function ReportsDashboard() {
                 }}>
                   🔄 <span>Employee Turnover Trend</span>
                 </div>
-                <ResponsiveContainer width="100%" height={400}>
+                <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={analyticsData.charts.turnoverTrend}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="label" />
@@ -972,7 +975,7 @@ export default function ReportsDashboard() {
                 }}>
                   💰 <span>Payroll Cost Trend</span>
                 </div>
-                <ResponsiveContainer width="100%" height={400}>
+                <ResponsiveContainer width="100%" height={280}>
                   <AreaChart data={analyticsData.charts.payrollTrend}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="label" />
@@ -1006,7 +1009,7 @@ export default function ReportsDashboard() {
                 }}>
                   📊 <span>Attendance Rate Trend</span>
                 </div>
-                <ResponsiveContainer width="100%" height={400}>
+                <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={analyticsData.charts.attendanceTrend}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="label" />
@@ -1040,7 +1043,7 @@ export default function ReportsDashboard() {
                 }}>
                   ⏱️ <span>Overtime by Department</span>
                 </div>
-                <ResponsiveContainer width="100%" height={400}>
+                <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={analyticsData.charts.overtimeByDepartment}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
@@ -1093,27 +1096,28 @@ export default function ReportsDashboard() {
       {/* ===== REPORT GENERATION SECTION ===== */}
       <div style={{
         ...cardStyle,
-        marginTop: theme.spacing.xxxl,
+        marginTop: theme.spacing.lg,
         background: "#ffffff",
         border: "1px solid #e0e0e0",
         boxShadow: "0 2px 4px rgba(0,0,0,0.08)"
       }}>
         <div style={{ 
-          fontSize: 20, 
+          fontSize: 16, 
           fontWeight: 700, 
-          marginBottom: theme.spacing.lg, 
+          marginBottom: theme.spacing.sm, 
           color: "#333",
           display: "flex",
           alignItems: "center",
           gap: theme.spacing.sm
         }}>
-          📋 <span>Generate Detailed Reports</span>
+          📋 <span>Generate reports</span>
         </div>
         <div style={{
-          fontSize: 14,
+          fontSize: 12,
           color: "#666",
-          marginBottom: theme.spacing.xl,
-          paddingBottom: theme.spacing.md,
+          lineHeight: 1.4,
+          marginBottom: theme.spacing.md,
+          paddingBottom: theme.spacing.sm,
           borderBottom: "1px solid #e0e0e0"
         }}>
           Generate comprehensive reports for specific periods with detailed employee data

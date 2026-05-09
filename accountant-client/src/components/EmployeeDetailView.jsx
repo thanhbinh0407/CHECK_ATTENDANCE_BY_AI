@@ -1,6 +1,20 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from 'recharts';
+
+/** API `/api/admin/employees/:id/details` returns Vietnamese attendance labels — map for English UI */
+const ATTENDANCE_STATUS_VI_TO_EN = {
+  Vắng: "Absent",
+  "Nghỉ phép": "On leave",
+  Muộn: "Late",
+  "Về sớm": "Early leave",
+  "Bình thường": "Present"
+};
+
+function attendanceStatusLabelEn(status) {
+  if (status == null || status === "") return "—";
+  return ATTENDANCE_STATUS_VI_TO_EN[status] ?? status;
+}
 
 export default function EmployeeDetailView({
   embedded = false,
@@ -14,13 +28,6 @@ export default function EmployeeDetailView({
   const [message, setMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("info");
-  const [jobFilter, setJobFilter] = useState({ fromDate: "", toDate: "", changeType: "" });
-  const [salaryChangeFilter, setSalaryChangeFilter] = useState({ fromDate: "", toDate: "", changeType: "" });
-  const [jobHistoryData, setJobHistoryData] = useState([]);
-  const [salaryChangeData, setSalaryChangeData] = useState([]);
-  const [jobPagination, setJobPagination] = useState({ page: 1, pageSize: 8, totalPages: 1 });
-  const [salaryPagination, setSalaryPagination] = useState({ page: 1, pageSize: 8, totalPages: 1 });
-  const [historyLoading, setHistoryLoading] = useState(false);
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
@@ -65,12 +72,6 @@ export default function EmployeeDetailView({
         setEmployeeDetails(data.employee || {});
         setSelectedEmployee(employeeId);
         setActiveTab("info");
-        setJobFilter({ fromDate: "", toDate: "", changeType: "" });
-        setSalaryChangeFilter({ fromDate: "", toDate: "", changeType: "" });
-        setJobPagination({ page: 1, pageSize: 8, totalPages: 1 });
-        setSalaryPagination({ page: 1, pageSize: 8, totalPages: 1 });
-        setJobHistoryData([]);
-        setSalaryChangeData([]);
         setMessage("");
       } else {
         setMessage(data?.message || `Could not load profile (${res.status})`);
@@ -101,100 +102,11 @@ export default function EmployeeDetailView({
     transition: "all 0.2s ease",
   });
 
-  const historyInputStyle = {
-    padding: "8px 10px",
-    border: "1px solid #d1d5db",
-    borderRadius: 8,
-    fontSize: 13,
-    backgroundColor: "#fff",
-  };
-
-  const historyCardStyle = {
-    border: "1px solid #e5e7eb",
-    borderRadius: 10,
-    padding: 14,
-    backgroundColor: "#f8fafc",
-  };
-
-  const historyTypes = {
-    job: ["hire", "initial_assignment", "transfer", "promotion", "demotion", "correction", "other"],
-    salary: ["initial_salary", "increase", "decrease", "correction", "other"]
-  };
-
-  const changeBadge = (type) => {
-    const map = {
-      hire: { bg: "#d1fae5", color: "#065f46" },
-      initial_assignment: { bg: "#e0f2fe", color: "#0c4a6e" },
-      transfer: { bg: "#ede9fe", color: "#5b21b6" },
-      promotion: { bg: "#fef3c7", color: "#92400e" },
-      demotion: { bg: "#fee2e2", color: "#991b1b" },
-      initial_salary: { bg: "#dbeafe", color: "#1e40af" },
-      increase: { bg: "#dcfce7", color: "#166534" },
-      decrease: { bg: "#fee2e2", color: "#991b1b" },
-      correction: { bg: "#e5e7eb", color: "#374151" },
-      other: { bg: "#e5e7eb", color: "#374151" }
-    };
-    return map[type] || map.other;
-  };
-
-  const fetchHistory = async (historyType) => {
-    if (!selectedEmployee) return;
-    try {
-      setHistoryLoading(true);
-      const token = localStorage.getItem("authToken");
-      if (!token) return;
-
-      const filter = historyType === "job" ? jobFilter : salaryChangeFilter;
-      const pagination = historyType === "job" ? jobPagination : salaryPagination;
-      const params = new URLSearchParams({
-        historyType,
-        page: String(pagination.page),
-        pageSize: String(pagination.pageSize)
-      });
-      if (filter.fromDate) params.set("fromDate", filter.fromDate);
-      if (filter.toDate) params.set("toDate", filter.toDate);
-      if (filter.changeType) params.set("changeType", filter.changeType);
-
-      const res = await fetch(`${apiBase}/api/admin/employees/${selectedEmployee}/history?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage(data.message || "Cannot load history");
-        return;
-      }
-
-      if (historyType === "job") {
-        setJobHistoryData(data.jobHistory || []);
-        setJobPagination((prev) => ({ ...prev, ...(data.jobPagination || prev) }));
-      } else {
-        setSalaryChangeData(data.salaryChangeHistory || []);
-        setSalaryPagination((prev) => ({ ...prev, ...(data.salaryPagination || prev) }));
-      }
-    } catch (error) {
-      setMessage(`Error loading ${historyType} history: ${error.message}`);
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (embedded && initialEmployeeId != null) {
       viewEmployeeDetails(initialEmployeeId);
     }
   }, [embedded, initialEmployeeId]);
-
-  useEffect(() => {
-    if (activeTab === "job-history") {
-      fetchHistory("job");
-    }
-  }, [activeTab, selectedEmployee, jobFilter.fromDate, jobFilter.toDate, jobFilter.changeType, jobPagination.page]);
-
-  useEffect(() => {
-    if (activeTab === "salary-change") {
-      fetchHistory("salary");
-    }
-  }, [activeTab, selectedEmployee, salaryChangeFilter.fromDate, salaryChangeFilter.toDate, salaryChangeFilter.changeType, salaryPagination.page]);
 
   const outerStyle = embedded
     ? { padding: 0, backgroundColor: "transparent", minHeight: 0 }
@@ -362,7 +274,7 @@ export default function EmployeeDetailView({
 
               {/* Tabs */}
               <div style={{ display: "flex", borderBottom: `1px solid ${theme.colors.border}`, overflowX: "auto" }}>
-                {["info", "attendance", "leave", "salary", "job-history", "salary-change"].map((tab) => (
+                {["info", "attendance", "leave", "salary"].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -372,8 +284,6 @@ export default function EmployeeDetailView({
                     {tab === "attendance" && "📍 Attendance"}
                     {tab === "leave" && "📅 Leave"}
                     {tab === "salary" && "💰 Salary"}
-                    {tab === "job-history" && "👔 Job History"}
-                    {tab === "salary-change" && "📈 Salary Changes"}
                   </button>
                 ))}
               </div>
@@ -651,7 +561,7 @@ export default function EmployeeDetailView({
                     {employeeDetails.recentAttendance && employeeDetails.recentAttendance.length > 0 && (() => {
                       const statusCount = {};
                       employeeDetails.recentAttendance.forEach(record => {
-                        const status = record.status || 'Unknown';
+                        const status = attendanceStatusLabelEn(record.status);
                         statusCount[status] = (statusCount[status] || 0) + 1;
                       });
                       const chartData = Object.entries(statusCount).map(([status, count]) => ({
@@ -705,7 +615,7 @@ export default function EmployeeDetailView({
                                   <td style={{ padding: "8px" }}>{record.date}</td>
                                   <td style={{ padding: "8px" }}>{record.checkIn || "-"}</td>
                                   <td style={{ padding: "8px" }}>{record.checkOut || "-"}</td>
-                                  <td style={{ padding: "8px" }}>{record.status || "-"}</td>
+                                  <td style={{ padding: "8px" }}>{attendanceStatusLabelEn(record.status)}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -935,120 +845,6 @@ export default function EmployeeDetailView({
                     No salary history
                   </p>
                 )}
-              </div>
-            )}
-
-            {activeTab === "job-history" && employeeDetails && (
-              <div>
-                <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Job History</h3>
-                <div style={historyCardStyle}>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-                    <input type="date" value={jobFilter.fromDate} onChange={(e) => { setJobFilter({ ...jobFilter, fromDate: e.target.value }); setJobPagination((p) => ({ ...p, page: 1 })); }} style={historyInputStyle} />
-                    <input type="date" value={jobFilter.toDate} onChange={(e) => { setJobFilter({ ...jobFilter, toDate: e.target.value }); setJobPagination((p) => ({ ...p, page: 1 })); }} style={historyInputStyle} />
-                    <select value={jobFilter.changeType} onChange={(e) => { setJobFilter({ ...jobFilter, changeType: e.target.value }); setJobPagination((p) => ({ ...p, page: 1 })); }} style={historyInputStyle}>
-                      <option value="">All change types</option>
-                      {historyTypes.job.map((type) => <option key={type} value={type}>{type}</option>)}
-                    </select>
-                    <button onClick={() => { setJobFilter({ fromDate: "", toDate: "", changeType: "" }); setJobPagination((p) => ({ ...p, page: 1 })); }} style={{ ...historyInputStyle, cursor: "pointer", backgroundColor: "#eef2ff" }}>Reset filter</button>
-                  </div>
-                {historyLoading && <p style={{ color: "#64748b" }}>Loading history...</p>}
-                {!historyLoading && jobHistoryData.length > 0 ? (
-                  <div style={{ maxHeight: "420px", overflowY: "auto", backgroundColor: "#fff", borderRadius: 8 }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <thead style={{ backgroundColor: "#f5f5f5" }}>
-                        <tr>
-                          <th style={{ padding: "8px", textAlign: "left" }}>Effective Date</th>
-                          <th style={{ padding: "8px", textAlign: "left" }}>Change Type</th>
-                          <th style={{ padding: "8px", textAlign: "left" }}>Department</th>
-                          <th style={{ padding: "8px", textAlign: "left" }}>Job Title</th>
-                          <th style={{ padding: "8px", textAlign: "left" }}>Note</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {jobHistoryData.map((item) => {
-                          const badge = changeBadge(item.changeType);
-                          return (
-                          <tr key={item.id} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
-                            <td style={{ padding: "8px" }}>{item.effectiveDate || "-"}</td>
-                            <td style={{ padding: "8px" }}><span style={{ background: badge.bg, color: badge.color, borderRadius: 999, padding: "3px 9px", fontSize: 12, fontWeight: 600 }}>{item.changeType || "-"}</span></td>
-                            <td style={{ padding: "8px" }}>
-                              {item.changeType === "other"
-                                ? `${item.fromDepartmentName || "-"} -> ${item.toDepartmentName || "-"}`
-                                : (item.toDepartmentName || item.fromDepartmentName || "-")}
-                            </td>
-                            <td style={{ padding: "8px" }}>
-                              {item.changeType === "other"
-                                ? `${item.fromJobTitleName || "-"} -> ${item.toJobTitleName || "-"}`
-                                : (item.toJobTitleName || item.fromJobTitleName || "-")}
-                            </td>
-                            <td style={{ padding: "8px" }}>{item.notes || "-"}</td>
-                          </tr>
-                        );})}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p style={{ color: "#999", textAlign: "center", padding: "20px" }}>No job history matching filters</p>
-                )}
-                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 10 }}>
-                  <button disabled={jobPagination.page <= 1} onClick={() => setJobPagination((p) => ({ ...p, page: p.page - 1 }))} style={{ ...historyInputStyle, cursor: jobPagination.page <= 1 ? "not-allowed" : "pointer" }}>Prev</button>
-                  <span style={{ fontSize: 13, color: "#475569" }}>Page {jobPagination.page} / {jobPagination.totalPages || 1}</span>
-                  <button disabled={jobPagination.page >= (jobPagination.totalPages || 1)} onClick={() => setJobPagination((p) => ({ ...p, page: p.page + 1 }))} style={{ ...historyInputStyle, cursor: jobPagination.page >= (jobPagination.totalPages || 1) ? "not-allowed" : "pointer" }}>Next</button>
-                </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "salary-change" && employeeDetails && (
-              <div>
-                <h3 style={{ color: theme.colors.primary, marginBottom: "15px" }}>Salary Change History</h3>
-                <div style={historyCardStyle}>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-                    <input type="date" value={salaryChangeFilter.fromDate} onChange={(e) => { setSalaryChangeFilter({ ...salaryChangeFilter, fromDate: e.target.value }); setSalaryPagination((p) => ({ ...p, page: 1 })); }} style={historyInputStyle} />
-                    <input type="date" value={salaryChangeFilter.toDate} onChange={(e) => { setSalaryChangeFilter({ ...salaryChangeFilter, toDate: e.target.value }); setSalaryPagination((p) => ({ ...p, page: 1 })); }} style={historyInputStyle} />
-                    <select value={salaryChangeFilter.changeType} onChange={(e) => { setSalaryChangeFilter({ ...salaryChangeFilter, changeType: e.target.value }); setSalaryPagination((p) => ({ ...p, page: 1 })); }} style={historyInputStyle}>
-                      <option value="">All change types</option>
-                      {historyTypes.salary.map((type) => <option key={type} value={type}>{type}</option>)}
-                    </select>
-                    <button onClick={() => { setSalaryChangeFilter({ fromDate: "", toDate: "", changeType: "" }); setSalaryPagination((p) => ({ ...p, page: 1 })); }} style={{ ...historyInputStyle, cursor: "pointer", backgroundColor: "#eef2ff" }}>Reset filter</button>
-                  </div>
-                {historyLoading && <p style={{ color: "#64748b" }}>Loading history...</p>}
-                {!historyLoading && salaryChangeData.length > 0 ? (
-                  <div style={{ maxHeight: "420px", overflowY: "auto", backgroundColor: "#fff", borderRadius: 8 }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <thead style={{ backgroundColor: "#f5f5f5" }}>
-                        <tr>
-                          <th style={{ padding: "8px", textAlign: "left" }}>Effective Date</th>
-                          <th style={{ padding: "8px", textAlign: "left" }}>Change Type</th>
-                          <th style={{ padding: "8px", textAlign: "left" }}>Base Salary</th>
-                          <th style={{ padding: "8px", textAlign: "left" }}>Allowance</th>
-                          <th style={{ padding: "8px", textAlign: "left" }}>Reason</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {salaryChangeData.map((item) => {
-                          const badge = changeBadge(item.changeType);
-                          return (
-                          <tr key={item.id} style={{ borderBottom: `1px solid ${theme.colors.border}` }}>
-                            <td style={{ padding: "8px" }}>{item.effectiveDate || "-"}</td>
-                            <td style={{ padding: "8px" }}><span style={{ background: badge.bg, color: badge.color, borderRadius: 999, padding: "3px 9px", fontSize: 12, fontWeight: 600 }}>{item.changeType || "-"}</span></td>
-                            <td style={{ padding: "8px" }}>{Number(item.previousBaseSalary || 0).toLocaleString("en-US")} → {Number(item.newBaseSalary || 0).toLocaleString("en-US")}</td>
-                            <td style={{ padding: "8px" }}>{Number(item.previousTotalAllowance || 0).toLocaleString("en-US")} → {Number(item.newTotalAllowance || 0).toLocaleString("en-US")}</td>
-                            <td style={{ padding: "8px" }}>{item.reason || "-"}</td>
-                          </tr>
-                        );})}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p style={{ color: "#999", textAlign: "center", padding: "20px" }}>No salary change history matching filters</p>
-                )}
-                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 10 }}>
-                  <button disabled={salaryPagination.page <= 1} onClick={() => setSalaryPagination((p) => ({ ...p, page: p.page - 1 }))} style={{ ...historyInputStyle, cursor: salaryPagination.page <= 1 ? "not-allowed" : "pointer" }}>Prev</button>
-                  <span style={{ fontSize: 13, color: "#475569" }}>Page {salaryPagination.page} / {salaryPagination.totalPages || 1}</span>
-                  <button disabled={salaryPagination.page >= (salaryPagination.totalPages || 1)} onClick={() => setSalaryPagination((p) => ({ ...p, page: p.page + 1 }))} style={{ ...historyInputStyle, cursor: salaryPagination.page >= (salaryPagination.totalPages || 1) ? "not-allowed" : "pointer" }}>Next</button>
-                </div>
-                </div>
               </div>
             )}
               </div>

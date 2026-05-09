@@ -2,6 +2,9 @@ import Qualification from "../models/pg/Qualification.js";
 import User from "../models/pg/User.js";
 import { Op } from "sequelize";
 import { getFileUrl, deleteFile } from "../utils/fileUpload.js";
+import { recordAction } from "../services/actionAuditService.js";
+import { emitEmployeePortalRefresh } from "../socket.js";
+import { assertCanManageProfileSubresource, isStaffProfileEditor } from "../utils/profileSubresourceAccess.js";
 
 // Get all qualifications (optionally filtered by userId and approvalStatus)
 export const getAllQualifications = async (req, res) => {
@@ -18,7 +21,10 @@ export const getAllQualifications = async (req, res) => {
         model: User,
         attributes: ['id', 'name', 'employeeCode', 'email']
       }],
-      order: [['createdAt', 'DESC']]
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC']
+      ]
     });
     
     return res.json({
@@ -78,8 +84,10 @@ export const createQualification = async (req, res) => {
       });
     }
 
-    // Document path is required for verification
-    if (!documentPath) {
+    if (!(await assertCanManageProfileSubresource(req, res, actualUserId))) return;
+
+    // Nhân viên tự nhập: bắt buộc tài liệu. HR/Manager nhập hộ: có thể bỏ qua (đồng bộ màn Employee Profile).
+    if (!documentPath && !isStaffProfileEditor(req)) {
       return res.status(400).json({
         status: "error",
         message: "Document scan is required for verification. Please upload a scanned copy of the certificate."
@@ -103,7 +111,7 @@ export const createQualification = async (req, res) => {
       issuedDate: issuedDate ? new Date(issuedDate) : null,
       expiryDate: expiryDate ? new Date(expiryDate) : null,
       certificateNumber,
-      documentPath,
+      documentPath: documentPath || null,
       description,
       isActive: true,
       approvalStatus: 'pending' // Always starts as pending, requires admin approval
@@ -136,6 +144,8 @@ export const updateQualification = async (req, res) => {
         message: "Qualification not found"
       });
     }
+
+    if (!(await assertCanManageProfileSubresource(req, res, qualification.userId))) return;
 
     await qualification.update({
       type: type || qualification.type,
@@ -181,6 +191,8 @@ export const deleteQualification = async (req, res) => {
       });
     }
 
+    if (!(await assertCanManageProfileSubresource(req, res, qualification.userId))) return;
+
     await qualification.destroy();
 
     return res.json({
@@ -210,7 +222,10 @@ export const getMyQualifications = async (req, res) => {
     // Return all qualifications (including pending) so employee can see status
     const qualifications = await Qualification.findAll({
       where: { userId },
-      order: [['createdAt', 'DESC']]
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC']
+      ]
     });
 
     return res.json({
@@ -247,6 +262,21 @@ export const approveQualificationRequest = async (req, res) => {
       rejectionReason: null
     });
 
+    await recordAction(req, {
+      action: "qualification.approve",
+      category: "other",
+      targetUserId: qualification.userId,
+      entityType: "qualification",
+      entityId: qualification.id,
+      summary: `Approved qualification: ${qualification.name || "—"}`,
+      metadata: {
+        certificateNumber: qualification.certificateNumber || null,
+        type: qualification.type || null,
+      },
+    });
+
+    emitEmployeePortalRefresh(qualification.userId, "qualification");
+
     return res.json({
       status: "success",
       message: "Qualification approved successfully",
@@ -279,6 +309,20 @@ export const rejectQualificationRequest = async (req, res) => {
       approvalStatus: 'rejected',
       rejectionReason: reason || 'No reason provided'
     });
+
+    await recordAction(req, {
+      action: "qualification.reject",
+      category: "other",
+      targetUserId: qualification.userId,
+      entityType: "qualification",
+      entityId: qualification.id,
+      summary: `Rejected qualification: ${qualification.name || "—"}`,
+      metadata: {
+        reason: reason || null,
+      },
+    });
+
+    emitEmployeePortalRefresh(qualification.userId, "qualification");
 
     return res.json({
       status: "success",

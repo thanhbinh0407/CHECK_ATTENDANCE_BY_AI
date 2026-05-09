@@ -1,13 +1,35 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import SupervisorReports from './SupervisorReports.jsx';
+import PersonalProfileModal from './PersonalProfileModal.jsx';
+import QualificationApprovals from './components/QualificationApprovals.jsx';
+import DependentApprovals from './components/DependentApprovals.jsx';
+import JobTitleManagement from './components/JobTitleManagement.jsx';
+import DepartmentManagement from './components/DepartmentManagement.jsx';
+import InsuranceConfigManagement from './components/InsuranceConfigManagement.jsx';
+import AnalyticsDashboard from './components/AnalyticsDashboard.jsx';
+import BusinessTripDetailModal from './components/BusinessTripDetailModal.jsx';
+import SalaryAdvanceDetailModal from './components/SalaryAdvanceDetailModal.jsx';
+import PayrollApprovalDetailModal from './components/PayrollApprovalDetailModal.jsx';
 import socket from './socket.js';
-import { toastInfo } from './lib/notify.jsx';
+import { sortApprovalsByRecency } from './utils/approvalSort.js';
+import { toastInfo, toastSuccess, toastError } from './lib/notify.jsx';
 import './index.css';
 import './supervisorDashboard.css';
+import './supervisorShell.css';
 
-const API = 'http://localhost:5000/api';
+const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:5000').replace(/\/$/, '');
+const API = `${API_BASE}/api`;
+
 function authHeaders(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+}
+
+function portalAvatarSrc(apiBase, avatarUrl) {
+  if (!avatarUrl) return null;
+  if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
+  const base = (apiBase || '').replace(/\/$/, '');
+  const path = avatarUrl.startsWith('/') ? avatarUrl : `/${avatarUrl}`;
+  return `${base}${path}`;
 }
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────────
@@ -91,7 +113,7 @@ function Dashboard({ token, onNavigate }) {
   if (loading) return <div className="loading">Loading...</div>;
 
   return (
-    <div className="sup-dash">
+    <div className="sup-mgmt-page sup-dash">
       <div className="sup-dash-hero">
         <div className="sup-dash-hero-inner">
           <h2>Approval Center</h2>
@@ -163,7 +185,7 @@ function Dashboard({ token, onNavigate }) {
                 <div className="sup-dash-bar-track">
                   <div className="sup-dash-bar-fill" style={{ width: `${pct(n)}%` }} />
                 </div>
-                <span style={{ width: 36, textAlign: 'right', fontWeight: 700, color: '#5b21b6' }}>{pct(n)}%</span>
+                <span style={{ width: 36, textAlign: 'right', fontWeight: 700, color: '#7029d1' }}>{pct(n)}%</span>
               </div>
             ))}
           </div>
@@ -185,7 +207,7 @@ function Dashboard({ token, onNavigate }) {
                     {item.meta ? ` • ${item.meta}` : ""}
                   </div>
                 </div>
-                <span style={{ fontWeight: 900, color: "#5b21b6" }}>{item.status}</span>
+                <span style={{ fontWeight: 900, color: "#7029d1" }}>{item.status}</span>
               </div>
             ))}
           </div>
@@ -208,82 +230,238 @@ function Dashboard({ token, onNavigate }) {
 }
 
 // ─── GENERIC APPROVAL LIST ─────────────────────────────────────────────────────
-function ApprovalList({ token, type, apiPath, columns, extractList }) {
+function buildApprovalSearchText(item, columns) {
+  const bits = [];
+  for (const c of columns) {
+    try {
+      const v = c.render ? c.render(item) : item[c.key];
+      if (v != null && v !== '') bits.push(String(v));
+    } catch {
+      /* ignore */
+    }
+  }
+  if (item.User) {
+    bits.push(item.User.name, item.User.employeeCode, item.User.email);
+  }
+  bits.push(String(item.id ?? ''), String(item.userId ?? ''));
+  if (item.month != null && item.year != null) bits.push(`${item.month}/${item.year}`);
+  if (item.amount != null) bits.push(String(item.amount));
+  return bits.filter(Boolean).join(' ').toLowerCase();
+}
+
+/** Multi-level approval: first approve may advance level while status stays `pending`. */
+function isPendingMultiLevel(item) {
+  const s = item.status ?? item.approvalStatus ?? 'pending';
+  return s === 'pending' && Number(item.approvalLevel) > 1;
+}
+
+function approvalStatusOf(u) {
+  if (!u) return 'pending';
+  return u.approvalStatus ?? u.status ?? 'pending';
+}
+
+/** Matches backend `emitApprovalEvent` requestType strings. */
+const SOCKET_APPROVAL_TYPE = {
+  businessTrip: 'business_trip',
+  overtime: 'overtime',
+  salaryAdvance: 'salary_advance',
+  leave: 'leave',
+};
+
+function ApprovalList({ token, type, apiPath, columns, extractList, detailVariant, pageTitle, pageSubtitle }) {
   const [items, setItems] = useState([]);
   const [statusFilter, setStatusFilter] = useState('pending');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [actionModal, setActionModal] = useState(null); // { item, action }
-  const [comment, setComment] = useState('');
+  /** Inline `extractList` from parents changes every render — use a ref so `load` stays stable. */
+  const extractListRef = useRef(extractList);
+  extractListRef.current = extractList;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const url = statusFilter
-      ? `${API}/${apiPath}?status=${statusFilter}`
-      : `${API}/${apiPath}`;
-    const res = await fetch(url, { headers: authHeaders(token) });
-    const data = await res.json();
-    setItems(extractList(data));
-    setLoading(false);
-  }, [token, apiPath, statusFilter, extractList]);
+  const [rejectModalItem, setRejectModalItem] = useState(null);
+  const [comment, setComment] = useState('');
+  const [detailItem, setDetailItem] = useState(null);
+  const [submittingId, setSubmittingId] = useState(null);
+  const decisionLockRef = useRef(false);
+
+  const load = useCallback(async (opts = {}) => {
+    const silent = Boolean(opts.silent);
+    if (!silent) setLoading(true);
+    try {
+      const url = statusFilter
+        ? `${API}/${apiPath}?status=${statusFilter}`
+        : `${API}/${apiPath}`;
+      const res = await fetch(url, { headers: authHeaders(token) });
+      const data = await res.json();
+      setItems(sortApprovalsByRecency(extractListRef.current(data)));
+    } catch {
+      /* keep previous items */
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [token, apiPath, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
 
-  const approve = async () => {
-    const { item } = actionModal;
-    if (type === 'leave') {
-      await fetch(`${API}/leave/requests/${item.id}/approve`, {
-        method: 'PUT',
-        headers: authHeaders(token),
-        body: JSON.stringify({}),
-      });
-    } else {
-      const url = `${API}/${apiPath}/${item.id}/approve`;
-      await fetch(url, {
-        method: 'PUT',
-        headers: authHeaders(token),
-        body: JSON.stringify({ action: 'approve', comments: comment || undefined }),
-      });
-    }
-    setActionModal(null);
-    setComment('');
-    load();
+  useEffect(() => {
+    const socketType = SOCKET_APPROVAL_TYPE[type];
+    if (!socketType) return undefined;
+    const onAudit = (payload) => {
+      if (!payload || payload.kind !== 'approval') return;
+      if (payload.requestType !== socketType) return;
+      load({ silent: true });
+    };
+    socket.on('audit:new', onAudit);
+    return () => socket.off('audit:new', onAudit);
+  }, [type, load]);
+
+  const mergeUpdatedDetail = (body) => {
+    const updated = body?.request ?? body?.advance ?? body?.leaveRequest ?? null;
+    if (!updated?.id) return;
+    setDetailItem((prev) =>
+      prev && prev.id === updated.id ? { ...prev, ...updated, User: updated.User ?? prev.User } : prev
+    );
   };
 
-  const reject = async () => {
-    const { item } = actionModal;
-    if (type === 'leave') {
-      await fetch(`${API}/leave/requests/${item.id}/reject`, {
-        method: 'PUT',
-        headers: authHeaders(token),
-        body: JSON.stringify({ rejectionReason: comment || null }),
-      });
-    } else {
-      const url = `${API}/${apiPath}/${item.id}/approve`;
-      await fetch(url, {
-        method: 'PUT',
-        headers: authHeaders(token),
-        body: JSON.stringify({ action: 'reject', comments: comment || undefined }),
-      });
-    }
-    setActionModal(null);
-    setComment('');
-    load();
+  /** Instant row sync from API response before silent refetch. */
+  const patchItemsFromDecisionBody = (body) => {
+    const updated = body?.request ?? body?.advance ?? body?.leaveRequest ?? null;
+    if (!updated?.id) return;
+    const nextStatus = approvalStatusOf(updated);
+    setItems((prev) => {
+      if (statusFilter === 'pending' && nextStatus !== 'pending') {
+        return sortApprovalsByRecency(prev.filter((x) => x.id !== updated.id));
+      }
+      const idx = prev.findIndex((x) => x.id === updated.id);
+      if (idx === -1) return prev;
+      const row = { ...prev[idx], ...updated, User: updated.User ?? prev[idx].User };
+      const next = [...prev];
+      next[idx] = row;
+      return sortApprovalsByRecency(next);
+    });
   };
+
+  const executeDecision = async (decision, item, commentText) => {
+    if (!item?.id || decisionLockRef.current) return;
+    decisionLockRef.current = true;
+    setSubmittingId(item.id);
+    try {
+      let res;
+      try {
+        if (type === 'leave') {
+          const url =
+            decision === 'approve'
+              ? `${API}/leave/requests/${item.id}/approve`
+              : `${API}/leave/requests/${item.id}/reject`;
+          res = await fetch(url, {
+            method: 'PUT',
+            headers: authHeaders(token),
+            body:
+              decision === 'approve'
+                ? JSON.stringify({})
+                : JSON.stringify({ rejectionReason: commentText || null }),
+          });
+        } else {
+          const url = `${API}/${apiPath}/${item.id}/approve`;
+          res = await fetch(url, {
+            method: 'PUT',
+            headers: authHeaders(token),
+            body: JSON.stringify({ action: decision, comments: commentText || undefined }),
+          });
+        }
+      } catch (networkErr) {
+        toastError(`Network error: ${networkErr.message}`);
+        return;
+      }
+
+      let body = null;
+      try {
+        body = await res.json();
+      } catch {
+        /* non-JSON response */
+      }
+
+      if (!res.ok || body?.status === 'error') {
+        const msg =
+          body?.message ||
+          `Request failed (${res.status}). Please check your permissions and try again.`;
+        toastError(msg);
+        return;
+      }
+
+      const updated = body?.request ?? body?.advance ?? body?.leaveRequest ?? null;
+      if (decision === 'approve' && updated?.approvalStatus === 'pending') {
+        toastSuccess('Approved at this level. Another approver is required to finalize.');
+      } else {
+        toastSuccess(decision === 'approve' ? 'Approved successfully.' : 'Rejected successfully.');
+      }
+      mergeUpdatedDetail(body);
+      patchItemsFromDecisionBody(body);
+      if (decision === 'reject') {
+        setRejectModalItem(null);
+        setComment('');
+      }
+      await load({ silent: true });
+    } finally {
+      decisionLockRef.current = false;
+      setSubmittingId(null);
+    }
+  };
+
+  const confirmReject = () => {
+    if (!rejectModalItem) return;
+    executeDecision('reject', rejectModalItem, comment);
+  };
+
+  const q = search.trim().toLowerCase();
+  const filteredItems = q
+    ? items.filter((it) => buildApprovalSearchText(it, columns).includes(q))
+    : items;
 
   return (
-    <div>
-      <div className="filters">
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          <option value="">All statuses</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
+    <div className="sup-mgmt-page">
+      {(pageTitle || pageSubtitle) && (
+        <div className="sup-mgmt-hero">
+          {pageTitle && <h2>{pageTitle}</h2>}
+          {pageSubtitle && <p>{pageSubtitle}</p>}
+        </div>
+      )}
+      <div className="sup-approval-toolbar card sup-approval-toolbar--filters">
+        <div className="sup-approval-toolbar-inner sup-approval-toolbar-inner--search-status">
+          <div className="sup-approval-search-wrap">
+            <label className="sup-approval-label" htmlFor={`sup-ap-search-${type}`}>Search</label>
+            <input
+              id={`sup-ap-search-${type}`}
+              className="sup-approval-search"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Name, employee code, dates, reason…"
+              autoComplete="off"
+            />
+          </div>
+          <div className="sup-approval-filter-wrap">
+            <label className="sup-approval-label" htmlFor={`sup-ap-status-${type}`}>Status</label>
+            <select
+              id={`sup-ap-status-${type}`}
+              className="sup-approval-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+          <div className="sup-approval-meta">
+            {loading ? 'Loading…' : `${filteredItems.length} of ${items.length} shown`}
+          </div>
+        </div>
       </div>
-      <div className="card">
+      <div className="card sup-approval-table-card sup-mgmt-table-shell">
         {loading ? <div className="loading">Loading...</div> : (
           <div className="table-wrap">
-            <table>
+            <table className="sup-mgmt-table">
               <thead>
                 <tr>
                   {columns.map(c => <th key={c.key}>{c.label}</th>)}
@@ -292,38 +470,65 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
                 </tr>
               </thead>
               <tbody>
-                {items.map(item => {
+                {filteredItems.map(item => {
                   const rowStatus = item.status ?? item.approvalStatus ?? 'pending';
+                  const pendingMultilevel = isPendingMultiLevel(item);
                   return (
                   <tr key={item.id}>
                     {columns.map(c => (
                       <td key={c.key}>{c.render ? c.render(item) : item[c.key] || '—'}</td>
                     ))}
                     <td>
-                      <span className={`badge badge-${rowStatus || 'pending'}`}>
-                        {{ pending: 'Pending', approved: 'Approved', rejected: 'Rejected' }[rowStatus] || rowStatus}
+                      <span
+                        className={pendingMultilevel ? 'badge badge-in-progress' : `badge badge-${rowStatus || 'pending'}`}
+                        title={pendingMultilevel ? 'Your level is approved; waiting for the next approver.' : undefined}
+                      >
+                        {pendingMultilevel
+                          ? 'In progress'
+                          : ({ pending: 'Pending', approved: 'Approved', rejected: 'Rejected' }[rowStatus] || rowStatus)}
                       </span>
                     </td>
                     <td>
-                      {rowStatus === 'pending' && (
-                        <div style={{ display: 'flex', gap: 6 }}>
+                      <div className="sup-mgmt-action-row">
+                        {detailVariant === 'trip' && (
                           <button
-                            className="btn btn-approve"
-                            style={{ fontSize: 12, padding: '4px 10px' }}
-                            onClick={() => { setActionModal({ item, action: 'approve' }); setComment(''); }}
-                          >✓ Approve</button>
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => setDetailItem(items.find((i) => i.id === item.id) || item)}
+                          >View</button>
+                        )}
+                        {detailVariant === 'advance' && (
                           <button
-                            className="btn btn-reject"
-                            style={{ fontSize: 12, padding: '4px 10px' }}
-                            onClick={() => { setActionModal({ item, action: 'reject' }); setComment(''); }}
-                          >✗ Reject</button>
-                        </div>
-                      )}
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => setDetailItem(items.find((i) => i.id === item.id) || item)}
+                          >View</button>
+                        )}
+                        {rowStatus === 'pending' && (
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn-approve"
+                              disabled={submittingId === item.id}
+                              onClick={() => executeDecision('approve', item, '')}
+                            >✓ Approve</button>
+                            <button
+                              type="button"
+                              className="btn btn-reject"
+                              disabled={submittingId === item.id}
+                              onClick={() => { setRejectModalItem(item); setComment(''); }}
+                            >✗ Reject</button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )})}
                 {items.length === 0 && (
                   <tr><td colSpan={columns.length + 2} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No data</td></tr>
+                )}
+                {items.length > 0 && filteredItems.length === 0 && (
+                  <tr><td colSpan={columns.length + 2} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No rows match your search</td></tr>
                 )}
               </tbody>
             </table>
@@ -331,23 +536,32 @@ function ApprovalList({ token, type, apiPath, columns, extractList }) {
         )}
       </div>
 
-      {actionModal && (
-        <div className="modal-overlay" onClick={() => setActionModal(null)}>
+      {detailVariant === 'trip' && detailItem && (
+        <BusinessTripDetailModal item={detailItem} onClose={() => setDetailItem(null)} />
+      )}
+      {detailVariant === 'advance' && detailItem && (
+        <SalaryAdvanceDetailModal item={detailItem} token={token} onClose={() => setDetailItem(null)} />
+      )}
+
+      {rejectModalItem && (
+        <div className="modal-overlay" onClick={() => setRejectModalItem(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{actionModal.action === 'approve' ? '✓ Confirm approval' : '✗ Confirm rejection'}</h3>
-              <button className="close-btn" onClick={() => setActionModal(null)}>×</button>
+              <h3>✗ Confirm rejection</h3>
+              <button type="button" className="close-btn" onClick={() => setRejectModalItem(null)}>×</button>
             </div>
             <div className="form-group">
               <label>Comment (optional)</label>
-              <textarea rows={3} value={comment} onChange={e => setComment(e.target.value)} placeholder="Enter comment..." />
+              <textarea rows={3} value={comment} onChange={e => setComment(e.target.value)} placeholder="Enter reason for rejection…" />
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setActionModal(null)}>Cancel</button>
-              {actionModal.action === 'approve'
-                ? <button className="btn btn-approve" onClick={approve}>Confirm approval</button>
-                : <button className="btn btn-reject" onClick={reject}>Confirm rejection</button>
-              }
+              <button type="button" className="btn btn-secondary" onClick={() => setRejectModalItem(null)}>Cancel</button>
+              <button
+                type="button"
+                className="btn btn-reject"
+                disabled={submittingId === rejectModalItem.id}
+                onClick={confirmReject}
+              >Confirm rejection</button>
             </div>
           </div>
         </div>
@@ -363,6 +577,8 @@ function LeaveApprovals({ token }) {
       token={token}
       type="leave"
       apiPath="leave/requests"
+      pageTitle="Leave approvals"
+      pageSubtitle="Review leave requests within your scope. Approve or reject with optional comments."
       extractList={d => d.leaveRequests || d.data || []}
       columns={[
         { key: 'id', label: 'ID' },
@@ -384,6 +600,8 @@ function OvertimeApprovals({ token }) {
       token={token}
       type="overtime"
       apiPath="overtime-requests"
+      pageTitle="Overtime approvals"
+      pageSubtitle="Review overtime hours and supporting reasons before approval."
       extractList={d => d.requests || d.overtimeRequests || d.data || []}
       columns={[
         { key: 'id', label: 'ID' },
@@ -402,7 +620,10 @@ function BusinessTripApprovals({ token }) {
     <ApprovalList
       token={token}
       type="businessTrip"
+      detailVariant="trip"
       apiPath="business-trip-requests"
+      pageTitle="Business trip approvals"
+      pageSubtitle="Review destinations, dates, and cost estimates for business travel."
       extractList={d => d.requests || d.businessTripRequests || d.data || []}
       columns={[
         { key: 'id', label: 'ID' },
@@ -422,7 +643,10 @@ function SalaryAdvanceApprovals({ token }) {
     <ApprovalList
       token={token}
       type="salaryAdvance"
+      detailVariant="advance"
       apiPath="salary-advances"
+      pageTitle="Salary advance approvals"
+      pageSubtitle="Review advance amounts and reasons submitted by employees."
       extractList={d => d.advances || d.salaryAdvances || d.data || []}
       columns={[
         { key: 'id', label: 'ID' },
@@ -436,73 +660,248 @@ function SalaryAdvanceApprovals({ token }) {
 }
 
 // ─── SALARY APPROVALS ──────────────────────────────────────────────────────────
+function salaryStatusLabel(s) {
+  const x = String(s || 'pending').toLowerCase();
+  return { pending: 'Pending', approved: 'Approved', paid: 'Paid' }[x] || x;
+}
+
 function SalaryApprovals({ token }) {
   const [items, setItems] = useState([]);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('pending');
   const [loading, setLoading] = useState(true);
+  const [detailId, setDetailId] = useState(null);
+  const [submittingId, setSubmittingId] = useState(null);
+  const payrollLockRef = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch(`${API}/salary/pending`, { headers: authHeaders(token) });
-    const data = await res.json();
-    setItems(data.salaries || data.data || []);
-    setLoading(false);
-  }, [token]);
+  const load = useCallback(async (opts = {}) => {
+    const silent = Boolean(opts.silent);
+    if (!silent) setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter) params.set('status', statusFilter);
+      const qs = params.toString();
+      const res = await fetch(`${API}/salary${qs ? `?${qs}` : ''}`, { headers: authHeaders(token) });
+      const data = await res.json();
+      if (!res.ok || data.status === 'error') {
+        toastError(data.message || 'Cannot load payroll');
+        setItems([]);
+        return;
+      }
+      setItems(sortApprovalsByRecency(data.salaries || data.data || []));
+    } catch (e) {
+      toastError(e.message || 'Network error');
+      setItems([]);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [token, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
 
-  const act = async (id, action) => {
-    await fetch(`${API}/salary/${id}/${action}`, { method: 'PUT', headers: authHeaders(token) });
-    load();
+  useEffect(() => {
+    const onAudit = (payload) => {
+      if (payload?.kind !== 'action_audit') return;
+      const a = String(payload.action || '');
+      if (a.startsWith('salary.')) load({ silent: true });
+    };
+    socket.on('audit:new', onAudit);
+    return () => socket.off('audit:new', onAudit);
+  }, [load]);
+
+  const approve = async (id) => {
+    if (payrollLockRef.current) return;
+    payrollLockRef.current = true;
+    setSubmittingId(id);
+    try {
+      const res = await fetch(`${API}/salary/${id}/approve`, {
+        method: 'PUT',
+        headers: authHeaders(token),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.status === 'error') {
+        toastError(data.message || `Request failed (${res.status})`);
+        return;
+      }
+      toastSuccess('Payroll approved successfully.');
+      setItems((prev) => sortApprovalsByRecency(prev.filter((x) => x.id !== id)));
+      if (detailId === id) setDetailId(null);
+      await load({ silent: true });
+    } catch (e) {
+      toastError(e.message || 'Network error');
+    } finally {
+      payrollLockRef.current = false;
+      setSubmittingId(null);
+    }
   };
 
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? items.filter((item) => {
+        const net = Number(item.finalSalary ?? item.netSalary ?? item.totalSalary ?? 0);
+        const hay = [
+          String(item.id),
+          String(item.userId),
+          item.User?.name,
+          item.User?.employeeCode,
+          `${item.month}/${item.year}`,
+          net.toString(),
+          item.notes,
+          item.status,
+        ].filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(q);
+      })
+    : items;
+
   return (
-    <div className="card">
-      <p className="card-title">Pending payroll</p>
-      {loading ? <div className="loading">Loading...</div> : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th><th>Employee</th><th>Month/Year</th>
-                <th>Net salary</th><th>Status</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map(item => (
-                <tr key={item.id}>
-                  <td>{item.id}</td>
-                  <td>{item.User?.name || item.userId}</td>
-                  <td>{item.month}/{item.year}</td>
-                  <td>{Number(item.netSalary || item.totalSalary || 0).toLocaleString('en-US')} VND</td>
-                  <td><span className="badge badge-pending">Pending</span></td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-approve" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'approve')}>✓ Approve</button>
-                      <button className="btn btn-reject" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => act(item.id, 'reject')}>✗ Reject</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {items.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No pending payroll</td></tr>
-              )}
-            </tbody>
-          </table>
+    <div className="sup-mgmt-page">
+      <div className="sup-mgmt-hero">
+        <h2>Payroll approvals</h2>
+        <p>
+          Approve payroll for each period before it is marked paid. Status flow: Pending → Approved → Paid.
+        </p>
+      </div>
+      <div className="sup-approval-toolbar card sup-approval-toolbar--filters">
+        <div className="sup-approval-toolbar-inner sup-approval-toolbar-inner--search-status">
+          <div className="sup-approval-search-wrap">
+            <label className="sup-approval-label" htmlFor="sup-payroll-search">Search</label>
+            <input
+              id="sup-payroll-search"
+              className="sup-approval-search"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Name, employee code, period, amount…"
+              autoComplete="off"
+            />
+          </div>
+          <div className="sup-approval-filter-wrap">
+            <label className="sup-approval-label" htmlFor="sup-payroll-status">Status</label>
+            <select
+              id="sup-payroll-status"
+              className="sup-approval-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              title="Workflow: pending → approved → paid"
+            >
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="paid">Paid</option>
+            </select>
+          </div>
+          <div className="sup-approval-meta">
+            {loading ? 'Loading…' : `${filtered.length} of ${items.length} shown`}
+          </div>
         </div>
+      </div>
+      <div className="card sup-approval-table-card sup-mgmt-table-shell">
+        {loading ? <div className="loading">Loading...</div> : (
+          <div className="table-wrap">
+            <table className="sup-mgmt-table">
+              <thead>
+                <tr>
+                  <th>ID</th><th>Employee</th><th>Month/Year</th>
+                  <th>Net salary</th><th>Status</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((item) => {
+                  const rowStatus = String(item.status || 'pending').toLowerCase();
+                  const badgeClass =
+                    rowStatus === 'approved'
+                      ? 'badge-approved'
+                      : rowStatus === 'paid'
+                        ? 'badge-paid'
+                        : 'badge-pending';
+                  const canDecide = rowStatus === 'pending';
+                  return (
+                  <tr key={item.id}>
+                    <td>{item.id}</td>
+                    <td>{item.User?.name || item.userId}</td>
+                    <td>{item.month}/{item.year}</td>
+                    <td>{Number(item.finalSalary ?? item.netSalary ?? item.totalSalary ?? 0).toLocaleString('en-US')} VND</td>
+                    <td>
+                      <span className={`badge ${badgeClass}`}>{salaryStatusLabel(rowStatus)}</span>
+                    </td>
+                    <td>
+                      <div className="sup-mgmt-action-row">
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => setDetailId(item.id)}
+                        >View</button>
+                        {canDecide && (
+                          <button
+                            type="button"
+                            className="btn btn-approve"
+                            disabled={submittingId === item.id}
+                            onClick={() => approve(item.id)}
+                          >✓ Approve</button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );})}
+                {items.length === 0 && (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No payroll records</td></tr>
+                )}
+                {items.length > 0 && filtered.length === 0 && (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', color: '#718096', padding: 20 }}>No rows match your search</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {detailId != null && (
+        <PayrollApprovalDetailModal
+          apiBase={API}
+          token={token}
+          salaryId={detailId}
+          onClose={() => setDetailId(null)}
+        />
       )}
+
     </div>
   );
 }
 
 // ─── APP ROOT ──────────────────────────────────────────────────────────────────
-const TABS = [
-  { key: 'dashboard',     label: 'Overview',        icon: '📊' },
-  { key: 'leave',         label: 'Leave approvals', icon: '📋' },
-  { key: 'overtime',      label: 'Overtime approvals', icon: '⏰' },
-  { key: 'business-trip', label: 'Trip approvals',  icon: '✈️' },
-  { key: 'salary-advance',label: 'Advance approvals', icon: '💵' },
-  { key: 'salary',        label: 'Payroll approvals', icon: '💰' },
-  { key: 'reports',       label: 'Reports',         icon: '📈' },
+/** Grouped nav (same pattern as accountant-client shell). */
+const NAV_GROUPS = [
+  {
+    label: 'Overview',
+    items: [{ key: 'dashboard', label: 'Overview', icon: '📊' }],
+  },
+  {
+    label: 'Approvals',
+    items: [
+      { key: 'leave', label: 'Leave approvals', icon: '📋' },
+      { key: 'overtime', label: 'Overtime approvals', icon: '⏰' },
+      { key: 'business-trip', label: 'Trip approvals', icon: '✈️' },
+      { key: 'salary-advance', label: 'Advance approvals', icon: '💵' },
+      { key: 'salary', label: 'Payroll approvals', icon: '💰' },
+    ],
+  },
+  {
+    label: 'HR & compliance',
+    items: [
+      { key: 'qualifications', label: 'Qualifications', icon: '🎓' },
+      { key: 'dependents', label: 'Dependents', icon: '👨‍👩‍👧' },
+      { key: 'job-titles', label: 'Job titles', icon: '🏷️' },
+      { key: 'departments', label: 'Departments', icon: '🏢' },
+      { key: 'insurance-config', label: 'Insurance settings', icon: '🛡️' },
+    ],
+  },
+  {
+    label: 'Insights',
+    items: [
+      { key: 'analytics', label: 'Analytics', icon: '📈' },
+      { key: 'reports', label: 'Reports', icon: '📑' },
+    ],
+  },
 ];
 
 export default function App() {
@@ -510,6 +909,16 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const patchSessionUser = useCallback((patch) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -574,6 +983,7 @@ export default function App() {
     const joinRooms = () => {
       socket.emit('join-room', { room: `user-${user.id}` });
       socket.emit('join-room', { room: 'admin' });
+      socket.emit('join-room', { room: 'audit-managers' });
     };
     if (socket.connected) joinRooms();
     socket.on('connect', joinRooms);
@@ -615,57 +1025,130 @@ export default function App() {
     'business-trip': 'Business trip approvals',
     'salary-advance': 'Salary advance approvals',
     salary: 'Payroll approvals',
+    qualifications: 'Qualification approvals',
+    dependents: 'Dependent approvals',
+    'job-titles': 'Job title management',
+    departments: 'Department management',
+    'insurance-config': 'Insurance settings',
+    analytics: 'Analytics dashboard',
     reports: 'Reports',
   };
 
   return (
-    <div className="app-layout">
-      <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
-        <div className="sidebar-header">
-          <span style={{ fontSize: 22 }}>✅</span>
-          <h2>Supervisor</h2>
+    <div className="sup-app">
+      <aside
+        className={`sup-sidebar${collapsed ? ' sup-sidebar--collapsed' : ''}`}
+        aria-label="Main navigation"
+      >
+        <div className="sup-brand">
+          <div className="sup-brand-mark" aria-hidden>
+            ✓
+          </div>
+          <div className="sup-brand-title">Approvals &amp; workforce oversight</div>
+          <div className="sup-brand-sub">Supervisor · Dashboard</div>
         </div>
-        <div className="sidebar-nav">
-          {TABS.map(tab => (
-            <div
-              key={tab.key}
-              className={`nav-item ${activeTab === tab.key ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              <span className="nav-icon">{tab.icon}</span>
-              <span className="nav-label">{tab.label}</span>
+        <nav className="sup-nav">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label}>
+              <div className="sup-nav-label">{group.label}</div>
+              {group.items.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  className={`sup-nav-item${activeTab === tab.key ? ' sup-nav-item--active' : ''}`}
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  <span className="sup-nav-ico" aria-hidden>{tab.icon}</span>
+                  <span className="sup-nav-text">{tab.label}</span>
+                </button>
+              ))}
             </div>
           ))}
-        </div>
-        <div className="sidebar-footer">
-          <div className="user-info">
-            <strong>{user?.name}</strong><br />
-            <span style={{ opacity: 0.65 }}>{user?.role === 'manager' ? 'Manager' : 'Supervisor'}</span>
-          </div>
-          <button className="logout-btn" onClick={logout}>Log out</button>
-        </div>
-      </nav>
-
-      <div className="main-content">
-        <div className="topbar">
-          <h1>{tabTitles[activeTab]}</h1>
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            style={{ background:'none',border:'1px solid #e2e8f0',borderRadius:6,padding:'6px 12px',cursor:'pointer' }}
+        </nav>
+        <div className="sup-sidebar-footer">
+          <strong>{user?.name || 'Supervisor'}</strong>
+          <span style={{ opacity: 0.75, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.email}</span>
+          <span
+            style={{
+              display: 'block',
+              marginTop: 6,
+              fontSize: 11,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              opacity: 0.6,
+            }}
           >
-            {collapsed ? '→' : '←'}
-          </button>
+            {user?.role === 'manager' ? 'Manager' : 'Supervisor'}
+          </span>
         </div>
-        <div className="page-content">
-          {activeTab === 'dashboard'      && <Dashboard token={token} onNavigate={setActiveTab} />}
-          {activeTab === 'leave'          && <LeaveApprovals token={token} />}
-          {activeTab === 'overtime'       && <OvertimeApprovals token={token} />}
-          {activeTab === 'business-trip'  && <BusinessTripApprovals token={token} />}
-          {activeTab === 'salary-advance' && <SalaryAdvanceApprovals token={token} />}
-          {activeTab === 'salary'         && <SalaryApprovals token={token} />}
-          {activeTab === 'reports'        && <SupervisorReports token={token} />}
+      </aside>
+
+      <div className="sup-main">
+        <header className="sup-topbar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button
+              type="button"
+              onClick={() => setCollapsed(!collapsed)}
+              style={{
+                background: 'none',
+                border: '1px solid #e2e8f0',
+                borderRadius: 8,
+                padding: '6px 12px',
+                cursor: 'pointer',
+                color: '#64748b',
+                fontSize: 14,
+              }}
+              aria-label={collapsed ? 'Expand menu' : 'Collapse menu'}
+            >
+              {collapsed ? '→' : '←'}
+            </button>
+            <h1>{tabTitles[activeTab]}</h1>
+          </div>
+          <div className="sup-topbar-actions">
+            <button
+              type="button"
+              className="portal-avatar-btn"
+              onClick={() => setProfileOpen(true)}
+              title="Personal profile"
+              aria-label="Open personal profile"
+            >
+              {portalAvatarSrc(API_BASE, user?.avatarUrl) ? (
+                <img className="portal-avatar-img" src={portalAvatarSrc(API_BASE, user?.avatarUrl)} alt="" />
+              ) : (
+                <span className="portal-avatar-fallback" aria-hidden>
+                  {(user?.name || '?').charAt(0).toUpperCase()}
+                </span>
+              )}
+            </button>
+            <span className="sup-topbar-meta">{user?.email}</span>
+            <button type="button" className="sup-btn-logout" onClick={logout}>
+              Sign out
+            </button>
+          </div>
+        </header>
+        <div className="sup-content">
+          {activeTab === 'dashboard'        && <Dashboard token={token} onNavigate={setActiveTab} />}
+          {activeTab === 'leave'            && <LeaveApprovals token={token} />}
+          {activeTab === 'overtime'         && <OvertimeApprovals token={token} />}
+          {activeTab === 'business-trip'    && <BusinessTripApprovals token={token} />}
+          {activeTab === 'salary-advance'   && <SalaryAdvanceApprovals token={token} />}
+          {activeTab === 'salary'           && <SalaryApprovals token={token} />}
+          {activeTab === 'qualifications'   && <QualificationApprovals token={token} />}
+          {activeTab === 'dependents'       && <DependentApprovals token={token} />}
+          {activeTab === 'job-titles'       && <JobTitleManagement token={token} />}
+          {activeTab === 'departments'      && <DepartmentManagement token={token} />}
+          {activeTab === 'insurance-config' && <InsuranceConfigManagement token={token} />}
+          {activeTab === 'analytics'        && <AnalyticsDashboard token={token} />}
+          {activeTab === 'reports'          && <SupervisorReports token={token} />}
         </div>
       </div>
+
+      <PersonalProfileModal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        apiBase={API_BASE}
+        onSessionUserPatch={patchSessionUser}
+      />
     </div>
   );
 }

@@ -261,9 +261,75 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
   };
 
   const cell = { padding: "12px 14px", fontSize: "14px", color: theme.primary.main };
+  const pageStyle = {
+    padding: 0,
+    width: "100%",
+    maxWidth: "none",
+    display: "grid",
+    gap: "20px",
+  };
+  const heroStyle = {
+    background: `linear-gradient(135deg, ${theme.primary.dark} 0%, ${theme.primary.main} 100%)`,
+    color: "#fff",
+    borderRadius: "14px",
+    padding: "24px 28px",
+    width: "100%",
+    boxSizing: "border-box",
+  };
+  const toolbarStyle = {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "16px 18px",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    width: "100%",
+  };
+  const toolbarControlsStyle = {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "16px",
+    alignItems: "flex-end",
+    flex: "1 1 840px",
+    minWidth: "280px",
+  };
+  const searchWrapStyle = {
+    flex: "1 1 360px",
+    minWidth: "240px",
+    maxWidth: "680px",
+  };
+  const metaStyle = {
+    fontSize: "14px",
+    color: theme.neutral.gray600,
+    fontWeight: "600",
+    alignSelf: "center",
+    marginLeft: "auto",
+    textAlign: "right",
+  };
+  const sectionCardStyle = {
+    background: theme.neutral.white,
+    borderRadius: "14px",
+    overflow: "hidden",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+    border: `1px solid ${theme.colors.border}`,
+    width: "100%",
+  };
+  const tableWrapStyle = {
+    overflowX: "auto",
+    width: "100%",
+  };
+  const pendingTableStyle = {
+    width: "100%",
+    minWidth: "1180px",
+    borderCollapse: "collapse",
+  };
+  const awaitingTableStyle = {
+    width: "100%",
+    minWidth: "760px",
+    borderCollapse: "collapse",
+  };
 
   return (
-    <div style={{ padding: "0", maxWidth: "1200px" }}>
+    <div style={pageStyle}>
       {message && (
         <div
           style={{
@@ -287,19 +353,11 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
         </div>
       )}
 
-      <div
-        style={{
-          background: `linear-gradient(135deg, ${theme.primary.dark} 0%, ${theme.primary.main} 100%)`,
-          color: "#fff",
-          borderRadius: "14px",
-          padding: "22px 24px",
-          marginBottom: "20px",
-        }}
-      >
+      <div style={heroStyle}>
         <h2 style={{ margin: "0 0 8px 0", fontSize: "1.35rem", fontWeight: "800" }}>
           Payroll approval
         </h2>
-        <p style={{ margin: 0, opacity: 0.88, fontSize: "14px", maxWidth: "640px", lineHeight: 1.5 }}>
+        <p style={{ margin: 0, opacity: 0.88, fontSize: "14px", maxWidth: "920px", lineHeight: 1.6 }}>
           {canApprove && (
             <>
               You may <strong>approve / reject</strong> records in <em>pending</em> status. Rejection sends the record back for{" "}
@@ -322,15 +380,8 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
         </p>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "16px",
-          alignItems: "flex-end",
-          marginBottom: "20px",
-        }}
-      >
+      <div style={toolbarStyle}>
+        <div style={toolbarControlsStyle}>
         <div>
           <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: theme.neutral.gray500, marginBottom: "6px" }}>
             Month
@@ -393,7 +444,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
         >
           Refresh
         </button>
-        <div style={{ flex: "1 1 240px", minWidth: "200px", maxWidth: "400px" }}>
+        <div style={searchWrapStyle}>
           <label
             style={{ display: "block", fontSize: "12px", fontWeight: "600", color: theme.neutral.gray500, marginBottom: "6px" }}
             htmlFor="payroll-approval-search"
@@ -416,7 +467,8 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
             }}
           />
         </div>
-        <span style={{ fontSize: "14px", color: theme.neutral.gray600, fontWeight: "600", alignSelf: "center" }}>
+        </div>
+        <span style={metaStyle}>
           {!searchQuery.trim() ? (
             <>
               {pendingSalaries.length} pending
@@ -474,16 +526,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
         <p style={{ color: theme.neutral.gray500 }}>Loading…</p>
       ) : (
         <>
-          <div
-            style={{
-              background: theme.neutral.white,
-              borderRadius: "14px",
-              overflow: "hidden",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-              border: `1px solid ${theme.colors.border}`,
-              marginBottom: "24px",
-            }}
-          >
+          <div style={{ ...sectionCardStyle, marginBottom: "20px" }}>
             <div style={{ padding: "12px 16px", background: theme.neutral.gray50, borderBottom: `1px solid ${theme.colors.border}` }}>
               <strong style={{ color: theme.primary.main }}>Pending approval (Supervisor / Manager)</strong>
             </div>
@@ -496,8 +539,8 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                 No rows match your search. Clear the search box or try another name / ID.
               </div>
             ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <div style={tableWrapStyle}>
+                <table style={pendingTableStyle}>
                   <thead style={{ background: theme.primary.main }}>
                     <tr>
                       <th style={thStyle}>Employee</th>
@@ -670,15 +713,7 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
           </div>
 
           {awaitingRecalc.length > 0 && (
-            <div
-              style={{
-                background: theme.neutral.white,
-                borderRadius: "14px",
-                overflow: "hidden",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-                border: `1px solid ${theme.colors.border}`,
-              }}
-            >
+            <div style={sectionCardStyle}>
               <div style={{ padding: "12px 16px", background: "#fff7ed", borderBottom: "1px solid #fed7aa" }}>
                 <strong style={{ color: "#9a3412" }}>Awaiting salary recalculation (approval rejected)</strong>
                 <div style={{ fontSize: "12px", color: "#c2410c", marginTop: "4px" }}>
@@ -690,8 +725,8 @@ export default function SalaryApprovalDashboard({ onNavigate } = {}) {
                   No awaiting-recalc rows match your search.
                 </div>
               ) : (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <div style={tableWrapStyle}>
+                  <table style={awaitingTableStyle}>
                     <thead style={{ background: theme.neutral.gray700 }}>
                       <tr>
                         <th style={thStyle}>Employee</th>

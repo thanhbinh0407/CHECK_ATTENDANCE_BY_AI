@@ -1,8 +1,209 @@
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { applyPlugin } from 'jspdf-autotable';
 import { calculateCompleteSalary, SALARY_CONSTANTS } from './salaryCalculation.js';
 import { toastError, toastWarning } from '../lib/notify.jsx';
+import notoSansRegularUrl from '../assets/fonts/NotoSans-Regular.ttf?url';
+
+applyPlugin(jsPDF);
+
+const ensureAutoTable = (doc) => {
+  if (typeof doc.autoTable !== 'function') {
+    throw new Error('jspdf-autotable plugin failed to load. Please restart the dev server.');
+  }
+};
+
+const ATTENDANCE_EXPORT_COLUMNS = [
+  { key: 'timestamp', header: 'Thời gian', widthChars: 20, widthPx: 180, align: 'left' },
+  { key: 'employeeName', header: 'Nhân viên', widthChars: 25, widthPx: 210, align: 'left' },
+  { key: 'employeeCode', header: 'Mã NV', widthChars: 12, widthPx: 110, align: 'left' },
+  { key: 'type', header: 'Loại', widthChars: 8, widthPx: 70, align: 'left' },
+  { key: 'confidence', header: 'Độ tin cậy', widthChars: 12, widthPx: 110, align: 'center' },
+  { key: 'matchDistance', header: 'Khoảng cách', widthChars: 12, widthPx: 110, align: 'center' },
+  { key: 'deviceId', header: 'Thiết bị', widthChars: 15, widthPx: 130, align: 'left' },
+  { key: 'isLate', header: 'Muộn', widthChars: 8, widthPx: 80, align: 'center' },
+  { key: 'isEarlyLeave', header: 'Về sớm', widthChars: 10, widthPx: 90, align: 'center' },
+  { key: 'isOvertime', header: 'Tăng ca', widthChars: 10, widthPx: 90, align: 'center' },
+  { key: 'note', header: 'Ghi chú', widthChars: 30, widthPx: 200, align: 'left' },
+];
+
+const ATTENDANCE_PDF_ROWS_PER_PAGE = 24;
+
+const getAttendanceEmployeeMap = (employees = []) =>
+  new Map((employees || []).map((employee) => [String(employee.id), employee]));
+
+const mapAttendanceLogToExportRow = (log, employeeMap) => {
+  const employee = employeeMap.get(String(log.userId));
+  const distance = Number(log.matchDistance);
+
+  return {
+    timestamp: log.timestamp ? new Date(log.timestamp).toLocaleString('vi-VN') : '',
+    employeeName: employee?.name || log.detectedName || 'Unknown',
+    employeeCode: employee?.employeeCode || '',
+    type: log.type === 'IN' ? 'Vào' : 'Ra',
+    confidence: log.confidence ? `${(log.confidence * 100).toFixed(1)}%` : '',
+    matchDistance: Number.isFinite(distance) ? distance.toFixed(3) : '',
+    deviceId: log.deviceId || '',
+    isLate: log.isLate ? 'Có' : 'Không',
+    isEarlyLeave: log.isEarlyLeave ? 'Có' : 'Không',
+    isOvertime: log.isOvertime ? 'Có' : 'Không',
+    note: log.note || '',
+  };
+};
+
+const chunkItems = (items, chunkSize) => {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
+};
+
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
+const buildAttendancePdfPageHtml = ({ rows, pageIndex, totalPages, totalRows, exportDate }) => {
+  const tableWidth = ATTENDANCE_EXPORT_COLUMNS.reduce((sum, column) => sum + column.widthPx, 0);
+  const rowStart = pageIndex * ATTENDANCE_PDF_ROWS_PER_PAGE + 1;
+  const rowEnd = rowStart + rows.length - 1;
+
+  const headerCells = ATTENDANCE_EXPORT_COLUMNS.map(
+    (column) => `
+      <th style="
+        width: ${column.widthPx}px;
+        min-width: ${column.widthPx}px;
+        border: 1px solid #d1d5db;
+        padding: 8px 10px;
+        background: #f3f4f6;
+        color: #111827;
+        text-align: ${column.align};
+        font-size: 13px;
+        font-weight: 700;
+        white-space: nowrap;
+      ">${escapeHtml(column.header)}</th>`
+  ).join('');
+
+  const bodyRows = rows.map((row, rowIndex) => {
+    const cells = ATTENDANCE_EXPORT_COLUMNS.map(
+      (column) => `
+        <td style="
+          border: 1px solid #e5e7eb;
+          padding: 7px 10px;
+          color: #111827;
+          text-align: ${column.align};
+          font-size: 12px;
+          background: ${rowIndex % 2 === 0 ? '#ffffff' : '#fafafa'};
+          word-break: break-word;
+          vertical-align: top;
+        ">${escapeHtml(row[column.key])}</td>`
+    ).join('');
+
+    return `<tr>${cells}</tr>`;
+  }).join('');
+
+  return `
+    <div style="
+      width: ${tableWidth + 64}px;
+      padding: 28px 32px;
+      box-sizing: border-box;
+      background: #ffffff;
+      color: #111827;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    ">
+      <div style="margin-bottom: 16px;">
+        <div style="font-size: 24px; font-weight: 700; margin-bottom: 6px;">Lịch sử điểm danh</div>
+        <div style="font-size: 13px; color: #4b5563; margin-bottom: 2px;">
+          Xuất ngày: ${escapeHtml(exportDate)} | Tổng số bản ghi: ${totalRows} | Trang ${pageIndex + 1}/${totalPages}
+        </div>
+        <div style="font-size: 13px; color: #6b7280;">Dòng ${rowStart}-${rowEnd}</div>
+      </div>
+      <table style="
+        width: ${tableWidth}px;
+        border-collapse: collapse;
+        table-layout: fixed;
+        border: 1px solid #d1d5db;
+      ">
+        <thead>
+          <tr>${headerCells}</tr>
+        </thead>
+        <tbody>
+          ${bodyRows}
+        </tbody>
+      </table>
+    </div>
+  `;
+};
+
+const renderHtmlToCanvas = async (html, width) => {
+  const { default: html2canvas } = await import('html2canvas');
+  const container = document.createElement('div');
+
+  container.style.position = 'absolute';
+  container.style.left = '-99999px';
+  container.style.top = '0';
+  container.style.width = `${width}px`;
+  container.style.backgroundColor = '#ffffff';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+
+  try {
+    return await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      width,
+      windowWidth: width,
+    });
+  } finally {
+    document.body.removeChild(container);
+  }
+};
+
+const ATTENDANCE_PDF_FONT_FILE = 'NotoSans-Regular.ttf';
+const ATTENDANCE_PDF_FONT_NAME = 'NotoSansRegular';
+
+let attendancePdfFontBase64Promise;
+
+const arrayBufferToBase64 = (buffer) => {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = '';
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return btoa(binary);
+};
+
+const getAttendancePdfFontBase64 = async () => {
+  if (!attendancePdfFontBase64Promise) {
+    attendancePdfFontBase64Promise = fetch(notoSansRegularUrl)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Failed to load PDF font asset.');
+        }
+        return response.arrayBuffer();
+      })
+      .then(arrayBufferToBase64);
+  }
+
+  return attendancePdfFontBase64Promise;
+};
+
+const prepareAttendancePdfFont = async (doc) => {
+  const fontBase64 = await getAttendancePdfFontBase64();
+  doc.addFileToVFS(ATTENDANCE_PDF_FONT_FILE, fontBase64);
+  doc.addFont(ATTENDANCE_PDF_FONT_FILE, ATTENDANCE_PDF_FONT_NAME, 'normal');
+  doc.setFont(ATTENDANCE_PDF_FONT_NAME, 'normal');
+};
 
 // Export employees to Excel
 export const exportEmployeesToExcel = (employees, filename = 'danh-sach-nhan-vien') => {
@@ -172,6 +373,7 @@ export const exportSalariesToExcel = (salaries, filename = 'bang-luong') => {
 // Export employees to PDF
 export const exportEmployeesToPDF = (employees, filename = 'danh-sach-nhan-vien') => {
   const doc = new jsPDF();
+  ensureAutoTable(doc);
   
   // Title
   doc.setFontSize(18);
@@ -205,6 +407,7 @@ export const exportEmployeesToPDF = (employees, filename = 'danh-sach-nhan-vien'
 // Export salaries to PDF with detailed breakdown
 export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
   const doc = new jsPDF('landscape');
+  ensureAutoTable(doc);
   
   const formatNumber = (num) => {
     return new Intl.NumberFormat('vi-VN').format(num || 0);
@@ -277,39 +480,125 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
 };
 
 // Export attendance to PDF
-export const exportAttendanceToPDF = (logs, employees, filename = 'lich-su-diem-danh') => {
-  const doc = new jsPDF('landscape');
-  
-  // Title
-  doc.setFontSize(18);
-  doc.text('Lịch Sử Điểm Danh', 14, 20);
-  doc.setFontSize(12);
-  doc.text(`Xuất ngày: ${new Date().toLocaleDateString('vi-VN')}`, 14, 28);
-  doc.text(`Tổng số: ${logs.length} bản ghi`, 14, 34);
+export const exportAttendanceToPDF = async (logs, employees, filename = 'lich-su-diem-danh') => {
+  if (!Array.isArray(logs) || logs.length === 0) {
+    toastWarning('Khong co du lieu de xuat PDF.');
+    return;
+  }
 
-  // Table data
-  const tableData = logs.slice(0, 100).map(log => {
-    const emp = employees.find(e => e.id === log.userId);
-    return [
-      new Date(log.timestamp).toLocaleString('vi-VN'),
-      emp?.name || log.detectedName || 'Unknown',
-      emp?.employeeCode || '',
-      log.type === 'IN' ? 'Vào' : 'Ra',
-      log.confidence ? `${(log.confidence * 100).toFixed(1)}%` : '',
-      log.deviceId || ''
-    ];
+  const employeeMapFast = getAttendanceEmployeeMap(employees);
+  const rowsFast = logs.map((log) => mapAttendanceLogToExportRow(log, employeeMapFast));
+  const exportDateFast = new Date().toLocaleDateString('vi-VN');
+
+  const docFast = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+  ensureAutoTable(docFast);
+  await prepareAttendancePdfFont(docFast);
+
+  const headFast = [ATTENDANCE_EXPORT_COLUMNS.map((column) => column.header)];
+  const bodyFast = rowsFast.map((row) => ATTENDANCE_EXPORT_COLUMNS.map((column) => row[column.key]));
+  const columnStylesFast = ATTENDANCE_EXPORT_COLUMNS.reduce((styles, column, index) => {
+    styles[index] = {
+      cellWidth: Math.max(12, Math.round((column.widthChars || 10) * 1.3)),
+      halign: column.align === 'center' ? 'center' : 'left',
+    };
+    return styles;
+  }, {});
+
+  docFast.autoTable({
+    head: headFast,
+    body: bodyFast,
+    startY: 22,
+    margin: { top: 22, right: 8, bottom: 12, left: 8 },
+    theme: 'grid',
+    tableWidth: 'wrap',
+    styles: {
+      font: ATTENDANCE_PDF_FONT_NAME,
+      fontStyle: 'normal',
+      fontSize: 8,
+      cellPadding: 2,
+      overflow: 'linebreak',
+      textColor: [17, 24, 39],
+      lineColor: [229, 231, 235],
+      lineWidth: 0.1,
+    },
+    headStyles: {
+      font: ATTENDANCE_PDF_FONT_NAME,
+      fontStyle: 'normal',
+      fillColor: [243, 244, 246],
+      textColor: [17, 24, 39],
+      lineColor: [209, 213, 219],
+      lineWidth: 0.1,
+    },
+    alternateRowStyles: {
+      fillColor: [250, 250, 250],
+    },
+    columnStyles: columnStylesFast,
+    didDrawPage: (data) => {
+      docFast.setFont(ATTENDANCE_PDF_FONT_NAME, 'normal');
+      docFast.setFontSize(14);
+      docFast.text('Lich su diem danh', data.settings.margin.left, 10);
+      docFast.setFontSize(9);
+      docFast.text(`Exported: ${exportDateFast} | Total rows: ${rowsFast.length}`, data.settings.margin.left, 16);
+      docFast.text(
+        `Page ${docFast.internal.getNumberOfPages()}`,
+        docFast.internal.pageSize.getWidth() - data.settings.margin.right,
+        10,
+        { align: 'right' }
+      );
+    },
   });
 
-  doc.autoTable({
-    startY: 40,
-    head: [['Thời gian', 'Nhân viên', 'Mã NV', 'Loại', 'Độ tin cậy', 'Thiết bị']],
-    body: tableData,
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [79, 172, 254] },
-    alternateRowStyles: { fillColor: [245, 245, 245] }
+  docFast.save(`${filename}.pdf`);
+  return;
+  if (!Array.isArray(logs) || logs.length === 0) {
+    toastWarning('Không có dữ liệu để xuất PDF.');
+    return;
+  }
+
+  const employeeMap = getAttendanceEmployeeMap(employees);
+  const rows = logs.map((log) => mapAttendanceLogToExportRow(log, employeeMap));
+  const rowChunks = chunkItems(rows, ATTENDANCE_PDF_ROWS_PER_PAGE);
+  const exportDate = new Date().toLocaleDateString('vi-VN');
+
+  const pdfDoc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
   });
 
-  doc.save(`${filename}.pdf`);
+  const pageWidth = pdfDoc.internal.pageSize.getWidth();
+  const pageHeight = pdfDoc.internal.pageSize.getHeight();
+  const maxWidth = pageWidth - 10;
+  const maxHeight = pageHeight - 10;
+
+  for (let pageIndex = 0; pageIndex < rowChunks.length; pageIndex += 1) {
+    const pageHtml = buildAttendancePdfPageHtml({
+      rows: rowChunks[pageIndex],
+      pageIndex,
+      totalPages: rowChunks.length,
+      totalRows: rows.length,
+      exportDate,
+    });
+
+    const canvas = await renderHtmlToCanvas(pageHtml, 1480);
+    const imageData = canvas.toDataURL('image/png');
+    const scale = Math.min(maxWidth / canvas.width, maxHeight / canvas.height);
+    const renderWidth = canvas.width * scale;
+    const renderHeight = canvas.height * scale;
+    const x = (pageWidth - renderWidth) / 2;
+
+    if (pageIndex > 0) {
+      pdfDoc.addPage();
+    }
+
+    pdfDoc.addImage(imageData, 'PNG', x, 5, renderWidth, renderHeight, undefined, 'FAST');
+  }
+
+  pdfDoc.save(`${filename}.pdf`);
 };
 
 // Download Excel template for bulk import

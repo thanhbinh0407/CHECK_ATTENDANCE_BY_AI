@@ -196,29 +196,29 @@ export default function DepartmentManagement() {
           }
         }
       `}</style>
-      <div style={{ padding: theme.spacing.xl }}>
+      <div style={{ padding: theme.spacing.lg }}>
         {/* Header */}
         <div style={{
           background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-          padding: theme.spacing.xl,
-          borderRadius: theme.radius.lg,
-          marginBottom: theme.spacing.lg,
-          boxShadow: "0 4px 20px rgba(102, 126, 234, 0.3)"
+          padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+          borderRadius: theme.radius.md,
+          marginBottom: theme.spacing.md,
+          boxShadow: "0 3px 14px rgba(102, 126, 234, 0.22)"
         }}>
           <div>
             <h2 style={{ 
               ...theme.typography.h2, 
               margin: 0, 
               color: theme.neutral.white,
-              fontSize: "28px",
+              fontSize: "1.25rem",
               fontWeight: "700"
             }}>
               Department Management
             </h2>
             <p style={{ 
-              margin: "8px 0 0 0", 
+              margin: "4px 0 0 0", 
               color: "rgba(255, 255, 255, 0.9)",
-              fontSize: "14px"
+              fontSize: "12px"
             }}>
                 Manage and organize company departments
             </p>
@@ -229,7 +229,7 @@ export default function DepartmentManagement() {
         <div style={{
           display: "flex",
           justifyContent: "flex-end",
-          marginBottom: theme.spacing.lg
+          marginBottom: theme.spacing.md
         }}>
           <button
             onClick={() => {
@@ -238,14 +238,14 @@ export default function DepartmentManagement() {
               setFormData({ code: "", name: "", description: "", managerId: null, isActive: true });
             }}
             style={{
-              padding: "12px 24px",
+              padding: "9px 18px",
               background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
               color: theme.neutral.white,
               border: "none",
               borderRadius: theme.radius.md,
               cursor: "pointer",
               fontWeight: "700",
-              fontSize: "15px",
+              fontSize: "14px",
               display: "flex",
               alignItems: "center",
               gap: "8px",
@@ -263,7 +263,7 @@ export default function DepartmentManagement() {
               e.currentTarget.style.background = "linear-gradient(135deg, #10b981 0%, #059669 100%)";
             }}
           >
-            <PlusIcon size={20} />
+            <PlusIcon size={18} />
             Add Department
           </button>
         </div>
@@ -637,10 +637,10 @@ export default function DepartmentManagement() {
                   borderBottom: `2px solid ${theme.neutral.gray200}`
                 }}>
                   <th style={{ 
-                    padding: theme.spacing.lg, 
+                    padding: theme.spacing.md, 
                     textAlign: "left", 
                     fontWeight: "700",
-                    fontSize: "13px",
+                    fontSize: "12px",
                     color: theme.neutral.gray700,
                     textTransform: "uppercase",
                     letterSpacing: "0.5px"
@@ -648,10 +648,10 @@ export default function DepartmentManagement() {
                     Code
                   </th>
                   <th style={{ 
-                    padding: theme.spacing.lg, 
+                    padding: theme.spacing.md, 
                     textAlign: "left", 
                     fontWeight: "700",
-                    fontSize: "13px",
+                    fontSize: "12px",
                     color: theme.neutral.gray700,
                     textTransform: "uppercase",
                     letterSpacing: "0.5px"
@@ -659,10 +659,10 @@ export default function DepartmentManagement() {
                     Name
                   </th>
                   <th style={{ 
-                    padding: theme.spacing.lg, 
+                    padding: theme.spacing.md, 
                     textAlign: "left", 
                     fontWeight: "700",
-                    fontSize: "13px",
+                    fontSize: "12px",
                     color: theme.neutral.gray700,
                     textTransform: "uppercase",
                     letterSpacing: "0.5px"
@@ -670,10 +670,10 @@ export default function DepartmentManagement() {
                     Description
                   </th>
                   <th style={{ 
-                    padding: theme.spacing.lg, 
+                    padding: theme.spacing.md, 
                     textAlign: "left", 
                     fontWeight: "700",
-                    fontSize: "13px",
+                    fontSize: "12px",
                     color: theme.neutral.gray700,
                     textTransform: "uppercase",
                     letterSpacing: "0.5px"
@@ -681,10 +681,10 @@ export default function DepartmentManagement() {
                     Status
                   </th>
                   <th style={{ 
-                    padding: theme.spacing.lg, 
+                    padding: theme.spacing.md, 
                     textAlign: "center", 
                     fontWeight: "700",
-                    fontSize: "13px",
+                    fontSize: "12px",
                     color: theme.neutral.gray700,
                     textTransform: "uppercase",
                     letterSpacing: "0.5px"
@@ -715,49 +715,53 @@ export default function DepartmentManagement() {
                     }}
                   >
                     <td style={{ 
-                      padding: theme.spacing.lg,
+                      padding: theme.spacing.md,
                       fontWeight: "600",
-                      color: theme.primary.main
+                      color: theme.primary.main,
+                      verticalAlign: "top",
                     }}>
                       {dept.code}
                     </td>
                     <td style={{ 
-                      padding: theme.spacing.lg,
+                      padding: theme.spacing.md,
                       fontWeight: "600",
-                      color: theme.neutral.gray900
+                      color: theme.neutral.gray900,
+                      verticalAlign: "top",
                     }}>
                       {dept.name}
                     </td>
                     <td style={{ 
-                      padding: theme.spacing.lg,
+                      padding: theme.spacing.md,
                       color: theme.neutral.gray600,
-                      maxWidth: "300px",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap"
+                      lineHeight: 1.5,
+                      fontSize: 13,
+                      maxWidth: "min(28rem, 46vw)",
+                      whiteSpace: "normal",
+                      wordBreak: "break-word",
+                      verticalAlign: "top",
                     }}>
-                      {dept.description || "-"}
+                      {dept.description?.trim() ? dept.description : "—"}
                     </td>
-                    <td style={{ padding: theme.spacing.lg }}>
+                    <td style={{ padding: theme.spacing.md, verticalAlign: "top" }}>
                       <span style={{
-                        padding: "6px 12px",
+                        padding: "4px 10px",
                         borderRadius: theme.radius.md,
                         backgroundColor: dept.isActive ? "#d4edda" : "#f8d7da",
                         color: dept.isActive ? "#155724" : "#721c24",
-                        fontSize: "12px",
+                        fontSize: "11px",
                         fontWeight: "700",
                         border: `1px solid ${dept.isActive ? "#c3e6cb" : "#f5c6cb"}`
                       }}>
                         {dept.isActive ? "✓ Active" : "✗ Inactive"}
                       </span>
                     </td>
-                    <td style={{ padding: theme.spacing.lg, textAlign: "center" }}>
+                    <td style={{ padding: theme.spacing.md, textAlign: "center", verticalAlign: "top" }}>
                       <div style={{ display: "flex", gap: theme.spacing.sm, justifyContent: "center" }}>
                         <button
                           onClick={() => handleEdit(dept)}
                           title="Edit"
                           style={{
-                            padding: "10px",
+                            padding: "7px",
                             backgroundColor: theme.primary.main,
                             color: theme.neutral.white,
                             border: "none",
@@ -766,8 +770,8 @@ export default function DepartmentManagement() {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            width: "40px",
-                            height: "40px",
+                            width: "34px",
+                            height: "34px",
                             transition: "all 0.3s",
                             boxShadow: "0 2px 8px rgba(102, 126, 234, 0.2)"
                           }}
@@ -780,13 +784,13 @@ export default function DepartmentManagement() {
                             e.currentTarget.style.boxShadow = "0 2px 8px rgba(102, 126, 234, 0.2)";
                           }}
                         >
-                          <EditIcon size={18} />
+                          <EditIcon size={16} />
                         </button>
                         <button
                           onClick={() => handleDelete(dept.id)}
                           title="Delete"
                           style={{
-                            padding: "10px",
+                            padding: "7px",
                             backgroundColor: theme.error.main,
                             color: theme.neutral.white,
                             border: "none",
@@ -795,8 +799,8 @@ export default function DepartmentManagement() {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            width: "40px",
-                            height: "40px",
+                            width: "34px",
+                            height: "34px",
                             transition: "all 0.3s",
                             boxShadow: "0 2px 8px rgba(239, 68, 68, 0.2)"
                           }}
@@ -809,7 +813,7 @@ export default function DepartmentManagement() {
                             e.currentTarget.style.boxShadow = "0 2px 8px rgba(239, 68, 68, 0.2)";
                           }}
                         >
-                          <DeleteIcon size={18} />
+                          <DeleteIcon size={16} />
                         </button>
                       </div>
                     </td>

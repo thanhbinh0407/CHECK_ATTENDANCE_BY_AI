@@ -22,7 +22,9 @@ function getAllowedMonthYearOptions() {
   return options;
 }
 
-export default function SalaryAdvanceRequest({ userId }) {
+const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:5000").replace(/\/$/, "");
+
+export default function SalaryAdvanceRequest({ refreshVersion = 0 }) {
   const [advances, setAdvances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -44,7 +46,7 @@ export default function SalaryAdvanceRequest({ userId }) {
 
   useEffect(() => {
     fetchAdvances();
-  }, [userId]);
+  }, [refreshVersion]);
 
   const prevShowForm = React.useRef(false);
   useEffect(() => {
@@ -64,13 +66,11 @@ export default function SalaryAdvanceRequest({ userId }) {
   const fetchAdvances = async () => {
     try {
       setLoading(true);
-      const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
       const token = localStorage.getItem("authToken");
 
       if (!token) return;
 
-      const query = typeof userId === "number" || (typeof userId === "string" && userId !== "" && userId !== "undefined") ? `?userId=${userId}` : "";
-      const res = await fetch(`${apiBase}/api/salary-advances${query}`, {
+      const res = await fetch(`${API_BASE}/api/salary-advances`, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
@@ -79,8 +79,15 @@ export default function SalaryAdvanceRequest({ userId }) {
 
       const data = await res.json();
       if (res.ok) {
-        setAdvances(data.advances || []);
+        setAdvances(data.advances || data.salaryAdvances || []);
         setMessage("");
+      } else if (res.status === 401) {
+        setMessage("Session expired. Redirecting to sign in…");
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("user");
+        window.setTimeout(() => {
+          window.location.href = "http://localhost:3000/";
+        }, 800);
       } else {
         setMessage(data?.message ? `Error: ${data.message}` : "Failed to load salary advance requests.");
       }
@@ -105,12 +112,11 @@ export default function SalaryAdvanceRequest({ userId }) {
     try {
       setLoading(true);
       setMessage("");
-      const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
       const token = localStorage.getItem("authToken");
 
       if (!token) return;
 
-      const res = await fetch(`${apiBase}/api/salary-advances`, {
+      const res = await fetch(`${API_BASE}/api/salary-advances`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -131,6 +137,13 @@ export default function SalaryAdvanceRequest({ userId }) {
         });
         fetchAdvances();
         setTimeout(() => setMessage(""), 5000);
+      } else if (res.status === 401) {
+        setMessage("Session expired. Redirecting to sign in…");
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("user");
+        window.setTimeout(() => {
+          window.location.href = "http://localhost:3000/";
+        }, 800);
       } else {
         setMessage(`❌ Error: ${data.message || "Unable to create request"}`);
       }
@@ -147,6 +160,17 @@ export default function SalaryAdvanceRequest({ userId }) {
       style: "currency",
       currency: "VND"
     }).format(amount || 0);
+  };
+
+  const disbursementLabel = (advance) => {
+    if (advance.approvalStatus !== "approved") return "—";
+    if (advance.disbursedAt) {
+      return `Transferred on ${new Date(advance.disbursedAt).toLocaleDateString("en-US")}`;
+    }
+    const due = advance.payoutDueDate;
+    const day = advance.configuredPayoutDay ?? 15;
+    if (due) return `From ${due} (day ${day} of the month)`;
+    return "Waiting for disbursement date";
   };
 
   const getStatusBadge = (status) => {
@@ -213,7 +237,7 @@ export default function SalaryAdvanceRequest({ userId }) {
               color: "#666",
               fontSize: "14px"
             }}>
-              Request salary advance and track status
+              Request anytime. After approval, funds are released on or after the company payout day for that month (see Disbursement column).
             </p>
           </div>
           <button
@@ -710,6 +734,21 @@ export default function SalaryAdvanceRequest({ userId }) {
                     borderRight: "1px solid #868e96"
                   }}
                 >
+                  Disbursement
+                </th>
+                <th
+                  style={{
+                    padding: "16px",
+                    textAlign: "left",
+                    fontWeight: "700",
+                    color: "#333",
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    borderBottom: "2px solid #868e96",
+                    borderRight: "1px solid #868e96"
+                  }}
+                >
                   Created Date
                 </th>
                 <th
@@ -804,6 +843,19 @@ export default function SalaryAdvanceRequest({ userId }) {
                       }}
                     >
                       {getStatusBadge(advance.approvalStatus)}
+                    </td>
+                    <td
+                      style={{
+                        padding: "16px",
+                        borderBottom: isLastRow ? "none" : "1px solid #868e96",
+                        borderRight: "1px solid #868e96",
+                        fontSize: "13px",
+                        color: "#333",
+                        maxWidth: "220px",
+                        lineHeight: 1.4
+                      }}
+                    >
+                      {disbursementLabel(advance)}
                     </td>
                     <td
                       style={{

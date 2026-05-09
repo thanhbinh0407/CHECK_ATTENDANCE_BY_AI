@@ -2,9 +2,15 @@ import React, { useState, useEffect } from "react";
 import { theme } from "../theme.js";
 import jsPDF from "jspdf";
 import 'jspdf-autotable';
-import html2canvas from "html2canvas";
+import { html2canvasIsolated } from "../utils/html2canvasIsolated.js";
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, PageOrientation, UnderlineType, BorderStyle } from "docx";
 import { saveAs } from "file-saver";
+import {
+  translateD02Position,
+  formatD02AmountVi,
+  translateD02OtherAllowances,
+  translateD02Note
+} from "../utils/d02ExportVi.js";
 
 export default function D02LTReport() {
   const [employees, setEmployees] = useState([]);
@@ -480,7 +486,7 @@ export default function D02LTReport() {
     }
   };
 
-  // Vietnamese translations for export (UI remains in English)
+  // Vietnamese translations for PDF/Word export (on-screen preview can stay English)
   const viTranslate = {
     gender: (g) => (g === "Male" ? "Nam" : g === "Female" ? "Nữ" : g || ""),
     shortGender: (g) => (g === "Male" ? "Nam" : g === "Female" ? "Nữ" : g || ""),
@@ -489,24 +495,10 @@ export default function D02LTReport() {
       if (s === "< 1 year") return "Dưới 1 năm";
       return String(s).replace(/\s*yr$/i, " năm").replace(/\s*year(s)?$/i, " năm");
     },
-    otherAllowances: (a) => {
-      if (!a) return "";
-      return String(a)
-        .replace(/Lunch:/gi, "Ăn trưa:")
-        .replace(/Transport:/gi, "Xăng xe:")
-        .replace(/Phone:/gi, "Điện thoại:");
-    },
-    note: (n) => {
-      if (!n) return "";
-      return String(n)
-        .replace(/Contract:\s*indefinite/gi, "HĐ: Không xác định thời hạn")
-        .replace(/Contract:\s*1_year/gi, "HĐ: Xác định thời hạn 1 năm")
-        .replace(/Contract:\s*3_year/gi, "HĐ: Xác định thời hạn 3 năm")
-        .replace(/Contract:\s*probation/gi, "HĐ: Thử việc")
-        .replace(/Contract:\s*other/gi, "HĐ: Khác")
-        .replace(/Clinic:/gi, "Nơi KCB:")
-        .replace(/Data processing error/gi, "Lỗi xử lý dữ liệu");
-    }
+    position: translateD02Position,
+    amount: formatD02AmountVi,
+    otherAllowances: translateD02OtherAllowances,
+    note: translateD02Note
   };
 
   const exportToPDF = async () => {
@@ -617,16 +609,16 @@ export default function D02LTReport() {
                 <td style="${tdCenter}">${escapeHtml(emp.dateOfBirth)}</td>
                 <td style="${tdCenter}">${escapeHtml(viTranslate.shortGender(emp.gender))}</td>
                 <td style="${tdCenter}">${escapeHtml(emp.idNumber)}</td>
-                <td style="${tdBase}">${escapeHtml(emp.position)}</td>
+                <td style="${tdBase}">${escapeHtml(viTranslate.position(emp.position))}</td>
                 <td style="${tdCenter}">${emp.positionCategory?.manager ? 'x' : ''}</td>
                 <td style="${tdCenter}">${emp.positionCategory?.highTech ? 'x' : ''}</td>
                 <td style="${tdCenter}">${emp.positionCategory?.midTech ? 'x' : ''}</td>
                 <td style="${tdCenter}">${emp.positionCategory?.other ? 'x' : ''}</td>
-                <td style="${tdRight}">${escapeHtml(emp.salary)}</td>
-                <td style="${tdRight}">${escapeHtml(emp.positionAllowance)}</td>
+                <td style="${tdRight}">${escapeHtml(viTranslate.amount(emp.salary))}</td>
+                <td style="${tdRight}">${escapeHtml(viTranslate.amount(emp.positionAllowance))}</td>
                 <td style="${tdCenter}">${escapeHtml(emp.seniorityVK)}</td>
                 <td style="${tdCenter}">${escapeHtml(viTranslate.seniority(emp.seniorityJob))}</td>
-                <td style="${tdRight}">${escapeHtml(emp.salaryAllowance)}</td>
+                <td style="${tdRight}">${escapeHtml(viTranslate.amount(emp.salaryAllowance))}</td>
                 <td style="${tdBase} font-size:7px;">${escapeHtml(viTranslate.otherAllowances(emp.otherAllowances))}</td>
                 <td style="${tdCenter}">${escapeHtml(emp.hazardousStartDate)}</td>
                 <td style="${tdCenter}">${escapeHtml(emp.hazardousEndDate)}</td>
@@ -656,19 +648,14 @@ export default function D02LTReport() {
         </div>
       `;
       
-      document.body.appendChild(container);
-      
-      // Capture with html2canvas
-      const canvas = await html2canvas(container, {
+      // Isolated iframe avoids host-page CSS (e.g. oklch) that html2canvas cannot parse
+      const canvas = await html2canvasIsolated(container, {
         scale: 2,
         useCORS: true,
-        logging: false,
         backgroundColor: '#ffffff',
         width: 1400,
         windowWidth: 1400
       });
-      
-      document.body.removeChild(container);
       
       // Create PDF
       const imgData = canvas.toDataURL('image/png');
@@ -957,16 +944,16 @@ export default function D02LTReport() {
               td(emp.dateOfBirth),
               td(viTranslate.gender(emp.gender)),
               td(emp.idNumber),
-              tdLeft(emp.position),
+              tdLeft(viTranslate.position(emp.position)),
               td(emp.positionCategory?.manager ? "x" : ""),
               td(emp.positionCategory?.highTech ? "x" : ""),
               td(emp.positionCategory?.midTech ? "x" : ""),
               td(emp.positionCategory?.other ? "x" : ""),
-              td(emp.salary),
-              td(emp.positionAllowance),
+              td(viTranslate.amount(emp.salary)),
+              td(viTranslate.amount(emp.positionAllowance)),
               td(emp.seniorityVK),
               td(viTranslate.seniority(emp.seniorityJob)),
-              td(emp.salaryAllowance),
+              td(viTranslate.amount(emp.salaryAllowance)),
               tdLeft(viTranslate.otherAllowances(emp.otherAllowances)),
               td(emp.hazardousStartDate),
               td(emp.hazardousEndDate),
