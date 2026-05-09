@@ -162,6 +162,18 @@ const User = sequelize.define('User', {
     defaultValue: 0
   },
 
+  overtimeMonthlyLimit: {
+    type: DataTypes.DECIMAL(5, 2),
+    defaultValue: 40,
+    comment: 'Monthly overtime cap for this employee in hours'
+  },
+
+  overtimeAnnualLimit: {
+    type: DataTypes.DECIMAL(5, 2),
+    defaultValue: 200,
+    comment: 'Annual overtime cap for this employee in hours'
+  },
+
   // PERSONAL INFORMATION
   phoneNumber: {
     type: DataTypes.STRING,

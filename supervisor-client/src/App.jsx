@@ -595,22 +595,206 @@ function LeaveApprovals({ token }) {
 
 // ─── OVERTIME APPROVALS ────────────────────────────────────────────────────────
 function OvertimeApprovals({ token }) {
+  const [reloadKey, setReloadKey] = useState(0);
+  const [limitEditor, setLimitEditor] = useState(null);
+  const [limitValue, setLimitValue] = useState('');
+  const [limitAnnualValue, setLimitAnnualValue] = useState('');
+  const [limitError, setLimitError] = useState('');
+  const [limitSaving, setLimitSaving] = useState(false);
+
+  const openEditLimit = (user, currentMonthlyLimit, currentAnnualLimit) => {
+    if (!user || !user.id) return;
+    setLimitEditor({ id: user.id, name: user.name || 'Employee' });
+    setLimitValue(String(currentMonthlyLimit ?? 40));
+    setLimitAnnualValue(String(currentAnnualLimit ?? 200));
+    setLimitError('');
+  };
+
+  const closeEditLimit = () => {
+    setLimitEditor(null);
+    setLimitValue('');
+    setLimitAnnualValue('');
+    setLimitError('');
+    setLimitSaving(false);
+  };
+
+  const saveOvertimeLimit = async () => {
+    const parsed = Number(limitValue);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setLimitError('Please enter a valid non-negative number.');
+      return;
+    }
+
+    try {
+      setLimitSaving(true);
+      const annualParsed = Number(limitAnnualValue);
+      if (!Number.isFinite(annualParsed) || annualParsed < 0) {
+        setLimitError('Please enter a valid non-negative annual limit.');
+        setLimitSaving(false);
+        return;
+      }
+      const res = await fetch(`${API}/admin/employees/${limitEditor.id}`, {
+        method: 'PUT',
+        headers: authHeaders(token),
+        body: JSON.stringify({
+          overtimeMonthlyLimit: parsed,
+          overtimeAnnualLimit: annualParsed
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || data.status === 'error') {
+        setLimitError(data.message || 'Failed to update overtime limit');
+        return;
+      }
+      setReloadKey((current) => current + 1);
+      closeEditLimit();
+      toastSuccess('Overtime limit updated successfully.');
+    } catch (err) {
+      setLimitError(err.message || 'Network error while updating overtime limit');
+    } finally {
+      setLimitSaving(false);
+    }
+  };
+
   return (
-    <ApprovalList
-      token={token}
-      type="overtime"
-      apiPath="overtime-requests"
-      pageTitle="Overtime approvals"
-      pageSubtitle="Review overtime hours and supporting reasons before approval."
-      extractList={d => d.requests || d.overtimeRequests || d.data || []}
-      columns={[
-        { key: 'id', label: 'ID' },
-        { key: 'User', label: 'Employee', render: r => r.User?.name || r.userId },
-        { key: 'date', label: 'Date', render: r => r.date?.slice(0, 10) },
-        { key: 'totalHours', label: 'Hours', render: r => r.totalHours ?? r.hours ?? '—' },
-        { key: 'reason', label: 'Reason' },
-      ]}
-    />
+    <>
+      <ApprovalList
+        key={reloadKey}
+        token={token}
+        type="overtime"
+        apiPath="overtime-requests"
+        pageTitle="Overtime approvals"
+        pageSubtitle="Review overtime hours and supporting reasons before approval."
+        extractList={d => d.requests || d.overtimeRequests || d.data || []}
+        columns={[
+          { key: 'id', label: 'ID' },
+          { key: 'User', label: 'Employee', render: r => r.User?.name || r.userId },
+          { key: 'date', label: 'Date', render: r => r.date?.slice(0, 10) },
+          { key: 'totalHours', label: 'Hours', render: r => r.totalHours ?? r.hours ?? '—' },
+          {
+            key: 'otLimit',
+            label: 'OT limit',
+            render: r => {
+              const used = Number(r.userOvertimeUsed || 0).toFixed(2);
+              const limit = Number(r.userOvertimeLimit || 40).toFixed(2);
+              return (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>{`${used}/${limit}`}</span>
+                  {r.User?.id ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: '12px' }}
+                      onClick={() => openEditLimit(
+                        r.User,
+                        r.User.overtimeMonthlyLimit ?? 40,
+                        r.User.overtimeAnnualLimit ?? 200
+                      )}
+                    >
+                      Edit
+                    </button>
+                  ) : null}
+                </span>
+              );
+            }
+          },
+          { key: 'reason', label: 'Reason' },
+        ]}
+      />
+      {limitEditor && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.4)',
+          zIndex: 1200,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: 420,
+            background: '#fff',
+            borderRadius: 16,
+            boxShadow: '0 25px 50px rgba(0,0,0,0.15)',
+            overflow: 'hidden'
+          }}>
+            <div style={{ padding: '18px 20px', borderBottom: '1px solid #e5e7eb', background: '#f8fafc' }}>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>Edit overtime limit</div>
+              <div style={{ marginTop: 6, color: '#4b5563', fontSize: 14 }}>
+                {limitEditor.name}
+              </div>
+            </div>
+            <div style={{ padding: 20 }}>
+              <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>Monthly OT cap (hours)</label>
+              <input
+                type="number"
+                value={limitValue}
+                min={0}
+                step="0.5"
+                onChange={(e) => setLimitValue(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  borderRadius: 10,
+                  border: '1px solid #d1d5db',
+                  fontSize: 15,
+                  marginBottom: 16
+                }}
+              />
+              <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>Annual OT cap (hours)</label>
+              <input
+                type="number"
+                value={limitAnnualValue}
+                min={0}
+                step="0.5"
+                onChange={(e) => setLimitAnnualValue(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  borderRadius: 10,
+                  border: '1px solid #d1d5db',
+                  fontSize: 15,
+                  marginBottom: 12
+                }}
+              />
+              <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 12 }}>
+                Monthly limit is enforced per month; annual limit is enforced per calendar year.
+              </div>
+              {limitError && (
+                <div style={{ color: '#b91c1c', marginBottom: 12, fontSize: 13 }}>
+                  {limitError}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={closeEditLimit}
+                  disabled={limitSaving}
+                  style={{ padding: '10px 16px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={saveOvertimeLimit}
+                  disabled={limitSaving}
+                  style={{ padding: '10px 16px' }}
+                >
+                  {limitSaving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

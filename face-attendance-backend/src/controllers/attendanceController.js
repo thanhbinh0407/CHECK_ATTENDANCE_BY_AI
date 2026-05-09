@@ -1,4 +1,4 @@
-import { AttendanceLog, User } from "../models/pg/index.js";
+import { AttendanceLog, User, OvertimeRequest } from "../models/pg/index.js";
 import { matchDescriptor } from "../services/matchService.js";
 import { Op } from "sequelize";
 import { ShiftSetting } from "../models/pg/index.js";
@@ -126,7 +126,14 @@ export const logAttendance = async (req, res) => {
       });
 
       const shiftPlan = parseShiftPlan(applicableShift);
-      const expectedLogsPerDay = shiftPlan.expectedLogsPerDay || 2;
+      const hasOvertimeRequestToday = await OvertimeRequest.findOne({
+        where: {
+          userId: match.userId,
+          date: todayStart.toISOString().split('T')[0],
+          approvalStatus: { [Op.in]: ['pending', 'approved'] }
+        }
+      });
+      const expectedLogsPerDay = (shiftPlan.mainShifts.length * 2) + (hasOvertimeRequestToday ? 2 : 0);
 
       if (todayLogs.length >= expectedLogsPerDay) {
         // User completed all check in/out actions for the day according to configured shifts
@@ -161,28 +168,40 @@ export const logAttendance = async (req, res) => {
           const graceMinutes = applicableShift.gracePeriodMinutes || 5;
 
           const sessionIndex = Math.floor(todayLogs.length / 2);
-          const session = shiftPlan.mainShifts[sessionIndex] || shiftPlan.mainShifts[shiftPlan.mainShifts.length - 1];
+          const totalMainSessions = shiftPlan.mainShifts.length;
+          const isOvertimeSession = sessionIndex >= totalMainSessions;
+          const session = isOvertimeSession
+            ? { startTime: shiftPlan.overtimeStart, endTime: null }
+            : shiftPlan.mainShifts[sessionIndex] || shiftPlan.mainShifts[totalMainSessions - 1];
           const start = parseTimeToday(session?.startTime || applicableShift.startTime);
           const end = parseTimeToday(session?.endTime || applicableShift.endTime);
 
           if (type === 'IN') {
-            if (start && now > new Date(start.getTime() + graceMinutes * 60000)) {
+            if (isOvertimeSession) {
+              isOvertime = true;
+              note = `Overtime check-in`;
+            } else if (start && now > new Date(start.getTime() + graceMinutes * 60000)) {
               isLate = true;
               note = `Late by ${Math.round((now - start) / 60000)} min`;
             }
           } else {
             // OUT
-            if (end && now < end) {
-              isEarlyLeave = true;
-              note = `Left early by ${Math.round((end - now) / 60000)} min`;
-            }
-
-            const overtimeStart = shiftPlan.overtimeStart
-              ? parseTimeToday(shiftPlan.overtimeStart)
-              : (end ? new Date(end.getTime() + (shiftPlan.overtimeThresholdMinutes || 15) * 60000) : null);
-            if (overtimeStart && now > overtimeStart) {
+            if (isOvertimeSession) {
               isOvertime = true;
-              note = `Overtime ${Math.round((now - overtimeStart) / 60000)} min`;
+              note = `Overtime check-out`;
+            } else {
+              if (end && now < end) {
+                isEarlyLeave = true;
+                note = `Left early by ${Math.round((end - now) / 60000)} min`;
+              }
+
+              const overtimeStart = shiftPlan.overtimeStart
+                ? parseTimeToday(shiftPlan.overtimeStart)
+                : (end ? new Date(end.getTime() + (shiftPlan.overtimeThresholdMinutes || 15) * 60000) : null);
+              if (overtimeStart && now > overtimeStart) {
+                isOvertime = true;
+                note = `Overtime ${Math.round((now - overtimeStart) / 60000)} min`;
+              }
             }
           }
         }
@@ -217,7 +236,7 @@ export const logAttendance = async (req, res) => {
         isOvertime
       });
 
-      const expectedLogsPerDayAfterLog = shiftPlan.expectedLogsPerDay || 2;
+      const expectedLogsPerDayAfterLog = expectedLogsPerDay;
       const nextCount = todayLogs.length + 1;
       const finished = nextCount >= expectedLogsPerDayAfterLog;
       const nextType = finished ? null : nextTypeFromCount(nextCount);
@@ -293,17 +312,47 @@ export const getTodayAttendance = async (req, res) => {
     if (deviceId) where.deviceId = String(deviceId);
     if (userId) where.userId = Number(userId);
 
+    const activeShift = await ShiftSetting.findOne({ where: { active: true } });
+    const shiftPlan = parseShiftPlan(activeShift);
+    const allowedLateMinutes = Number(activeShift?.gracePeriodMinutes ?? 5);
+    const overtimeStartMs = shiftPlan.overtimeStart ? (() => {
+      const [hh, mm] = shiftPlan.overtimeStart.split(':').map(Number);
+      const d = new Date(today);
+      d.setHours(hh, mm, 0, 0);
+      return d.getTime();
+    })() : null;
+
     const logs = await AttendanceLog.findAll({
       where,
       include: [{ model: User, as: "User", attributes: ['name', 'email', 'employeeCode', 'avatarUrl'] }],
       order: [['timestamp', 'DESC']]
     });
 
-    return res.json({
-      status: "success",
-      date: today.toISOString().split('T')[0],
-      count: logs.length,
-      logs: logs.map(log => ({
+    const hasOvertimeRequestToday = userId
+      ? Boolean(await OvertimeRequest.findOne({
+          where: {
+            userId: Number(userId),
+            date: today.toISOString().split('T')[0],
+            approvalStatus: { [Op.in]: ['pending', 'approved'] }
+          }
+        }))
+      : false;
+    const totalLogCapacity = shiftPlan.mainShifts.length * 2 + (hasOvertimeRequestToday ? 2 : 0);
+
+    const logsAsc = [...logs].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const items = logsAsc.map((log, index) => {
+      const timestamp = log.timestamp;
+      const sessionIndex = Math.floor(index / 2);
+      const isOvertime = Boolean(log.isOvertime) || sessionIndex >= shiftPlan.mainShifts.length;
+      const shiftLabel = isOvertime
+        ? 'Overtime shift'
+        : `Shift ${Math.min(sessionIndex + 1, shiftPlan.mainShifts.length)}`;
+      const flags = {
+        isLate: Boolean(log.isLate),
+        isEarlyLeave: Boolean(log.isEarlyLeave),
+        isOvertime: Boolean(log.isOvertime) || sessionIndex >= shiftPlan.mainShifts.length
+      };
+      return {
         id: log.id,
         userId: log.userId,
         detectedName: log.detectedName,
@@ -311,8 +360,27 @@ export const getTodayAttendance = async (req, res) => {
         type: log.type || 'IN',
         confidence: log.confidence,
         matchDistance: log.matchDistance,
+        note: log.note || null,
+        shiftId: log.shiftId || null,
+        flags,
+        shiftLabel,
+        allowedLateMinutes,
         avatarUrl: log.User?.avatarUrl || null
-      }))
+      };
+    }).reverse();
+
+    return res.json({
+      status: "success",
+      date: today.toISOString().split('T')[0],
+      count: logs.length,
+      allowedLateMinutes,
+      shiftPlan: {
+        mainShifts: shiftPlan.mainShifts,
+        overtimeStart: shiftPlan.overtimeStart,
+        overtimeThresholdMinutes: shiftPlan.overtimeThresholdMinutes,
+        expectedLogsPerDay: totalLogCapacity
+      },
+      logs: items
     });
   } catch (err) {
     console.error("Error fetching today's attendance:", err);

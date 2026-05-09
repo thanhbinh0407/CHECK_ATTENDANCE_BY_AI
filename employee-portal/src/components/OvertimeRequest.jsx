@@ -4,18 +4,69 @@ export default function OvertimeRequest({ userId, refreshVersion = 0 }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [shiftConfig, setShiftConfig] = useState(null);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     startTime: "",
     endTime: "",
-    reason: "",
-    projectName: ""
+    reason: ""
   });
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     fetchRequests();
+    fetchShiftConfig();
   }, [userId, refreshVersion]);
+
+  const fetchShiftConfig = async () => {
+    try {
+      const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+      const res = await fetch(`${apiBase}/api/shifts`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.shifts) && data.shifts.length > 0) {
+        setShiftConfig(data.shifts[0]);
+        const overtime = parseOvertimeConfig(data.shifts[0]);
+        setFormData((prev) => ({
+          ...prev,
+          startTime: overtime.startTime,
+          endTime: overtime.endTime
+        }));
+      }
+    } catch (error) {
+      console.error("Error loading shift config:", error);
+    }
+  };
+
+  const parseOvertimeConfig = (shift) => {
+    const fallbackStart = addMinutesToTime(shift?.endTime || '17:00', Number(shift?.overtimeThresholdMinutes ?? 15));
+    const overtime = { startTime: fallbackStart, endTime: shift?.endTime || '17:00' };
+    if (!shift?.note) return overtime;
+    try {
+      const parsed = JSON.parse(shift.note);
+      if (parsed?.overtime) {
+        const validStart = /^\d{2}:\d{2}$/.test(parsed.overtime.startTime) ? parsed.overtime.startTime : fallbackStart;
+        const validEnd = /^\d{2}:\d{2}$/.test(parsed.overtime.endTime) ? parsed.overtime.endTime : shift?.endTime || '17:00';
+        return { startTime: validStart, endTime: validEnd };
+      }
+    } catch (err) {
+      // ignore invalid shift note
+    }
+    return overtime;
+  };
+
+  const addMinutesToTime = (time, minutes) => {
+    const [hh, mm] = time.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hh, mm + minutes, 0, 0);
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  };
 
   const fetchRequests = async () => {
     try {
@@ -59,7 +110,12 @@ export default function OvertimeRequest({ userId, refreshVersion = 0 }) {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          date: formData.date,
+          startTime: formData.startTime,
+          endTime: formData.endTime,
+          reason: formData.reason
+        })
       });
 
       const data = await res.json();
@@ -68,10 +124,9 @@ export default function OvertimeRequest({ userId, refreshVersion = 0 }) {
         setShowForm(false);
         setFormData({
           date: new Date().toISOString().split('T')[0],
-          startTime: "",
-          endTime: "",
-          reason: "",
-          projectName: ""
+          startTime: shiftConfig?.startTime || "",
+          endTime: shiftConfig?.endTime || "",
+          reason: ""
         });
         fetchRequests();
         setTimeout(() => setMessage(""), 5000);
@@ -98,6 +153,15 @@ export default function OvertimeRequest({ userId, refreshVersion = 0 }) {
     if (!Number.isFinite(hours) || hours <= 0) return 0;
     // Cap at 24h (same as backend validation).
     return Math.min(hours, 24);
+  };
+
+  const hasExistingRequestForDate = (date) => {
+    if (!date) return false;
+    return requests.some(
+      (request) =>
+        request.date === date &&
+        request.approvalStatus !== 'rejected'
+    );
   };
 
   // Chuyển số giờ thập phân (vd: 12.05) thành định dạng HH:MM (vd: 12:03)
@@ -341,6 +405,11 @@ export default function OvertimeRequest({ userId, refreshVersion = 0 }) {
                     fontSize: "14px"
                   }}
                 />
+                {hasExistingRequestForDate(formData.date) && (
+                  <div style={{ marginTop: "8px", color: "#d9534f", fontSize: "13px" }}>
+                    You already have a pending or approved request for this date. You can only submit again if that request is rejected.
+                  </div>
+                )}
               </div>
 
               <div style={{ marginBottom: "20px" }}>
@@ -357,28 +426,30 @@ export default function OvertimeRequest({ userId, refreshVersion = 0 }) {
                   <input
                     type="time"
                     value={formData.startTime}
-                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                    required
+                    disabled
                     style={{
                       flex: 1,
                       padding: "12px",
                       border: "2px solid #e0e0e0",
                       borderRadius: "8px",
-                      fontSize: "14px"
+                      fontSize: "14px",
+                      backgroundColor: "#f5f5f5",
+                      color: "#555"
                     }}
                   />
                   <span style={{ fontSize: "18px", fontWeight: "600", color: "#666" }}>→</span>
                   <input
                     type="time"
                     value={formData.endTime}
-                    onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                    required
+                    disabled
                     style={{
                       flex: 1,
                       padding: "12px",
                       border: "2px solid #e0e0e0",
                       borderRadius: "8px",
-                      fontSize: "14px"
+                      fontSize: "14px",
+                      backgroundColor: "#f5f5f5",
+                      color: "#555"
                     }}
                   />
                   {calculateHours() > 0 && (() => {
@@ -406,6 +477,9 @@ export default function OvertimeRequest({ userId, refreshVersion = 0 }) {
                     );
                   })()}
                 </div>
+                <p style={{ marginTop: 8, fontSize: 13, color: '#555' }}>
+                  This overtime time is configured from the current work shift and cannot be edited here.
+                </p>
               </div>
 
               <div style={{ marginBottom: "20px" }}>
@@ -435,30 +509,6 @@ export default function OvertimeRequest({ userId, refreshVersion = 0 }) {
                 />
               </div>
 
-              <div style={{ marginBottom: "24px" }}>
-                <label style={{
-                  display: "block",
-                  marginBottom: "8px",
-                  fontWeight: "600",
-                  fontSize: "14px",
-                  color: "#333"
-                }}>
-                  Project Name (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={formData.projectName}
-                  onChange={(e) => setFormData({ ...formData, projectName: e.target.value })}
-                  placeholder="Project name or related work"
-                  style={{
-                    width: "100%",
-                    padding: "12px",
-                    border: "2px solid #e0e0e0",
-                    borderRadius: "8px",
-                    fontSize: "14px"
-                  }}
-                />
-              </div>
 
               <div style={{ display: "flex", gap: "12px" }}>
                 <button
@@ -480,7 +530,13 @@ export default function OvertimeRequest({ userId, refreshVersion = 0 }) {
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || !formData.startTime || !formData.endTime || calculateHours() <= 0}
+                  disabled={
+                    loading ||
+                    !formData.startTime ||
+                    !formData.endTime ||
+                    calculateHours() <= 0 ||
+                    hasExistingRequestForDate(formData.date)
+                  }
                   style={{
                     flex: 1,
                     padding: "14px",
@@ -491,7 +547,13 @@ export default function OvertimeRequest({ userId, refreshVersion = 0 }) {
                     cursor: "pointer",
                     fontWeight: "700",
                     fontSize: "14px",
-                    opacity: (loading || !formData.startTime || !formData.endTime || calculateHours() <= 0) ? 0.6 : 1
+                    opacity: (
+                      loading ||
+                      !formData.startTime ||
+                      !formData.endTime ||
+                      calculateHours() <= 0 ||
+                      hasExistingRequestForDate(formData.date)
+                    ) ? 0.6 : 1
                   }}
                 >
                   {loading ? "Submitting..." : "Submit Request"}
