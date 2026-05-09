@@ -426,10 +426,50 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       
       // Sync email and companyEmail - they are the same (company email)
       const companyEmail = editForm.email || editForm.companyEmail || employeeDetails?.email || employeeDetails?.companyEmail;
+      const toNumberOrNull = (value) => {
+        if (value === "" || value === null || value === undefined) return null;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+      };
       const formData = {
-        ...editForm,
+        name: editForm.name,
         email: companyEmail,
-        companyEmail: companyEmail
+        companyEmail: companyEmail,
+        personalEmail: editForm.personalEmail || null,
+        phoneNumber: editForm.phoneNumber || null,
+        address: editForm.address || null,
+        permanentAddress: editForm.permanentAddress || null,
+        temporaryAddress: editForm.temporaryAddress || null,
+        dateOfBirth: editForm.dateOfBirth || null,
+        gender: editForm.gender || null,
+        idNumber: editForm.idNumber || null,
+        idIssueDate: editForm.idIssueDate || null,
+        idIssuePlace: editForm.idIssuePlace || null,
+        educationLevel: editForm.educationLevel || null,
+        major: editForm.major || null,
+        emergencyContactName: editForm.emergencyContactName || null,
+        emergencyContactRelationship: editForm.emergencyContactRelationship || null,
+        emergencyContactPhone: editForm.emergencyContactPhone || null,
+        departmentId: toNumberOrNull(editForm.departmentId),
+        jobTitleId: toNumberOrNull(editForm.jobTitleId),
+        baseSalary: editForm.baseSalary === "" || editForm.baseSalary === null || editForm.baseSalary === undefined ? 0 : Number(editForm.baseSalary),
+        isActive: !!editForm.isActive,
+        startDate: editForm.startDate || null,
+        bankAccount: editForm.bankAccount || null,
+        bankName: editForm.bankName || null,
+        taxCode: editForm.taxCode || null,
+        contractType: editForm.contractType || null,
+        employmentStatus: editForm.employmentStatus || null,
+        managerId: toNumberOrNull(editForm.managerId),
+        branchName: editForm.branchName || null,
+        bankBranch: editForm.bankBranch || null,
+        lunchAllowance: Number(editForm.lunchAllowance || 0),
+        transportAllowance: Number(editForm.transportAllowance || 0),
+        phoneAllowance: Number(editForm.phoneAllowance || 0),
+        responsibilityAllowance: Number(editForm.responsibilityAllowance || 0),
+        socialInsuranceNumber: editForm.socialInsuranceNumber || null,
+        healthInsuranceProvider: editForm.healthInsuranceProvider || null,
+        dependentCount: Number(editForm.dependentCount || 0),
       };
       
       console.log("Saving form data:", formData);
@@ -1717,7 +1757,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           ))}
                         </select>
                       ) : (
-                        <div style={valueStyle}>{employeeDetails?.department || "-"}</div>
+                        <div style={valueStyle}>{employeeDetails?.Department?.name || employeeDetails?.department || "-"}</div>
                       )}
                     </div>
 
@@ -1735,7 +1775,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           ))}
                         </select>
                       ) : (
-                        <div style={valueStyle}>{employeeDetails?.jobTitle || "-"}</div>
+                        <div style={valueStyle}>{employeeDetails?.JobTitle?.name || employeeDetails?.jobTitle || "-"}</div>
                       )}
                     </div>
 
