@@ -18,6 +18,7 @@ import {
   getApprovalAuditLogs,
   getEmployeeDayActions,
   getHrAttendanceLogs,
+  checkIdNumber,
 } from "../controllers/adminController.js";
 import {
   authMiddleware,
@@ -72,6 +73,13 @@ router.get(
   requirePermission(PERMISSIONS["user:read"]),
   canAccessEmployeeData,
   getEmployeeDetailedInfo
+);
+
+// Check ID Number uniqueness (query: idNumber, optional excludeId)
+router.get(
+  "/employees/check-id",
+  requirePermission(PERMISSIONS["user:read"]),
+  checkIdNumber
 );
 
 // GET employee history - Xem lịch sử thay đổi

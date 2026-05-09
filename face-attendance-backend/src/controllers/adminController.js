@@ -315,6 +315,33 @@ export const getEmployeeById = async (req, res) => {
   }
 };
 
+// Check if an ID Number (CCCD) is already used by another employee
+export const checkIdNumber = async (req, res) => {
+  try {
+    const { idNumber, excludeId } = req.query;
+    if (!idNumber || String(idNumber).trim().length === 0) {
+      return res.status(400).json({ status: 'error', message: 'idNumber query is required' });
+    }
+
+    const normalized = String(idNumber || '').replace(/\D/g, '');
+
+    const where = { idNumber: normalized };
+    if (excludeId) {
+      where.id = { [Op.ne]: Number(excludeId) };
+    }
+
+    const existing = await User.findOne({ where });
+    if (existing) {
+      return res.json({ status: 'success', exists: true, userId: existing.id });
+    }
+
+    return res.json({ status: 'success', exists: false });
+  } catch (err) {
+    console.error('Error checking idNumber:', err);
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
 // Get employee by ID WITH password (for admin/accountant viewing)
 export const getEmployeeWithPassword = async (req, res) => {
   try {
@@ -444,7 +471,25 @@ export const updateEmployee = async (req, res) => {
     if (permanentAddress !== undefined) updateData.permanentAddress = permanentAddress;
     if (temporaryAddress !== undefined) updateData.temporaryAddress = temporaryAddress;
     if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
-    if (idNumber !== undefined) updateData.idNumber = idNumber;
+    if (idNumber !== undefined) {
+      const normalizedId = String(idNumber || "").replace(/\D/g, "");
+      if (normalizedId === "") {
+        updateData.idNumber = null;
+      } else {
+        // enforce format: 12 digits for employee ID numbers
+        if (!/^\d{12}$/.test(normalizedId)) {
+          return res.status(400).json({ status: "error", message: "ID Number must be exactly 12 digits" });
+        }
+
+        // Check uniqueness (exclude current employee)
+        const existing = await User.findOne({ where: { idNumber: normalizedId, id: { [Op.ne]: Number(id) } } });
+        if (existing) {
+          return res.status(400).json({ status: "error", message: "CCCD is already registered to another employee" });
+        }
+
+        updateData.idNumber = normalizedId;
+      }
+    }
     if (idIssueDate !== undefined) updateData.idIssueDate = idIssueDate ? new Date(idIssueDate) : null;
     if (idIssuePlace !== undefined) updateData.idIssuePlace = idIssuePlace;
     if (personalEmail !== undefined) updateData.personalEmail = personalEmail;

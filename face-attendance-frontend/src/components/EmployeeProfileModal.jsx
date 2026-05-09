@@ -398,6 +398,27 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       setTimeout(() => setMessage(""), 5000);
       return;
     }
+    // If ID Number changed or provided, check uniqueness on server
+    try {
+      const newId = String(editForm.idNumber || "").replace(/\D/g, "");
+      const currentId = String(employeeDetails?.idNumber || "").replace(/\D/g, "");
+      if (newId && newId !== currentId) {
+        const token = localStorage.getItem("authToken");
+        const q = new URLSearchParams({ idNumber: newId, excludeId: String(employee.id) });
+        const chkRes = await fetch(`${apiBase}/api/admin/employees/check-id?${q.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const chk = await chkRes.json().catch(() => ({}));
+        if (chkRes.ok && chk.exists) {
+          setValidationErrors(prev => ({ ...prev, idNumber: "CCCD is already registered" }));
+          setMessage("Please correct validation errors before saving");
+          setTimeout(() => setMessage(""), 4000);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("ID uniqueness check failed, continuing to save (server may validate):", err);
+    }
 
     try {
       setLoading(true);
@@ -1289,10 +1310,30 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                               const error = validateField("idNumber", value);
                               setValidationErrors({ ...validationErrors, idNumber: error });
                             }}
-                            onBlur={(e) => {
-                              const error = validateField("idNumber", e.target.value);
-                              setValidationErrors({ ...validationErrors, idNumber: error });
-                            }}
+                            onBlur={async (e) => {
+                                const raw = e.target.value || "";
+                                const error = validateField("idNumber", raw);
+                                setValidationErrors({ ...validationErrors, idNumber: error });
+
+                                // If format OK and differs from current stored value, check uniqueness
+                                const normalized = String(raw).replace(/\D/g, '');
+                                const current = String(employeeDetails?.idNumber || '').replace(/\D/g, '');
+                                if (!error && normalized && normalized !== current) {
+                                  try {
+                                    const token = localStorage.getItem('authToken');
+                                    const q = new URLSearchParams({ idNumber: normalized, excludeId: String(employee.id) });
+                                    const resp = await fetch(`${apiBase}/api/admin/employees/check-id?${q.toString()}`, {
+                                      headers: { Authorization: `Bearer ${token}` }
+                                    });
+                                    const body = await resp.json().catch(() => ({}));
+                                    if (resp.ok && body.exists) {
+                                      setValidationErrors(prev => ({ ...prev, idNumber: 'CCCD is already registered' }));
+                                    }
+                                  } catch (err) {
+                                    console.warn('Failed id uniqueness check:', err);
+                                  }
+                                }
+                              }}
                             onClick={(e) => e.stopPropagation()}
                             style={{
                               ...inputStyle,
@@ -1614,7 +1655,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                     <div style={{ display: "flex", gap: theme.spacing.md, marginTop: theme.spacing.xl }}>
                       <button
                         onClick={handleSave}
-                        disabled={loading}
+                        disabled={loading || Boolean(validationErrors.idNumber)}
                         style={{
                           padding: `${theme.spacing.md} ${theme.spacing.xl}`,
                           backgroundColor: theme.primary.main,
