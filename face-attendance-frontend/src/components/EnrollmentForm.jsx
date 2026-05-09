@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { theme } from "../styles/theme.js";
 import * as faceapi from "face-api.js";
 import { EDUCATION_COEFFICIENTS } from "../utils/salaryCalculation.js";
@@ -32,7 +32,8 @@ export default function EnrollmentForm() {
   const [cameraActive, setCameraActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [faceDetected, setFaceDetected] = useState(false);
+  /** Number of faces in frame; capture allowed only when exactly 1 */
+  const [detectedFaceCount, setDetectedFaceCount] = useState(0);
   const [jobTitles, setJobTitles] = useState([]);
   const [jobTitlesLoading, setJobTitlesLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -51,6 +52,16 @@ export default function EnrollmentForm() {
   const [passwordGenerated, setPasswordGenerated] = useState(false);
   const detectionIntervalRef = useRef(null);
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+  /** Slightly larger input + lower threshold so a second (smaller/distant) face is more likely to be detected */
+  const faceDetectorOptions = useMemo(
+    () =>
+      new faceapi.TinyFaceDetectorOptions({
+        inputSize: 416,
+        scoreThreshold: 0.38
+      }),
+    []
+  );
   const normalizedEmployeeCode = String(formData.employeeCode || "").trim().toUpperCase();
 
   // Validation errors state
@@ -228,24 +239,29 @@ export default function EnrollmentForm() {
       detectionIntervalRef.current = setInterval(async () => {
         try {
           const detections = await faceapi
-            .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+            .detectAllFaces(videoRef.current, faceDetectorOptions)
             .withFaceLandmarks();
 
-          setFaceDetected(detections.length > 0);
+          const count = detections.length;
+          setDetectedFaceCount(count);
 
           const canvas = canvasRef.current;
           const ctx = canvas.getContext("2d");
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+          const warnMulti = count >= 2;
+          const stroke = warnMulti ? "#ff4444" : "#00ff00";
+          const fill = warnMulti ? "#ff4444" : "#00ff00";
+
           detections.forEach((detection) => {
             const box = detection.detection.box;
-            ctx.strokeStyle = "#00ff00";
+            ctx.strokeStyle = stroke;
             ctx.lineWidth = 3;
             ctx.strokeRect(box.x, box.y, box.width, box.height);
 
             if (detection.landmarks) {
-              ctx.fillStyle = "#00ff00";
-              ctx.strokeStyle = "#00ff00";
+              ctx.fillStyle = fill;
+              ctx.strokeStyle = fill;
               ctx.lineWidth = 2;
 
               // Draw jawline
@@ -290,7 +306,7 @@ export default function EnrollmentForm() {
               ctx.stroke();
 
               // Draw keypoints
-              ctx.fillStyle = "#00ff00";
+              ctx.fillStyle = fill;
               detection.landmarks.positions.forEach((point) => {
                 ctx.fillRect(point.x - 2, point.y - 2, 4, 4);
               });
@@ -305,7 +321,15 @@ export default function EnrollmentForm() {
         if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
       };
     }
-  }, [cameraActive, modelsLoaded]);
+  }, [cameraActive, modelsLoaded, faceDetectorOptions]);
+
+  useEffect(() => {
+    if (detectedFaceCount !== 1) return;
+    setErrors((prev) => {
+      if (prev.faceCapture !== "Multiple faces in frame") return prev;
+      return { ...prev, faceCapture: "" };
+    });
+  }, [detectedFaceCount]);
 
   const loadModels = async () => {
     try {
@@ -357,6 +381,7 @@ export default function EnrollmentForm() {
     if (videoRef.current?.srcObject) {
       videoRef.current.srcObject.getTracks().forEach(t => t.stop());
       setCameraActive(false);
+      setDetectedFaceCount(0);
       setMessage("Camera stopped");
     }
   };
@@ -369,17 +394,23 @@ export default function EnrollmentForm() {
       setMessage("Capturing face...");
 
       const allDetections = await faceapi
-        .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+        .detectAllFaces(videoRef.current, faceDetectorOptions)
         .withFaceLandmarks();
 
       if (allDetections.length > 1) {
-        setMessage(`${allDetections.length} faces detected! Only 1 face is allowed. Please remove others from the frame.`);
+        setMessage(
+          `Warning: ${allDetections.length} faces detected. Only one person is allowed — please ask others to leave the frame.`
+        );
+        setErrors((prev) => ({
+          ...prev,
+          faceCapture: "Multiple faces in frame"
+        }));
         setLoading(false);
         return;
       }
 
       const detection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+        .detectSingleFace(videoRef.current, faceDetectorOptions)
         .withFaceLandmarks()
         .withFaceDescriptor();
 
@@ -662,10 +693,10 @@ export default function EnrollmentForm() {
         {message && (
           <div style={{
             padding: "10px 14px",
-            backgroundColor: /success|captured successfully/i.test(message) ? theme.success.bg : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted/i.test(message) ? theme.error.bg : theme.info.bg,
-            border: `1px solid ${/success|captured successfully/i.test(message) ? theme.success.border : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted/i.test(message) ? theme.error.border : theme.info.border}`,
+            backgroundColor: /success|captured successfully/i.test(message) ? theme.success.bg : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted|Warning:|faces detected|Multiple faces/i.test(message) ? theme.error.bg : theme.info.bg,
+            border: `1px solid ${/success|captured successfully/i.test(message) ? theme.success.border : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted|Warning:|faces detected|Multiple faces/i.test(message) ? theme.error.border : theme.info.border}`,
             borderRadius: "8px",
-            color: /success|captured successfully/i.test(message) ? theme.success.text : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted/i.test(message) ? theme.error.text : theme.info.text,
+            color: /success|captured successfully/i.test(message) ? theme.success.text : /failed|error|denied|required|cannot|invalid|please enter|Photo spoofing is not accepted|Warning:|faces detected|Multiple faces/i.test(message) ? theme.error.text : theme.info.text,
             marginBottom: "16px",
             fontSize: "13px",
             fontWeight: "500",
@@ -1006,7 +1037,25 @@ export default function EnrollmentForm() {
                   Camera not active
               </div>
             )}
-            {cameraActive && faceDetected && (
+            {cameraActive && detectedFaceCount >= 2 && (
+              <div style={{
+                position: "absolute",
+                top: "10px",
+                left: "10px",
+                right: "10px",
+                backgroundColor: "rgba(220, 38, 38, 0.95)",
+                color: "#fff",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: "600",
+                zIndex: 20,
+                lineHeight: 1.35
+              }}>
+                Warning: {detectedFaceCount} faces detected — only one person allowed
+              </div>
+            )}
+            {cameraActive && detectedFaceCount === 1 && (
               <div style={{
                 position: "absolute",
                 top: "10px",
@@ -1022,7 +1071,7 @@ export default function EnrollmentForm() {
                 Face Detected
               </div>
             )}
-            {cameraActive && !faceDetected && (
+            {cameraActive && detectedFaceCount === 0 && (
               <div style={{
                 position: "absolute",
                 top: "10px",
@@ -1055,9 +1104,9 @@ export default function EnrollmentForm() {
               onClick={captureFace}
               style={{
                 ...successButtonStyle,
-                opacity: !cameraActive || loading || !faceDetected ? 0.6 : 1
+                opacity: !cameraActive || loading || detectedFaceCount !== 1 ? 0.6 : 1
               }}
-              disabled={!cameraActive || loading || !faceDetected}
+              disabled={!cameraActive || loading || detectedFaceCount !== 1}
             >
               {loading ? "Capturing..." : "Capture Face"}
             </button>
