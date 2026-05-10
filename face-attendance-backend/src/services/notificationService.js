@@ -29,11 +29,12 @@ export const checkContractExpiration = async () => {
       case 'formal_1_year':
         endDate.setFullYear(endDate.getFullYear() + 1);
         break;
+      case 'formal_2_year':
+        endDate.setFullYear(endDate.getFullYear() + 2);
+        break;
       case 'formal_3_year':
         endDate.setFullYear(endDate.getFullYear() + 3);
         break;
-      case 'formal_indefinite':
-      case 'other':
       default:
         return null;
     }

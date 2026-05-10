@@ -350,6 +350,13 @@ export const updateEmployee = async (req, res) => {
     const newDepartmentId = updateData.departmentId !== undefined ? updateData.departmentId : employee.departmentId;
     const newJobTitleId = updateData.jobTitleId !== undefined ? updateData.jobTitleId : employee.jobTitleId;
     const newBaseSalary = updateData.baseSalary !== undefined ? toNumber(updateData.baseSalary) : oldBaseSalary;
+    const oldContractType = employee.contractType || null;
+    const oldContractStartDate = employee.startDate ? new Date(employee.startDate).toISOString().slice(0, 10) : null;
+    const newContractType = updateData.contractType !== undefined ? updateData.contractType : oldContractType;
+    const newContractStartDate = updateData.startDate !== undefined
+      ? (updateData.startDate ? new Date(updateData.startDate).toISOString().slice(0, 10) : null)
+      : oldContractStartDate;
+    const contractChanged = oldContractType !== newContractType || oldContractStartDate !== newContractStartDate;
     const newTotalAllowance =
       (updateData.lunchAllowance !== undefined ||
         updateData.transportAllowance !== undefined ||
@@ -363,6 +370,10 @@ export const updateEmployee = async (req, res) => {
 
     const normalizedEffectiveDate = effectiveDate || new Date().toISOString().slice(0, 10);
     const changedBy = req.user?.userId ?? req.user?.id ?? null;
+    const actorRoleRaw = String(req.user?.role || "system").toLowerCase();
+    const actorRole = ["manager", "hr", "accountant", "supervisor", "employee", "system"].includes(actorRoleRaw)
+      ? actorRoleRaw
+      : "system";
 
     const getJobChangeType = () => {
       if (oldJobTitleId !== newJobTitleId && oldDepartmentId === newDepartmentId) return 'promotion';
@@ -422,6 +433,36 @@ export const updateEmployee = async (req, res) => {
           reason: salaryChangeReason || historyNote || null,
           changedBy,
         }, { transaction });
+      }
+
+      if (contractChanged) {
+        await ActionAudit.create(
+          {
+            actorId: changedBy,
+            actorRole,
+            category: "employee_update",
+            action: "employee.contract.update",
+            targetUserId: employee.id,
+            entityType: "employee_contract",
+            entityId: employee.id,
+            summary: "Updated employment contract",
+            metadata: {
+              old: {
+                contractType: oldContractType,
+                startDate: oldContractStartDate,
+              },
+              new: {
+                contractType: newContractType,
+                startDate: newContractStartDate,
+              },
+              effectiveDate: normalizedEffectiveDate,
+              note: historyNote || null,
+            },
+            ipAddress: req.ip || null,
+            userAgent: req.get("user-agent") || null,
+          },
+          { transaction }
+        );
       }
     });
 
@@ -1230,9 +1271,10 @@ export const getEmployeeDetailedInfo = async (req, res) => {
 
     let jobHistories = [];
     let salaryChangeHistories = [];
+    let contractAudits = [];
 
     if (includeHistory) {
-      [jobHistories, salaryChangeHistories] = await Promise.all([
+      [jobHistories, salaryChangeHistories, contractAudits] = await Promise.all([
         JobHistory.findAll({
           where: { userId: id },
           include: [
@@ -1252,7 +1294,18 @@ export const getEmployeeDetailedInfo = async (req, res) => {
           ],
           order: [['effectiveDate', 'DESC'], ['createdAt', 'DESC']],
           limit: 20,
-        })
+        }),
+        ActionAudit.findAll({
+          where: {
+            targetUserId: id,
+            action: 'employee.contract.update',
+          },
+          include: [
+            { model: User, as: 'Actor', attributes: ['id', 'name', 'employeeCode', 'role'] },
+          ],
+          order: [['createdAt', 'DESC']],
+          limit: 20,
+        }),
       ]);
     }
 
@@ -1437,6 +1490,26 @@ export const getEmployeeDetailedInfo = async (req, res) => {
                 name: history.ChangedByUser.name,
                 employeeCode: history.ChangedByUser.employeeCode,
                 role: history.ChangedByUser.role,
+              }
+            : null,
+        })),
+        contractHistory: contractAudits.map(audit => ({
+          id: audit.id,
+          action: audit.action,
+          summary: audit.summary,
+          oldContractType: audit.metadata?.old?.contractType || null,
+          newContractType: audit.metadata?.new?.contractType || null,
+          oldStartDate: audit.metadata?.old?.startDate || null,
+          newStartDate: audit.metadata?.new?.startDate || null,
+          effectiveDate: audit.metadata?.effectiveDate || null,
+          note: audit.metadata?.note || null,
+          createdAt: audit.createdAt,
+          actor: audit.Actor
+            ? {
+                id: audit.Actor.id,
+                name: audit.Actor.name,
+                employeeCode: audit.Actor.employeeCode,
+                role: audit.Actor.role,
               }
             : null,
         })),
