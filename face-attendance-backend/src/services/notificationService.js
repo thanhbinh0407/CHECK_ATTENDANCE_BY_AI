@@ -6,30 +6,111 @@ import { Op } from "sequelize";
 
 // Check and notify contract expiration
 export const checkContractExpiration = async () => {
+  const parseDate = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const calculateContractEndDate = (contractType, startDate) => {
+    const hireDate = parseDate(startDate);
+    if (!hireDate || !contractType) return null;
+    const endDate = new Date(hireDate);
+    switch (contractType) {
+      case 'probation_1_month':
+        endDate.setMonth(endDate.getMonth() + 1);
+        break;
+      case 'probation_2_month':
+        endDate.setMonth(endDate.getMonth() + 2);
+        break;
+      case 'probation_3_month':
+        endDate.setMonth(endDate.getMonth() + 3);
+        break;
+      case 'formal_1_year':
+        endDate.setFullYear(endDate.getFullYear() + 1);
+        break;
+      case 'formal_3_year':
+        endDate.setFullYear(endDate.getFullYear() + 3);
+        break;
+      case 'formal_indefinite':
+      case 'other':
+      default:
+        return null;
+    }
+    return endDate;
+  };
+
   try {
     const today = new Date();
-    const days15 = new Date(today);
-    days15.setDate(days15.getDate() + 15);
-    const days30 = new Date(today);
-    days30.setDate(days30.getDate() + 30);
+    const msPerDay = 24 * 60 * 60 * 1000;
 
-    // Find contracts expiring in 15-30 days
-    const expiringContracts = await User.findAll({
+    const activeContracts = await User.findAll({
       where: {
         contractType: { [Op.ne]: null },
         employmentStatus: 'active',
-        [Op.or]: [
-          // For contracts with end dates, we'd need to calculate based on startDate + contract duration
-          // For now, we'll check based on contractType and startDate
-        ]
+        isActive: true,
+        startDate: { [Op.ne]: null }
       },
       include: [{ model: User, as: 'Manager' }]
     });
 
-    // TODO: Implement logic to calculate contract end date based on contractType
-    // For now, this is a placeholder
+    let notified = 0;
+    let deactivated = 0;
 
-    console.log(`[Notification Service] Checked ${expiringContracts.length} contracts for expiration`);
+    for (const employee of activeContracts) {
+      const contractEndDate = calculateContractEndDate(employee.contractType, employee.startDate);
+      if (!contractEndDate) continue;
+
+      const daysUntilExpiration = Math.ceil((contractEndDate - today) / msPerDay);
+      const managerIds = [];
+      if (employee.Manager) managerIds.push(employee.Manager.id);
+
+      if (daysUntilExpiration < 0) {
+        await employee.update({ isActive: false, employmentStatus: 'terminated' });
+        await Notification.create({
+          userId: employee.id,
+          type: 'contract_expired',
+          title: 'Contract expired',
+          message: `Your ${employee.contractType} contract expired on ${contractEndDate.toLocaleDateString('en-US')}. The account is now deactivated.`,
+          read: false
+        });
+
+        for (const managerId of managerIds) {
+          await Notification.create({
+            userId: managerId,
+            type: 'contract_expired',
+            title: 'Employee contract expired',
+            message: `${employee.name}'s contract expired on ${contractEndDate.toLocaleDateString('en-US')}. The account has been deactivated.`,
+            read: false
+          });
+        }
+        deactivated += 1;
+        continue;
+      }
+
+      if (daysUntilExpiration <= 30) {
+        await Notification.create({
+          userId: employee.id,
+          type: 'contract_warning',
+          title: 'Contract expiring soon',
+          message: `Your contract is due to expire in ${daysUntilExpiration} day(s) on ${contractEndDate.toLocaleDateString('en-US')}. Please arrange renewal or update status.`,
+          read: false
+        });
+
+        for (const managerId of managerIds) {
+          await Notification.create({
+            userId: managerId,
+            type: 'contract_warning',
+            title: 'Employee contract expiring soon',
+            message: `${employee.name}'s contract will expire in ${daysUntilExpiration} day(s) on ${contractEndDate.toLocaleDateString('en-US')}.`, 
+            read: false
+          });
+        }
+        notified += 1;
+      }
+    }
+
+    console.log(`[Notification Service] Contract check complete. ${notified} expiring, ${deactivated} deactivated.`);
   } catch (error) {
     console.error("[Notification Service] Error checking contract expiration:", error);
   }
