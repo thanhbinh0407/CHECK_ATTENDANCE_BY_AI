@@ -128,9 +128,8 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
     if (contractType === "probation_2_month") return "Probation (2 months)";
     if (contractType === "probation_3_month") return "Probation (3 months)";
     if (contractType === "formal_1_year") return "Formal (1 year)";
+    if (contractType === "formal_2_year") return "Formal (2 years)";
     if (contractType === "formal_3_year") return "Formal (3 years)";
-    if (contractType === "formal_indefinite") return "Formal (Indefinite)";
-    if (contractType === "other") return "Other";
     return "Unknown";
   };
 
@@ -151,11 +150,12 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       case "formal_1_year":
         endDate.setFullYear(endDate.getFullYear() + 1);
         break;
+      case "formal_2_year":
+        endDate.setFullYear(endDate.getFullYear() + 2);
+        break;
       case "formal_3_year":
         endDate.setFullYear(endDate.getFullYear() + 3);
         break;
-      case "formal_indefinite":
-      case "other":
       default:
         return null;
     }
@@ -167,9 +167,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       return { status: "Pending", badge: "gray", daysUntil: null };
     }
 
-    if (contractType === "indefinite") {
-      return { status: isActive ? "Active (indefinite)" : "Inactive", badge: "green", daysUntil: null };
-    }
+
 
     const endDate = calculateContractEndDate(contractType, startDate);
     if (!endDate) {
@@ -224,6 +222,54 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       warnings,
       employmentStatus: employeeDetails?.employmentStatus || "Unknown"
     };
+  }, [employeeDetails]);
+
+  const contractSigningHistory = useMemo(() => {
+    const histories = Array.isArray(employeeDetails?.contractHistory)
+      ? employeeDetails.contractHistory
+      : [];
+
+    const normalized = histories
+      .map((item) => {
+        const signedAt = item?.effectiveDate || item?.newStartDate || item?.createdAt || null;
+        return {
+          id: item?.id || `${item?.createdAt || "contract"}-${item?.newStartDate || ""}`,
+          signedAt,
+          contractType: item?.newContractType || employeeDetails?.contractType || null,
+          startDate: item?.newStartDate || null,
+          note: item?.note || item?.summary || "",
+          signerName: item?.actor?.name || "System",
+          signerCode: item?.actor?.employeeCode || "",
+          source: "audit",
+        };
+      })
+      .filter((item) => item.signedAt);
+
+    const hasInitialInHistory = normalized.some((item) => {
+      if (!employeeDetails?.startDate) return false;
+      const historyDate = String(item.startDate || item.signedAt || "").slice(0, 10);
+      const currentStartDate = new Date(employeeDetails.startDate).toISOString().slice(0, 10);
+      return historyDate === currentStartDate;
+    });
+
+    if (!hasInitialInHistory && employeeDetails?.startDate) {
+      normalized.push({
+        id: `initial-${employeeDetails.id}`,
+        signedAt: employeeDetails.startDate,
+        contractType: employeeDetails.contractType || null,
+        startDate: employeeDetails.startDate,
+        note: "Initial contract",
+        signerName: "System",
+        signerCode: "",
+        source: "initial",
+      });
+    }
+
+    return normalized.sort((a, b) => {
+      const aTime = new Date(a.signedAt).getTime();
+      const bTime = new Date(b.signedAt).getTime();
+      return bTime - aTime;
+    });
   }, [employeeDetails]);
 
   useEffect(() => {
@@ -291,7 +337,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
-      const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}/details`, {
+      const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}/details?includeHistory=true`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -583,6 +629,9 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       
       // Sync email and companyEmail - they are the same (company email)
       const companyEmail = editForm.email || editForm.companyEmail || employeeDetails?.email || employeeDetails?.companyEmail;
+      const contractStartDate = employeeDetails?.startDate
+        ? new Date(employeeDetails.startDate).toISOString().split('T')[0]
+        : null;
       const toNumberOrNull = (value) => {
         if (value === "" || value === null || value === undefined) return null;
         const parsed = Number(value);
@@ -611,7 +660,8 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         jobTitleId: toNumberOrNull(editForm.jobTitleId),
         baseSalary: editForm.baseSalary === "" || editForm.baseSalary === null || editForm.baseSalary === undefined ? 0 : Number(editForm.baseSalary),
         isActive: !!editForm.isActive,
-        startDate: editForm.startDate || null,
+        // Start date is controlled by Employment Contract and is not editable in Work.
+        startDate: contractStartDate,
         bankAccount: editForm.bankAccount || null,
         bankName: editForm.bankName || null,
         taxCode: editForm.taxCode || null,
@@ -670,6 +720,13 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
     }
     if (!contractFormData.startDate) {
       setMessage("Start date is required");
+      setTimeout(() => setMessage(""), 3000);
+      return;
+    }
+    // Prevent choosing a start date in the past
+    const todayISO = new Date().toISOString().split('T')[0];
+    if (contractFormData.startDate < todayISO) {
+      setMessage("Start date cannot be in the past");
       setTimeout(() => setMessage(""), 3000);
       return;
     }
@@ -2035,8 +2092,10 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                       {isEditing ? (
                         <input
                           type="date"
-                          value={editForm.startDate}
-                          onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+                          value={employeeDetails?.startDate ? new Date(employeeDetails.startDate).toISOString().split('T')[0] : ""}
+                          readOnly
+                          disabled
+                          title="Start Date is managed in Employment Contract tab"
                           style={inputStyle}
                         />
                       ) : (
@@ -2082,20 +2141,19 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           style={inputStyle}
                         >
                           <option value="">Select contract type</option>
-                          <option value="probation">Probation</option>
-                          <option value="1_year">1-year contract</option>
-                          <option value="3_year">3-year contract</option>
-                          <option value="indefinite">Indefinite-term contract</option>
-                          <option value="other">Other</option>
+                          <optgroup label="Probation Contracts">
+                            <option value="probation_1_month">Probation (1 month)</option>
+                            <option value="probation_2_month">Probation (2 months)</option>
+                            <option value="probation_3_month">Probation (3 months)</option>
+                          </optgroup>
+                          <optgroup label="Formal Contracts">
+                            <option value="formal_1_year">Formal (1 year)</option>
+                            <option value="formal_2_year">Formal (2 years)</option>
+                            <option value="formal_3_year">Formal (3 years)</option>
+                          </optgroup>
                         </select>
                       ) : (
-                        <div style={valueStyle}>
-                          {employeeDetails?.contractType === "probation" ? "Probation" :
-                           employeeDetails?.contractType === "1_year" ? "1-year contract" :
-                           employeeDetails?.contractType === "3_year" ? "3-year contract" :
-                           employeeDetails?.contractType === "indefinite" ? "Indefinite-term contract" :
-                           employeeDetails?.contractType === "other" ? "Other" : "-"}
-                        </div>
+                        <div style={valueStyle}>{contractTypeLabel(employeeDetails?.contractType)}</div>
                       )}
                     </div>
 
@@ -2471,10 +2529,9 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                             </optgroup>
                             <optgroup label="Formal Contracts">
                               <option value="formal_1_year">Formal (1 year)</option>
+                              <option value="formal_2_year">Formal (2 years)</option>
                               <option value="formal_3_year">Formal (3 years)</option>
-                              <option value="formal_indefinite">Formal (Indefinite)</option>
                             </optgroup>
-                            <option value="other">Other</option>
                           </select>
                         </div>
                         <div className="epm-field">
@@ -2482,7 +2539,8 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           <input
                             type="date"
                             value={contractFormData.startDate}
-                            onChange={(e) => setContractFormData({ ...contractFormData, startDate: e.target.value })}
+                                onChange={(e) => setContractFormData({ ...contractFormData, startDate: e.target.value })}
+                                min={new Date().toISOString().split('T')[0]}
                             style={{
                               width: "100%",
                               padding: theme.spacing.sm,
@@ -2579,6 +2637,54 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           <span style={{ color: contractOverview.contractDaysUntil >= 0 ? "#059669" : "#dc2626", fontWeight: 600 }}>
                             {contractOverview.contractDaysUntil >= 0 ? `${contractOverview.contractDaysUntil} day(s)` : "Expired"}
                           </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="epm-section" style={{ marginBottom: theme.spacing.xl }}>
+                    <h4 className="epm-section-title">Contract Signing History</h4>
+                    <div style={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: theme.radius.md, overflow: "hidden" }}>
+                      {contractSigningHistory.length > 0 ? (
+                        contractSigningHistory.map((item, index) => (
+                          <div
+                            key={item.id}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1.2fr 1.2fr 1fr 1.3fr",
+                              gap: theme.spacing.md,
+                              padding: theme.spacing.md,
+                              borderBottom: index === contractSigningHistory.length - 1 ? "none" : "1px solid #e2e8f0",
+                              alignItems: "center"
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>Start Date</div>
+                              <div style={{ color: "#0f172a", fontWeight: 600 }}>{formatLocalDate(item.startDate)}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>Contract Type</div>
+                              <div style={{ color: "#0f172a" }}>{contractTypeLabel(item.contractType)}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>End Date</div>
+                              <div style={{ color: "#0f172a" }}>{formatLocalDate(calculateContractEndDate(item.contractType, item.startDate))}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>Updated By</div>
+                              <div style={{ color: "#0f172a", fontWeight: 600 }}>
+                                {item.signerName}
+                                {item.signerCode ? ` (${item.signerCode})` : ""}
+                              </div>
+                              {item.note && (
+                                <div style={{ marginTop: "4px", color: "#64748b", fontSize: "12px" }}>{item.note}</div>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ padding: theme.spacing.md, color: "#64748b" }}>
+                          No contract signing history found.
                         </div>
                       )}
                     </div>

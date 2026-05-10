@@ -11,7 +11,7 @@ async function migrateContractTypes() {
     `).catch(() => console.log('Old enum might not exist'));
 
     await sequelize.query(`
-      CREATE TYPE "enum_users_contractType" AS ENUM('probation_1_month', 'probation_2_month', 'probation_3_month', 'formal_1_year', 'formal_3_year', 'formal_indefinite', 'other');
+      CREATE TYPE "enum_users_contractType" AS ENUM('probation_1_month', 'probation_2_month', 'probation_3_month', 'formal_1_year', 'formal_2_year', 'formal_3_year');
     `);
 
     // Update existing values
@@ -28,7 +28,7 @@ async function migrateContractTypes() {
     `);
 
     await sequelize.query(`
-      UPDATE users SET "contractType" = 'formal_indefinite' WHERE "contractType" = 'indefinite';
+      UPDATE users SET "contractType" = 'formal_2_year' WHERE "contractType" = 'indefinite';
     `);
 
     // Drop old enum
