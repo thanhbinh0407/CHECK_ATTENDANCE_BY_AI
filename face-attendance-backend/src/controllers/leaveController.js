@@ -4,6 +4,34 @@ import { Op } from "sequelize";
 import { notifyLeaveStatusChange, createNotification } from "./notificationController.js";
 import { emitApprovalEvent } from "../services/actionAuditService.js";
 
+const ANNUAL_LEAVE_LIMIT_DAYS = 12;
+
+const countLeaveDaysTowardLimit = (leave) => {
+  if (!leave) return 0;
+  return Number(leave.days || 0);
+};
+
+const getAnnualLeaveUsage = async (userId, year, excludeLeaveId = null) => {
+  const yearStart = `${year}-01-01`;
+  const yearEnd = `${year}-12-31`;
+
+  const where = {
+    userId,
+    status: { [Op.in]: ["pending", "approved"] },
+    startDate: {
+      [Op.gte]: yearStart,
+      [Op.lte]: yearEnd,
+    },
+  };
+
+  if (excludeLeaveId) {
+    where.id = { [Op.ne]: excludeLeaveId };
+  }
+
+  const leaves = await LeaveRequest.findAll({ where });
+  return leaves.reduce((sum, leave) => sum + countLeaveDaysTowardLimit(leave), 0);
+};
+
 // Create leave request
 export const createLeaveRequest = async (req, res) => {
   try {
@@ -25,6 +53,17 @@ export const createLeaveRequest = async (req, res) => {
       return res.status(400).json({
         status: "error",
         message: "End date must be after start date"
+      });
+    }
+
+    const requestYear = new Date(startDate).getFullYear();
+    const usedDays = await getAnnualLeaveUsage(userId, requestYear);
+    const projectedDays = usedDays + days;
+
+    if (projectedDays > ANNUAL_LEAVE_LIMIT_DAYS) {
+      return res.status(400).json({
+        status: "error",
+        message: `You can only take up to ${ANNUAL_LEAVE_LIMIT_DAYS} leave day(s) per year. You have already used ${usedDays} day(s).`,
       });
     }
 
@@ -348,12 +387,7 @@ export const getLeaveBalance = async (req, res) => {
       }
     });
 
-    const totalDaysUsed = approvedLeaves.reduce((sum, leave) => {
-      if (leave.type === 'paid' || leave.type === 'sick' || leave.type === 'maternity') {
-        return sum + leave.days;
-      }
-      return sum;
-    }, 0);
+    const totalDaysUsed = approvedLeaves.reduce((sum, leave) => sum + Number(leave.days || 0), 0);
 
     // Default leave balance (can be configured per user)
     const defaultLeaveDays = 12; // 12 days per year
@@ -470,6 +504,17 @@ export const updateLeaveRequest = async (req, res) => {
       return res.status(400).json({
         status: "error",
         message: "End date must be after start date"
+      });
+    }
+
+    const requestYear = new Date(startDate).getFullYear();
+    const usedDays = await getAnnualLeaveUsage(leaveRequest.userId, requestYear, leaveRequest.id);
+    const projectedDays = LEAVE_TYPES_COUNTED_TOWARD_LIMIT.has(type) ? usedDays + days : usedDays;
+
+    if (projectedDays > ANNUAL_LEAVE_LIMIT_DAYS) {
+      return res.status(400).json({
+        status: "error",
+        message: `You can only take up to ${ANNUAL_LEAVE_LIMIT_DAYS} leave day(s) per year. You have already used ${usedDays} day(s).`,
       });
     }
 
