@@ -87,6 +87,10 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   const [expandedLeaveId, setExpandedLeaveId] = useState(null); // leave request id whose reason is expanded
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
+    // Transfer History
+    const [transferHistory, setTransferHistory] = useState(null);
+    const [transferHistoryLoading, setTransferHistoryLoading] = useState(false);
+
   useEffect(() => {
     if (employee) {
       setAttendanceFilter(null); // reset filter on employee switch
@@ -94,6 +98,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       fetchDepartments();
       fetchJobTitles();
       fetchManagers();
+        fetchTransferHistory();
     }
   }, [employee]);
 
@@ -123,6 +128,213 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       }
     } catch (e) {
       console.error("Failed to fetch attendance:", e);
+              {/* Tab: Transfer History */}
+              {activeTab === "transfer" && (
+                <div>
+                  <div style={{ marginBottom: theme.spacing.lg }}>
+                    <h3 style={{ margin: 0, marginBottom: theme.spacing.md, color: theme.primary.main }}>Department & Position Transfer History</h3>
+                  </div>
+
+                  {transferHistoryLoading ? (
+                    <div style={{ textAlign: "center", padding: theme.spacing.lg, color: theme.neutral.gray500 }}>
+                      Loading transfer history...
+                    </div>
+                  ) : transferHistory && transferHistory.length > 0 ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: theme.spacing.md }}>
+                      {transferHistory.map((transfer, idx) => {
+                        const effectiveDate = new Date(transfer.effectiveDate);
+                        const dateStr = effectiveDate.toLocaleDateString("en-US", { 
+                          year: "numeric", 
+                          month: "long", 
+                          day: "numeric" 
+                        });
+
+                        // Format change type with better labels
+                        const changeTypeLabels = {
+                          hire: "Hire",
+                          initial_assignment: "Initial Assignment",
+                          transfer: "Transfer",
+                          promotion: "Promotion",
+                          demotion: "Demotion",
+                          correction: "Correction",
+                          other: "Other"
+                        };
+                        const changeTypeLabel = changeTypeLabels[transfer.changeType] || transfer.changeType;
+
+                        // Color coding for change types
+                        const getChangeTypeColor = (changeType) => {
+                          const colorMap = {
+                            hire: { bg: "#dcfce7", color: "#166534", border: "#86efac" },
+                            initial_assignment: { bg: "#dbeafe", color: "#164e63", border: "#7dd3fc" },
+                            transfer: { bg: "#fce7f3", color: "#831843", border: "#f472b6" },
+                            promotion: { bg: "#fef08a", color: "#713f12", border: "#facc15" },
+                            demotion: { bg: "#fed7aa", color: "#7c2d12", border: "#fdba74" },
+                            correction: { bg: "#f3e8ff", color: "#581c87", border: "#e9d5ff" },
+                            other: { bg: "#f3f4f6", color: "#374151", border: "#d1d5db" }
+                          };
+                          return colorMap[changeType] || colorMap.other;
+                        };
+                        const typeColor = getChangeTypeColor(transfer.changeType);
+
+                        return (
+                          <div
+                            key={`transfer-${idx}`}
+                            style={{
+                              border: `1px solid ${theme.neutral.gray200}`,
+                              borderRadius: theme.radius.lg,
+                              padding: theme.spacing.lg,
+                              backgroundColor: theme.neutral.gray50,
+                              transition: "all 0.2s ease"
+                            }}
+                          >
+                            {/* Header with date and change type */}
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: theme.spacing.md, flexWrap: "wrap", gap: theme.spacing.md }}>
+                              <div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: theme.neutral.gray800 }}>
+                                  {dateStr}
+                                </div>
+                                <div style={{ fontSize: 12, color: theme.neutral.gray500, marginTop: 2 }}>
+                                  Effective Date
+                                </div>
+                              </div>
+                              <div
+                                style={{
+                                  padding: "6px 12px",
+                                  borderRadius: 6,
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: typeColor.color,
+                                  backgroundColor: typeColor.bg,
+                                  border: `1px solid ${typeColor.border}`
+                                }}
+                              >
+                                {changeTypeLabel}
+                              </div>
+                            </div>
+
+                            {/* Department Transfer */}
+                            {(transfer.fromDepartmentName || transfer.toDepartmentName) && (
+                              <div style={{ marginBottom: theme.spacing.md }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: theme.neutral.gray600, textTransform: "uppercase", marginBottom: 8 }}>
+                                  Department
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: theme.spacing.md }}>
+                                  <div
+                                    style={{
+                                      flex: 1,
+                                      padding: theme.spacing.md,
+                                      backgroundColor: "#f0f9ff",
+                                      border: `1px solid #bae6fd`,
+                                      borderRadius: theme.radius.md,
+                                      fontSize: 14,
+                                      color: theme.neutral.gray700,
+                                      fontWeight: 500
+                                    }}
+                                  >
+                                    {transfer.fromDepartmentName || "N/A"}
+                                  </div>
+                                  <div style={{ fontSize: 18, color: theme.neutral.gray400, fontWeight: 700 }}>
+                                    →
+                                  </div>
+                                  <div
+                                    style={{
+                                      flex: 1,
+                                      padding: theme.spacing.md,
+                                      backgroundColor: "#f0fdf4",
+                                      border: `1px solid #bbf7d0`,
+                                      borderRadius: theme.radius.md,
+                                      fontSize: 14,
+                                      color: theme.neutral.gray700,
+                                      fontWeight: 500
+                                    }}
+                                  >
+                                    {transfer.toDepartmentName || "N/A"}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Job Title Transfer */}
+                            {(transfer.fromJobTitleName || transfer.toJobTitleName) && (
+                              <div style={{ marginBottom: theme.spacing.md }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: theme.neutral.gray600, textTransform: "uppercase", marginBottom: 8 }}>
+                                  Position / Job Title
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: theme.spacing.md }}>
+                                  <div
+                                    style={{
+                                      flex: 1,
+                                      padding: theme.spacing.md,
+                                      backgroundColor: "#fef3c7",
+                                      border: `1px solid #fde68a`,
+                                      borderRadius: theme.radius.md,
+                                      fontSize: 14,
+                                      color: theme.neutral.gray700,
+                                      fontWeight: 500
+                                    }}
+                                  >
+                                    {transfer.fromJobTitleName || "N/A"}
+                                  </div>
+                                  <div style={{ fontSize: 18, color: theme.neutral.gray400, fontWeight: 700 }}>
+                                    →
+                                  </div>
+                                  <div
+                                    style={{
+                                      flex: 1,
+                                      padding: theme.spacing.md,
+                                      backgroundColor: "#fce7f3",
+                                      border: `1px solid #fbcfe8`,
+                                      borderRadius: theme.radius.md,
+                                      fontSize: 14,
+                                      color: theme.neutral.gray700,
+                                      fontWeight: 500
+                                    }}
+                                  >
+                                    {transfer.toJobTitleName || "N/A"}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Notes */}
+                            {transfer.notes && (
+                              <div style={{ marginBottom: theme.spacing.md }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: theme.neutral.gray600, textTransform: "uppercase", marginBottom: 8 }}>
+                                  Notes
+                                </div>
+                                <div
+                                  style={{
+                                    padding: theme.spacing.md,
+                                    backgroundColor: "#f9fafb",
+                                    border: `1px solid ${theme.neutral.gray200}`,
+                                    borderRadius: theme.radius.md,
+                                    fontSize: 13,
+                                    color: theme.neutral.gray700,
+                                    fontStyle: "italic"
+                                  }}
+                                >
+                                  {transfer.notes}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Changed By */}
+                            {transfer.changedBy && (
+                              <div style={{ fontSize: 12, color: theme.neutral.gray500, paddingTop: theme.spacing.md, borderTop: `1px solid ${theme.neutral.gray200}` }}>
+                                <strong>Changed by:</strong> {transfer.changedBy.name} ({transfer.changedBy.employeeCode})
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: "center", padding: theme.spacing.lg, color: theme.neutral.gray500, fontStyle: "italic" }}>
+                      No transfer history found
+                    </div>
+                  )}
+                </div>
+              )}
     } finally {
       setAttendanceLoading(false);
     }
@@ -218,6 +430,26 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       const token = localStorage.getItem("authToken");
       const res = await fetch(`${apiBase}/api/job-titles`, {
         headers: { Authorization: `Bearer ${token}` }
+    const fetchTransferHistory = async () => {
+      try {
+        setTransferHistoryLoading(true);
+        const token = localStorage.getItem("authToken");
+        const res = await fetch(`${apiBase}/api/admin/employees/${employee?.id}/history?historyType=job&pageSize=100`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok && data.jobHistory) {
+          setTransferHistory(data.jobHistory);
+        } else {
+          setTransferHistory([]);
+        }
+      } catch (error) {
+        console.error("Error fetching transfer history:", error);
+        setTransferHistory([]);
+      } finally {
+        setTransferHistoryLoading(false);
+      }
+    };
       });
       const data = await res.json();
       if (res.ok) {
@@ -1114,6 +1346,15 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
               >
                 Attendance
               </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "transfer"}
+                  className={activeTab === "transfer" ? "epm-tab epm-tab--active" : "epm-tab"}
+                  onClick={() => setActiveTab("transfer")}
+                >
+                  Transfer History
+                </button>
             </div>
           </div>
         </div>

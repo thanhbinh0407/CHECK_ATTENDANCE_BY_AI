@@ -57,6 +57,9 @@ export default function DepartmentManagement({ token }) {
   const [showForm, setShowForm] = useState(false);
   const [editingDept, setEditingDept] = useState(null);
   const [expandedDepartmentId, setExpandedDepartmentId] = useState(null);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [employeeHistoryLoading, setEmployeeHistoryLoading] = useState(false);
+  const [employeeTransferHistory, setEmployeeTransferHistory] = useState([]);
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -178,6 +181,37 @@ export default function DepartmentManagement({ token }) {
 
   const toggleDepartmentEmployees = (departmentId) => {
     setExpandedDepartmentId((current) => (current === departmentId ? null : departmentId));
+  };
+
+  const openEmployeeTransferHistory = async (employee) => {
+    if (!employee?.id || !token) return;
+
+    setSelectedEmployee(employee);
+    setEmployeeHistoryLoading(true);
+    setEmployeeTransferHistory([]);
+
+    try {
+      const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}/history?historyType=job&pageSize=100`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setEmployeeTransferHistory(Array.isArray(data.jobHistory) ? data.jobHistory : []);
+      } else {
+        setMessage(data.message || 'Unable to load employee history');
+      }
+    } catch {
+      setMessage('Error connecting to server while loading employee history');
+    } finally {
+      setEmployeeHistoryLoading(false);
+    }
+  };
+
+  const closeEmployeeHistory = () => {
+    setSelectedEmployee(null);
+    setEmployeeTransferHistory([]);
+    setEmployeeHistoryLoading(false);
   };
 
   const accentFocus = '#8b46ff';
@@ -793,12 +827,33 @@ export default function DepartmentManagement({ token }) {
                                     {departmentEmployees.map((employee) => (
                                       <div
                                         key={employee.id}
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => openEmployeeTransferHistory(employee)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            openEmployeeTransferHistory(employee);
+                                          }
+                                        }}
                                         style={{
                                           padding: '12px 14px',
                                           borderRadius: 14,
                                           backgroundColor: theme.neutral.white,
                                           border: '1px solid #e2e8f0',
                                           boxShadow: '0 6px 18px rgba(15, 23, 42, 0.05)',
+                                          cursor: 'pointer',
+                                          transition: 'transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.transform = 'translateY(-2px)';
+                                          e.currentTarget.style.boxShadow = '0 10px 22px rgba(15, 23, 42, 0.10)';
+                                          e.currentTarget.style.borderColor = '#8b46ff';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.transform = 'translateY(0)';
+                                          e.currentTarget.style.boxShadow = '0 6px 18px rgba(15, 23, 42, 0.05)';
+                                          e.currentTarget.style.borderColor = '#e2e8f0';
                                         }}
                                       >
                                         <div style={{ fontWeight: 700, color: theme.neutral.gray900, marginBottom: 4 }}>
@@ -812,6 +867,136 @@ export default function DepartmentManagement({ token }) {
                                         </div>
                                       </div>
                                     ))}
+
+                                  {selectedEmployee && (
+                                    <div
+                                      style={{
+                                        position: 'fixed',
+                                        inset: 0,
+                                        backgroundColor: 'rgba(15, 23, 42, 0.55)',
+                                        zIndex: 2000,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: 20,
+                                      }}
+                                      onClick={closeEmployeeHistory}
+                                    >
+                                      <div
+                                        style={{
+                                          width: 'min(920px, 100%)',
+                                          maxHeight: '86vh',
+                                          overflow: 'auto',
+                                          backgroundColor: theme.neutral.white,
+                                          borderRadius: 18,
+                                          boxShadow: '0 30px 80px rgba(0,0,0,0.35)',
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <div
+                                          style={{
+                                            padding: '18px 22px',
+                                            background: 'linear-gradient(135deg, #7c3aed 0%, #8b46ff 100%)',
+                                            color: theme.neutral.white,
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            gap: 12,
+                                          }}
+                                        >
+                                          <div>
+                                            <div style={{ fontSize: 20, fontWeight: 800 }}>Transfer History</div>
+                                            <div style={{ fontSize: 13, opacity: 0.92, marginTop: 4 }}>
+                                              {selectedEmployee.name} · {selectedEmployee.employeeCode || 'No code'}
+                                            </div>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={closeEmployeeHistory}
+                                            style={{
+                                              border: 'none',
+                                              background: 'rgba(255,255,255,0.18)',
+                                              color: theme.neutral.white,
+                                              width: 38,
+                                              height: 38,
+                                              borderRadius: 12,
+                                              cursor: 'pointer',
+                                              fontSize: 18,
+                                              fontWeight: 800,
+                                            }}
+                                          >
+                                            ×
+                                          </button>
+                                        </div>
+
+                                        <div style={{ padding: 22 }}>
+                                          {employeeHistoryLoading ? (
+                                            <div style={{ padding: 24, textAlign: 'center', color: theme.neutral.gray600 }}>
+                                              Loading history...
+                                            </div>
+                                          ) : employeeTransferHistory.length === 0 ? (
+                                            <div style={{ padding: 24, textAlign: 'center', color: theme.neutral.gray600, backgroundColor: '#f8fafc', borderRadius: 14, border: '1px dashed #cbd5e1' }}>
+                                              No department transfer history found for this employee.
+                                            </div>
+                                          ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                              {employeeTransferHistory.map((item) => {
+                                                const isDepartmentChanged = item.fromDepartmentId !== item.toDepartmentId;
+                                                const dateStr = item.effectiveDate
+                                                  ? new Date(item.effectiveDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                                                  : '—';
+                                                const changeTypeLabel = {
+                                                  hire: 'Hire',
+                                                  initial_assignment: 'Initial assignment',
+                                                  transfer: 'Department transfer',
+                                                  promotion: 'Promotion',
+                                                  demotion: 'Demotion',
+                                                  correction: 'Correction',
+                                                  other: 'Change',
+                                                }[item.changeType] || item.changeType || 'Change';
+
+                                                return (
+                                                  <div key={item.id} style={{ border: '1px solid #e5e7eb', borderRadius: 16, padding: 16, backgroundColor: '#fff' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+                                                      <div>
+                                                        <div style={{ fontWeight: 800, color: theme.neutral.gray900 }}>{dateStr}</div>
+                                                        <div style={{ fontSize: 12, color: theme.neutral.gray500, marginTop: 4 }}>{changeTypeLabel}</div>
+                                                      </div>
+                                                      {item.changedBy && (
+                                                        <div style={{ fontSize: 12, color: theme.neutral.gray600, alignSelf: 'center' }}>
+                                                          Changed by: <strong>{item.changedBy.name}</strong>
+                                                        </div>
+                                                      )}
+                                                    </div>
+
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+                                                      <div style={{ padding: 12, borderRadius: 12, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                                                        <div style={{ fontSize: 11, fontWeight: 800, color: theme.neutral.gray500, textTransform: 'uppercase' }}>From Department</div>
+                                                        <div style={{ marginTop: 6, fontWeight: 700, color: theme.neutral.gray800 }}>{item.fromDepartmentName || '—'}</div>
+                                                      </div>
+                                                      <div style={{ padding: 12, borderRadius: 12, backgroundColor: isDepartmentChanged ? '#f3e8ff' : '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 900, color: '#7c3aed' }}>
+                                                        →
+                                                      </div>
+                                                      <div style={{ padding: 12, borderRadius: 12, backgroundColor: '#f0fdf4', border: '1px solid #dcfce7' }}>
+                                                        <div style={{ fontSize: 11, fontWeight: 800, color: theme.neutral.gray500, textTransform: 'uppercase' }}>To Department</div>
+                                                        <div style={{ marginTop: 6, fontWeight: 700, color: theme.neutral.gray800 }}>{item.toDepartmentName || '—'}</div>
+                                                      </div>
+                                                    </div>
+
+                                                    {item.notes && (
+                                                      <div style={{ marginTop: 12, fontSize: 13, color: theme.neutral.gray600, lineHeight: 1.6 }}>
+                                                        <strong>Notes:</strong> {item.notes}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
                                   </div>
                                 )}
                               </div>
