@@ -18,6 +18,8 @@ const CHANGE_TYPE_BADGE = {
 const JOB_CHANGE_TYPES    = ['hire','initial_assignment','transfer','promotion','demotion','correction','other'];
 const SALARY_CHANGE_TYPES = ['initial_salary','increase','decrease','correction','other'];
 
+const ANNUAL_LEAVE_QUOTA_DAYS = 12;
+
 const API         = 'http://localhost:5000/api';
 const SOCKET_URL  = 'http://localhost:5000';
 
@@ -877,7 +879,7 @@ export default function EmployeeManagement({ token, user }) {
                   <th>Full Name</th>
                   <th>Email</th>
                   <th>Department</th>
-                  <th>Job Title</th>
+                  <th>Annual Leave</th>
                   <th>Role</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -899,7 +901,9 @@ export default function EmployeeManagement({ token, user }) {
                     <td style={{ fontWeight: 500, color: '#1a202c' }}>{emp.name}</td>
                     <td style={{ color: '#718096', fontSize: 13 }}>{emp.email}</td>
                     <td style={{ color: '#4a5568' }}>{emp.Department?.name || '—'}</td>
-                    <td style={{ color: '#4a5568' }}>{emp.JobTitle?.name || '—'}</td>
+                    <td style={{ color: '#2b6cb0', fontWeight: 700 }}>
+                      {Number(emp.leaveBalance?.remaining ?? ANNUAL_LEAVE_QUOTA_DAYS)}/{ANNUAL_LEAVE_QUOTA_DAYS}
+                    </td>
                     <td><RoleBadge role={emp.role} /></td>
                     <td>
                       <span className={`badge ${emp.isActive ? 'badge-active' : 'badge-inactive'}`}>
@@ -1027,7 +1031,7 @@ export default function EmployeeManagement({ token, user }) {
                 <div><span style={{ color: '#718096' }}>Email:</span> {detailUser.email || '—'}</div>
                 <div><span style={{ color: '#718096' }}>Phone:</span> {detailUser.phoneNumber || '—'}</div>
                 <div><span style={{ color: '#718096' }}>Department:</span> {detailUser.Department?.name || detailUser.department?.name || '—'}</div>
-                <div><span style={{ color: '#718096' }}>Job Title:</span> {detailUser.JobTitle?.name || detailUser.jobTitle?.name || '—'}</div>
+                <div><span style={{ color: '#718096' }}>Annual Leave:</span> {Number(detailUser.leaveStats?.totalDaysUsed || 0)}/{ANNUAL_LEAVE_QUOTA_DAYS}</div>
                 <div><span style={{ color: '#718096' }}>Role:</span> <RoleBadge role={detailUser.role} /></div>
                 <div><span style={{ color: '#718096' }}>Status:</span>{' '}
                   <span className={`badge ${detailUser.isActive ? 'badge-active' : 'badge-inactive'}`}>

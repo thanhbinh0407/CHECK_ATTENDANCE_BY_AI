@@ -723,13 +723,6 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       setTimeout(() => setMessage(""), 3000);
       return;
     }
-    // Prevent choosing a start date in the past
-    const todayISO = new Date().toISOString().split('T')[0];
-    if (contractFormData.startDate < todayISO) {
-      setMessage("Start date cannot be in the past");
-      setTimeout(() => setMessage(""), 3000);
-      return;
-    }
     if (contractFormData.retirementAge < 50 || contractFormData.retirementAge > 70) {
       setMessage("Retirement age must be between 50 and 70");
       setTimeout(() => setMessage(""), 3000);

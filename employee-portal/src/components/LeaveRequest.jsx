@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 
 export default function LeaveRequest({ userId, refreshVersion = 0 }) {
+  const ANNUAL_LEAVE_LIMIT_DAYS = 12;
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -106,8 +107,8 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
     }
     
     const days = calculateDays(formData.startDate, formData.endDate);
-    if (formData.type === "paid" && days > leaveBalance.remaining) {
-      errors.general = `You only have ${leaveBalance.remaining} days remaining. Please adjust your dates.`;
+    if (days > leaveBalance.remaining) {
+      errors.general = `You can only take up to ${ANNUAL_LEAVE_LIMIT_DAYS} leave day(s) per year. You only have ${leaveBalance.remaining} day(s) remaining.`;
     }
     
     setFormErrors(errors);
