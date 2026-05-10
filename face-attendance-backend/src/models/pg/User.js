@@ -104,7 +104,7 @@ const User = sequelize.define('User', {
   },
 
   contractType: {
-    type: DataTypes.ENUM('probation_1_month', 'probation_2_month', 'probation_3_month', 'formal_1_year', 'formal_3_year', 'formal_indefinite', 'other'),
+    type: DataTypes.ENUM('probation_1_month', 'probation_2_month', 'probation_3_month', 'formal_1_year', 'formal_2_year', 'formal_3_year'),
     allowNull: true
   },
 
