@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import EmployeeDashboard from "./components/EmployeeDashboard.jsx";
 import AttendanceHistory from "./components/AttendanceHistory.jsx";
 import SalaryHistory from "./components/SalaryHistory.jsx";
@@ -13,6 +13,7 @@ import BusinessTripRequest from "./components/BusinessTripRequest.jsx";
 import ChangePassword from "./components/ChangePassword.jsx";
 import PersonalProfileModal from "./components/PersonalProfileModal.jsx";
 import socket from "./socket.js";
+import { toastWarning } from "./lib/notify.jsx";
 import "./App.css";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:5000").replace(/\/$/, "");
@@ -34,6 +35,66 @@ function portalAvatarSrc(apiBase, avatarUrl) {
   return `${base}${path}`;
 }
 
+const CONTRACT_DURATION_MONTHS = {
+  probation_1_month: 1,
+  probation_2_month: 2,
+  probation_3_month: 3,
+  formal_1_year: 12,
+  formal_2_year: 24,
+  formal_3_year: 36,
+};
+
+function toLocalStartOfDay(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function formatPortalDate(value) {
+  const date = toLocalStartOfDay(value);
+  return date ? date.toLocaleDateString("en-US") : "-";
+}
+
+function getContractExpiryReminder(profile) {
+  if (!profile?.contractType || !profile?.startDate) return null;
+  if (["terminated", "resigned"].includes(String(profile.employmentStatus || "").toLowerCase())) {
+    return null;
+  }
+
+  const months = CONTRACT_DURATION_MONTHS[profile.contractType];
+  if (!months) return null;
+
+  const startDate = toLocalStartOfDay(profile.startDate);
+  if (!startDate) return null;
+
+  const endDate = new Date(startDate);
+  endDate.setMonth(endDate.getMonth() + months);
+  endDate.setHours(0, 0, 0, 0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const daysLeft = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
+  if (daysLeft > 7) return null;
+
+  const endDateLabel = endDate.toLocaleDateString("vi-VN");
+  const message =
+    daysLeft < 0
+      ? `Your contract expired on ${endDateLabel}. Please contact HR to renew it.`
+      : daysLeft === 0
+        ? `Your contract expires today (${endDateLabel}). Please renew it now.`
+        : `Your contract will expire in ${daysLeft} day(s) (${endDateLabel}). Please renew it.`;
+
+  return {
+    daysLeft,
+    endDate,
+    endDateKey: endDate.toISOString().slice(0, 10),
+    endDateLabel,
+    message,
+  };
+}
+
 function App() {
   const [authToken, setAuthToken] = useState(() => {
     return localStorage.getItem("authToken");
@@ -46,6 +107,9 @@ function App() {
   const [isChecking, setIsChecking] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
   const [portalRefresh, setPortalRefresh] = useState(() => ({ ...INITIAL_PORTAL_REFRESH }));
+  const [employeeProfile, setEmployeeProfile] = useState(null);
+  const [contractReminderOpen, setContractReminderOpen] = useState(false);
+  const notificationRef = useRef(null);
 
   const patchSessionUser = useCallback((patch) => {
     setUser((prev) => {
@@ -124,6 +188,34 @@ function App() {
   }, [authToken]);
 
   useEffect(() => {
+    if (!authToken || String(user?.role || "").toLowerCase() !== "employee") {
+      setEmployeeProfile(null);
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`${API_BASE}/api/employee/profile`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled || data.status !== "success" || !data.user) return;
+        setEmployeeProfile(data.user);
+        setUser((prev) => {
+          if (!prev) return prev;
+          const merged = { ...prev, ...data.user };
+          localStorage.setItem("user", JSON.stringify(merged));
+          return merged;
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken, user?.role]);
+
+  useEffect(() => {
     if (!authToken || !user?.id) return;
 
     const joinRoom = () => {
@@ -150,6 +242,33 @@ function App() {
       socket.disconnect();
     };
   }, [authToken, user?.id]);
+
+  const contractReminder = useMemo(() => {
+    return getContractExpiryReminder(employeeProfile || user);
+  }, [employeeProfile, user]);
+
+  useEffect(() => {
+    if (!contractReminder || !user?.id) return;
+
+    const storageKey = `contract-expiry-reminder:${user.id}:${contractReminder.endDateKey}`;
+    if (localStorage.getItem(storageKey)) return;
+
+    toastWarning(contractReminder.message);
+    localStorage.setItem(storageKey, "1");
+  }, [contractReminder, user?.id]);
+
+  useEffect(() => {
+    if (!contractReminderOpen) return;
+
+    const onOutsideClick = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setContractReminderOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onOutsideClick);
+    return () => document.removeEventListener("mousedown", onOutsideClick);
+  }, [contractReminderOpen]);
 
   const handleLoginSuccess = (token, userData) => {
     setAuthToken(token);
@@ -290,6 +409,84 @@ function App() {
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <div ref={notificationRef} style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => setContractReminderOpen((prev) => !prev)}
+                aria-label="Contract reminders"
+                title={contractReminder ? "Contract expiry reminder" : "No contract reminders"}
+                style={{
+                  border: "none",
+                  background: "rgba(255,255,255,0.18)",
+                  color: "#fff",
+                  width: 42,
+                  height: 42,
+                  borderRadius: "50%",
+                  cursor: contractReminder ? "pointer" : "default",
+                  fontSize: 18,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  position: "relative",
+                  boxShadow: contractReminder ? "0 0 0 2px rgba(255,255,255,0.15)" : "none",
+                  opacity: contractReminder ? 1 : 0.8,
+                }}
+                disabled={!contractReminder}
+              >
+                🔔
+                {contractReminder && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: -2,
+                      right: -2,
+                      minWidth: 18,
+                      height: 18,
+                      padding: "0 4px",
+                      borderRadius: 999,
+                      backgroundColor: contractReminder.daysLeft < 0 ? "#ef4444" : "#f97316",
+                      color: "#fff",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: "2px solid rgba(255,255,255,0.95)",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    1
+                  </span>
+                )}
+              </button>
+              {contractReminderOpen && contractReminder && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 12px)",
+                    right: 0,
+                    width: 320,
+                    backgroundColor: "#fff",
+                    color: "#111827",
+                    borderRadius: 14,
+                    boxShadow: "0 16px 40px rgba(15, 23, 42, 0.18)",
+                    border: "1px solid #e5e7eb",
+                    padding: 16,
+                    zIndex: 40,
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 700, color: contractReminder.daysLeft < 0 ? "#dc2626" : "#f97316", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    Contract reminder
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.5 }}>
+                    {contractReminder.message}
+                  </div>
+                  <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280" }}>
+                    Contract end date: {formatPortalDate(contractReminder.endDate)}
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => setProfileOpen(true)}

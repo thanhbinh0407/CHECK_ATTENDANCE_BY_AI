@@ -34,6 +34,35 @@ const sumAllowances = (obj) => {
   );
 };
 
+const CONTRACT_DURATION_MONTHS = {
+  probation_1_month: 1,
+  probation_2_month: 2,
+  probation_3_month: 3,
+  formal_1_year: 12,
+  formal_2_year: 24,
+  formal_3_year: 36,
+};
+
+const getContractEndDate = (contractType, startDate) => {
+  if (!contractType || !startDate) return null;
+  const months = CONTRACT_DURATION_MONTHS[contractType];
+  if (!months) return null;
+
+  const normalizedStartDate = new Date(startDate);
+  if (Number.isNaN(normalizedStartDate.getTime())) return null;
+
+  const endDate = new Date(normalizedStartDate);
+  endDate.setMonth(endDate.getMonth() + months);
+  endDate.setHours(23, 59, 59, 999);
+  return endDate;
+};
+
+const isContractStillEffective = (contractType, startDate) => {
+  const endDate = getContractEndDate(contractType, startDate);
+  if (!endDate) return false;
+  return endDate >= new Date();
+};
+
 // Get all employees
 export const getAllEmployees = async (req, res) => {
   try {
@@ -69,9 +98,42 @@ export const getAllEmployees = async (req, res) => {
       ]
     });
 
+    const currentYear = new Date().getFullYear();
+    const leaveRequests = await LeaveRequest.findAll({
+      where: {
+        status: 'approved',
+        startDate: {
+          [Op.gte]: `${currentYear}-01-01`,
+          [Op.lte]: `${currentYear}-12-31`,
+        },
+      },
+      attributes: ['userId', 'days'],
+    });
+
+    const leaveBalanceByUserId = new Map();
+    for (const leave of leaveRequests) {
+      const userId = Number(leave.userId);
+      const usedDays = Number(leave.days || 0);
+      leaveBalanceByUserId.set(userId, (leaveBalanceByUserId.get(userId) || 0) + usedDays);
+    }
+
+    const employeesWithLeaveBalance = employees.map((employee) => {
+      const usedDays = leaveBalanceByUserId.get(Number(employee.id)) || 0;
+      const remainingDays = Math.max(0, 12 - usedDays);
+      return {
+        ...employee.toJSON(),
+        leaveBalance: {
+          total: 12,
+          used: usedDays,
+          remaining: remainingDays,
+          year: currentYear,
+        },
+      };
+    });
+
     return res.json({
       status: "success",
-      employees
+      employees: employeesWithLeaveBalance
     });
   } catch (err) {
     console.error("Error fetching employees:", err);
@@ -357,6 +419,14 @@ export const updateEmployee = async (req, res) => {
       ? (updateData.startDate ? new Date(updateData.startDate).toISOString().slice(0, 10) : null)
       : oldContractStartDate;
     const contractChanged = oldContractType !== newContractType || oldContractStartDate !== newContractStartDate;
+
+    if (contractChanged && isContractStillEffective(oldContractType, oldContractStartDate)) {
+      return res.status(400).json({
+        status: "error",
+        message: "The current contract is still effective. Please suspend or wait until it expires before creating a new contract.",
+      });
+    }
+
     const newTotalAllowance =
       (updateData.lunchAllowance !== undefined ||
         updateData.transportAllowance !== undefined ||
