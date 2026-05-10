@@ -6,6 +6,12 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   const [loading, setLoading] = useState(false);
   const [employeeDetails, setEmployeeDetails] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingContract, setIsEditingContract] = useState(false);
+  const [contractFormData, setContractFormData] = useState({
+    contractType: '',
+    startDate: '',
+    retirementAge: 60
+  });
   const [message, setMessage] = useState("");
   const [editForm, setEditForm] = useState({});
   const [departments, setDepartments] = useState([]);
@@ -86,6 +92,149 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [expandedLeaveId, setExpandedLeaveId] = useState(null); // leave request id whose reason is expanded
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+  const parseDate = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const formatLocalDate = (value) => {
+    const date = parseDate(value);
+    return date ? date.toLocaleDateString("en-US") : "-";
+  };
+
+  const getAge = (dateOfBirth) => {
+    const dob = parseDate(dateOfBirth);
+    if (!dob) return null;
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+      age -= 1;
+    }
+    return age;
+  };
+
+  const getRetirementAge = (gender) => {
+    if (!gender) return 60;
+    const normalized = String(gender).trim().toLowerCase();
+    if (normalized === "female" || normalized === "f") return 55;
+    return 60;
+  };
+
+  const contractTypeLabel = (contractType) => {
+    if (contractType === "probation_1_month") return "Probation (1 month)";
+    if (contractType === "probation_2_month") return "Probation (2 months)";
+    if (contractType === "probation_3_month") return "Probation (3 months)";
+    if (contractType === "formal_1_year") return "Formal (1 year)";
+    if (contractType === "formal_3_year") return "Formal (3 years)";
+    if (contractType === "formal_indefinite") return "Formal (Indefinite)";
+    if (contractType === "other") return "Other";
+    return "Unknown";
+  };
+
+  const calculateContractEndDate = (contractType, startDate) => {
+    const hireDate = parseDate(startDate);
+    if (!hireDate || !contractType) return null;
+    const endDate = new Date(hireDate);
+    switch (contractType) {
+      case "probation_1_month":
+        endDate.setMonth(endDate.getMonth() + 1);
+        break;
+      case "probation_2_month":
+        endDate.setMonth(endDate.getMonth() + 2);
+        break;
+      case "probation_3_month":
+        endDate.setMonth(endDate.getMonth() + 3);
+        break;
+      case "formal_1_year":
+        endDate.setFullYear(endDate.getFullYear() + 1);
+        break;
+      case "formal_3_year":
+        endDate.setFullYear(endDate.getFullYear() + 3);
+        break;
+      case "formal_indefinite":
+      case "other":
+      default:
+        return null;
+    }
+    return endDate;
+  };
+
+  const getContractStatus = (contractType, startDate, isActive = true) => {
+    if (!contractType || !startDate) {
+      return { status: "Pending", badge: "gray", daysUntil: null };
+    }
+
+    if (contractType === "indefinite") {
+      return { status: isActive ? "Active (indefinite)" : "Inactive", badge: "green", daysUntil: null };
+    }
+
+    const endDate = calculateContractEndDate(contractType, startDate);
+    if (!endDate) {
+      return { status: "Active", badge: "green", daysUntil: null };
+    }
+
+    const today = new Date();
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const daysUntil = Math.ceil((endDate - today) / msPerDay);
+
+    if (daysUntil < 0) {
+      return { status: "Expired", badge: "red", daysUntil };
+    }
+    if (daysUntil <= 30) {
+      return { status: "Expiring soon", badge: "orange", daysUntil };
+    }
+    return { status: "Active", badge: "green", daysUntil };
+  };
+
+  const contractOverview = React.useMemo(() => {
+    const contractType = employeeDetails?.contractType;
+    const startDate = employeeDetails?.startDate;
+    const status = getContractStatus(contractType, startDate, employeeDetails?.isActive);
+    const age = getAge(employeeDetails?.dateOfBirth);
+    const retirementAge = employeeDetails?.retirementAge || getRetirementAge(employeeDetails?.gender);
+    const yearsToRetirement = age != null ? retirementAge - age : null;
+    const warnings = [];
+
+    if (age != null && age < 18) {
+      warnings.push("Employee is under 18 years old; creating or updating records is restricted.");
+    }
+    if (yearsToRetirement != null && yearsToRetirement <= 2 && yearsToRetirement >= 0) {
+      warnings.push("Employee is nearing retirement age. Please check contract renewal and labor rules.");
+    }
+    if (status.status === "Expiring soon") {
+      warnings.push(`Contract expires in ${Math.max(status.daysUntil, 0)} day(s). Renew or deactivate before expiration.`);
+    }
+    if (status.status === "Expired") {
+      warnings.push("Contract has expired. Employee should be deactivated or renewed immediately.");
+    }
+
+    return {
+      contractTypeLabel: contractTypeLabel(contractType),
+      contractStartDate: formatLocalDate(startDate),
+      contractEndDate: formatLocalDate(calculateContractEndDate(contractType, startDate)),
+      contractStatus: status.status,
+      contractBadge: status.badge,
+      contractDaysUntil: status.daysUntil,
+      currentAge: age != null ? `${age} years` : "-",
+      retirementAge: `${retirementAge} years`,
+      yearsToRetirement: yearsToRetirement != null ? (yearsToRetirement >= 0 ? `${yearsToRetirement} years` : "Retirement age reached") : "-",
+      warnings,
+      employmentStatus: employeeDetails?.employmentStatus || "Unknown"
+    };
+  }, [employeeDetails]);
+
+  useEffect(() => {
+    if (employeeDetails) {
+      setContractFormData({
+        contractType: employeeDetails.contractType || '',
+        startDate: employeeDetails.startDate ? new Date(employeeDetails.startDate).toISOString().split('T')[0] : '',
+        retirementAge: employeeDetails.retirementAge || 60
+      });
+    }
+  }, [employeeDetails]);
 
   useEffect(() => {
     if (employee) {
@@ -398,6 +547,14 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       setTimeout(() => setMessage(""), 5000);
       return;
     }
+
+    const age = getAge(editForm.dateOfBirth);
+    if (age != null && age < 18) {
+      setMessage("Cannot save: employee age must be at least 18 years old.");
+      setTimeout(() => setMessage(""), 5000);
+      return;
+    }
+
     // If ID Number changed or provided, check uniqueness on server
     try {
       const newId = String(editForm.idNumber || "").replace(/\D/g, "");
@@ -495,6 +652,65 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       } else {
         console.error("Save error:", data);
         setMessage("Error: " + (data.message || "Unable to update"));
+        setTimeout(() => setMessage(""), 5000);
+      }
+    } catch (error) {
+      setMessage("Error: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveContract = async () => {
+    // Validate contract form
+    if (!contractFormData.contractType) {
+      setMessage("Contract type is required");
+      setTimeout(() => setMessage(""), 3000);
+      return;
+    }
+    if (!contractFormData.startDate) {
+      setMessage("Start date is required");
+      setTimeout(() => setMessage(""), 3000);
+      return;
+    }
+    if (contractFormData.retirementAge < 50 || contractFormData.retirementAge > 70) {
+      setMessage("Retirement age must be between 50 and 70");
+      setTimeout(() => setMessage(""), 3000);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("authToken");
+      
+      const formData = {
+        contractType: contractFormData.contractType,
+        startDate: contractFormData.startDate,
+        retirementAge: contractFormData.retirementAge
+      };
+      
+      console.log("Saving contract data:", formData);
+      
+      const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await res.json();
+      console.log("Contract save response:", data);
+      if (res.ok) {
+        setMessage("Contract updated successfully");
+        setIsEditingContract(false);
+        fetchEmployeeDetails();
+        if (onUpdate) onUpdate();
+        setTimeout(() => setMessage(""), 3000);
+      } else {
+        console.error("Contract save error:", data);
+        setMessage("Error: " + (data.message || "Unable to update contract"));
         setTimeout(() => setMessage(""), 5000);
       }
     } catch (error) {
@@ -1081,6 +1297,15 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
               <button
                 type="button"
                 role="tab"
+                aria-selected={activeTab === "contract"}
+                className={activeTab === "contract" ? "epm-tab epm-tab--active" : "epm-tab"}
+                onClick={() => setActiveTab("contract")}
+              >
+                Employment Contract
+              </button>
+              <button
+                type="button"
+                role="tab"
                 aria-selected={activeTab === "family"}
                 className={activeTab === "family" ? "epm-tab epm-tab--active" : "epm-tab"}
                 onClick={() => setActiveTab("family")}
@@ -1129,6 +1354,16 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
               {/* Tab: Thông tin cá nhân */}
               {activeTab === "info" && (
                 <div>
+                  {employeeDetails && contractOverview.warnings.length > 0 && (
+                    <div className="epm-contract-warning" style={{ marginBottom: theme.spacing.lg }}>
+                      <strong>Warning:</strong>
+                      <ul style={{ margin: "10px 0 0 20px", padding: 0 }}>
+                        {contractOverview.warnings.map((warning, idx) => (
+                          <li key={idx}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   {/* Face Profiles Section */}
                   {employeeDetails?.FaceProfiles && employeeDetails.FaceProfiles.length > 0 && (
                     <div className="epm-section" style={{ marginBottom: 18 }}>
@@ -2157,7 +2392,264 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                 </div>
               )}
 
-              {/* Tab: Family — same UX pattern as Work Experience */}
+              {/* Tab: Employment Contract */}
+              {activeTab === "contract" && (
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing.lg }}>
+                    <h3 style={{ marginTop: 0, marginBottom: 0, color: theme.primary.main }}>Employment Contract</h3>
+                    {!isEditingContract && (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingContract(true)}
+                        style={{
+                          padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                          backgroundColor: theme.primary.main,
+                          color: theme.neutral.white,
+                          border: "none",
+                          borderRadius: theme.radius.md,
+                          cursor: "pointer",
+                          fontWeight: 600,
+                          fontSize: "14px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        ✏️ Edit Contract
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Contract Status Overview */}
+                  <div className="epm-section" style={{ marginBottom: theme.spacing.xl }}>
+                    <h4 className="epm-section-title">Contract Status</h4>
+                    <div className="epm-contract-summary" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: theme.spacing.md }}>
+                      <div className="epm-contract-card" style={{ padding: theme.spacing.md, border: "1px solid #e2e8f0", borderRadius: theme.radius.md, backgroundColor: "#f8fafc" }}>
+                        <div className="epm-contract-label" style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>Contract Type</div>
+                        <div className="epm-val" style={{ fontSize: "16px", fontWeight: 600, color: "#1e293b", marginTop: "4px" }}>{contractOverview.contractTypeLabel}</div>
+                      </div>
+                      <div className="epm-contract-card" style={{ padding: theme.spacing.md, border: "1px solid #e2e8f0", borderRadius: theme.radius.md, backgroundColor: "#f8fafc" }}>
+                        <div className="epm-contract-label" style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>Status</div>
+                        <span className={`epm-contract-pill epm-contract-pill--${contractOverview.contractBadge}`} style={{ marginTop: "4px", display: "inline-block" }}>
+                          {contractOverview.contractStatus}
+                        </span>
+                      </div>
+                      <div className="epm-contract-card" style={{ padding: theme.spacing.md, border: "1px solid #e2e8f0", borderRadius: theme.radius.md, backgroundColor: "#f8fafc" }}>
+                        <div className="epm-contract-label" style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>Start Date</div>
+                        <div className="epm-val" style={{ fontSize: "16px", fontWeight: 600, color: "#1e293b", marginTop: "4px" }}>{contractOverview.contractStartDate}</div>
+                      </div>
+                      <div className="epm-contract-card" style={{ padding: theme.spacing.md, border: "1px solid #e2e8f0", borderRadius: theme.radius.md, backgroundColor: "#f8fafc" }}>
+                        <div className="epm-contract-label" style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>End Date</div>
+                        <div className="epm-val" style={{ fontSize: "16px", fontWeight: 600, color: "#1e293b", marginTop: "4px" }}>{contractOverview.contractEndDate}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Edit Contract Form */}
+                  {isEditingContract && (
+                    <div className="epm-section" style={{ marginBottom: theme.spacing.xl, backgroundColor: "#fef3c7", border: "1px solid #f59e0b", borderRadius: theme.radius.md, padding: theme.spacing.lg }}>
+                      <h4 className="epm-section-title" style={{ color: "#92400e" }}>Edit Contract Details</h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: theme.spacing.md }}>
+                        <div className="epm-field">
+                          <label className="epm-label" style={{ color: "#92400e" }}>Contract Type *</label>
+                          <select
+                            value={contractFormData.contractType}
+                            onChange={(e) => setContractFormData({ ...contractFormData, contractType: e.target.value })}
+                            style={{
+                              width: "100%",
+                              padding: theme.spacing.sm,
+                              border: "1px solid #d97706",
+                              borderRadius: theme.radius.sm,
+                              fontSize: "14px"
+                            }}
+                          >
+                            <option value="">Select contract type</option>
+                            <optgroup label="Probation Contracts">
+                              <option value="probation_1_month">Probation (1 month)</option>
+                              <option value="probation_2_month">Probation (2 months)</option>
+                              <option value="probation_3_month">Probation (3 months)</option>
+                            </optgroup>
+                            <optgroup label="Formal Contracts">
+                              <option value="formal_1_year">Formal (1 year)</option>
+                              <option value="formal_3_year">Formal (3 years)</option>
+                              <option value="formal_indefinite">Formal (Indefinite)</option>
+                            </optgroup>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div className="epm-field">
+                          <label className="epm-label" style={{ color: "#92400e" }}>Start Date *</label>
+                          <input
+                            type="date"
+                            value={contractFormData.startDate}
+                            onChange={(e) => setContractFormData({ ...contractFormData, startDate: e.target.value })}
+                            style={{
+                              width: "100%",
+                              padding: theme.spacing.sm,
+                              border: "1px solid #d97706",
+                              borderRadius: theme.radius.sm,
+                              fontSize: "14px"
+                            }}
+                          />
+                        </div>
+                        <div className="epm-field">
+                          <label className="epm-label" style={{ color: "#92400e" }}>Retirement Age</label>
+                          <input
+                            type="number"
+                            min="50"
+                            max="70"
+                            value={contractFormData.retirementAge}
+                            onChange={(e) => setContractFormData({ ...contractFormData, retirementAge: parseInt(e.target.value) || 60 })}
+                            style={{
+                              width: "100%",
+                              padding: theme.spacing.sm,
+                              border: "1px solid #d97706",
+                              borderRadius: theme.radius.sm,
+                              fontSize: "14px"
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: theme.spacing.md, marginTop: theme.spacing.lg }}>
+                        <button
+                          onClick={handleSaveContract}
+                          disabled={loading}
+                          style={{
+                            padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                            backgroundColor: "#f59e0b",
+                            color: "#92400e",
+                            border: "none",
+                            borderRadius: theme.radius.md,
+                            cursor: loading ? "not-allowed" : "pointer",
+                            fontWeight: 600,
+                            fontSize: "14px"
+                          }}
+                        >
+                          {loading ? "Saving..." : "💾 Save Contract"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsEditingContract(false);
+                            setContractFormData({
+                              contractType: employeeDetails?.contractType || '',
+                              startDate: employeeDetails?.startDate ? new Date(employeeDetails.startDate).toISOString().split('T')[0] : '',
+                              retirementAge: employeeDetails?.retirementAge || 60
+                            });
+                          }}
+                          style={{
+                            padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                            backgroundColor: "#fef3c7",
+                            color: "#92400e",
+                            border: "1px solid #d97706",
+                            borderRadius: theme.radius.md,
+                            cursor: "pointer",
+                            fontWeight: 600,
+                            fontSize: "14px"
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Contract Timeline */}
+                  <div className="epm-section" style={{ marginBottom: theme.spacing.xl }}>
+                    <h4 className="epm-section-title">Contract Timeline</h4>
+                    <div className="epm-contract-timeline" style={{ backgroundColor: "#f8fafc", padding: theme.spacing.md, borderRadius: theme.radius.md, border: "1px solid #e2e8f0" }}>
+                      <div className="epm-contract-timeline-row" style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #e2e8f0" }}>
+                        <span style={{ fontWeight: 600, color: "#374151" }}>Hire / Start Date</span>
+                        <span style={{ color: "#1f2937" }}>{contractOverview.contractStartDate}</span>
+                      </div>
+                      <div className="epm-contract-timeline-row" style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #e2e8f0" }}>
+                        <span style={{ fontWeight: 600, color: "#374151" }}>Contract Type</span>
+                        <span style={{ color: "#1f2937" }}>{contractOverview.contractTypeLabel}</span>
+                      </div>
+                      <div className="epm-contract-timeline-row" style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #e2e8f0" }}>
+                        <span style={{ fontWeight: 600, color: "#374151" }}>Expected End Date</span>
+                        <span style={{ color: "#1f2937" }}>{contractOverview.contractEndDate}</span>
+                      </div>
+                      <div className="epm-contract-timeline-row" style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #e2e8f0" }}>
+                        <span style={{ fontWeight: 600, color: "#374151" }}>Employment Status</span>
+                        <span style={{ color: "#1f2937" }}>{contractOverview.employmentStatus}</span>
+                      </div>
+                      {contractOverview.contractDaysUntil != null && (
+                        <div className="epm-contract-timeline-row" style={{ display: "flex", justifyContent: "space-between", padding: "8px 0" }}>
+                          <span style={{ fontWeight: 600, color: "#374151" }}>Days Until Expiry</span>
+                          <span style={{ color: contractOverview.contractDaysUntil >= 0 ? "#059669" : "#dc2626", fontWeight: 600 }}>
+                            {contractOverview.contractDaysUntil >= 0 ? `${contractOverview.contractDaysUntil} day(s)` : "Expired"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Age & Retirement Info */}
+                  <div className="epm-section" style={{ marginBottom: theme.spacing.xl }}>
+                    <h4 className="epm-section-title">Age & Retirement Information</h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: theme.spacing.md }}>
+                      <div style={{ padding: theme.spacing.md, border: "1px solid #e2e8f0", borderRadius: theme.radius.md, backgroundColor: "#f8fafc" }}>
+                        <div style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>Current Age</div>
+                        <div style={{ fontSize: "24px", fontWeight: 700, color: "#1e293b", marginTop: "4px" }}>{contractOverview.currentAge}</div>
+                      </div>
+                      <div style={{ padding: theme.spacing.md, border: "1px solid #e2e8f0", borderRadius: theme.radius.md, backgroundColor: "#f8fafc" }}>
+                        <div style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>Retirement Age</div>
+                        <div style={{ fontSize: "24px", fontWeight: 700, color: "#1e293b", marginTop: "4px" }}>{contractOverview.retirementAge}</div>
+                      </div>
+                      <div style={{ padding: theme.spacing.md, border: "1px solid #e2e8f0", borderRadius: theme.radius.md, backgroundColor: "#f8fafc" }}>
+                        <div style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>Years to Retirement</div>
+                        <div style={{ fontSize: "24px", fontWeight: 700, color: contractOverview.yearsToRetirement.includes("Retirement") ? "#dc2626" : "#059669", marginTop: "4px" }}>{contractOverview.yearsToRetirement}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Warnings */}
+                  {contractOverview.warnings.length > 0 && (
+                    <div className="epm-contract-warning" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: theme.radius.md, padding: theme.spacing.md, marginBottom: theme.spacing.xl }}>
+                      <strong style={{ color: "#dc2626" }}>⚠️ Attention Required:</strong>
+                      <ul style={{ margin: "8px 0 0 0", paddingLeft: "20px", color: "#dc2626" }}>
+                        {contractOverview.warnings.map((warning, index) => (
+                          <li key={index}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Quick Actions */}
+                  <div className="epm-contract-actions" style={{ display: "flex", gap: theme.spacing.md, flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("work")}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        backgroundColor: "#fff",
+                        borderRadius: theme.radius.md,
+                        padding: "10px 16px",
+                        cursor: "pointer",
+                        color: theme.neutral.gray900,
+                        fontWeight: 600
+                      }}
+                    >
+                      📋 Review Work Experience
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("info")}
+                      style={{
+                        border: "1px solid transparent",
+                        backgroundColor: theme.primary.main,
+                        color: "#fff",
+                        borderRadius: theme.radius.md,
+                        padding: "10px 16px",
+                        cursor: "pointer",
+                        fontWeight: 600
+                      }}
+                    >
+                      👤 View Personal Profile
+                    </button>
+                  </div>
+                </div>
+              )}
               {activeTab === "family" && (
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing.lg }}>
