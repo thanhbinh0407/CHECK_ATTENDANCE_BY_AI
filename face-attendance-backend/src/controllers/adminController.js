@@ -419,8 +419,15 @@ export const updateEmployee = async (req, res) => {
       ? (updateData.startDate ? new Date(updateData.startDate).toISOString().slice(0, 10) : null)
       : oldContractStartDate;
     const contractChanged = oldContractType !== newContractType || oldContractStartDate !== newContractStartDate;
+    const contractTypeChanged = oldContractType !== newContractType;
+    const contractStartDateChanged = oldContractStartDate !== newContractStartDate;
+    const oldEmploymentStatus = employee.employmentStatus || null;
+    const newEmploymentStatus = updateData.employmentStatus !== undefined ? updateData.employmentStatus : oldEmploymentStatus;
+    const employmentStatusChanged = oldEmploymentStatus !== newEmploymentStatus;
 
-    if (contractChanged && isContractStillEffective(oldContractType, oldContractStartDate)) {
+    // Allow contract type renewal/upgrade if start date remains the same
+    // Only block if start date changes while contract is still effective
+    if (contractStartDateChanged && isContractStillEffective(oldContractType, oldContractStartDate)) {
       return res.status(400).json({
         status: "error",
         message: "The current contract is still effective. Please suspend or wait until it expires before creating a new contract.",
@@ -505,7 +512,14 @@ export const updateEmployee = async (req, res) => {
         }, { transaction });
       }
 
-      if (contractChanged) {
+      if (contractChanged || employmentStatusChanged) {
+        let summaryText = "Updated employment contract";
+        if (employmentStatusChanged && !contractChanged) {
+          summaryText = `Updated employment status to ${newEmploymentStatus || "unknown"}`;
+        } else if (contractTypeChanged && !contractStartDateChanged) {
+          summaryText = `Contract renewal/upgrade: ${oldContractType} → ${newContractType}`;
+        }
+        
         await ActionAudit.create(
           {
             actorId: changedBy,
@@ -515,15 +529,17 @@ export const updateEmployee = async (req, res) => {
             targetUserId: employee.id,
             entityType: "employee_contract",
             entityId: employee.id,
-            summary: "Updated employment contract",
+            summary: summaryText,
             metadata: {
               old: {
                 contractType: oldContractType,
                 startDate: oldContractStartDate,
+                employmentStatus: oldEmploymentStatus,
               },
               new: {
                 contractType: newContractType,
                 startDate: newContractStartDate,
+                employmentStatus: newEmploymentStatus,
               },
               effectiveDate: normalizedEffectiveDate,
               note: historyNote || null,
@@ -1571,6 +1587,8 @@ export const getEmployeeDetailedInfo = async (req, res) => {
           newContractType: audit.metadata?.new?.contractType || null,
           oldStartDate: audit.metadata?.old?.startDate || null,
           newStartDate: audit.metadata?.new?.startDate || null,
+          oldEmploymentStatus: audit.metadata?.old?.employmentStatus || null,
+          newEmploymentStatus: audit.metadata?.new?.employmentStatus || null,
           effectiveDate: audit.metadata?.effectiveDate || null,
           note: audit.metadata?.note || null,
           createdAt: audit.createdAt,

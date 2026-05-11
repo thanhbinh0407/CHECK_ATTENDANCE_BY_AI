@@ -229,17 +229,40 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       ? employeeDetails.contractHistory
       : [];
 
+    const formatEmploymentStatus = (status) => {
+      switch (status) {
+        case "active": return "Active";
+        case "maternity_leave": return "Maternity Leave";
+        case "unpaid_leave": return "Unpaid Leave";
+        case "suspended": return "Suspended";
+        case "terminated": return "Terminated";
+        case "resigned": return "Resigned";
+        default: return status || "-";
+      }
+    };
+
     const normalized = histories
       .map((item) => {
         const signedAt = item?.effectiveDate || item?.newStartDate || item?.createdAt || null;
+        const hasContractChange = Boolean(item?.newContractType || item?.newStartDate);
+        const statusLabel = item?.newEmploymentStatus ? formatEmploymentStatus(item.newEmploymentStatus) : null;
+        const isSuspension = item?.newEmploymentStatus === "suspended";
+        const suspensionDateForDisplay = isSuspension && item?.effectiveDate ? item.effectiveDate : null;
         return {
           id: item?.id || `${item?.createdAt || "contract"}-${item?.newStartDate || ""}`,
           signedAt,
           contractType: item?.newContractType || employeeDetails?.contractType || null,
+          contractLabel: hasContractChange
+            ? contractTypeLabel(item?.newContractType || employeeDetails?.contractType || null)
+            : statusLabel
+              ? `Status: ${statusLabel}`
+              : contractTypeLabel(item?.newContractType || employeeDetails?.contractType || null),
           startDate: item?.newStartDate || null,
+          suspensionDate: suspensionDateForDisplay,
           note: item?.note || item?.summary || "",
           signerName: item?.actor?.name || "System",
           signerCode: item?.actor?.employeeCode || "",
+          employmentStatus: item?.newEmploymentStatus || null,
           source: "audit",
         };
       })
@@ -729,6 +752,22 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       return;
     }
 
+    const oldStartDate = employeeDetails?.startDate ? new Date(employeeDetails.startDate).toISOString().split('T')[0] : null;
+    const oldContractType = employeeDetails?.contractType || null;
+    const startDateUnchanged = contractFormData.startDate === oldStartDate;
+    const typeChanged = contractFormData.contractType !== oldContractType;
+    const isContractActive = contractOverview.contractStatus === "Active";
+    
+    // If only contract type is changing and contract is active, show confirmation
+    if (typeChanged && startDateUnchanged && isContractActive) {
+      const ok = await openModalConfirm({
+        message: `Renew contract type from "${contractTypeLabel(oldContractType)}" to "${contractTypeLabel(contractFormData.contractType)}"?`,
+        confirmText: "Renew",
+        cancelText: "Cancel",
+      });
+      if (!ok) return;
+    }
+
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
@@ -738,6 +777,11 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         startDate: contractFormData.startDate,
         retirementAge: contractFormData.retirementAge
       };
+      
+      // Add renewal note if only contract type is changing
+      if (typeChanged && startDateUnchanged) {
+        formData.historyNote = `Contract renewal/upgrade from ${contractTypeLabel(oldContractType)} to ${contractTypeLabel(contractFormData.contractType)}`;
+      }
       
       console.log("Saving contract data:", formData);
       
@@ -765,6 +809,65 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       }
     } catch (error) {
       setMessage("Error: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSuspendContract = async () => {
+    if (!employeeDetails) return;
+    if (employeeDetails.employmentStatus === "suspended") {
+      setMessage("Contract is already suspended");
+      setTimeout(() => setMessage(""), 3000);
+      return;
+    }
+
+    const reason = window.prompt("Enter suspension reason");
+    if (reason === null) return;
+
+    const suspensionReason = reason.trim();
+    if (!suspensionReason) {
+      setMessage("Suspension reason is required");
+      setTimeout(() => setMessage(""), 3000);
+      return;
+    }
+
+    const ok = await openModalConfirm({
+      message: "Suspend this contract now?",
+      confirmText: "Suspend",
+      cancelText: "Cancel",
+    });
+    if (!ok) return;
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          employmentStatus: "suspended",
+          historyNote: suspensionReason,
+          effectiveDate: new Date().toISOString().split("T")[0],
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMessage("Contract suspended successfully");
+        fetchEmployeeDetails();
+        if (onUpdate) onUpdate();
+        setTimeout(() => setMessage(""), 3000);
+      } else {
+        setMessage("Error: " + (data.message || "Unable to suspend contract"));
+        setTimeout(() => setMessage(""), 5000);
+      }
+    } catch (error) {
+      setMessage("Error: " + error.message);
+      setTimeout(() => setMessage(""), 5000);
     } finally {
       setLoading(false);
     }
@@ -2494,6 +2597,27 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         <div className="epm-val" style={{ fontSize: "16px", fontWeight: 600, color: "#1e293b", marginTop: "4px" }}>{contractOverview.contractEndDate}</div>
                       </div>
                     </div>
+                    {employeeDetails?.employmentStatus !== "suspended" && employeeDetails?.employmentStatus !== "terminated" && employeeDetails?.employmentStatus !== "resigned" && (
+                      <div style={{ marginTop: theme.spacing.md, display: "flex", justifyContent: "flex-end" }}>
+                        <button
+                          type="button"
+                          onClick={handleSuspendContract}
+                          disabled={loading}
+                          style={{
+                            padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                            backgroundColor: "#fee2e2",
+                            color: "#991b1b",
+                            border: "1px solid #fca5a5",
+                            borderRadius: theme.radius.md,
+                            cursor: loading ? "not-allowed" : "pointer",
+                            fontWeight: 700,
+                            fontSize: "14px",
+                          }}
+                        >
+                          Suspend Contract
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Edit Contract Form */}
@@ -2533,7 +2657,6 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                             type="date"
                             value={contractFormData.startDate}
                                 onChange={(e) => setContractFormData({ ...contractFormData, startDate: e.target.value })}
-                                min={new Date().toISOString().split('T')[0]}
                             style={{
                               width: "100%",
                               padding: theme.spacing.sm,
@@ -2542,6 +2665,9 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                               fontSize: "14px"
                             }}
                           />
+                          <div style={{ marginTop: "4px", fontSize: "12px", color: "#92400e" }}>
+                            Note: To renew/upgrade contract type without changing start date, keep the same start date.
+                          </div>
                         </div>
                         <div className="epm-field">
                           <label className="epm-label" style={{ color: "#92400e" }}>Retirement Age</label>
@@ -2657,7 +2783,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                             </div>
                             <div>
                               <div style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>Contract Type</div>
-                              <div style={{ color: "#0f172a" }}>{contractTypeLabel(item.contractType)}</div>
+                              <div style={{ color: "#0f172a" }}>{item.contractLabel}</div>
                             </div>
                             <div>
                               <div style={{ fontSize: "12px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>End Date</div>
@@ -2669,6 +2795,11 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                                 {item.signerName}
                                 {item.signerCode ? ` (${item.signerCode})` : ""}
                               </div>
+                              {item.suspensionDate && (
+                                <div style={{ marginTop: "4px", color: "#991b1b", fontSize: "12px", fontWeight: 600 }}>
+                                  Suspension Date: {formatLocalDate(item.suspensionDate)}
+                                </div>
+                              )}
                               {item.note && (
                                 <div style={{ marginTop: "4px", color: "#64748b", fontSize: "12px" }}>{item.note}</div>
                               )}
