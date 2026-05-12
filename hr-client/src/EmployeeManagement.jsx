@@ -19,6 +19,8 @@ const JOB_CHANGE_TYPES    = ['hire','initial_assignment','transfer','promotion',
 const SALARY_CHANGE_TYPES = ['initial_salary','increase','decrease','correction','other'];
 
 const ANNUAL_LEAVE_QUOTA_DAYS = 12;
+const ADDITIONAL_ANNUAL_LEAVE_EVERY_5_YEARS = 1;
+
 
 const API         = 'http://localhost:5000/api';
 const SOCKET_URL  = 'http://localhost:5000';
@@ -161,6 +163,9 @@ function CreateEmployeeModal({ form, setField, onClose, onSave, saving, departme
             <div className="form-group">
               <label>Start date</label>
               <input type="date" value={form.startDate} onChange={e => setField('startDate', e.target.value)} />
+              <div style={{ marginTop: 6, color: '#4a5568', fontSize: 12 }}>
+                Annual leave defaults to 12 days/year and increases +1 day every 5 years of service.
+              </div>
             </div>
           </div>
           <div className="form-row">
@@ -302,6 +307,9 @@ function EditModal({ form, setField, onClose, onSave, saving, departments, jobTi
             <div className="form-group">
               <label>Start Date</label>
               <input type="date" value={form.startDate} onChange={e => setField('startDate', e.target.value)} />
+              <div style={{ marginTop: 6, color: '#4a5568', fontSize: 12 }}>
+                Annual leave is 12 days/year, plus +1 day every 5 years of service.
+              </div>
             </div>
             <div className="form-group">
               <label>Base Salary (VND)</label>
@@ -352,6 +360,58 @@ const ROLE_META = {
 const ROLE_LABEL = Object.fromEntries(
   Object.entries(ROLE_META).map(([k, v]) => [k, v.label])
 );
+
+function AnnualLeaveConfigModal({ form, setField, onClose, onSave, saving, baseDays, additionalEvery5Years }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ width: 420 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Edit Annual Leave Policy</h3>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+
+        <form onSubmit={onSave}>
+          <p style={{ color: '#4a5568', marginBottom: 16, fontSize: 13 }}>
+            This setting updates the maximum annual leave quota shown for all employees.
+          </p>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Base annual leave days *</label>
+              <input
+                required
+                type="number"
+                min="0"
+                value={form.baseDays}
+                onChange={e => setField('baseDays', e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label>Extra days every 5 years</label>
+              <input
+                required
+                type="number"
+                min="0"
+                value={form.additionalEvery5Years}
+                onChange={e => setField('additionalEvery5Years', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 13, color: '#4a5568' }}>
+            <div>Current values:</div>
+            <div>{baseDays} + {additionalEvery5Years} every 5 years</div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 function RoleBadge({ role }) {
   const meta = ROLE_META[role] || ROLE_META.employee;
@@ -405,6 +465,19 @@ export default function EmployeeManagement({ token, user }) {
   const [detailSalaryFilter, setDetailSalaryFilter] = useState({ fromDate: '', toDate: '', changeType: '' });
   const [detailJobPage, setDetailJobPage]     = useState(1);
   const [detailSalaryPage, setDetailSalaryPage] = useState(1);
+  const [annualLeaveBaseDays, setAnnualLeaveBaseDays] = useState(() => {
+    const saved = Number(localStorage.getItem('hrAnnualLeaveBaseDays'));
+    return Number.isFinite(saved) && saved > 0 ? saved : ANNUAL_LEAVE_QUOTA_DAYS;
+  });
+  const [annualLeaveAdditionalEvery5Years, setAnnualLeaveAdditionalEvery5Years] = useState(() => {
+    const saved = Number(localStorage.getItem('hrAnnualLeaveAdditionalEvery5Years'));
+    return Number.isFinite(saved) && saved >= 0 ? saved : ADDITIONAL_ANNUAL_LEAVE_EVERY_5_YEARS;
+  });
+  const [leaveConfigOpen, setLeaveConfigOpen] = useState(false);
+  const [leaveConfigForm, setLeaveConfigForm] = useState({
+    baseDays: annualLeaveBaseDays,
+    additionalEvery5Years: annualLeaveAdditionalEvery5Years,
+  });
 
   const isManager = user?.role === 'manager';
   const actorId = user?.id ?? user?.userId ?? null;
@@ -413,6 +486,44 @@ export default function EmployeeManagement({ token, user }) {
     if (actorId == null || Number(emp.id) === Number(actorId)) return false;
     if (user?.role === 'hr' && emp.role !== 'employee') return false;
     return true;
+  };
+
+  const getEmployeeAnnualLeaveTotal = useCallback((employee) => {
+    if (!employee?.startDate) return annualLeaveBaseDays;
+    const start = new Date(employee.startDate);
+    if (Number.isNaN(start.getTime())) return annualLeaveBaseDays;
+    const now = new Date();
+    let years = now.getFullYear() - start.getFullYear();
+    if (now.getMonth() < start.getMonth() || (now.getMonth() === start.getMonth() && now.getDate() < start.getDate())) {
+      years -= 1;
+    }
+    years = Math.max(0, years);
+    return annualLeaveBaseDays + Math.floor(years / 5) * annualLeaveAdditionalEvery5Years;
+  }, [annualLeaveBaseDays, annualLeaveAdditionalEvery5Years]);
+
+  const openLeaveConfig = () => {
+    setLeaveConfigForm({ baseDays: annualLeaveBaseDays, additionalEvery5Years: annualLeaveAdditionalEvery5Years });
+    setLeaveConfigOpen(true);
+  };
+
+  const setLeaveConfigField = (key, value) => {
+    setLeaveConfigForm(prev => ({ ...prev, [key]: value }));
+  };
+
+  const saveLeaveConfig = (e) => {
+    e.preventDefault();
+    const baseDays = Number(leaveConfigForm.baseDays);
+    const additionalEvery5Years = Number(leaveConfigForm.additionalEvery5Years);
+    if (!Number.isFinite(baseDays) || baseDays < 0 || !Number.isFinite(additionalEvery5Years) || additionalEvery5Years < 0) {
+      toastError('Please enter valid numbers for annual leave settings.');
+      return;
+    }
+    setAnnualLeaveBaseDays(baseDays);
+    setAnnualLeaveAdditionalEvery5Years(additionalEvery5Years);
+    localStorage.setItem('hrAnnualLeaveBaseDays', String(baseDays));
+    localStorage.setItem('hrAnnualLeaveAdditionalEvery5Years', String(additionalEvery5Years));
+    setLeaveConfigOpen(false);
+    toastSuccess('Annual leave settings updated for all employees.');
   };
 
   const pushActionToast = (message, tone = 'warn') => {
@@ -879,7 +990,32 @@ export default function EmployeeManagement({ token, user }) {
                   <th>Full Name</th>
                   <th>Email</th>
                   <th>Department</th>
-                  <th>Annual Leave</th>
+                  <th>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <span>Annual Leave</span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openLeaveConfig(); }}
+                        title="Edit annual leave policy"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 26,
+                          height: 26,
+                          borderRadius: 6,
+                          border: '1px solid #cbd5e1',
+                          background: '#ffffff',
+                          color: '#334155',
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          padding: 0,
+                        }}
+                      >
+                        ✏️
+                      </button>
+                    </div>
+                  </th>
                   <th>Role</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -902,7 +1038,7 @@ export default function EmployeeManagement({ token, user }) {
                     <td style={{ color: '#718096', fontSize: 13 }}>{emp.email}</td>
                     <td style={{ color: '#4a5568' }}>{emp.Department?.name || '—'}</td>
                     <td style={{ color: '#2b6cb0', fontWeight: 700 }}>
-                      {Number(emp.leaveBalance?.remaining ?? ANNUAL_LEAVE_QUOTA_DAYS)}/{ANNUAL_LEAVE_QUOTA_DAYS}
+                      <span>{Number(emp.leaveBalance?.remaining ?? getEmployeeAnnualLeaveTotal(emp))}/{getEmployeeAnnualLeaveTotal(emp)}</span>
                     </td>
                     <td><RoleBadge role={emp.role} /></td>
                     <td>
@@ -1008,6 +1144,18 @@ export default function EmployeeManagement({ token, user }) {
         />
       )}
 
+      {leaveConfigOpen && (
+        <AnnualLeaveConfigModal
+          form={leaveConfigForm}
+          setField={setLeaveConfigField}
+          onClose={() => setLeaveConfigOpen(false)}
+          onSave={saveLeaveConfig}
+          saving={false}
+          baseDays={annualLeaveBaseDays}
+          additionalEvery5Years={annualLeaveAdditionalEvery5Years}
+        />
+      )}
+
       {/* UC-07 — Details Modal */}
       {detailUser && (
         <div className="modal-overlay" onClick={() => setDetailUser(null)}>
@@ -1031,7 +1179,12 @@ export default function EmployeeManagement({ token, user }) {
                 <div><span style={{ color: '#718096' }}>Email:</span> {detailUser.email || '—'}</div>
                 <div><span style={{ color: '#718096' }}>Phone:</span> {detailUser.phoneNumber || '—'}</div>
                 <div><span style={{ color: '#718096' }}>Department:</span> {detailUser.Department?.name || detailUser.department?.name || '—'}</div>
-                <div><span style={{ color: '#718096' }}>Annual Leave:</span> {Number(detailUser.leaveStats?.totalDaysUsed || 0)}/{ANNUAL_LEAVE_QUOTA_DAYS}</div>
+                <div style={{ marginBottom: 6 }}>
+                  <span style={{ color: '#718096' }}>Annual Leave:</span> {Number(detailUser.leaveStats?.totalDaysUsed || 0)}/{getEmployeeAnnualLeaveTotal(detailUser)}
+                </div>
+                <div style={{ color: '#4a5568', fontSize: 13, lineHeight: 1.5, marginBottom: 10 }}>
+                  Note: Annual leave increases by +1 day every 5 years of service.
+                </div>
                 <div><span style={{ color: '#718096' }}>Role:</span> <RoleBadge role={detailUser.role} /></div>
                 <div><span style={{ color: '#718096' }}>Status:</span>{' '}
                   <span className={`badge ${detailUser.isActive ? 'badge-active' : 'badge-inactive'}`}>

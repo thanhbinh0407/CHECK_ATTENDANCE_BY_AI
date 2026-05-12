@@ -23,6 +23,11 @@ const LeaveRequest = sequelize.define('LeaveRequest', {
     allowNull: false,
     defaultValue: 'paid'
   },
+  subType: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Detailed leave subtype for UI labeling and annual leave rules'
+  },
   startDate: {
     type: DataTypes.DATEONLY,
     allowNull: false

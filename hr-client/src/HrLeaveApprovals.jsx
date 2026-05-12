@@ -9,6 +9,30 @@ function authHeaders(token) {
 /**
  * Leave request approvals (HR / Manager — same API as Supervisor).
  */
+const leaveTypeMeta = {
+  annual_leave: { icon: '🌴', label: 'Annual Leave', color: '#10B981' },
+  paid_marriage: { icon: '💍', label: 'Marriage Leave (3 days)', color: '#EC4899' },
+  paid_child_marriage: { icon: '👶', label: 'Child Marriage Leave (1 day)', color: '#EC4899' },
+  paid_family_death: { icon: '🕊️', label: 'Family Death Leave (3 days)', color: '#F59E0B' },
+  unpaid_family_death: { icon: '🕯️', label: 'Extended Family Death Leave (1 day)', color: '#6B7280' },
+  unpaid_other: { icon: '⚖️', label: 'Other Unpaid Leave', color: '#6B7280' },
+  sick: { icon: '🏥', label: 'Sick Leave (Social Insurance)', color: '#EF4444' },
+  maternity_female: { icon: '👩‍🦱', label: 'Maternity Leave (Female)', color: '#EC4899' },
+  maternity_male: { icon: '👨‍🦱', label: 'Maternity Leave (Male)', color: '#EC4899' },
+  unpaid_negotiated: { icon: '📝', label: 'Negotiated Unpaid Leave', color: '#6B7280' },
+  accident_leave: { icon: '⚠️', label: 'Work Accident/ Occupational Disease Leave', color: '#F97316' },
+  civic_duty: { icon: '🪖', label: 'Civic Duty Leave', color: '#8B5CF6' },
+  study_training: { icon: '🎓', label: 'Study/Training Leave', color: '#10B981' },
+  suspended_work: { icon: '⏸️', label: 'Work Suspension Leave', color: '#F59E0B' },
+  special_leave: { icon: '🌧️', label: 'Other Special Leave', color: '#6B7280' },
+  other: { icon: '📌', label: 'Other', color: '#6B7280' }
+};
+
+function formatLeaveType(type) {
+  const meta = leaveTypeMeta[type] || { icon: '📌', label: String(type || 'Other').replace(/_/g, ' '), color: '#6B7280' };
+  return { icon: meta.icon, label: meta.label, color: meta.color };
+}
+
 export default function HrLeaveApprovals({ token }) {
   const [items, setItems] = useState([]);
   const [statusFilter, setStatusFilter] = useState('pending');
@@ -74,6 +98,7 @@ export default function HrLeaveApprovals({ token }) {
                 <tr>
                   <th>Employee</th>
                   <th>Type</th>
+                  <th>Annual Leave</th>
                   <th>From</th>
                   <th>To</th>
                   <th>Reason</th>
@@ -88,7 +113,11 @@ export default function HrLeaveApprovals({ token }) {
                   return (
                     <tr key={item.id}>
                       <td>{emp.name || emp.employeeCode || item.userId}</td>
-                      <td>{item.leaveType || item.type || '—'}</td>
+                      <td>{(() => {
+                        const leaveType = formatLeaveType(item.subType || item.leaveType || item.type);
+                        return <span style={{ color: leaveType.color }}>{leaveType.icon} {leaveType.label}</span>;
+                      })()}</td>
+                      <td>{item.annualLeaveUsed != null ? `${item.annualLeaveUsed} days used` : '—'}</td>
                       <td>{item.startDate ? String(item.startDate).slice(0, 10) : '—'}</td>
                       <td>{item.endDate ? String(item.endDate).slice(0, 10) : '—'}</td>
                       <td style={{ maxWidth: 200, fontSize: 13 }}>{item.reason || '—'}</td>
@@ -114,7 +143,7 @@ export default function HrLeaveApprovals({ token }) {
                 })}
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', color: '#718096', padding: 24 }}>No leave requests</td>
+                    <td colSpan={8} style={{ textAlign: 'center', color: '#718096', padding: 24 }}>No leave requests</td>
                   </tr>
                 )}
               </tbody>

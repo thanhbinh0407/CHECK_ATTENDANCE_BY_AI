@@ -13,18 +13,18 @@ const ensureAutoTable = (doc) => {
   }
 };
 
-const ATTENDANCE_EXPORT_COLUMNS = [
-  { key: 'timestamp', header: 'Thời gian', widthChars: 20, widthPx: 180, align: 'left' },
-  { key: 'employeeName', header: 'Nhân viên', widthChars: 25, widthPx: 210, align: 'left' },
-  { key: 'employeeCode', header: 'Mã NV', widthChars: 12, widthPx: 110, align: 'left' },
-  { key: 'type', header: 'Loại', widthChars: 8, widthPx: 70, align: 'left' },
-  { key: 'confidence', header: 'Độ tin cậy', widthChars: 12, widthPx: 110, align: 'center' },
-  { key: 'matchDistance', header: 'Khoảng cách', widthChars: 12, widthPx: 110, align: 'center' },
-  { key: 'deviceId', header: 'Thiết bị', widthChars: 15, widthPx: 130, align: 'left' },
-  { key: 'isLate', header: 'Muộn', widthChars: 8, widthPx: 80, align: 'center' },
-  { key: 'isEarlyLeave', header: 'Về sớm', widthChars: 10, widthPx: 90, align: 'center' },
-  { key: 'isOvertime', header: 'Tăng ca', widthChars: 10, widthPx: 90, align: 'center' },
-  { key: 'note', header: 'Ghi chú', widthChars: 30, widthPx: 200, align: 'left' },
+const ATTENDANCE_SUMMARY_COLUMNS = [
+  { key: 'day', header: 'Day', widthChars: 14, widthPx: 120, align: 'left' },
+  { key: 'date', header: 'Date', widthChars: 14, widthPx: 100, align: 'left' },
+  { key: 'morningCheckIn', header: 'Morning Check-in', widthChars: 16, widthPx: 130, align: 'center' },
+  { key: 'morningCheckOut', header: 'Morning Check-out', widthChars: 16, widthPx: 130, align: 'center' },
+  { key: 'afternoonCheckIn', header: 'Afternoon Check-in', widthChars: 16, widthPx: 130, align: 'center' },
+  { key: 'finalCheckOut', header: 'Final Check-out', widthChars: 16, widthPx: 130, align: 'center' },
+  { key: 'lateMinutes', header: 'Late (mins)', widthChars: 12, widthPx: 100, align: 'center' },
+  { key: 'earlyLeaveMinutes', header: 'Early Leave (mins)', widthChars: 16, widthPx: 120, align: 'center' },
+  { key: 'otHours', header: 'OT Hours', widthChars: 10, widthPx: 90, align: 'center' },
+  { key: 'approvedEarlyLeave', header: 'Approved Early Leave', widthChars: 18, widthPx: 140, align: 'center' },
+  { key: 'status', header: 'Status', widthChars: 14, widthPx: 120, align: 'left' },
 ];
 
 const ATTENDANCE_PDF_ROWS_PER_PAGE = 24;
@@ -32,23 +32,112 @@ const ATTENDANCE_PDF_ROWS_PER_PAGE = 24;
 const getAttendanceEmployeeMap = (employees = []) =>
   new Map((employees || []).map((employee) => [String(employee.id), employee]));
 
-const mapAttendanceLogToExportRow = (log, employeeMap) => {
-  const employee = employeeMap.get(String(log.userId));
-  const distance = Number(log.matchDistance);
+const extractMinutesFromNote = (note, prefix) => {
+  if (!note) return 0;
+  const regex = new RegExp(`${prefix}\\s*by\\s*(\\d+)\\s*min`, 'i');
+  const match = note.match(regex);
+  if (match) return parseInt(match[1], 10);
+  return 0;
+};
 
-  return {
-    timestamp: log.timestamp ? new Date(log.timestamp).toLocaleString('vi-VN') : '',
-    employeeName: employee?.name || log.detectedName || 'Unknown',
-    employeeCode: employee?.employeeCode || '',
-    type: log.type === 'IN' ? 'Vào' : 'Ra',
-    confidence: log.confidence ? `${(log.confidence * 100).toFixed(1)}%` : '',
-    matchDistance: Number.isFinite(distance) ? distance.toFixed(3) : '',
-    deviceId: log.deviceId || '',
-    isLate: log.isLate ? 'Có' : 'Không',
-    isEarlyLeave: log.isEarlyLeave ? 'Có' : 'Không',
-    isOvertime: log.isOvertime ? 'Có' : 'Không',
-    note: log.note || '',
-  };
+const formatAttendanceTime = (timestamp) => {
+  if (!timestamp) return '';
+  try {
+    return new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+};
+
+const buildAttendanceSummaryRows = (logs = [], employees = []) => {
+  const employeeMap = getAttendanceEmployeeMap(employees);
+  const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const dayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'Asia/Ho_Chi_Minh' });
+
+  const groups = new Map();
+
+  logs.forEach((log) => {
+    const timestamp = new Date(log.timestamp);
+    const dateKey = dateFormatter.format(timestamp);
+    const employeeKey = String(log.userId || 'unknown');
+    const groupKey = `${employeeKey}||${dateKey}`;
+
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, {
+        employeeId: log.userId,
+        dateKey,
+        logs: [],
+      });
+    }
+
+    groups.get(groupKey).logs.push(log);
+  });
+
+  const rows = [];
+  groups.forEach(({ employeeId, dateKey, logs }) => {
+    const employee = employeeMap.get(String(employeeId)) || {};
+    const sortedLogs = logs.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const morningInCandidates = sortedLogs.filter((log) => log.type === 'IN' && new Date(log.timestamp).getHours() < 12);
+    const afternoonInCandidates = sortedLogs.filter((log) => log.type === 'IN' && new Date(log.timestamp).getHours() >= 12);
+    const morningOutCandidates = sortedLogs.filter((log) => log.type === 'OUT' && new Date(log.timestamp).getHours() < 13);
+    const finalOutCandidates = sortedLogs.filter((log) => log.type === 'OUT');
+
+    const morningCheckIn = morningInCandidates[0] || sortedLogs.find((log) => log.type === 'IN');
+    const morningCheckOut = morningOutCandidates.length > 0
+      ? morningOutCandidates[morningOutCandidates.length - 1]
+      : sortedLogs.find((log) => log.type === 'OUT');
+    const afternoonCheckIn = afternoonInCandidates[0] || sortedLogs.slice().reverse().find((log) => log.type === 'IN');
+    const finalCheckOut = finalOutCandidates.length > 0 ? finalOutCandidates[finalOutCandidates.length - 1] : null;
+
+    const lateMinutes = sortedLogs
+      .filter((log) => log.type === 'IN' && log.isLate)
+      .reduce((sum, log) => sum + extractMinutesFromNote(log.note, 'Late'), 0);
+
+    const earlyLeaveMinutes = sortedLogs
+      .filter((log) => log.type === 'OUT' && log.isEarlyLeave)
+      .reduce((sum, log) => sum + extractMinutesFromNote(log.note, 'Left early'), 0);
+
+    const otMinutes = sortedLogs
+      .filter((log) => log.isOvertime)
+      .reduce((sum, log) => {
+        const overtimeMinutes = extractMinutesFromNote(log.note, 'Overtime');
+        return sum + (overtimeMinutes || 0);
+      }, 0);
+
+    const hasApprovedEarlyLeave = sortedLogs.some((log) => /approved.*early/i.test(log.note || ''));
+    const status = hasApprovedEarlyLeave
+      ? 'Approved Early Leave'
+      : (lateMinutes > 0 && otMinutes > 0)
+        ? 'Late + OT'
+        : lateMinutes > 0
+          ? 'Late'
+          : otMinutes > 0
+            ? 'OT'
+            : sortedLogs.some((log) => log.isEarlyLeave)
+              ? 'Early Leave'
+              : 'On Time';
+
+    rows.push({
+      employeeName: employee.name || '',
+      employeeCode: employee.employeeCode || '',
+      day: dayFormatter.format(new Date(`${dateKey}T00:00:00`)),
+      date: dateKey,
+      morningCheckIn: formatAttendanceTime(morningCheckIn?.timestamp),
+      morningCheckOut: formatAttendanceTime(morningCheckOut?.timestamp),
+      afternoonCheckIn: formatAttendanceTime(afternoonCheckIn?.timestamp),
+      finalCheckOut: formatAttendanceTime(finalCheckOut?.timestamp),
+      lateMinutes: lateMinutes > 0 ? lateMinutes : '',
+      earlyLeaveMinutes: earlyLeaveMinutes > 0 ? earlyLeaveMinutes : '',
+      otHours: otMinutes > 0 ? (otMinutes / 60).toFixed(1) : '',
+      approvedEarlyLeave: hasApprovedEarlyLeave ? 'Yes' : 'No',
+      status,
+    });
+  });
+
+  return rows.sort((a, b) => {
+    if (a.date === b.date) return (a.employeeName || '').localeCompare(b.employeeName || '');
+    return a.date.localeCompare(b.date);
+  });
 };
 
 const chunkItems = (items, chunkSize) => {
@@ -68,11 +157,11 @@ const escapeHtml = (value) =>
     .replaceAll("'", '&#39;');
 
 const buildAttendancePdfPageHtml = ({ rows, pageIndex, totalPages, totalRows, exportDate }) => {
-  const tableWidth = ATTENDANCE_EXPORT_COLUMNS.reduce((sum, column) => sum + column.widthPx, 0);
+  const tableWidth = ATTENDANCE_SUMMARY_COLUMNS.reduce((sum, column) => sum + column.widthPx, 0);
   const rowStart = pageIndex * ATTENDANCE_PDF_ROWS_PER_PAGE + 1;
   const rowEnd = rowStart + rows.length - 1;
 
-  const headerCells = ATTENDANCE_EXPORT_COLUMNS.map(
+  const headerCells = ATTENDANCE_SUMMARY_COLUMNS.map(
     (column) => `
       <th style="
         width: ${column.widthPx}px;
@@ -89,7 +178,7 @@ const buildAttendancePdfPageHtml = ({ rows, pageIndex, totalPages, totalRows, ex
   ).join('');
 
   const bodyRows = rows.map((row, rowIndex) => {
-    const cells = ATTENDANCE_EXPORT_COLUMNS.map(
+    const cells = ATTENDANCE_SUMMARY_COLUMNS.map(
       (column) => `
         <td style="
           border: 1px solid #e5e7eb;
@@ -116,11 +205,11 @@ const buildAttendancePdfPageHtml = ({ rows, pageIndex, totalPages, totalRows, ex
       font-family: 'Segoe UI', Arial, sans-serif;
     ">
       <div style="margin-bottom: 16px;">
-        <div style="font-size: 24px; font-weight: 700; margin-bottom: 6px;">Lịch sử điểm danh</div>
+        <div style="font-size: 24px; font-weight: 700; margin-bottom: 6px;">Attendance History</div>
         <div style="font-size: 13px; color: #4b5563; margin-bottom: 2px;">
-          Xuất ngày: ${escapeHtml(exportDate)} | Tổng số bản ghi: ${totalRows} | Trang ${pageIndex + 1}/${totalPages}
+          Export Date: ${escapeHtml(exportDate)} | Total rows: ${totalRows} | Page ${pageIndex + 1}/${totalPages}
         </div>
-        <div style="font-size: 13px; color: #6b7280;">Dòng ${rowStart}-${rowEnd}</div>
+        <div style="font-size: 13px; color: #6b7280;">Rows ${rowStart}-${rowEnd}</div>
       </div>
       <table style="
         width: ${tableWidth}px;
@@ -240,42 +329,64 @@ export const exportEmployeesToExcel = (employees, filename = 'danh-sach-nhan-vie
 
 // Export attendance logs to Excel
 export const exportAttendanceToExcel = (logs, employees, filename = 'lich-su-diem-danh') => {
-  const data = logs.map(log => {
-    const emp = employees.find(e => e.id === log.userId);
-    return {
-      'Thời gian': log.timestamp ? new Date(log.timestamp).toLocaleString('vi-VN') : '',
-      'Nhân viên': emp?.name || log.detectedName || 'Unknown',
-      'Mã NV': emp?.employeeCode || '',
-      'Loại': log.type === 'IN' ? 'Vào' : 'Ra',
-      'Độ tin cậy': log.confidence ? `${(log.confidence * 100).toFixed(1)}%` : '',
-      'Khoảng cách': log.matchDistance ? log.matchDistance.toFixed(3) : '',
-      'Thiết bị': log.deviceId || '',
-      'Muộn': log.isLate ? 'Có' : 'Không',
-      'Về sớm': log.isEarlyLeave ? 'Có' : 'Không',
-      'Tăng ca': log.isOvertime ? 'Có' : 'Không',
-      'Ghi chú': log.note || ''
+  const summaryRows = buildAttendanceSummaryRows(logs, employees);
+  const includeEmployeeColumns = new Set(summaryRows.map((row) => row.employeeName || row.employeeCode)).size > 1;
+
+  const data = summaryRows.map((row) => {
+    const item = {
+      'Day': row.day,
+      'Date': row.date,
+      'Morning Check-in': row.morningCheckIn,
+      'Morning Check-out': row.morningCheckOut,
+      'Afternoon Check-in': row.afternoonCheckIn,
+      'Final Check-out': row.finalCheckOut,
+      'Late (mins)': row.lateMinutes,
+      'Early Leave (mins)': row.earlyLeaveMinutes,
+      'OT Hours': row.otHours,
+      'Approved Early Leave': row.approvedEarlyLeave,
+      'Status': row.status,
     };
+    if (includeEmployeeColumns) {
+      item['Employee'] = row.employeeName;
+      item['Code'] = row.employeeCode;
+    }
+    return item;
   });
 
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Điểm danh');
-  
-  // Auto-size columns
-  const colWidths = [
-    { wch: 20 }, // Thời gian
-    { wch: 25 }, // Nhân viên
-    { wch: 12 }, // Mã NV
-    { wch: 8 },  // Loại
-    { wch: 12 }, // Độ tin cậy
-    { wch: 12 }, // Khoảng cách
-    { wch: 15 }, // Thiết bị
-    { wch: 8 },  // Muộn
-    { wch: 10 }, // Về sớm
-    { wch: 10 }, // Tăng ca
-    { wch: 30 }  // Ghi chú
-  ];
+  XLSX.utils.book_append_sheet(wb, ws, 'Attendance Summary');
+
+  const colWidths = [];
+  if (includeEmployeeColumns) {
+    colWidths.push({ wch: 20 }, { wch: 12 });
+  }
+  colWidths.push(
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 10 },
+    { wch: 18 },
+    { wch: 14 }
+  );
   ws['!cols'] = colWidths;
+
+  const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  const headerRow = headerRange.s.r;
+  for (let c = headerRange.s.c; c <= headerRange.e.c; c += 1) {
+    const cellAddress = XLSX.utils.encode_cell({ r: headerRow, c });
+    if (!ws[cellAddress]) continue;
+    ws[cellAddress].s = {
+      font: { bold: true, color: { rgb: 'FFFFFFFF' } },
+      fill: { patternType: 'solid', fgColor: { rgb: 'FF1E90FF' } },
+      alignment: { horizontal: 'center', vertical: 'center' },
+    };
+  }
 
   XLSX.writeFile(wb, `${filename}.xlsx`);
 };
@@ -482,12 +593,19 @@ export const exportSalariesToPDF = (salaries, filename = 'bang-luong') => {
 // Export attendance to PDF
 export const exportAttendanceToPDF = async (logs, employees, filename = 'lich-su-diem-danh') => {
   if (!Array.isArray(logs) || logs.length === 0) {
-    toastWarning('Khong co du lieu de xuat PDF.');
+    toastWarning('No attendance data available for export.');
     return;
   }
 
-  const employeeMapFast = getAttendanceEmployeeMap(employees);
-  const rowsFast = logs.map((log) => mapAttendanceLogToExportRow(log, employeeMapFast));
+  const summaryRows = buildAttendanceSummaryRows(logs, employees);
+  const includeEmployeeColumns = new Set(summaryRows.map((row) => row.employeeName || row.employeeCode)).size > 1;
+  const reportColumns = includeEmployeeColumns
+    ? [
+        { key: 'employeeName', header: 'Employee', widthChars: 20, widthPx: 140, align: 'left' },
+        { key: 'employeeCode', header: 'Code', widthChars: 12, widthPx: 90, align: 'left' },
+        ...ATTENDANCE_SUMMARY_COLUMNS,
+      ]
+    : ATTENDANCE_SUMMARY_COLUMNS;
   const exportDateFast = new Date().toLocaleDateString('vi-VN');
 
   const docFast = new jsPDF({
@@ -498,9 +616,9 @@ export const exportAttendanceToPDF = async (logs, employees, filename = 'lich-su
   ensureAutoTable(docFast);
   await prepareAttendancePdfFont(docFast);
 
-  const headFast = [ATTENDANCE_EXPORT_COLUMNS.map((column) => column.header)];
-  const bodyFast = rowsFast.map((row) => ATTENDANCE_EXPORT_COLUMNS.map((column) => row[column.key]));
-  const columnStylesFast = ATTENDANCE_EXPORT_COLUMNS.reduce((styles, column, index) => {
+  const headFast = [reportColumns.map((column) => column.header)];
+  const bodyFast = summaryRows.map((row) => reportColumns.map((column) => row[column.key]));
+  const columnStylesFast = reportColumns.reduce((styles, column, index) => {
     styles[index] = {
       cellWidth: Math.max(12, Math.round((column.widthChars || 10) * 1.3)),
       halign: column.align === 'center' ? 'center' : 'left',
@@ -540,9 +658,9 @@ export const exportAttendanceToPDF = async (logs, employees, filename = 'lich-su
     didDrawPage: (data) => {
       docFast.setFont(ATTENDANCE_PDF_FONT_NAME, 'normal');
       docFast.setFontSize(14);
-      docFast.text('Lich su diem danh', data.settings.margin.left, 10);
+      docFast.text('Attendance History', data.settings.margin.left, 10);
       docFast.setFontSize(9);
-      docFast.text(`Exported: ${exportDateFast} | Total rows: ${rowsFast.length}`, data.settings.margin.left, 16);
+      docFast.text(`Export Date: ${exportDateFast} | Total rows: ${summaryRows.length}`, data.settings.margin.left, 16);
       docFast.text(
         `Page ${docFast.internal.getNumberOfPages()}`,
         docFast.internal.pageSize.getWidth() - data.settings.margin.right,
@@ -553,52 +671,6 @@ export const exportAttendanceToPDF = async (logs, employees, filename = 'lich-su
   });
 
   docFast.save(`${filename}.pdf`);
-  return;
-  if (!Array.isArray(logs) || logs.length === 0) {
-    toastWarning('Không có dữ liệu để xuất PDF.');
-    return;
-  }
-
-  const employeeMap = getAttendanceEmployeeMap(employees);
-  const rows = logs.map((log) => mapAttendanceLogToExportRow(log, employeeMap));
-  const rowChunks = chunkItems(rows, ATTENDANCE_PDF_ROWS_PER_PAGE);
-  const exportDate = new Date().toLocaleDateString('vi-VN');
-
-  const pdfDoc = new jsPDF({
-    orientation: 'landscape',
-    unit: 'mm',
-    format: 'a4',
-  });
-
-  const pageWidth = pdfDoc.internal.pageSize.getWidth();
-  const pageHeight = pdfDoc.internal.pageSize.getHeight();
-  const maxWidth = pageWidth - 10;
-  const maxHeight = pageHeight - 10;
-
-  for (let pageIndex = 0; pageIndex < rowChunks.length; pageIndex += 1) {
-    const pageHtml = buildAttendancePdfPageHtml({
-      rows: rowChunks[pageIndex],
-      pageIndex,
-      totalPages: rowChunks.length,
-      totalRows: rows.length,
-      exportDate,
-    });
-
-    const canvas = await renderHtmlToCanvas(pageHtml, 1480);
-    const imageData = canvas.toDataURL('image/png');
-    const scale = Math.min(maxWidth / canvas.width, maxHeight / canvas.height);
-    const renderWidth = canvas.width * scale;
-    const renderHeight = canvas.height * scale;
-    const x = (pageWidth - renderWidth) / 2;
-
-    if (pageIndex > 0) {
-      pdfDoc.addPage();
-    }
-
-    pdfDoc.addImage(imageData, 'PNG', x, 5, renderWidth, renderHeight, undefined, 'FAST');
-  }
-
-  pdfDoc.save(`${filename}.pdf`);
 };
 
 // Download Excel template for bulk import
