@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 
 export default function LeaveRequest({ userId, refreshVersion = 0 }) {
-  const ANNUAL_LEAVE_LIMIT_DAYS = 12;
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [holidayPolicy, setHolidayPolicy] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState(""); // "success" or "error"
@@ -13,7 +13,7 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteRequestId, setDeleteRequestId] = useState(null);
   const [formData, setFormData] = useState({
-    type: "paid",
+    type: "annual_leave",
     startDate: "",
     endDate: "",
     reason: ""
@@ -25,6 +25,7 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
   useEffect(() => {
     fetchLeaveRequests();
     fetchLeaveBalance();
+    fetchHolidayPolicy();
   }, [userId, refreshVersion]);
 
   const fetchLeaveRequests = async () => {
@@ -59,10 +60,28 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
 
       if (res.ok) {
         const data = await res.json();
-        setLeaveBalance(data.balance || { total: 12, used: 0, remaining: 12 });
+        setLeaveBalance(data.balance || { total: 12, used: 0, remaining: 12, year: new Date().getFullYear() });
       }
     } catch (error) {
       console.error("Error fetching leave balance:", error);
+    }
+  };
+
+  const fetchHolidayPolicy = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+
+      const res = await fetch(`${apiBase}/api/leave/config/holidays`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setHolidayPolicy(data.holidayPolicy || null);
+      }
+    } catch (error) {
+      console.error("Error fetching holiday policy:", error);
     }
   };
 
@@ -70,9 +89,21 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
     if (!startDate || !endDate) return 0;
     const start = new Date(startDate);
     const end = new Date(endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
     const diffTime = Math.abs(end - start);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
     return diffDays;
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "-";
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleDateString("en-US", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    });
   };
 
   const validateForm = () => {
@@ -107,8 +138,8 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
     }
     
     const days = calculateDays(formData.startDate, formData.endDate);
-    if (days > leaveBalance.remaining) {
-      errors.general = `You can only take up to ${ANNUAL_LEAVE_LIMIT_DAYS} leave day(s) per year. You only have ${leaveBalance.remaining} day(s) remaining.`;
+    if (['annual_leave', 'paid_marriage', 'paid_child_marriage', 'paid_family_death'].includes(formData.type) && days > leaveBalance.remaining) {
+      errors.general = `You can only take up to ${leaveBalance.total} annual leave day(s) this year. You only have ${leaveBalance.remaining} day(s) remaining.`;
     }
     
     setFormErrors(errors);
@@ -166,7 +197,7 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
         );
         setShowForm(false);
         setEditingId(null);
-        setFormData({ type: "paid", startDate: "", endDate: "", reason: "" });
+        setFormData({ type: "annual_leave", startDate: "", endDate: "", reason: "" });
         setFormErrors({});
         fetchLeaveRequests();
         fetchLeaveBalance();
@@ -183,7 +214,7 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
   const handleEdit = (request) => {
     setEditingId(request.id);
     setFormData({
-      type: request.type,
+      type: request.subType || request.type,
       startDate: request.startDate,
       endDate: request.endDate,
       reason: request.reason || ""
@@ -261,24 +292,168 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
     );
   };
 
-  const getTypeLabel = (type) => {
-    const labels = {
-      paid: "Paid Leave",
-      unpaid: "Unpaid Leave",
-      sick: "Sick Leave",
-      maternity: "Maternity Leave",
-      personal: "Personal Leave",
-      other: "Other"
-    };
-    return labels[type] || type;
+  const leaveTypeMeta = {
+    annual_leave: {
+      label: 'Annual Leave',
+      icon: '🌴',
+      color: '#10B981',
+      note: 'Annual leave allowance: 12 days/year, +1 day for every 5 years of service.'
+    },
+    paid_marriage: {
+      label: 'Marriage Leave (3 days)',
+      icon: '💍',
+      color: '#F59E0B',
+      note: 'Paid leave for employee marriage.'
+    },
+    paid_child_marriage: {
+      label: 'Child Marriage Leave (1 day)',
+      icon: '👶',
+      color: '#F59E0B',
+      note: 'Paid leave when child gets married.'
+    },
+    paid_family_death: {
+      label: 'Family Death Leave (3 days)',
+      icon: '🕊️',
+      color: '#F59E0B',
+      note: 'Paid leave for death of parents, spouse, or children.'
+    },
+    unpaid_family_death: {
+      label: 'Extended Family Death Leave (1 day)',
+      icon: '🕯️',
+      color: '#6B7280',
+      note: 'Unpaid leave for death of grandparents, siblings, etc.'
+    },
+    unpaid_other: {
+      label: 'Other Unpaid Leave',
+      icon: '⚖️',
+      color: '#6B7280',
+      note: 'Unpaid leave as agreed with the company.'
+    },
+    sick: {
+      label: 'Sick Leave (Social Insurance)',
+      icon: '🏥',
+      color: '#EF4444',
+      note: 'Social insurance sick leave: 30-60 days/year depending on seniority, medical certificate required.'
+    },
+    maternity_female: {
+      label: 'Maternity Leave (Female)',
+      icon: '👩‍🦱',
+      color: '#EC4899',
+      note: 'Female maternity leave: 6 months, +1 month for twins or more from the 2nd child.'
+    },
+    maternity_male: {
+      label: 'Maternity Leave (Male)',
+      icon: '👨‍🦱',
+      color: '#EC4899',
+      note: 'Male paternity leave: 5-14 days depending on circumstances.'
+    },
+    unpaid_negotiated: {
+      label: 'Negotiated Unpaid Leave',
+      icon: '📝',
+      color: '#6B7280',
+      note: 'No specific number of days; agreed between employee and employer.'
+    },
+    accident_leave: {
+      label: 'Work Accident/ Occupational Disease Leave',
+      icon: '⚠️',
+      color: '#F97316',
+      note: 'Medical treatment and recovery leave; may not deduct annual leave, salary depends on case.'
+    },
+    civic_duty: {
+      label: 'Civic Duty Leave',
+      icon: '🪖',
+      color: '#8B5CF6',
+      note: 'Military service, civil defense leave; job protection provided.'
+    },
+    study_training: {
+      label: 'Study/Training Leave',
+      icon: '🎓',
+      color: '#10B981',
+      note: 'Company-sponsored with pay, self-study or negotiated may be unpaid.'
+    },
+    suspended_work: {
+      label: 'Work Suspension Leave',
+      icon: '⏸️',
+      color: '#F59E0B',
+      note: 'Article 99 LLLD: full pay if company fault, no pay if employee fault.'
+    },
+    special_leave: {
+      label: 'Other Special Leave',
+      icon: '🌧️',
+      color: '#6B7280',
+      note: 'Temporary suspension, disciplinary action, natural disasters/epidemics.'
+    },
+    other: {
+      label: 'Other',
+      icon: '📌',
+      color: '#6B7280',
+      note: 'Other types of leave not listed above.'
+    }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric"
-    });
+  const leaveTypeGroups = [
+    {
+      label: 'Paid Personal Leave',
+      options: [
+        { value: 'paid_marriage', label: '💍 Marriage Leave (3 days)' },
+        { value: 'paid_child_marriage', label: '👶 Child Marriage Leave (1 day)' },
+        { value: 'paid_family_death', label: '🕊️ Family Death Leave (3 days)' }
+      ]
+    },
+    {
+      label: 'Unpaid Personal Leave',
+      options: [
+        { value: 'unpaid_family_death', label: '🕯️ Extended Family Death Leave (1 day)' },
+        { value: 'unpaid_other', label: '⚖️ Other Unpaid Leave' }
+      ]
+    },
+    {
+      label: 'Special Leave',
+      options: [
+        { value: 'other', label: '📌 Other' }
+      ]
+    }
+  ];
+
+  const getFixedDaysForLeaveType = (type) => {
+    const fixedDaysMap = {
+      paid_marriage: 3,
+      paid_child_marriage: 1,
+      paid_family_death: 3,
+      unpaid_family_death: 1
+    };
+    return fixedDaysMap[type] || null;
+  };
+
+  const handleLeaveTypeChange = (newType) => {
+    const fixedDays = getFixedDaysForLeaveType(newType);
+    let newFormData = { ...formData, type: newType };
+    
+    if (fixedDays && !formData.startDate) {
+      // Auto-set dates for fixed-day leave types
+      const today = new Date();
+      const startDate = today.toISOString().split('T')[0];
+      const endDate = new Date(today);
+      endDate.setDate(today.getDate() + fixedDays - 1);
+      const endDateStr = endDate.toISOString().split('T')[0];
+      
+      newFormData.startDate = startDate;
+      newFormData.endDate = endDateStr;
+    }
+    
+    setFormData(newFormData);
+    setFormErrors({ ...formErrors, general: "" });
+  };
+
+  const getTypeIcon = (type) => leaveTypeMeta[type]?.icon || '📌';
+
+  const getTypeLabel = (type) => leaveTypeMeta[type]?.label || String(type || 'Other').replace(/_/g, ' ');
+
+  const getTypeNote = (type) => {
+    if (type === 'other') {
+      return `Leave is calculated based on annual leave. Annual leave balance: ${leaveBalance.remaining}/${leaveBalance.total} days.`;
+    }
+    return leaveTypeMeta[type]?.note || '';
   };
 
   return (
@@ -350,7 +525,7 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
           <button
             onClick={() => {
               setEditingId(null);
-              setFormData({ type: "paid", startDate: "", endDate: "", reason: "" });
+              setFormData({ type: "annual_leave", startDate: "", endDate: "", reason: "" });
               setFormErrors({});
               setShowForm(true);
             }}
@@ -381,6 +556,61 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
           >
             + Request Leave
           </button>
+        </div>
+      </div>
+
+      {/* Leave policy info */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+        gap: "20px",
+        marginBottom: "32px"
+      }}>
+        <div style={{
+          backgroundColor: "#fff",
+          borderRadius: "16px",
+          padding: "24px",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.05)"
+        }}>
+          <div style={{ fontSize: "14px", fontWeight: 700, color: "#1f2937", marginBottom: "12px" }}>
+            Annual leave policy
+          </div>
+          <div style={{ color: "#4b5563", lineHeight: 1.7, fontSize: "14px" }}>
+            Annual leave allowance this year: <strong>{leaveBalance.total}</strong> days.
+            {leaveBalance.extraDays ? ` Includes +${leaveBalance.extraDays} day(s) for ${leaveBalance.serviceYears} years of service.` : ""}
+          </div>
+          <div style={{ marginTop: "12px", color: "#4b5563", fontSize: "13px" }}>
+            +1 day for every 5 full years of service.
+          </div>
+          <div style={{ marginTop: "12px", color: "#4b5563", fontSize: "13px" }}>
+            Annual leave remaining: <strong>{leaveBalance.remaining}</strong> days.
+          </div>
+        </div>
+        <div style={{
+          backgroundColor: "#fff",
+          borderRadius: "16px",
+          padding: "24px",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.05)"
+        }}>
+          <div style={{ fontSize: "14px", fontWeight: 700, color: "#1f2937", marginBottom: "12px" }}>
+            Company holiday calendar
+          </div>
+          <div style={{ color: "#4b5563", marginBottom: "14px", fontSize: "14px" }}>
+            {holidayPolicy ? `${holidayPolicy.totalDays} company holiday days per year.` : "Loading holiday policy..."}
+          </div>
+          <div style={{ display: "grid", gap: "8px" }}>
+            {(holidayPolicy?.holidays || []).map((holiday) => (
+              <div key={holiday.key} style={{ display: "flex", justifyContent: "space-between", gap: "12px", color: "#374151", fontSize: "14px" }}>
+                <span>{holiday.label}</span>
+                <span style={{ fontWeight: 700 }}>{holiday.days}d</span>
+              </div>
+            ))}
+          </div>
+          {holidayPolicy && (
+            <div style={{ marginTop: "14px", color: "#6b7280", fontSize: "13px" }}>
+              {holidayPolicy.note}
+            </div>
+          )}
         </div>
       </div>
 
@@ -979,7 +1209,10 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
                       borderRight: "1px solid #868e96",
                       borderBottomLeftRadius: isLastRow ? "8px" : "0"
                     }}>
-                      {getTypeLabel(request.type)}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <span>{getTypeIcon(request.subType || request.type)}</span>
+                        <span>{getTypeLabel(request.subType || request.type)}</span>
+                      </span>
                     </td>
                     <td style={{ 
                       padding: "20px 16px", 
@@ -1110,7 +1343,7 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
             if (!submitting) {
               setShowForm(false);
               setEditingId(null);
-              setFormData({ type: "paid", startDate: "", endDate: "", reason: "" });
+              setFormData({ type: "annual_leave", startDate: "", endDate: "", reason: "" });
               setFormErrors({});
             }
           }}
@@ -1162,7 +1395,7 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
                   if (!submitting) {
                     setShowForm(false);
                     setEditingId(null);
-                    setFormData({ type: "paid", startDate: "", endDate: "", reason: "" });
+                    setFormData({ type: "annual_leave", startDate: "", endDate: "", reason: "" });
                     setFormErrors({});
                   }
                 }}
@@ -1235,9 +1468,16 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
                   </label>
                   <select
                     value={formData.type}
-                    onChange={(e) => {
-                      setFormData({ ...formData, type: e.target.value });
-                      setFormErrors({ ...formErrors, general: "" });
+                    onChange={(e) => handleLeaveTypeChange(e.target.value)}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#A2B9ED";
+                      e.target.style.backgroundColor = "white";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.backgroundColor = "#f8f9fa";
+                      e.target.style.boxShadow = "none";
                     }}
                     style={{
                       width: "100%",
@@ -1252,24 +1492,20 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
                       backgroundColor: "#f8f9fa",
                       color: "#333"
                     }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = "#A2B9ED";
-                      e.target.style.backgroundColor = "white";
-                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = "#e0e0e0";
-                      e.target.style.backgroundColor = "#f8f9fa";
-                      e.target.style.boxShadow = "none";
-                    }}
                   >
-                    <option value="paid">💰 Paid Leave</option>
-                    <option value="unpaid">📅 Unpaid Leave</option>
-                    <option value="sick">🏥 Sick Leave</option>
-                    <option value="maternity">👶 Maternity Leave</option>
-                    <option value="personal">👤 Personal Leave</option>
-                    <option value="other">📝 Other</option>
+                    {leaveTypeGroups.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.options.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
+                  <div style={{ marginTop: 8, color: '#4b5563', fontSize: 13, lineHeight: 1.6 }}>
+                    {getTypeNote(formData.type)}
+                  </div>
                 </div>
 
                 {/* Date Range */}
@@ -1458,7 +1694,7 @@ export default function LeaveRequest({ userId, refreshVersion = 0 }) {
                     if (!submitting) {
                       setShowForm(false);
                       setEditingId(null);
-                      setFormData({ type: "paid", startDate: "", endDate: "", reason: "" });
+                      setFormData({ type: "annual_leave", startDate: "", endDate: "", reason: "" });
                       setFormErrors({});
                     }
                   }}

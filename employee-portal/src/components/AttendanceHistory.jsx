@@ -142,25 +142,56 @@ export default function AttendanceHistory({ userId }) {
     }
   };
 
-  // Group logs by date for better display
+  // Group logs by date and shift for better display
   const groupedLogs = useMemo(() => {
     const grouped = {};
-    logs.forEach(log => {
+    const sortedLogs = [...logs].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    sortedLogs.forEach(log => {
       const date = new Date(log.timestamp).toLocaleDateString("vi-VN");
       if (!grouped[date]) {
-        grouped[date] = { checkIn: null, checkOut: null };
+        grouped[date] = {
+          shiftsMap: new Map(),
+          allLogs: []
+        };
       }
+
+      const shiftLabel = log.shiftLabel || `Shift ${Math.floor(grouped[date].allLogs.length / 2) + 1}`;
+      const existingShift = grouped[date].shiftsMap.get(shiftLabel) || {
+        shiftLabel,
+        checkIn: null,
+        checkOut: null,
+        isOvertime: log.isOvertime || false,
+        logs: []
+      };
+
       if (log.type === "IN") {
-        grouped[date].checkIn = log;
+        if (!existingShift.checkIn || new Date(log.timestamp) < new Date(existingShift.checkIn.timestamp)) {
+          existingShift.checkIn = log;
+        }
       } else {
-        grouped[date].checkOut = log;
+        if (!existingShift.checkOut || new Date(log.timestamp) > new Date(existingShift.checkOut.timestamp)) {
+          existingShift.checkOut = log;
+        }
       }
+
+      existingShift.isOvertime = existingShift.isOvertime || Boolean(log.isOvertime);
+      existingShift.logs.push(log);
+      grouped[date].shiftsMap.set(shiftLabel, existingShift);
+      grouped[date].allLogs.push(log);
     });
-    
-    const result = Object.entries(grouped).map(([date, data]) => ({
-      date,
-      ...data
-    }));
+
+    const result = Object.entries(grouped).map(([date, data]) => {
+      const shifts = Array.from(data.shiftsMap.values());
+      return {
+        date,
+        shifts,
+        allLogs: data.allLogs,
+        overtimeRequest: data.allLogs[0]?.overtimeRequest || null,
+        primaryCheckIn: shifts[0]?.checkIn || null,
+        primaryCheckOut: shifts[shifts.length - 1]?.checkOut || null
+      };
+    });
 
     // Sort by parsing vi-VN date string dd/mm/yyyy
     result.sort((a, b) => {
@@ -192,35 +223,89 @@ export default function AttendanceHistory({ userId }) {
     return `${hours}h ${minutes}m`;
   };
 
-  // Calculate late duration
+  // Calculate late duration with enhanced details
   const calculateLateDuration = (checkIn) => {
     if (!checkIn || !checkIn.isLate) return null;
+    
+    // Use the new API field if available
+    if (checkIn.latenessMinutes !== undefined && checkIn.latenessMinutes !== null) {
+      return {
+        minutes: checkIn.latenessMinutes,
+        text: `${checkIn.latenessMinutes} min late`
+      };
+    }
+    
+    // Fallback calculation
     const checkInTime = new Date(checkIn.timestamp);
     const standardTime = new Date(checkInTime);
-    standardTime.setHours(8, 0, 0, 0); // Standard check-in at 8:00 AM
+    standardTime.setHours(8, 0, 0, 0);
     
     if (checkInTime > standardTime) {
       const diff = checkInTime - standardTime;
       const minutes = Math.floor(diff / (1000 * 60));
-      return `${minutes} min`;
+      return {
+        minutes,
+        text: `${minutes} min late`
+      };
+    }
+    return null;
+  };
+
+  // Calculate early leave with enhanced details
+  const calculateEarlyLeaveDuration = (checkOut) => {
+    if (!checkOut || !checkOut.isEarlyLeave) return null;
+    
+    // Use the new API field if available
+    if (checkOut.earlyLeaveMinutes !== undefined && checkOut.earlyLeaveMinutes !== null) {
+      return {
+        minutes: checkOut.earlyLeaveMinutes,
+        text: `${checkOut.earlyLeaveMinutes} min early`
+      };
+    }
+    
+    // Fallback calculation
+    const checkOutTime = new Date(checkOut.timestamp);
+    const standardTime = new Date(checkOutTime);
+    standardTime.setHours(17, 0, 0, 0);
+    
+    if (checkOutTime < standardTime) {
+      const diff = standardTime - checkOutTime;
+      const minutes = Math.floor(diff / (1000 * 60));
+      return {
+        minutes,
+        text: `${minutes} min early`
+      };
     }
     return null;
   };
 
   // Export to CSV
   const exportToCSV = () => {
-    const headers = ["Date", "Check In", "Check Out", "Late Duration", "Total Hours", "Status"];
-    const rows = groupedLogs.map(item => [
-      item.date,
-      item.checkIn ? formatTime(item.checkIn.timestamp) : "N/A",
-      item.checkOut ? formatTime(item.checkOut.timestamp) : "N/A",
-      calculateLateDuration(item.checkIn) || "No",
-      calculateWorkingHours(item.checkIn, item.checkOut),
-      item.checkIn?.isLate ? "Late" : "On Time"
-    ]);
+    const headers = ["Date", "Shift", "Check In", "Check Out", "Lateness", "Early Leave", "Total Hours", "Status"];
+    const rows = [];
+    
+    groupedLogs.forEach(item => {
+      if (item.shifts && item.shifts.length > 0) {
+        item.shifts.forEach(shift => {
+          const lateDuration = calculateLateDuration(shift.checkIn);
+          const earlyDuration = calculateEarlyLeaveDuration(shift.checkOut);
+          
+          rows.push([
+            item.date,
+            shift.shiftLabel,
+            shift.checkIn ? formatTime(shift.checkIn.timestamp) : "N/A",
+            shift.checkOut ? formatTime(shift.checkOut.timestamp) : "N/A",
+            lateDuration ? lateDuration.text : "No",
+            earlyDuration ? earlyDuration.text : "No",
+            calculateWorkingHours(shift.checkIn, shift.checkOut),
+            shift.checkIn?.isLate ? "Late" : (shift.checkOut?.isEarlyLeave ? "Early Leave" : "On Time")
+          ]);
+        });
+      }
+    });
 
     const csvContent = [headers, ...rows]
-      .map(row => row.join(","))
+      .map(row => row.map(cell => `"${cell}"`).join(","))
       .join("\n");
 
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
@@ -237,8 +322,12 @@ export default function AttendanceHistory({ userId }) {
   // Statistics
   const stats = useMemo(() => {
     const totalDays = groupedLogs.length;
-    const lateDays = groupedLogs.filter(item => item.checkIn?.isLate).length;
-    const earlyLeaveDays = groupedLogs.filter(item => item.checkOut?.isEarlyLeave).length;
+    const lateDays = groupedLogs.reduce((acc, item) => {
+      return acc + (item.shifts.some(shift => shift.checkIn?.isLate) ? 1 : 0);
+    }, 0);
+    const earlyLeaveDays = groupedLogs.reduce((acc, item) => {
+      return acc + (item.shifts.some(shift => shift.checkOut?.isEarlyLeave) ? 1 : 0);
+    }, 0);
 
     // Calculate working days in the month (exclude weekends)
     const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
@@ -856,6 +945,18 @@ export default function AttendanceHistory({ userId }) {
                       letterSpacing: "0.8px",
                       backgroundColor: "#f8f9fa"
                     }}>
+                      Shift
+                    </th>
+                    <th style={{ 
+                      padding: "16px", 
+                      textAlign: "left", 
+                      fontWeight: "700", 
+                      color: "#333", 
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.8px",
+                      backgroundColor: "#f8f9fa"
+                    }}>
                       Check In
                     </th>
                     <th style={{ 
@@ -890,172 +991,225 @@ export default function AttendanceHistory({ userId }) {
                       fontSize: "12px",
                       textTransform: "uppercase",
                       letterSpacing: "0.8px",
-                      backgroundColor: "#f8f9fa"
-                    }}>
-                      Status
-                    </th>
-                    <th style={{ 
-                      padding: "16px", 
-                      textAlign: "left", 
-                      fontWeight: "700", 
-                      color: "#333", 
-                      fontSize: "12px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.8px",
                       backgroundColor: "#f8f9fa",
                       borderRadius: "0 8px 8px 0"
                     }}>
-                      Late Duration
+                      Details
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allWorkdayLogs.map((item, index) => (
-                    <tr 
-                      key={index} 
-                      style={{ 
-                        backgroundColor: item.isAbsent ? "#fff5f5" : "#fff",
-                        transition: "all 0.2s",
-                        cursor: "default"
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = "#f8f9fa";
-                        e.currentTarget.style.transform = "translateY(-2px)";
-                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = item.isAbsent ? "#fff5f5" : "#fff";
-                        e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.06)";
-                      }}
-                    >
-                      <td style={{ 
-                        padding: "16px", 
-                        fontSize: "14px", 
-                        color: "#333",
-                        fontWeight: "600",
-                        borderRadius: "8px 0 0 8px",
-                        border: "1px solid #f0f0f0",
-                        borderRight: "none"
-                      }}>
-                        {item.date}
-                      </td>
-                      <td style={{ 
-                        padding: "16px",
-                        border: "1px solid #f0f0f0",
-                        borderRight: "none",
-                        borderLeft: "none"
-                      }}>
-                        {item.checkIn ? (
-                          <div style={{ 
-                            display: "flex", 
-                            alignItems: "center", 
-                            gap: "8px" 
+                  {allWorkdayLogs.map((item, index) => {
+                    const isAbsent = item.isAbsent === true;
+                    const hasShiftData = item.shifts && item.shifts.length > 0;
+                    
+                    if (isAbsent) {
+                      // Absent day row
+                      return (
+                        <tr 
+                          key={index} 
+                          style={{ 
+                            backgroundColor: "#fff5f5"
+                          }}
+                        >
+                          <td colSpan="6" style={{ 
+                            padding: "16px", 
+                            textAlign: "center",
+                            fontSize: "14px", 
+                            color: "#dc3545",
+                            fontWeight: "600",
+                            border: "1px solid #f0f0f0",
+                            borderRadius: "8px"
                           }}>
-                            <span style={{ 
-                              fontSize: "16px", 
-                              fontWeight: "600",
-                              color: item.checkIn.isLate ? "#dc3545" : "#28a745"
-                            }}>
-                              {formatTime(item.checkIn.timestamp)}
-                            </span>
-                          </div>
-                        ) : (
-                          <span style={{ color: "#999", fontSize: "14px" }}>—</span>
-                        )}
-                      </td>
-                      <td style={{ 
-                        padding: "16px",
-                        border: "1px solid #f0f0f0",
-                        borderRight: "none",
-                        borderLeft: "none"
-                      }}>
-                        {item.checkOut ? (
-                          <div style={{ 
-                            display: "flex", 
-                            alignItems: "center", 
-                            gap: "8px" 
+                            <span style={{ backgroundColor: "#dc3545", color: "#fff", padding: "6px 16px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Absent</span>
+                          </td>
+                        </tr>
+                      );
+                    }
+                    
+                    if (hasShiftData) {
+                      // Render a row for each shift
+                      return item.shifts.map((shift, shiftIndex) => (
+                        <tr 
+                          key={`${index}-${shiftIndex}`}
+                          style={{ 
+                            backgroundColor: "#fff",
+                            transition: "all 0.2s",
+                            cursor: "default"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = "#f8f9fa";
+                            e.currentTarget.style.transform = "translateY(-2px)";
+                            e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = "#fff";
+                            e.currentTarget.style.transform = "translateY(0)";
+                            e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.06)";
+                          }}
+                        >
+                          {/* Date - only on first shift row */}
+                          <td style={{ 
+                            padding: "16px", 
+                            fontSize: "14px", 
+                            color: "#333",
+                            fontWeight: "600",
+                            borderRadius: shiftIndex === 0 ? "8px 0 0 0" : "0",
+                            border: "1px solid #f0f0f0",
+                            borderRight: "none"
                           }}>
-                            <span style={{ 
-                              fontSize: "16px", 
-                              fontWeight: "600",
-                              color: item.checkOut.isEarlyLeave ? "#d97706" : "#333"
-                            }}>
-                              {formatTime(item.checkOut.timestamp)}
-                            </span>
-                          </div>
-                        ) : (
-                          <span style={{ color: "#999", fontSize: "14px" }}>—</span>
-                        )}
-                      </td>
-                      <td style={{ 
-                        padding: "16px",
-                        border: "1px solid #f0f0f0",
-                        borderRight: "none",
-                        borderLeft: "none"
-                      }}>
-                        <span style={{ 
-                          fontSize: "15px",
-                          fontWeight: "600",
-                          color: "#007bff"
-                        }}>
-                          {calculateWorkingHours(item.checkIn, item.checkOut)}
-                        </span>
-                      </td>
-                      <td style={{ 
-                        padding: "16px",
-                        border: "1px solid #f0f0f0",
-                        borderRight: "none",
-                        borderLeft: "none"
-                      }}>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
-                          {/* Check-in status */}
-                          {item.checkIn && (
-                            item.checkIn.isLate ? (
-                              <span style={{ backgroundColor: "#dc3545", color: "#fff", padding: "5px 14px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Late</span>
-                            ) : (
-                              <span style={{ backgroundColor: "#28a745", color: "#fff", padding: "5px 14px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>On Time</span>
-                            )
-                          )}
-                          {/* Check-out status */}
-                          {item.checkOut?.isEarlyLeave && (
-                            <span style={{ backgroundColor: "#d97706", color: "#fff", padding: "5px 14px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Early Leave</span>
-                          )}
-                          {item.checkOut?.isOvertime && !item.checkOut?.isEarlyLeave && (
-                            <span style={{ backgroundColor: "#007bff", color: "#fff", padding: "5px 14px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Overtime</span>
-                          )}
-                          {!item.checkIn && !item.checkOut && (
-                            item.isAbsent ? (
-                              <span style={{ backgroundColor: "#dc3545", color: "#fff", padding: "5px 14px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Absent</span>
+                            {shiftIndex === 0 ? item.date : ""}
+                          </td>
+                          
+                          {/* Shift Label */}
+                          <td style={{ 
+                            padding: "16px", 
+                            fontSize: "13px",
+                            fontWeight: "600",
+                            color: shift.checkIn?.shiftLabel?.includes("Overtime") ? "#007bff" : "#0066cc",
+                            backgroundColor: shift.checkIn?.shiftLabel?.includes("Overtime") ? "#e7f3ff" : "transparent",
+                            border: "1px solid #f0f0f0",
+                            borderRight: "none",
+                            borderLeft: "none"
+                          }}>
+                            {shift.shiftLabel}
+                          </td>
+                          
+                          {/* Check In */}
+                          <td style={{ 
+                            padding: "16px",
+                            border: "1px solid #f0f0f0",
+                            borderRight: "none",
+                            borderLeft: "none"
+                          }}>
+                            {shift.checkIn ? (
+                              <div style={{ 
+                                display: "flex", 
+                                flexDirection: "column",
+                                gap: "4px"
+                              }}>
+                                <span style={{ 
+                                  fontSize: "15px", 
+                                  fontWeight: "600",
+                                  color: shift.checkIn.isLate ? "#dc3545" : "#28a745"
+                                }}>
+                                  {formatTime(shift.checkIn.timestamp)}
+                                </span>
+                                {shift.checkIn.isLate && calculateLateDuration(shift.checkIn) && (
+                                  <span style={{
+                                    backgroundColor: "#fff3cd",
+                                    color: "#856404",
+                                    padding: "3px 8px",
+                                    borderRadius: "3px",
+                                    fontSize: "11px",
+                                    fontWeight: "600",
+                                    display: "inline-block",
+                                    width: "fit-content"
+                                  }}>
+                                    Late: {calculateLateDuration(shift.checkIn).text}
+                                  </span>
+                                )}
+                              </div>
                             ) : (
                               <span style={{ color: "#999", fontSize: "14px" }}>—</span>
-                            )
-                          )}
-                        </div>
-                      </td>
-                      <td style={{ 
-                        padding: "16px",
-                        borderRadius: "0 8px 8px 0",
-                        border: "1px solid #f0f0f0",
-                        borderLeft: "none"
-                      }}>
-                        {calculateLateDuration(item.checkIn) ? (
-                          <span style={{
-                            backgroundColor: "#fff3cd",
-                            color: "#856404",
-                            padding: "4px 10px",
-                            borderRadius: "12px",
-                            fontSize: "13px",
-                            fontWeight: "600"
+                            )}
+                          </td>
+                          
+                          {/* Check Out */}
+                          <td style={{ 
+                            padding: "16px",
+                            border: "1px solid #f0f0f0",
+                            borderRight: "none",
+                            borderLeft: "none"
                           }}>
-                            {calculateLateDuration(item.checkIn)}
-                          </span>
-                        ) : (
-                          <span style={{ color: "#999", fontSize: "14px" }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                            {shift.checkOut ? (
+                              <div style={{ 
+                                display: "flex", 
+                                flexDirection: "column",
+                                gap: "4px"
+                              }}>
+                                <span style={{ 
+                                  fontSize: "15px", 
+                                  fontWeight: "600",
+                                  color: shift.checkOut.isEarlyLeave ? "#d97706" : "#333"
+                                }}>
+                                  {formatTime(shift.checkOut.timestamp)}
+                                </span>
+                                {shift.checkOut.isEarlyLeave && calculateEarlyLeaveDuration(shift.checkOut) && (
+                                  <span style={{
+                                    backgroundColor: "#fef3c7",
+                                    color: "#92400e",
+                                    padding: "3px 8px",
+                                    borderRadius: "3px",
+                                    fontSize: "11px",
+                                    fontWeight: "600",
+                                    display: "inline-block",
+                                    width: "fit-content"
+                                  }}>
+                                    Early: {calculateEarlyLeaveDuration(shift.checkOut).text}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ color: "#999", fontSize: "14px" }}>—</span>
+                            )}
+                          </td>
+                          
+                          {/* Total Hours */}
+                          <td style={{ 
+                            padding: "16px",
+                            border: "1px solid #f0f0f0",
+                            borderRight: "none",
+                            borderLeft: "none"
+                          }}>
+                            <span style={{ 
+                              fontSize: "14px",
+                              fontWeight: "600",
+                              color: "#007bff"
+                            }}>
+                              {calculateWorkingHours(shift.checkIn, shift.checkOut)}
+                            </span>
+                          </td>
+                          
+                          {/* Details/Status */}
+                          <td style={{ 
+                            padding: "16px",
+                            borderRadius: shiftIndex === item.shifts.length - 1 ? "0 8px 8px 0" : "0",
+                            border: "1px solid #f0f0f0",
+                            borderLeft: "none"
+                          }}>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
+                              {/* Check-in status */}
+                              {shift.checkIn && (
+                                shift.checkIn.isLate ? (
+                                  <span style={{ backgroundColor: "#dc3545", color: "#fff", padding: "4px 10px", borderRadius: "3px", fontSize: "10px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.4px" }}>Late</span>
+                                ) : (
+                                  <span style={{ backgroundColor: "#28a745", color: "#fff", padding: "4px 10px", borderRadius: "3px", fontSize: "10px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.4px" }}>On Time</span>
+                                )
+                              )}
+                              {/* Check-out status */}
+                              {shift.checkOut?.isEarlyLeave && (
+                                <span style={{ backgroundColor: "#d97706", color: "#fff", padding: "4px 10px", borderRadius: "3px", fontSize: "10px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.4px" }}>Early Leave</span>
+                              )}
+                              {shift.checkOut?.isOvertime && !shift.checkOut?.isEarlyLeave && (
+                                <span style={{ backgroundColor: "#007bff", color: "#fff", padding: "4px 10px", borderRadius: "3px", fontSize: "10px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.4px" }}>Overtime</span>
+                              )}
+                              {shiftIndex === 0 && item.overtimeRequest && (
+                                <span style={{ backgroundColor: item.overtimeRequest.approvalStatus === 'approved' ? '#0d6efd' : item.overtimeRequest.approvalStatus === 'pending' ? '#ffc107' : '#6c757d', color: '#fff', padding: '4px 10px', borderRadius: '3px', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                  {item.overtimeRequest.approvalStatus === 'approved' ? 'OT Approved' : item.overtimeRequest.approvalStatus === 'pending' ? 'OT Pending' : 'OT Rejected'}
+                                </span>
+                              )}
+                              {!shift.checkIn && !shift.checkOut && (
+                                <span style={{ color: "#999", fontSize: "12px" }}>Incomplete</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ));
+                    }
+                    
+                    return null;
+                  })}
                 </tbody>
               </table>
             </div>

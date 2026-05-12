@@ -32,6 +32,31 @@ function portalAvatarSrc(apiBase, avatarUrl) {
   return `${base}${path}`;
 }
 
+// ─── LEAVE TYPE METADATA ───────────────────────────────────────────────────────
+const leaveTypeMeta = {
+  annual_leave: { icon: '🌴', label: 'Annual Leave', color: '#10B981' },
+  paid_marriage: { icon: '💍', label: 'Marriage Leave (3 days)', color: '#EC4899' },
+  paid_child_marriage: { icon: '👶', label: 'Child Marriage Leave (1 day)', color: '#EC4899' },
+  paid_family_death: { icon: '🕊️', label: 'Family Death Leave (3 days)', color: '#F59E0B' },
+  unpaid_family_death: { icon: '🕯️', label: 'Extended Family Death Leave (1 day)', color: '#6B7280' },
+  unpaid_other: { icon: '⚖️', label: 'Other Unpaid Leave', color: '#6B7280' },
+  sick: { icon: '🏥', label: 'Sick Leave (Social Insurance)', color: '#EF4444' },
+  maternity_female: { icon: '👩‍🦱', label: 'Maternity Leave (Female)', color: '#EC4899' },
+  maternity_male: { icon: '👨‍🦱', label: 'Maternity Leave (Male)', color: '#EC4899' },
+  unpaid_negotiated: { icon: '📝', label: 'Negotiated Unpaid Leave', color: '#6B7280' },
+  accident_leave: { icon: '⚠️', label: 'Work Accident/ Occupational Disease Leave', color: '#F97316' },
+  civic_duty: { icon: '🪖', label: 'Civic Duty Leave', color: '#8B5CF6' },
+  study_training: { icon: '🎓', label: 'Study/Training Leave', color: '#10B981' },
+  suspended_work: { icon: '⏸️', label: 'Work Suspension Leave', color: '#F59E0B' },
+  special_leave: { icon: '🌧️', label: 'Other Special Leave', color: '#6B7280' },
+  other: { icon: '📌', label: 'Other', color: '#6B7280' }
+};
+
+function formatLeaveType(type) {
+  const meta = leaveTypeMeta[type] || { icon: '📌', label: String(type || 'Other').replace(/_/g, ' '), color: '#6B7280' };
+  return { icon: meta.icon, label: meta.label, color: meta.color };
+}
+
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────────
 function Dashboard({ token, onNavigate }) {
   const [stats, setStats] = useState({ pendingLeave: 0, pendingOvertime: 0, pendingTrip: 0, pendingAdvance: 0, pendingSalary: 0 });
@@ -583,10 +608,44 @@ function LeaveApprovals({ token }) {
       columns={[
         { key: 'id', label: 'ID' },
         { key: 'User', label: 'Employee', render: r => r.User?.name || r.userId },
-        { key: 'type', label: 'Leave type' },
+        { 
+          key: 'type', 
+          label: 'Leave type',
+          render: r => {
+            const leaveType = formatLeaveType(r.subType || r.leaveType || r.type);
+            return (
+              <span style={{ color: leaveType.color, fontWeight: '500' }}>
+                {leaveType.icon} {leaveType.label}
+              </span>
+            );
+          }
+        },
         { key: 'startDate', label: 'From', render: r => r.startDate?.slice(0, 10) },
         { key: 'endDate', label: 'To', render: r => r.endDate?.slice(0, 10) },
-        { key: 'days', label: 'Days' },
+        { 
+          key: 'days', 
+          label: 'Days',
+          render: r => {
+            const days = r.days || 0;
+            const type = r.subType || r.leaveType || r.type;
+            // If it's a personal leave (not annual, not sick, not maternity), show remaining annual leave
+            const isPersonalLeave = type && 
+              !['annual_leave', 'sick', 'maternity_female', 'maternity_male', 'accident_leave'].includes(type);
+            
+            if (isPersonalLeave && r.User?.leaveBalance !== undefined) {
+              const remaining = r.User.leaveBalance.remaining || 0;
+              return (
+                <span title="Days requested | Remaining annual leave">
+                  <strong>{days}</strong> days
+                  {remaining >= 0 && <span style={{ color: '#10B981', marginLeft: '6px', fontSize: '12px' }}>
+                    (🌴 {remaining} remaining)
+                  </span>}
+                </span>
+              );
+            }
+            return <span><strong>{days}</strong> days</span>;
+          }
+        },
         { key: 'reason', label: 'Reason' },
       ]}
     />
