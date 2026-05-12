@@ -4,11 +4,82 @@ import { Op } from "sequelize";
 import { notifyLeaveStatusChange, createNotification } from "./notificationController.js";
 import { emitApprovalEvent } from "../services/actionAuditService.js";
 
-const ANNUAL_LEAVE_LIMIT_DAYS = 12;
+const DEFAULT_ANNUAL_LEAVE_DAYS = 12;
+const ADDITIONAL_ANNUAL_DAY_EVERY_5_YEARS = 1;
+const ANNUAL_LEAVE_SUBTYPES = new Set(['annual_leave']);
+const LEAVE_SUBTYPE_TO_DB_TYPE = {
+  annual_leave: 'paid',
+  paid_marriage: 'paid',
+  paid_child_marriage: 'paid',
+  paid_family_death: 'paid',
+  unpaid_family_death: 'unpaid',
+  unpaid_other: 'unpaid',
+  unpaid_negotiated: 'unpaid',
+  sick: 'sick',
+  maternity_female: 'maternity',
+  maternity_male: 'maternity',
+  personal: 'personal',
+  accident_leave: 'other',
+  civic_duty: 'other',
+  study_training: 'other',
+  suspended_work: 'other',
+  special_leave: 'other',
+  other: 'other'
+};
+
+const COMPANY_HOLIDAY_CONFIG = [
+  { key: 'new_year', label: 'Tết Dương lịch', days: 1 },
+  { key: 'lunar_new_year', label: 'Tết Âm lịch', days: 5 },
+  { key: 'hung_kings', label: 'Giỗ Tổ Hùng Vương', days: 1 },
+  { key: 'reunification', label: '30/4', days: 1 },
+  { key: 'labor_day', label: '1/5', days: 1 },
+  { key: 'national_day', label: '2/9', days: 2 }
+];
+
+const LEAVE_TYPE_DISPLAY = {
+  paid: 'Paid Leave',
+  unpaid: 'Unpaid Leave',
+  sick: 'Sick Leave',
+  maternity: 'Maternity Leave',
+  personal: 'Personal Leave',
+  other: 'Other'
+};
+
+const getLeaveTypeLabel = (type) => {
+  return LEAVE_TYPE_DISPLAY[type] || String(type || '').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+};
+
+const calculateServiceYears = (startDate, year) => {
+  if (!startDate) return 0;
+  const joined = new Date(startDate);
+  if (Number.isNaN(joined.getTime())) return 0;
+  const target = new Date(`${year}-12-31`);
+  let years = target.getFullYear() - joined.getFullYear();
+  if (
+    target.getMonth() < joined.getMonth() ||
+    (target.getMonth() === joined.getMonth() && target.getDate() < joined.getDate())
+  ) {
+    years -= 1;
+  }
+  return Math.max(0, years);
+};
+
+const getAnnualLeaveAllowance = async (userId, year) => {
+  const user = await User.findByPk(userId, { attributes: ['startDate'] });
+  const serviceYears = calculateServiceYears(user?.startDate, year);
+  const additionalDays = Math.floor(serviceYears / 5) * ADDITIONAL_ANNUAL_DAY_EVERY_5_YEARS;
+  return {
+    total: DEFAULT_ANNUAL_LEAVE_DAYS + additionalDays,
+    serviceYears,
+    extraDays: additionalDays
+  };
+};
 
 const countLeaveDaysTowardLimit = (leave) => {
   if (!leave) return 0;
-  return Number(leave.days || 0);
+  if (leave.type !== 'paid') return 0;
+  if (!leave.subType) return Number(leave.days || 0);
+  return ANNUAL_LEAVE_SUBTYPES.has(leave.subType) ? Number(leave.days || 0) : 0;
 };
 
 const getAnnualLeaveUsage = async (userId, year, excludeLeaveId = null) => {
@@ -22,6 +93,7 @@ const getAnnualLeaveUsage = async (userId, year, excludeLeaveId = null) => {
       [Op.gte]: yearStart,
       [Op.lte]: yearEnd,
     },
+    type: 'paid'
   };
 
   if (excludeLeaveId) {
@@ -30,6 +102,22 @@ const getAnnualLeaveUsage = async (userId, year, excludeLeaveId = null) => {
 
   const leaves = await LeaveRequest.findAll({ where });
   return leaves.reduce((sum, leave) => sum + countLeaveDaysTowardLimit(leave), 0);
+};
+
+export const getCompanyHolidayConfig = async (req, res) => {
+  try {
+    return res.json({
+      status: 'success',
+      holidayPolicy: {
+        holidays: COMPANY_HOLIDAY_CONFIG,
+        totalDays: COMPANY_HOLIDAY_CONFIG.reduce((sum, h) => sum + h.days, 0),
+        note: 'Company holidays are paid and do not require attendance when observed.'
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching holiday policy:', err);
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
 };
 
 // Create leave request
@@ -57,13 +145,14 @@ export const createLeaveRequest = async (req, res) => {
     }
 
     const requestYear = new Date(startDate).getFullYear();
+    const allowance = await getAnnualLeaveAllowance(userId, requestYear);
     const usedDays = await getAnnualLeaveUsage(userId, requestYear);
-    const projectedDays = usedDays + days;
+    const projectedDays = type === 'annual_leave' ? usedDays + days : usedDays;
 
-    if (projectedDays > ANNUAL_LEAVE_LIMIT_DAYS) {
+    if (type === 'annual_leave' && projectedDays > allowance.total) {
       return res.status(400).json({
         status: "error",
-        message: `You can only take up to ${ANNUAL_LEAVE_LIMIT_DAYS} leave day(s) per year. You have already used ${usedDays} day(s).`,
+        message: `You can only take up to ${allowance.total} annual leave day(s) for this year. You have already used ${usedDays} day(s).`,
       });
     }
 
@@ -96,9 +185,11 @@ export const createLeaveRequest = async (req, res) => {
       });
     }
 
+    const dbType = LEAVE_SUBTYPE_TO_DB_TYPE[type] || type;
     const leaveRequest = await LeaveRequest.create({
       userId,
-      type,
+      type: dbType,
+      subType: type,
       startDate,
       endDate,
       days,
@@ -145,6 +236,27 @@ export const getLeaveRequests = async (req, res) => {
       ];
     }
 
+    let annualLeaveUsageByUser = new Map();
+    if (isStaff) {
+      const currentYear = new Date().getFullYear();
+      const approvedPaidLeaves = await LeaveRequest.findAll({
+        where: {
+          status: 'approved',
+          type: 'paid',
+          startDate: {
+            [Op.gte]: `${currentYear}-01-01`,
+            [Op.lte]: `${currentYear}-12-31`
+          }
+        },
+        attributes: ['userId', 'days', 'subType']
+      });
+      for (const leave of approvedPaidLeaves) {
+        const userId = Number(leave.userId);
+        const used = countLeaveDaysTowardLimit(leave);
+        annualLeaveUsageByUser.set(userId, (annualLeaveUsageByUser.get(userId) || 0) + used);
+      }
+    }
+
     const leaveRequests = await LeaveRequest.findAll({
       where,
       include: [
@@ -167,9 +279,17 @@ export const getLeaveRequests = async (req, res) => {
       ]
     });
 
+    const leaveRequestsPlain = leaveRequests.map((leave) => {
+      const item = leave.get({ plain: true });
+      if (isStaff) {
+        item.annualLeaveUsed = annualLeaveUsageByUser.get(Number(item.userId)) || 0;
+      }
+      return item;
+    });
+
     return res.json({
       status: "success",
-      leaveRequests
+      leaveRequests: leaveRequestsPlain
     });
   } catch (err) {
     console.error("Error fetching leave requests:", err);
@@ -387,19 +507,24 @@ export const getLeaveBalance = async (req, res) => {
       }
     });
 
-    const totalDaysUsed = approvedLeaves.reduce((sum, leave) => sum + Number(leave.days || 0), 0);
-
-    // Default leave balance (can be configured per user)
-    const defaultLeaveDays = 12; // 12 days per year
-    const remainingDays = Math.max(0, defaultLeaveDays - totalDaysUsed);
+    const allowance = await getAnnualLeaveAllowance(userId, currentYear);
+    const totalDaysUsed = approvedLeaves.reduce((sum, leave) => sum + countLeaveDaysTowardLimit(leave), 0);
+    const remainingDays = Math.max(0, allowance.total - totalDaysUsed);
 
     return res.json({
       status: "success",
       balance: {
-        total: defaultLeaveDays,
+        total: allowance.total,
         used: totalDaysUsed,
         remaining: remainingDays,
-        year: currentYear
+        year: currentYear,
+        serviceYears: allowance.serviceYears,
+        extraDays: allowance.extraDays
+      },
+      holidayPolicy: {
+        holidays: COMPANY_HOLIDAY_CONFIG,
+        totalDays: COMPANY_HOLIDAY_CONFIG.reduce((sum, h) => sum + h.days, 0),
+        note: 'Company holidays are paid and do not require attendance when observed.'
       },
       leaves: approvedLeaves
     });
@@ -508,13 +633,14 @@ export const updateLeaveRequest = async (req, res) => {
     }
 
     const requestYear = new Date(startDate).getFullYear();
+    const allowance = await getAnnualLeaveAllowance(leaveRequest.userId, requestYear);
     const usedDays = await getAnnualLeaveUsage(leaveRequest.userId, requestYear, leaveRequest.id);
-    const projectedDays = LEAVE_TYPES_COUNTED_TOWARD_LIMIT.has(type) ? usedDays + days : usedDays;
+    const projectedDays = type === 'annual_leave' ? usedDays + days : usedDays;
 
-    if (projectedDays > ANNUAL_LEAVE_LIMIT_DAYS) {
+    if (type === 'annual_leave' && projectedDays > allowance.total) {
       return res.status(400).json({
         status: "error",
-        message: `You can only take up to ${ANNUAL_LEAVE_LIMIT_DAYS} leave day(s) per year. You have already used ${usedDays} day(s).`,
+        message: `You can only take up to ${allowance.total} annual leave day(s) for this year. You have already used ${usedDays} day(s).`,
       });
     }
 
@@ -544,8 +670,10 @@ export const updateLeaveRequest = async (req, res) => {
       });
     }
 
+    const dbType = LEAVE_SUBTYPE_TO_DB_TYPE[type] || type;
     await leaveRequest.update({
-      type,
+      type: dbType,
+      subType: type,
       startDate,
       endDate,
       days,

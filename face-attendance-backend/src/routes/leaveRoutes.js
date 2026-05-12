@@ -6,6 +6,7 @@ import {
   approveLeaveRequest,
   rejectLeaveRequest,
   getLeaveBalance,
+  getCompanyHolidayConfig,
   deleteLeaveRequest,
   updateLeaveRequest
 } from "../controllers/leaveController.js";
@@ -38,6 +39,7 @@ router.post(
 router.get("/requests", getLeaveRequests);
 router.get("/requests/:id", getLeaveRequestById);
 router.get("/balance", getLeaveBalance);
+router.get("/config/holidays", getCompanyHolidayConfig);
 router.delete(
   "/requests/:id",
   auditMutation({

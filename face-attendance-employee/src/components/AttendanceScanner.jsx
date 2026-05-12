@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { calculateAntiSpoofingScore, checkLiveness } from "../utils/antiSpoofing";
 import { evaluateSpoofEvidence } from "../utils/deviceSpoofDetector";
 
@@ -490,6 +490,7 @@ function AttendanceScanner() {
       const res = await fetch(`${API_BASE}/api/attendance/today?${qs.toString()}`);
       const data = await res.json();
       if (data.status === "success" && Array.isArray(data.logs)) {
+        const overtimeRequestStatus = data.overtimeRequest?.approvalStatus || null;
         const mapped = data.logs.map((log) => ({
           id: log.id,
           timestamp: log.timestamp ? new Date(log.timestamp).getTime() : 0,
@@ -503,6 +504,7 @@ function AttendanceScanner() {
           flags: log.flags || {},
           shiftLabel: log.shiftLabel || "Main shift",
           allowedLateMinutes: log.allowedLateMinutes || data.allowedLateMinutes || 0,
+          overtimeRequestStatus,
         }));
         mapped.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         setAttendanceLogs(mapped);
@@ -555,10 +557,50 @@ function AttendanceScanner() {
         : `Left early`;
     }
     if (log.flags.isOvertime) {
+      if (log.overtimeRequestStatus === 'approved') {
+        return `OT Approved`;
+      }
+      if (log.overtimeRequestStatus === 'pending') {
+        return `Pending OT request`;
+      }
       return `Overtime shift`;
+    }
+    if (log.overtimeRequestStatus === 'pending') {
+      return `Pending OT request`;
     }
     return log.shiftLabel || "Main shift";
   };
+
+  const getShiftOrder = (label) => {
+    if (!label) return 500;
+    const match = label.match(/Shift\s*(\d+)/i);
+    if (match) return Number(match[1]);
+    if (/overtime/i.test(label)) return 999;
+    return 500;
+  };
+
+  const groupedShiftLogs = useMemo(() => {
+    const groups = new Map();
+    const sortedLogs = [...attendanceLogs].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    sortedLogs.forEach((log) => {
+      const label = log.shiftLabel || "Shift 1";
+      const group = groups.get(label) || {
+        shiftLabel: label,
+        checkIn: null,
+        checkOut: null,
+        overtimeRequestStatus: log.overtimeRequestStatus || null,
+        logs: []
+      };
+      group.logs.push(log);
+      if (log.type === 'IN') group.checkIn = log;
+      if (log.type === 'OUT') group.checkOut = log;
+      if (!group.overtimeRequestStatus && log.overtimeRequestStatus) {
+        group.overtimeRequestStatus = log.overtimeRequestStatus;
+      }
+      groups.set(label, group);
+    });
+    return Array.from(groups.values()).sort((a, b) => getShiftOrder(a.shiftLabel) - getShiftOrder(b.shiftLabel));
+  }, [attendanceLogs]);
 
   const startDetection = () => {
     setIsScanning(true);
@@ -2667,95 +2709,148 @@ function AttendanceScanner() {
               <div style={{ 
                 display: "flex", 
                 flexDirection: "column", 
-                gap: "12px" 
+                gap: "16px" 
               }}>
-                {attendanceLogs.map((log) => {
-                  const isIn = log.type === 'IN';
-                  const bgColor = isIn ? "#f6ffed" : "#fff7e6";
-                  const borderColor = isIn ? "#52c41a" : "#fa8c16";
-                  const textColor = isIn ? "#389e0d" : "#d46b08";
-                  
+                {groupedShiftLogs.map((group) => {
+                  const checkIn = group.checkIn;
+                  const checkOut = group.checkOut;
+                  const completed = checkIn && checkOut;
+                  const groupStatus = completed ? "Completed" : "Incomplete";
+
                   return (
                     <div
-                      key={log.id}
+                      key={group.shiftLabel}
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "20px 24px",
-                        backgroundColor: bgColor,
-                        borderRadius: "12px",
-                        border: `2px solid ${borderColor}`,
-                        transition: "all 0.3s ease"
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = "translateX(4px)";
-                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.08)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "translateX(0)";
-                        e.currentTarget.style.boxShadow = "none";
+                        padding: "22px",
+                        backgroundColor: "#ffffff",
+                        borderRadius: "18px",
+                        border: "1px solid #e5e7eb",
+                        boxShadow: "0 18px 35px rgba(15, 23, 42, 0.06)"
                       }}
                     >
-                      <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
-                        <KioskRoundAvatar
-                          avatarUrl={log.avatarUrl}
-                          name={log.name}
-                          size={52}
-                          borderColor={borderColor}
-                          ringColor={isIn ? "rgba(82, 196, 26, 0.2)" : "rgba(250, 140, 22, 0.2)"}
-                        />
-                        <div style={{ minWidth: 0 }}>
-                        <div style={{ 
-                          fontWeight: "700",
-                          fontSize: "17px",
-                          color: textColor,
-                          marginBottom: "6px"
-                        }}>
-                          {log.name}
-                        </div>
-                        <div style={{ 
-                          fontSize: "14px",
-                          color: textColor,
-                          opacity: 0.8,
-                          fontWeight: "500",
-                          marginBottom: "4px"
-                        }}>
-                          {log.time}
-                        </div>
-                        <div style={{
-                          fontSize: "12px",
-                          color: "#4b5563",
-                          lineHeight: 1.5,
-                          fontWeight: 500
-                        }}>
-                          {renderDetailText(log)}
-                        </div>
-                        </div>
-                      </div>
-                      <div style={{ 
+                      <div style={{
                         display: "flex",
-                        gap: "16px",
-                        alignItems: "center" 
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        flexWrap: "wrap",
+                        gap: "12px"
                       }}>
-                        <span style={{
-                          padding: "8px 20px",
-                          backgroundColor: borderColor,
-                          color: "#ffffff",
-                          borderRadius: "20px",
-                          fontSize: "13px",
-                          fontWeight: "700",
-                          letterSpacing: "0.5px"
-                        }}>
-                          {isIn ? "CHECK IN" : "CHECK OUT"}
-                        </span>
-                        <div style={{ 
-                          fontSize: "24px",
-                          color: log.status === "✓" ? "#52c41a" : "#ff4d4f",
-                          fontWeight: "700"
-                        }}>
-                          {log.status === "✓" ? "VERIFIED" : "WARNING"}
+                        <div>
+                          <div style={{
+                            fontSize: "18px",
+                            fontWeight: 700,
+                            color: "#111827",
+                            marginBottom: "6px"
+                          }}>
+                            {group.shiftLabel}
+                          </div>
+                          <div style={{
+                            fontSize: "13px",
+                            color: "#6b7280"
+                          }}>
+                            {groupStatus}
+                          </div>
                         </div>
+                        {group.overtimeRequestStatus && (
+                          <span style={{
+                            padding: "6px 14px",
+                            borderRadius: "999px",
+                            backgroundColor: group.overtimeRequestStatus === 'approved' ? '#0d6efd' : '#f59e0b',
+                            color: '#fff',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.4px'
+                          }}>
+                            {group.overtimeRequestStatus === 'approved' ? 'OT Approved' : 'Pending OT request'}
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                        gap: "14px",
+                        marginTop: "18px"
+                      }}>
+                        {['IN', 'OUT'].map((type) => {
+                          const log = type === 'IN' ? checkIn : checkOut;
+                          const isIn = type === 'IN';
+                          const statusColor = isIn ? '#52c41a' : '#fa8c16';
+
+                          return (
+                            <div
+                              key={type}
+                              style={{
+                                borderRadius: "16px",
+                                border: "1px solid #e5e7eb",
+                                backgroundColor: "#f8fafc",
+                                padding: "18px"
+                              }}
+                            >
+                              <div style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                marginBottom: "12px"
+                              }}>
+                                <span style={{
+                                  fontSize: "12px",
+                                  fontWeight: 700,
+                                  color: "#475569",
+                                  letterSpacing: "0.08em",
+                                  textTransform: "uppercase"
+                                }}>
+                                  {isIn ? "Check In" : "Check Out"}
+                                </span>
+                                <span style={{
+                                  padding: "6px 12px",
+                                  borderRadius: "999px",
+                                  backgroundColor: statusColor,
+                                  color: "#fff",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  textTransform: "uppercase"
+                                }}>
+                                  {log ? "Verified" : "Missing"}
+                                </span>
+                              </div>
+
+                              {log ? (
+                                <>
+                                  <div style={{
+                                    fontSize: "22px",
+                                    fontWeight: 700,
+                                    color: "#111827",
+                                    marginBottom: "10px"
+                                  }}>
+                                    {log.time}
+                                  </div>
+                                  <div style={{
+                                    fontSize: "13px",
+                                    color: "#475569",
+                                    marginBottom: "10px"
+                                  }}>
+                                    {renderDetailText(log)}
+                                  </div>
+                                  <div style={{
+                                    fontSize: "12px",
+                                    color: "#6b7280"
+                                  }}>
+                                    {log.name}
+                                  </div>
+                                </>
+                              ) : (
+                                <div style={{
+                                  fontSize: "14px",
+                                  color: "#9ca3af"
+                                }}>
+                                  Không có dữ liệu
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );

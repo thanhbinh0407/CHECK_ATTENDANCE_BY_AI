@@ -328,15 +328,19 @@ export const getTodayAttendance = async (req, res) => {
       order: [['timestamp', 'DESC']]
     });
 
-    const hasOvertimeRequestToday = userId
-      ? Boolean(await OvertimeRequest.findOne({
-          where: {
-            userId: Number(userId),
-            date: today.toISOString().split('T')[0],
-            approvalStatus: { [Op.in]: ['pending', 'approved'] }
-          }
-        }))
-      : false;
+    let overtimeRequest = null;
+    if (userId) {
+      overtimeRequest = await OvertimeRequest.findOne({
+        where: {
+          userId: Number(userId),
+          date: today.toISOString().split('T')[0],
+          approvalStatus: { [Op.in]: ['pending', 'approved'] }
+        },
+        order: [['id', 'DESC']]
+      });
+    }
+
+    const hasOvertimeRequestToday = Boolean(overtimeRequest);
     const totalLogCapacity = shiftPlan.mainShifts.length * 2 + (hasOvertimeRequestToday ? 2 : 0);
 
     const logsAsc = [...logs].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -374,6 +378,7 @@ export const getTodayAttendance = async (req, res) => {
       date: today.toISOString().split('T')[0],
       count: logs.length,
       allowedLateMinutes,
+      overtimeRequest: overtimeRequest ? overtimeRequest.toJSON() : null,
       shiftPlan: {
         mainShifts: shiftPlan.mainShifts,
         overtimeStart: shiftPlan.overtimeStart,
