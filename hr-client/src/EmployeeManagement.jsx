@@ -488,6 +488,12 @@ export default function EmployeeManagement({ token, user }) {
     return true;
   };
 
+  const isEmployeeInactive = useCallback((employee) => {
+    if (!employee) return false;
+    const st = String(employee.employmentStatus || '').toLowerCase();
+    return employee.isActive === false || st === 'suspended' || st === 'terminated' || st === 'resigned';
+  }, []);
+
   const getEmployeeAnnualLeaveTotal = useCallback((employee) => {
     if (!employee?.startDate) return annualLeaveBaseDays;
     const start = new Date(employee.startDate);
@@ -500,6 +506,41 @@ export default function EmployeeManagement({ token, user }) {
     years = Math.max(0, years);
     return annualLeaveBaseDays + Math.floor(years / 5) * annualLeaveAdditionalEvery5Years;
   }, [annualLeaveBaseDays, annualLeaveAdditionalEvery5Years]);
+
+  const getContractDaysLabel = useCallback((employee) => {
+    const contractType = employee?.contractType;
+    if (!contractType) return '—';
+    if (contractType === 'indefinite') return 'Indefinite';
+
+    const durationByType = {
+      probation: 2,
+      probation_1_month: 1,
+      probation_2_month: 2,
+      probation_3_month: 3,
+      '1_year': 12,
+      '3_year': 36,
+      formal_1_year: 12,
+      formal_2_year: 24,
+      formal_3_year: 36,
+    };
+
+    const months = durationByType[contractType];
+    if (!months || !employee?.startDate) return '—';
+
+    const start = new Date(employee.startDate);
+    if (Number.isNaN(start.getTime())) return '—';
+
+    const endDate = new Date(start);
+    endDate.setMonth(endDate.getMonth() + months);
+    endDate.setHours(23, 59, 59, 999);
+
+    const now = new Date();
+    const diffDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 0) return `${diffDays} days`;
+    if (diffDays === 0) return 'Expires today';
+    return `Expired ${Math.abs(diffDays)} days`;
+  }, []);
 
   const openLeaveConfig = () => {
     setLeaveConfigForm({ baseDays: annualLeaveBaseDays, additionalEvery5Years: annualLeaveAdditionalEvery5Years });
@@ -606,10 +647,10 @@ export default function EmployeeManagement({ token, user }) {
       const matchContract =
         !filterContract || emp.contractType === filterContract;
       const matchList =
-        listMode === 'active' ? emp.isActive !== false : emp.isActive === false;
+        listMode === 'active' ? !isEmployeeInactive(emp) : isEmployeeInactive(emp);
       return matchSearch && matchDept && matchRole && matchJt && matchContract && matchList;
     });
-  }, [employees, search, filterDept, filterRole, filterJobTitle, filterContract, listMode]);
+  }, [employees, search, filterDept, filterRole, filterJobTitle, filterContract, listMode, isEmployeeInactive]);
 
   // ── actions ──
   const openEdit = (emp) => {
@@ -1017,7 +1058,7 @@ export default function EmployeeManagement({ token, user }) {
                     </div>
                   </th>
                   <th>Role</th>
-                  <th>Status</th>
+                  <th>{user?.role === 'hr' ? 'Contract Days' : 'Status'}</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -1042,9 +1083,15 @@ export default function EmployeeManagement({ token, user }) {
                     </td>
                     <td><RoleBadge role={emp.role} /></td>
                     <td>
-                      <span className={`badge ${emp.isActive ? 'badge-active' : 'badge-inactive'}`}>
-                        {emp.isActive ? 'Active' : 'Inactive'}
-                      </span>
+                      {user?.role === 'hr' ? (
+                        <span style={{ fontWeight: 600, color: '#334155' }}>
+                          {getContractDaysLabel(emp)}
+                        </span>
+                      ) : (
+                        <span className={`badge ${isEmployeeInactive(emp) ? 'badge-inactive' : 'badge-active'}`}>
+                          {isEmployeeInactive(emp) ? 'Inactive' : 'Active'}
+                        </span>
+                      )}
                     </td>
                     <td onClick={e => e.stopPropagation()}>
                       <div className="emp-actions">
@@ -1072,7 +1119,7 @@ export default function EmployeeManagement({ token, user }) {
                         >
                           Reset PW
                         </button>
-                        {canShowAccountLifecycleActions(emp) && emp.isActive && (
+                        {canShowAccountLifecycleActions(emp) && !isEmployeeInactive(emp) && (
                           <button
                             type="button"
                             className="btn-tbl btn-tbl-delete"
@@ -1082,7 +1129,7 @@ export default function EmployeeManagement({ token, user }) {
                             Deactivate
                           </button>
                         )}
-                        {canShowAccountLifecycleActions(emp) && !emp.isActive && (
+                        {canShowAccountLifecycleActions(emp) && isEmployeeInactive(emp) && (
                           <button
                             type="button"
                             className="btn-tbl btn-tbl-restore"
@@ -1092,7 +1139,7 @@ export default function EmployeeManagement({ token, user }) {
                             Restore
                           </button>
                         )}
-                        {canShowAccountLifecycleActions(emp) && !emp.isActive && (
+                        {canShowAccountLifecycleActions(emp) && isEmployeeInactive(emp) && (
                           <button
                             type="button"
                             className="btn-tbl-delete-forever"
@@ -1187,8 +1234,8 @@ export default function EmployeeManagement({ token, user }) {
                 </div>
                 <div><span style={{ color: '#718096' }}>Role:</span> <RoleBadge role={detailUser.role} /></div>
                 <div><span style={{ color: '#718096' }}>Status:</span>{' '}
-                  <span className={`badge ${detailUser.isActive ? 'badge-active' : 'badge-inactive'}`}>
-                    {detailUser.isActive ? 'Active' : 'Inactive'}
+                  <span className={`badge ${isEmployeeInactive(detailUser) ? 'badge-inactive' : 'badge-active'}`}>
+                    {isEmployeeInactive(detailUser) ? 'Inactive' : 'Active'}
                   </span>
                 </div>
                 <div><span style={{ color: '#718096' }}>Start Date:</span> {detailUser.startDate ? detailUser.startDate.slice(0,10) : '—'}</div>

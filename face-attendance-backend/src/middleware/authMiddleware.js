@@ -4,6 +4,7 @@ import User from "../models/pg/User.js";
 import { isEmployeeLoginAllowed } from "../utils/contractStatus.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+const LOGIN_DENIED_CONTRACT_MESSAGE = "Your contract has expired or has been suspended/terminated.";
 
 /**
  * Roles:
@@ -47,13 +48,13 @@ export const authMiddleware = (req, res, next) => {
         }
 
         if (!dbUser.isActive) {
-          return res.status(403).json({ status: "error", message: "User account is inactive" });
+          return res.status(403).json({ status: "error", message: LOGIN_DENIED_CONTRACT_MESSAGE });
         }
 
         if (!isEmployeeLoginAllowed(dbUser)) {
           return res.status(403).json({
             status: "error",
-            message: "Your employment contract has ended or has been terminated. Please contact HR.",
+            message: LOGIN_DENIED_CONTRACT_MESSAGE,
           });
         }
 
