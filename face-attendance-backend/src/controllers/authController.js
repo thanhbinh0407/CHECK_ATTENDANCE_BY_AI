@@ -2,6 +2,7 @@ import User from "../models/pg/User.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { getPermissionsByRole } from "../config/permissionMatrix.js";
+import { isEmployeeLoginAllowed } from "../utils/contractStatus.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 const JWT_EXPIRE = "7d";
@@ -103,6 +104,13 @@ export const login = async (req, res) => {
       });
     }
 
+    if (!isEmployeeLoginAllowed(user)) {
+      return res.status(403).json({
+        status: "error",
+        message: "Your employment contract has ended or has been terminated. Please contact HR."
+      });
+    }
+
     // Check if user has a password set
     if (!user.password) {
       console.log(`Login attempt failed: User has no password set - ${email}`);
@@ -192,6 +200,13 @@ export const getCurrentUser = async (req, res) => {
       return res.status(403).json({
         status: "error",
         message: "User account is inactive"
+      });
+    }
+
+    if (!isEmployeeLoginAllowed(user)) {
+      return res.status(403).json({
+        status: "error",
+        message: "Your employment contract has ended or has been terminated. Please contact HR."
       });
     }
 
