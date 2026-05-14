@@ -199,7 +199,7 @@ function CreateEmployeeModal({ form, setField, onClose, onSave, saving, departme
 }
 
 // ─── Edit Modal (UC-07.2) ─────────────────────────────────────────────────────
-function EditModal({ form, setField, onClose, onSave, saving, departments, jobTitles, isManager }) {
+function EditModal({ form, setField, onClose, onSave, saving, departments, jobTitles, isManager, isContractEditable = true }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
@@ -212,17 +212,22 @@ function EditModal({ form, setField, onClose, onSave, saving, departments, jobTi
           {/* ── Basic Info ── */}
           <p className="form-section-label">Basic Information</p>
           <div className="form-row">
+            <div className="form-row">
             <div className="form-group">
-              <label>Full Name *</label>
-              <input required value={form.name} onChange={e => setField('name', e.target.value)} />
+              <label>Contract Type</label>
+              <select value={form.contractType} onChange={e => setField('contractType', e.target.value)} disabled={!isContractEditable}>
+                <option value="">— Select —</option>
+                <option value="probation">Probation</option>
+                <option value="1_year">1 Year</option>
+                <option value="3_year">3 Years</option>
+                <option value="indefinite">Indefinite</option>
+              </select>
+              {!isContractEditable && (
+                <div style={{ marginTop: 6, color: '#a0aec0', fontSize: 12 }}>
+                  Contract editing disabled while employment is suspended.
+                </div>
+              )}
             </div>
-            <div className="form-group">
-              <label>Email *</label>
-              <input required type="email" value={form.email} onChange={e => setField('email', e.target.value)} />
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
               <label>Employee Code</label>
               <input value={form.employeeCode} onChange={e => setField('employeeCode', e.target.value)} />
             </div>
@@ -303,10 +308,10 @@ function EditModal({ form, setField, onClose, onSave, saving, departments, jobTi
               </select>
             </div>
           </div>
-          <div className="form-row">
+            <div className="form-row">
             <div className="form-group">
               <label>Start Date</label>
-              <input type="date" value={form.startDate} onChange={e => setField('startDate', e.target.value)} />
+              <input type="date" value={form.startDate} onChange={e => setField('startDate', e.target.value)} disabled={!isContractEditable} />
               <div style={{ marginTop: 6, color: '#4a5568', fontSize: 12 }}>
                 Annual leave is 12 days/year, plus +1 day every 5 years of service.
               </div>
@@ -536,6 +541,27 @@ export default function EmployeeManagement({ token, user }) {
 
     const now = new Date();
     const diffDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Helper to format date as M/D/YYYY
+    const formatLocalDate = (d) => {
+      if (!d) return '—';
+      const dt = new Date(d);
+      if (Number.isNaN(dt.getTime())) return '—';
+      return `${dt.getMonth() + 1}/${dt.getDate()}/${dt.getFullYear()}`;
+    };
+
+    // If we're showing the inactive list, prefer explicit suspension/expiration dates
+    if (listMode === 'inactive' || isEmployeeInactive(employee)) {
+      const status = String(employee?.employmentStatus || '').toLowerCase();
+      if (status === 'suspended') {
+        const suspDate = employee.deactivatedAt || employee.suspensionDate || employee.updatedAt || null;
+        return suspDate ? `Suspension Date: ${formatLocalDate(suspDate)}` : 'Suspended';
+      }
+
+      if (endDate) {
+        return endDate < now ? `Expired on ${formatLocalDate(endDate)}` : `${diffDays} days`;
+      }
+    }
 
     if (diffDays > 0) return `${diffDays} days`;
     if (diffDays === 0) return 'Expires today';
@@ -1129,7 +1155,7 @@ export default function EmployeeManagement({ token, user }) {
                             Deactivate
                           </button>
                         )}
-                        {canShowAccountLifecycleActions(emp) && isEmployeeInactive(emp) && (
+                        {canShowAccountLifecycleActions(emp) && isEmployeeInactive(emp) && listMode !== 'inactive' && (
                           <button
                             type="button"
                             className="btn-tbl btn-tbl-restore"
@@ -1188,6 +1214,7 @@ export default function EmployeeManagement({ token, user }) {
           departments={departments}
           jobTitles={jobTitles}
           isManager={isManager}
+          isContractEditable={String(editing?.employmentStatus || '').toLowerCase() !== 'suspended'}
         />
       )}
 
