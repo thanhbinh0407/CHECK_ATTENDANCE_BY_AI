@@ -7,7 +7,7 @@ const CONTRACT_DURATION_MONTHS = {
   formal_3_year: 36,
 };
 
-const TERMINAL_EMPLOYMENT_STATUSES = new Set(["terminated", "resigned"]);
+const TERMINAL_EMPLOYMENT_STATUSES = new Set(["suspended", "terminated", "resigned"]);
 
 export const getContractEndDate = (contractType, startDate) => {
   if (!contractType || !startDate) return null;
