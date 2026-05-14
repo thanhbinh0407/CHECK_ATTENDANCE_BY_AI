@@ -400,6 +400,16 @@ export const updateEmployee = async (req, res) => {
     if (contractType !== undefined) updateData.contractType = contractType === "" ? null : contractType;
     if (employmentStatus !== undefined) updateData.employmentStatus = employmentStatus === "" ? null : employmentStatus;
 
+    // Server-side enforcement: do not allow modifying contract fields when employee is suspended
+    const currentStatus = String(employee.employmentStatus || '').toLowerCase();
+    const attemptingContractChange = ('contractType' in req.body) || ('startDate' in req.body);
+    if (currentStatus === 'suspended' && attemptingContractChange) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot modify contract while employee is suspended. Restore or reactivate the employee before editing contract details.'
+      });
+    }
+
     // Detect if salary-affecting fields changed
     const salaryAffectingFields = ['baseSalary', 'lunchAllowance', 'transportAllowance', 'phoneAllowance', 'responsibilityAllowance', 'startDate'];
     const salaryFieldsChanged = salaryAffectingFields.some(field => updateData[field] !== undefined);

@@ -12,6 +12,7 @@ export default function EmployeeDetailView() {
   const [selectedEmployeeForModal, setSelectedEmployeeForModal] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
+  const [isContractEditable, setIsContractEditable] = useState(true);
   const [departments, setDepartments] = useState([]);
   const [jobTitles, setJobTitles] = useState([]);
   const [managers, setManagers] = useState([]);
@@ -140,6 +141,7 @@ export default function EmployeeDetailView() {
       managerId: selectedEmployeeForModal.managerId || null,
       branchName: selectedEmployeeForModal.branchName || ""
     });
+    setIsContractEditable(String(selectedEmployeeForModal.employmentStatus || '').toLowerCase() !== 'suspended');
   };
 
   const handleSave = async () => {
@@ -152,6 +154,11 @@ export default function EmployeeDetailView() {
         startDate: editForm.startDate || null,
         managerId: editForm.managerId ? parseInt(editForm.managerId) : null
       };
+      // If contract editing is locked (suspended), preserve original contract values
+      if (!isContractEditable) {
+        payload.contractType = selectedEmployeeForModal.contractType || null;
+        payload.startDate = selectedEmployeeForModal.startDate || null;
+      }
       const res = await fetch(`${apiBase}/api/admin/employees/${selectedEmployeeForModal.id}`, {
         method: "PUT",
         headers: {
@@ -536,6 +543,7 @@ export default function EmployeeDetailView() {
                               type="date"
                               value={editForm.startDate}
                               onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+                              disabled={!isContractEditable}
                               style={{
                                 width: "100%",
                                 padding: theme.spacing.md,
@@ -552,6 +560,7 @@ export default function EmployeeDetailView() {
                             <select
                               value={editForm.contractType || ""}
                               onChange={(e) => setEditForm({ ...editForm, contractType: e.target.value || null })}
+                              disabled={!isContractEditable}
                               style={{
                                 width: "100%",
                                 padding: theme.spacing.md,
@@ -566,6 +575,11 @@ export default function EmployeeDetailView() {
                               <option value="indefinite">Indefinite-term contract</option>
                               <option value="other">Other</option>
                             </select>
+                            {!isContractEditable && (
+                              <p style={{ marginTop: 8, color: '#a0aec0', fontSize: theme.typography.small.fontSize }}>
+                                Contract fields are locked while the employee is suspended.
+                              </p>
+                            )}
                           </div>
                           <div>
                             <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Employment Status</label>
