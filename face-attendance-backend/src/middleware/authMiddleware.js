@@ -1,8 +1,10 @@
 import jwt from "jsonwebtoken";
 import { getPermissionsByRole } from "../config/permissionMatrix.js";
 import User from "../models/pg/User.js";
+import { isEmployeeLoginAllowed } from "../utils/contractStatus.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+const LOGIN_DENIED_CONTRACT_MESSAGE = "Your contract has expired or has been suspended/terminated.";
 
 /**
  * Roles:
@@ -38,7 +40,7 @@ export const authMiddleware = (req, res, next) => {
         }
 
         const dbUser = await User.findByPk(resolvedId, {
-          attributes: ["id", "role", "isActive", "tokenVersion"],
+          attributes: ["id", "role", "isActive", "tokenVersion", "employmentStatus", "contractType", "startDate"],
         });
 
         if (!dbUser) {
@@ -46,7 +48,14 @@ export const authMiddleware = (req, res, next) => {
         }
 
         if (!dbUser.isActive) {
-          return res.status(403).json({ status: "error", message: "User account is inactive" });
+          return res.status(403).json({ status: "error", message: LOGIN_DENIED_CONTRACT_MESSAGE });
+        }
+
+        if (!isEmployeeLoginAllowed(dbUser)) {
+          return res.status(403).json({
+            status: "error",
+            message: LOGIN_DENIED_CONTRACT_MESSAGE,
+          });
         }
 
         const tokenVer = Number(decoded.tokenVersion || 0);

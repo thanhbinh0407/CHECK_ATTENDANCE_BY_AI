@@ -2,9 +2,11 @@ import User from "../models/pg/User.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { getPermissionsByRole } from "../config/permissionMatrix.js";
+import { isEmployeeLoginAllowed } from "../utils/contractStatus.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 const JWT_EXPIRE = "7d";
+const LOGIN_DENIED_CONTRACT_MESSAGE = "Your contract has expired or has been suspended/terminated.";
 
 // Register new user (Admin only for creating other admins)
 export const register = async (req, res) => {
@@ -99,7 +101,14 @@ export const login = async (req, res) => {
     if (!user.isActive) {
       return res.status(403).json({
         status: "error",
-        message: "User account is inactive"
+        message: LOGIN_DENIED_CONTRACT_MESSAGE
+      });
+    }
+
+    if (!isEmployeeLoginAllowed(user)) {
+      return res.status(403).json({
+        status: "error",
+        message: LOGIN_DENIED_CONTRACT_MESSAGE
       });
     }
 
@@ -191,7 +200,14 @@ export const getCurrentUser = async (req, res) => {
     if (!user.isActive) {
       return res.status(403).json({
         status: "error",
-        message: "User account is inactive"
+        message: LOGIN_DENIED_CONTRACT_MESSAGE
+      });
+    }
+
+    if (!isEmployeeLoginAllowed(user)) {
+      return res.status(403).json({
+        status: "error",
+        message: LOGIN_DENIED_CONTRACT_MESSAGE
       });
     }
 

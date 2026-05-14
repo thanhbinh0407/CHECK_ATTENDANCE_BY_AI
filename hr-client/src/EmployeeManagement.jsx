@@ -199,7 +199,7 @@ function CreateEmployeeModal({ form, setField, onClose, onSave, saving, departme
 }
 
 // ─── Edit Modal (UC-07.2) ─────────────────────────────────────────────────────
-function EditModal({ form, setField, onClose, onSave, saving, departments, jobTitles, isManager }) {
+function EditModal({ form, setField, onClose, onSave, saving, departments, jobTitles, isManager, isContractEditable = true }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
@@ -212,17 +212,22 @@ function EditModal({ form, setField, onClose, onSave, saving, departments, jobTi
           {/* ── Basic Info ── */}
           <p className="form-section-label">Basic Information</p>
           <div className="form-row">
+            <div className="form-row">
             <div className="form-group">
-              <label>Full Name *</label>
-              <input required value={form.name} onChange={e => setField('name', e.target.value)} />
+              <label>Contract Type</label>
+              <select value={form.contractType} onChange={e => setField('contractType', e.target.value)} disabled={!isContractEditable}>
+                <option value="">— Select —</option>
+                <option value="probation">Probation</option>
+                <option value="1_year">1 Year</option>
+                <option value="3_year">3 Years</option>
+                <option value="indefinite">Indefinite</option>
+              </select>
+              {!isContractEditable && (
+                <div style={{ marginTop: 6, color: '#a0aec0', fontSize: 12 }}>
+                  Contract editing disabled while employment is suspended.
+                </div>
+              )}
             </div>
-            <div className="form-group">
-              <label>Email *</label>
-              <input required type="email" value={form.email} onChange={e => setField('email', e.target.value)} />
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
               <label>Employee Code</label>
               <input value={form.employeeCode} onChange={e => setField('employeeCode', e.target.value)} />
             </div>
@@ -303,10 +308,10 @@ function EditModal({ form, setField, onClose, onSave, saving, departments, jobTi
               </select>
             </div>
           </div>
-          <div className="form-row">
+            <div className="form-row">
             <div className="form-group">
               <label>Start Date</label>
-              <input type="date" value={form.startDate} onChange={e => setField('startDate', e.target.value)} />
+              <input type="date" value={form.startDate} onChange={e => setField('startDate', e.target.value)} disabled={!isContractEditable} />
               <div style={{ marginTop: 6, color: '#4a5568', fontSize: 12 }}>
                 Annual leave is 12 days/year, plus +1 day every 5 years of service.
               </div>
@@ -488,6 +493,12 @@ export default function EmployeeManagement({ token, user }) {
     return true;
   };
 
+  const isEmployeeInactive = useCallback((employee) => {
+    if (!employee) return false;
+    const st = String(employee.employmentStatus || '').toLowerCase();
+    return employee.isActive === false || st === 'suspended' || st === 'terminated' || st === 'resigned';
+  }, []);
+
   const getEmployeeAnnualLeaveTotal = useCallback((employee) => {
     if (!employee?.startDate) return annualLeaveBaseDays;
     const start = new Date(employee.startDate);
@@ -500,6 +511,62 @@ export default function EmployeeManagement({ token, user }) {
     years = Math.max(0, years);
     return annualLeaveBaseDays + Math.floor(years / 5) * annualLeaveAdditionalEvery5Years;
   }, [annualLeaveBaseDays, annualLeaveAdditionalEvery5Years]);
+
+  const getContractDaysLabel = useCallback((employee) => {
+    const contractType = employee?.contractType;
+    if (!contractType) return '—';
+    if (contractType === 'indefinite') return 'Indefinite';
+
+    const durationByType = {
+      probation: 2,
+      probation_1_month: 1,
+      probation_2_month: 2,
+      probation_3_month: 3,
+      '1_year': 12,
+      '3_year': 36,
+      formal_1_year: 12,
+      formal_2_year: 24,
+      formal_3_year: 36,
+    };
+
+    const months = durationByType[contractType];
+    if (!months || !employee?.startDate) return '—';
+
+    const start = new Date(employee.startDate);
+    if (Number.isNaN(start.getTime())) return '—';
+
+    const endDate = new Date(start);
+    endDate.setMonth(endDate.getMonth() + months);
+    endDate.setHours(23, 59, 59, 999);
+
+    const now = new Date();
+    const diffDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Helper to format date as M/D/YYYY
+    const formatLocalDate = (d) => {
+      if (!d) return '—';
+      const dt = new Date(d);
+      if (Number.isNaN(dt.getTime())) return '—';
+      return `${dt.getMonth() + 1}/${dt.getDate()}/${dt.getFullYear()}`;
+    };
+
+    // If we're showing the inactive list, prefer explicit suspension/expiration dates
+    if (listMode === 'inactive' || isEmployeeInactive(employee)) {
+      const status = String(employee?.employmentStatus || '').toLowerCase();
+      if (status === 'suspended') {
+        const suspDate = employee.deactivatedAt || employee.suspensionDate || employee.updatedAt || null;
+        return suspDate ? `Suspension Date: ${formatLocalDate(suspDate)}` : 'Suspended';
+      }
+
+      if (endDate) {
+        return endDate < now ? `Expired on ${formatLocalDate(endDate)}` : `${diffDays} days`;
+      }
+    }
+
+    if (diffDays > 0) return `${diffDays} days`;
+    if (diffDays === 0) return 'Expires today';
+    return `Expired ${Math.abs(diffDays)} days`;
+  }, []);
 
   const openLeaveConfig = () => {
     setLeaveConfigForm({ baseDays: annualLeaveBaseDays, additionalEvery5Years: annualLeaveAdditionalEvery5Years });
@@ -606,10 +673,10 @@ export default function EmployeeManagement({ token, user }) {
       const matchContract =
         !filterContract || emp.contractType === filterContract;
       const matchList =
-        listMode === 'active' ? emp.isActive !== false : emp.isActive === false;
+        listMode === 'active' ? !isEmployeeInactive(emp) : isEmployeeInactive(emp);
       return matchSearch && matchDept && matchRole && matchJt && matchContract && matchList;
     });
-  }, [employees, search, filterDept, filterRole, filterJobTitle, filterContract, listMode]);
+  }, [employees, search, filterDept, filterRole, filterJobTitle, filterContract, listMode, isEmployeeInactive]);
 
   // ── actions ──
   const openEdit = (emp) => {
@@ -1017,7 +1084,7 @@ export default function EmployeeManagement({ token, user }) {
                     </div>
                   </th>
                   <th>Role</th>
-                  <th>Status</th>
+                  <th>{user?.role === 'hr' ? 'Contract Days' : 'Status'}</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -1042,9 +1109,15 @@ export default function EmployeeManagement({ token, user }) {
                     </td>
                     <td><RoleBadge role={emp.role} /></td>
                     <td>
-                      <span className={`badge ${emp.isActive ? 'badge-active' : 'badge-inactive'}`}>
-                        {emp.isActive ? 'Active' : 'Inactive'}
-                      </span>
+                      {user?.role === 'hr' ? (
+                        <span style={{ fontWeight: 600, color: '#334155' }}>
+                          {getContractDaysLabel(emp)}
+                        </span>
+                      ) : (
+                        <span className={`badge ${isEmployeeInactive(emp) ? 'badge-inactive' : 'badge-active'}`}>
+                          {isEmployeeInactive(emp) ? 'Inactive' : 'Active'}
+                        </span>
+                      )}
                     </td>
                     <td onClick={e => e.stopPropagation()}>
                       <div className="emp-actions">
@@ -1072,7 +1145,7 @@ export default function EmployeeManagement({ token, user }) {
                         >
                           Reset PW
                         </button>
-                        {canShowAccountLifecycleActions(emp) && emp.isActive && (
+                        {canShowAccountLifecycleActions(emp) && !isEmployeeInactive(emp) && (
                           <button
                             type="button"
                             className="btn-tbl btn-tbl-delete"
@@ -1082,7 +1155,7 @@ export default function EmployeeManagement({ token, user }) {
                             Deactivate
                           </button>
                         )}
-                        {canShowAccountLifecycleActions(emp) && !emp.isActive && (
+                        {canShowAccountLifecycleActions(emp) && isEmployeeInactive(emp) && listMode !== 'inactive' && (
                           <button
                             type="button"
                             className="btn-tbl btn-tbl-restore"
@@ -1092,7 +1165,7 @@ export default function EmployeeManagement({ token, user }) {
                             Restore
                           </button>
                         )}
-                        {canShowAccountLifecycleActions(emp) && !emp.isActive && (
+                        {canShowAccountLifecycleActions(emp) && isEmployeeInactive(emp) && (
                           <button
                             type="button"
                             className="btn-tbl-delete-forever"
@@ -1141,6 +1214,7 @@ export default function EmployeeManagement({ token, user }) {
           departments={departments}
           jobTitles={jobTitles}
           isManager={isManager}
+          isContractEditable={String(editing?.employmentStatus || '').toLowerCase() !== 'suspended'}
         />
       )}
 
@@ -1187,8 +1261,8 @@ export default function EmployeeManagement({ token, user }) {
                 </div>
                 <div><span style={{ color: '#718096' }}>Role:</span> <RoleBadge role={detailUser.role} /></div>
                 <div><span style={{ color: '#718096' }}>Status:</span>{' '}
-                  <span className={`badge ${detailUser.isActive ? 'badge-active' : 'badge-inactive'}`}>
-                    {detailUser.isActive ? 'Active' : 'Inactive'}
+                  <span className={`badge ${isEmployeeInactive(detailUser) ? 'badge-inactive' : 'badge-active'}`}>
+                    {isEmployeeInactive(detailUser) ? 'Inactive' : 'Active'}
                   </span>
                 </div>
                 <div><span style={{ color: '#718096' }}>Start Date:</span> {detailUser.startDate ? detailUser.startDate.slice(0,10) : '—'}</div>
