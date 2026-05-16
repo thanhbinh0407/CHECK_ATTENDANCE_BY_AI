@@ -133,25 +133,25 @@ router.get("/attendance", async (req, res) => {
       const dateKey = dayKeyOf(log.timestamp);
       const dayLogs = dayMap.get(dateKey) || [];
       const sortedDayLogs = [...dayLogs].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      const nonOvertimeDayLogs = sortedDayLogs.filter(l => !l.isOvertime);
 
       // Find index of this log in the day's logs
       const logIndex = sortedDayLogs.findIndex(l => l.id === log.id);
-      const sessionIndex = Math.floor(logIndex / 2);
       const isInOutType = logIndex % 2 === 0 ? "IN" : "OUT";
 
-      // Determine shift label
+      // Determine shift label using the actual OT flag when available
       let shiftLabel = "";
       let shiftNumber = 0;
-      if (sessionIndex < shiftPlan.mainShifts.length) {
-        shiftNumber = sessionIndex + 1;
-        shiftLabel = `Shift ${shiftNumber}`;
-      } else {
+      if (log.isOvertime) {
         shiftLabel = "Overtime Shift";
         shiftNumber = 0;
+      } else {
+        const nonOvertimeIndex = nonOvertimeDayLogs.findIndex(l => l.id === log.id);
+        const sessionIndex = nonOvertimeIndex >= 0 ? Math.floor(nonOvertimeIndex / 2) : 0;
+        const isOvertime = sessionIndex >= shiftPlan.mainShifts.length;
+        shiftNumber = Math.min(sessionIndex + 1, shiftPlan.mainShifts.length);
+        shiftLabel = isOvertime ? "Overtime Shift" : `Shift ${shiftNumber}`;
       }
-
-      // Calculate lateness/early leave minutes if applicable
-      let latenessMinutes = null;
       let earlyLeaveMinutes = null;
 
       if (log.isLate && log.type === 'IN') {

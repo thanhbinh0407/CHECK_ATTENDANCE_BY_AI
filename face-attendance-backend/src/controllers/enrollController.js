@@ -13,6 +13,19 @@ function generateRandomPassword(length = 8) {
   return password;
 }
 
+// Simple Euclidean distance calculation
+function euclidean(a, b) {
+  let arrA = Array.isArray(a) ? a : Object.values(a);
+  let arrB = Array.isArray(b) ? b : Object.values(b);
+  if (arrA.length !== arrB.length) return Infinity;
+  let sum = 0;
+  for (let i = 0; i < arrA.length; i++) {
+    const diff = (Number(arrA[i]) || 0) - (Number(arrB[i]) || 0);
+    sum += diff * diff;
+  }
+  return Math.sqrt(sum);
+}
+
 // Map frontend education level (Tiếng Việt) to DB ENUM values
 function normalizeEducationLevel(educationLevel) {
   if (!educationLevel) return null;
@@ -100,6 +113,27 @@ export const registerUser = async (req, res) => {
         status: "error",
         message: "Descriptor must be a non-empty array when provided"
       });
+    }
+
+    // Check for duplicate face if descriptor provided
+    if (Array.isArray(descriptor) && descriptor.length > 0) {
+      const profiles = await FaceProfile.findAll();
+      const DUPLICATE_THRESHOLD = 0.32; // Same as HIGH threshold in matchService
+      for (const p of profiles) {
+        if (!p.embeddings) continue;
+        let embeddingsArray = p.embeddings;
+        if (!Array.isArray(embeddingsArray)) {
+          if (typeof embeddingsArray === 'object') embeddingsArray = Object.values(embeddingsArray);
+        }
+        if (!Array.isArray(embeddingsArray) || embeddingsArray.length === 0) continue;
+        const dist = euclidean(descriptor, embeddingsArray);
+        if (dist < DUPLICATE_THRESHOLD) {
+          return res.status(400).json({
+            status: "error",
+            message: "Face already registered in the system"
+          });
+        }
+      }
     }
 
     // Create user with password and job-related fields

@@ -51,6 +51,10 @@ const AttendanceLog = sequelize.define('AttendanceLog', {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
+  isAuto: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
   deviceId: {
     type: DataTypes.STRING,
   },

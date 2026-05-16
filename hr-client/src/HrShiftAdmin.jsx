@@ -149,6 +149,7 @@ export default function HrShiftAdmin({ token }) {
     const shift2Start = form.shift2Start?.value;
     const shift2End = form.shift2End?.value;
     const gracePeriodMinutes = parseInt(form.gracePeriodMinutes?.value, 10) || 5;
+    const autoCheckoutGraceMinutes = parseInt(form.autoCheckoutGraceMinutes?.value, 10) || 15;
     const overtimeThresholdMinutes = diffMinutes(shift2End, draftOvertimeStart);
 
     const startTime = shift1Start;
@@ -212,6 +213,7 @@ export default function HrShiftAdmin({ token }) {
           startTime,
           endTime,
           gracePeriodMinutes,
+          autoCheckoutGraceMinutes,
           overtimeThresholdMinutes,
           note: notePayload,
         }),
@@ -288,6 +290,10 @@ export default function HrShiftAdmin({ token }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0' }}>
               <span style={{ fontWeight: 600 }}>Allowed late time</span>
               <strong style={{ color: '#2b6cb0' }}>{shift.gracePeriodMinutes} min</strong>
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <label>Auto Checkout Grace Period (min)</label>
+              <strong style={{ color: '#2b6cb0' }}>{shift.autoCheckoutGraceMinutes || 15} min</strong>
             </div>
           </div>
 
@@ -384,6 +390,8 @@ export default function HrShiftAdmin({ token }) {
             <div className="form-group">
               <label>Allowed late time (minutes)</label>
               <input type="number" name="gracePeriodMinutes" min={0} max={60} defaultValue={shift?.gracePeriodMinutes ?? 5} />
+              <label style={{ marginTop: '12px' }}>Auto Checkout Grace Period (min)</label>
+              <input type="number" name="autoCheckoutGraceMinutes" min={0} max={60} defaultValue={shift?.autoCheckoutGraceMinutes ?? 15} />
             </div>
           </div>
           </div>

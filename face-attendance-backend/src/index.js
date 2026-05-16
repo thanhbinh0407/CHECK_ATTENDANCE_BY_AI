@@ -199,6 +199,7 @@ try {
 // Setup scheduled tasks for notifications
 import { checkLateArrivals } from "./controllers/notificationController.js";
 import { checkContractExpiration, notifyBirthdays, notifyWorkAnniversaries } from "./services/notificationService.js";
+import { performAutoCheckout } from "./services/autoCheckoutService.js";
 // Check for late arrivals every hour
 setInterval(async () => {
   try {
@@ -226,6 +227,15 @@ setInterval(async () => {
     console.error("Error notifying birthdays/anniversaries:", err);
   }
 }, 24 * 60 * 60 * 1000); // Every 24 hours
+
+// Perform auto checkout every minute for near-real-time auto check-out handling
+setInterval(async () => {
+  try {
+    await performAutoCheckout();
+  } catch (err) {
+    console.error("Error performing auto checkout:", err);
+  }
+}, 60 * 1000); // Every 1 minute
 
 app.use("/api/auth", authRoutes);
 app.use("/api/enroll", enrollRoutes);

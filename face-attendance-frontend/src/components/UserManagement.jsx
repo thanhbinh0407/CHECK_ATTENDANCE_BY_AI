@@ -58,7 +58,6 @@ export default function UserManagement() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
-  const [listMode, setListMode] = useState("active"); // active | inactive
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({
@@ -193,44 +192,7 @@ export default function UserManagement() {
     }
   };
 
-  const deactivate = async (userRow) => {
-    const ok = await toastConfirm({ message: `Deactivate account "${userRow.name}"?` });
-    if (!ok) return;
-    const password = await toastPrompt({
-      message: "Enter your password to confirm deactivation:",
-      inputType: "password",
-    });
-    if (password === null) return;
-    if (!String(password).trim()) {
-      toastWarning("Password is required.");
-      return;
-    }
-    const res = await fetch(`${API_BASE}/api/admin/employees/${userRow.id}`, {
-      method: "DELETE",
-      headers: getHeaders(),
-      body: JSON.stringify({ password }),
-    });
-    const data = await res.json();
-    if (res.ok && data.status === "success") {
-      load();
-      toastSuccess("Account deactivated.");
-    } else toastError(data.message || "Error");
-  };
 
-  const restore = async (user) => {
-    const ok = await toastConfirm({ message: `Restore account "${user.name}"?` });
-    if (!ok) return;
-    const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}/restore`, {
-      method: "PATCH",
-      headers: getHeaders(),
-      body: JSON.stringify({}),
-    });
-    const data = await res.json();
-    if (res.ok && data.status === "success") {
-      load();
-      toastSuccess("Account restored.");
-    } else toastError(data.message || "Error");
-  };
 
   const openFaceModal = (user) => {
     setFaceTargetUser(user);
@@ -388,38 +350,7 @@ export default function UserManagement() {
     }
   };
 
-  const permanentlyDeleteUser = async (user) => {
-    const ok = await toastConfirm({
-      message: `Permanently delete "${user.name}"?\n\nThis cannot be undone.`,
-    });
-    if (!ok) return;
-    const password = await toastPrompt({
-      message: "Enter Manager password to confirm permanent deletion:",
-      inputType: "password",
-    });
-    if (password === null) return;
-    if (!String(password).trim()) {
-      toastWarning("Password is required.");
-      return;
-    }
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/employees/${user.id}/permanent`, {
-        method: "DELETE",
-        headers: getHeaders(),
-        body: JSON.stringify({ password }),
-      });
-      const data = await res.json();
-      if (res.ok && data.status === "success") {
-        load();
-        window.dispatchEvent(new CustomEvent("hrms-admin-refresh"));
-        toastSuccess("Account permanently deleted.");
-      } else {
-        toastError(data.message || "Failed to permanently delete");
-      }
-    } catch (e) {
-      toastError(e.message || "Connection error");
-    }
-  };
+
 
   const filtered = users.filter(u => {
     const matchSearch =
@@ -427,7 +358,7 @@ export default function UserManagement() {
       u.email?.toLowerCase().includes(search.toLowerCase()) ||
       u.employeeCode?.toLowerCase().includes(search.toLowerCase());
     const matchRole = roleFilter ? u.role === roleFilter : true;
-    const matchList = listMode === "active" ? u.isActive !== false : u.isActive === false;
+    const matchList = u.isActive !== false; // Only show active accounts
     return matchSearch && matchRole && matchList;
   });
 
@@ -588,22 +519,6 @@ export default function UserManagement() {
 
       {/* Search & Create */}
       <div className="um-toolbar">
-        <div className="um-toolbar__tabs">
-          <button
-            type="button"
-            className={`um-tab${listMode === "active" ? " um-tab--active" : ""}`}
-            onClick={() => setListMode("active")}
-          >
-            Account List
-          </button>
-          <button
-            type="button"
-            className={`um-tab${listMode === "inactive" ? " um-tab--active" : ""}`}
-            onClick={() => setListMode("inactive")}
-          >
-            Disabled List
-          </button>
-        </div>
         <input
           className="um-toolbar__search"
           placeholder="Search by name, email, employee code..."
@@ -640,7 +555,7 @@ export default function UserManagement() {
             <table className="um-table">
               <thead>
                 <tr>
-                  {["Employee Code", "Name", "Email", "Role", "Status", "Deactivated At", "Created At", "Actions"].map(
+                  {["Employee Code", "Name", "Email", "Role", "Status", "Created At", "Actions"].map(
                     (h) => (
                       <th key={h}>{h}</th>
                     )
@@ -676,9 +591,6 @@ export default function UserManagement() {
                         </span>
                       </td>
                       <td className="um-td um-td--muted">
-                        {user.deactivatedAt ? new Date(user.deactivatedAt).toLocaleString("vi-VN") : "—"}
-                      </td>
-                      <td className="um-td um-td--muted">
                         {user.createdAt ? new Date(user.createdAt).toLocaleDateString("vi-VN") : "—"}
                       </td>
                       <td className="um-td um-td--actions">
@@ -712,7 +624,7 @@ export default function UserManagement() {
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: "center", padding: 20, color: "#718096" }}>
+                    <td colSpan={7} style={{ textAlign: "center", padding: 20, color: "#718096" }}>
                       No records found. The user management section is ready for data.
                     </td>
                   </tr>
@@ -775,49 +687,6 @@ export default function UserManagement() {
               >
                 Update Face
               </button>
-              {listMode === "active" ? (
-                managerMayLifecycleMutate(actionMenuUser) && (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="um-actions-item um-actions-item--danger"
-                    onClick={() => {
-                      closeActionMenu();
-                      deactivate(actionMenuUser);
-                    }}
-                  >
-                    Deactivate
-                  </button>
-                )
-              ) : (
-                managerMayLifecycleMutate(actionMenuUser) && (
-                  <>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="um-actions-item um-actions-item--ok"
-                      onClick={() => {
-                        closeActionMenu();
-                        restore(actionMenuUser);
-                      }}
-                    >
-                      Restore
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="um-actions-item um-actions-item--danger"
-                      title="Permanent delete (requires Manager password)"
-                      onClick={() => {
-                        closeActionMenu();
-                        permanentlyDeleteUser(actionMenuUser);
-                      }}
-                    >
-                      Delete forever
-                    </button>
-                  </>
-                )
-              )}
             </div>,
             document.body
           )}

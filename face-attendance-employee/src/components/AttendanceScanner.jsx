@@ -542,6 +542,9 @@ function AttendanceScanner() {
   };
 
   const renderDetailText = (log) => {
+    if (log.isAuto) {
+      return "Auto checkout";
+    }
     if (log.flags.isLate) {
       const lateMinutesMatch = log.note?.match(/(-?\d+)\s*min/);
       const minutes = lateMinutesMatch ? Number(lateMinutesMatch[1]) : null;
@@ -2751,7 +2754,7 @@ function AttendanceScanner() {
                             {groupStatus}
                           </div>
                         </div>
-                        {group.overtimeRequestStatus && (
+                        {group.overtimeRequestStatus && /overtime/i.test(group.shiftLabel) && (
                           <span style={{
                             padding: "6px 14px",
                             borderRadius: "999px",
@@ -2777,15 +2780,17 @@ function AttendanceScanner() {
                           const log = type === 'IN' ? checkIn : checkOut;
                           const isIn = type === 'IN';
                           const statusColor = isIn ? '#52c41a' : '#fa8c16';
+                          const isAutoCheckout = !isIn && checkOut && checkOut.isAuto;
 
                           return (
                             <div
                               key={type}
                               style={{
                                 borderRadius: "16px",
-                                border: "1px solid #e5e7eb",
-                                backgroundColor: "#f8fafc",
-                                padding: "18px"
+                                border: isAutoCheckout ? "2px solid #dc3545" : "1px solid #e5e7eb",
+                                backgroundColor: isAutoCheckout ? "#fff5f5" : "#f8fafc",
+                                padding: "18px",
+                                boxShadow: isAutoCheckout ? "0 0 0 3px rgba(220, 53, 69, 0.1)" : "none"
                               }}
                             >
                               <div style={{
