@@ -11,7 +11,12 @@ async function userAvatarUrl(userId) {
   return u?.avatarUrl || null;
 }
 
-function parseShiftPlan(shift) {
+const formatLocalDate = (date) => {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+export function parseShiftPlan(shift) {
   const fallbackMainShifts = [{ startTime: shift?.startTime || "08:00", endTime: shift?.endTime || "17:00" }];
   const fallback = {
     mainShifts: fallbackMainShifts,
@@ -43,7 +48,9 @@ function parseShiftPlan(shift) {
   }
 }
 
-function nextTypeFromCount(count) {
+function nextTypeFromCount(count, lastType) {
+  if (lastType === 'IN') return 'OUT';
+  if (lastType === 'OUT') return 'IN';
   return count % 2 === 0 ? "IN" : "OUT";
 }
 
@@ -116,6 +123,17 @@ export const logAttendance = async (req, res) => {
         return d;
       };
 
+      // Check OT status FIRST before processing attendance logs
+      const todayDateString = formatLocalDate(now);
+      const hasOvertimeRequestToday = await OvertimeRequest.findOne({
+        where: {
+          userId: match.userId,
+          date: todayDateString,
+          approvalStatus: { [Op.in]: ['pending', 'approved'] }
+        }
+      });
+      const isOTApproved = hasOvertimeRequestToday && hasOvertimeRequestToday.approvalStatus === 'approved';
+
       // Fetch today's logs
       const todayLogs = await AttendanceLog.findAll({
         where: {
@@ -126,14 +144,7 @@ export const logAttendance = async (req, res) => {
       });
 
       const shiftPlan = parseShiftPlan(applicableShift);
-      const hasOvertimeRequestToday = await OvertimeRequest.findOne({
-        where: {
-          userId: match.userId,
-          date: todayStart.toISOString().split('T')[0],
-          approvalStatus: { [Op.in]: ['pending', 'approved'] }
-        }
-      });
-      const expectedLogsPerDay = (shiftPlan.mainShifts.length * 2) + (hasOvertimeRequestToday ? 2 : 0);
+      const expectedLogsPerDay = (shiftPlan.mainShifts.length * 2) + (isOTApproved ? 2 : 0);
 
       if (todayLogs.length >= expectedLogsPerDay) {
         // User completed all check in/out actions for the day according to configured shifts
@@ -155,21 +166,27 @@ export const logAttendance = async (req, res) => {
         });
       }
 
-      const type = nextTypeFromCount(todayLogs.length);
+      const lastLogType = todayLogs.length > 0 ? todayLogs[todayLogs.length - 1]?.type : null;
+      const type = nextTypeFromCount(todayLogs.length, lastLogType);
 
       // Compute flags based on configured shift session
       let isLate = false, isEarlyLeave = false, isOvertime = false;
       let linkedShiftId = null;
       let note = null;
+      let mainShiftLogsCount = 0;
+      let sessionIndex = 0;
 
       try {
         if (applicableShift) {
           linkedShiftId = applicableShift.id;
           const graceMinutes = applicableShift.gracePeriodMinutes || 5;
 
-          const sessionIndex = Math.floor(todayLogs.length / 2);
+          // Count only main shift logs (not OT logs)
+          mainShiftLogsCount = todayLogs.filter(l => !l.isOvertime).length;
+          sessionIndex = Math.floor(mainShiftLogsCount / 2);
           const totalMainSessions = shiftPlan.mainShifts.length;
-          const isOvertimeSession = sessionIndex >= totalMainSessions;
+          // OT session only exists if OT is APPROVED
+          const isOvertimeSession = (sessionIndex >= totalMainSessions) && isOTApproved;
           const session = isOvertimeSession
             ? { startTime: shiftPlan.overtimeStart, endTime: null }
             : shiftPlan.mainShifts[sessionIndex] || shiftPlan.mainShifts[totalMainSessions - 1];
@@ -207,6 +224,7 @@ export const logAttendance = async (req, res) => {
         }
       } catch (e) { console.warn('Flag computation failed', e.message); }
 
+      console.log(`Attendance decision: user=${match.userId} logs=${todayLogs.length} mainShiftLogs=${mainShiftLogsCount} lastType=${lastLogType} type=${type} expected=${expectedLogsPerDay} isOTApproved=${isOTApproved} sessionIndex=${sessionIndex}`);
       log = await AttendanceLog.create({
         userId: match.userId,
         detectedName: match.detectedName || "Unknown",
@@ -333,7 +351,7 @@ export const getTodayAttendance = async (req, res) => {
       overtimeRequest = await OvertimeRequest.findOne({
         where: {
           userId: Number(userId),
-          date: today.toISOString().split('T')[0],
+          date: formatLocalDate(today),
           approvalStatus: { [Op.in]: ['pending', 'approved'] }
         },
         order: [['id', 'DESC']]
@@ -344,17 +362,24 @@ export const getTodayAttendance = async (req, res) => {
     const totalLogCapacity = shiftPlan.mainShifts.length * 2 + (hasOvertimeRequestToday ? 2 : 0);
 
     const logsAsc = [...logs].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    const items = logsAsc.map((log, index) => {
-      const timestamp = log.timestamp;
-      const sessionIndex = Math.floor(index / 2);
-      const isOvertime = Boolean(log.isOvertime) || sessionIndex >= shiftPlan.mainShifts.length;
-      const shiftLabel = isOvertime
-        ? 'Overtime shift'
-        : `Shift ${Math.min(sessionIndex + 1, shiftPlan.mainShifts.length)}`;
+    let nonOvertimeCount = 0;
+    const items = logsAsc.map((log) => {
+      let isOvertime = Boolean(log.isOvertime);
+      let shiftLabel = 'Overtime shift';
+      if (!isOvertime) {
+        const nonOvertimeIndex = nonOvertimeCount++;
+        const sessionIndex = Math.floor(nonOvertimeIndex / 2);
+        if (sessionIndex >= shiftPlan.mainShifts.length) {
+          isOvertime = true;
+        }
+        shiftLabel = isOvertime
+          ? 'Overtime shift'
+          : `Shift ${Math.min(sessionIndex + 1, shiftPlan.mainShifts.length)}`;
+      }
       const flags = {
         isLate: Boolean(log.isLate),
         isEarlyLeave: Boolean(log.isEarlyLeave),
-        isOvertime: Boolean(log.isOvertime) || sessionIndex >= shiftPlan.mainShifts.length
+        isOvertime
       };
       return {
         id: log.id,
@@ -375,7 +400,7 @@ export const getTodayAttendance = async (req, res) => {
 
     return res.json({
       status: "success",
-      date: today.toISOString().split('T')[0],
+      date: formatLocalDate(today),
       count: logs.length,
       allowedLateMinutes,
       overtimeRequest: overtimeRequest ? overtimeRequest.toJSON() : null,

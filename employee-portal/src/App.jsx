@@ -19,6 +19,7 @@ import "./App.css";
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:5000").replace(/\/$/, "");
 
 const INITIAL_PORTAL_REFRESH = {
+  attendance: 0,
   leave: 0,
   qualification: 0,
   dependent: 0,
@@ -233,12 +234,14 @@ function App() {
 
     socket.on("connect", joinRoom);
     socket.on("portal-refresh", onPortalRefresh);
+    socket.on("force-logout", handleLogout);
     socket.connect();
     if (socket.connected) joinRoom();
 
     return () => {
       socket.off("connect", joinRoom);
       socket.off("portal-refresh", onPortalRefresh);
+      socket.off("force-logout", handleLogout);
       socket.disconnect();
     };
   }, [authToken, user?.id]);
@@ -680,7 +683,7 @@ function App() {
         {activeTab === "dashboard" && (
           <EmployeeDashboard userId={user?.id} userName={user?.name} onNavigate={setActiveTab} />
         )}
-        {activeTab === "attendance" && <AttendanceHistory userId={user?.id} />}
+        {activeTab === "attendance" && <AttendanceHistory userId={user?.id} refreshVersion={portalRefresh.attendance} />}
         {activeTab === "salary" && <SalaryHistory userId={user?.id} isActive={true} />}
         {activeTab === "leave" && (
           <LeaveRequest userId={user?.id} refreshVersion={portalRefresh.leave} />

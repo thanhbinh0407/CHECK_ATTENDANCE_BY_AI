@@ -32,6 +32,11 @@ const ShiftSetting = sequelize.define('ShiftSetting', {
     allowNull: false,
     defaultValue: 15 // default 15 minutes overtime threshold
   },
+  autoCheckoutGraceMinutes: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 15 // default 15 minutes grace period for auto checkout after shift end
+  },
   active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true

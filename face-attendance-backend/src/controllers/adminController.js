@@ -2,7 +2,12 @@ import User from "../models/pg/User.js";
 import FaceProfile from "../models/pg/FaceProfile.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import Salary from "../models/pg/Salary.js";
+import SalaryAdvance from "../models/pg/SalaryAdvance.js";
 import LeaveRequest from "../models/pg/LeaveRequest.js";
+import OvertimeRequest from "../models/pg/OvertimeRequest.js";
+import BusinessTripRequest from "../models/pg/BusinessTripRequest.js";
+import Document from "../models/pg/Document.js";
+import Notification from "../models/pg/Notification.js";
 import Department from "../models/pg/Department.js";
 import JobTitle from "../models/pg/JobTitle.js";
 import SalaryGrade from "../models/pg/SalaryGrade.js";
@@ -18,6 +23,7 @@ import sequelize from "../db/sequelize.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
 import { recalculatePendingSalariesForUsers } from "../services/salaryCalculationService.js";
+import { emitToRoom } from "../socket.js";
 import { sendNotification } from "./notificationController.js";
 
 const toNumber = (value, fallback = 0) => {
@@ -600,6 +606,11 @@ export const updateEmployee = async (req, res) => {
         { employeeId: employee.id, changeType: 'salary', type: getSalaryChangeType() });
     }
 
+    // Force logout if employment status changed to suspended
+    if (employmentStatusChanged && String(newEmploymentStatus).toLowerCase() === 'suspended') {
+      emitToRoom(`user-${employee.id}`, 'force-logout', { reason: 'Contract suspended' });
+    }
+
     return res.json({
       status: "success",
       message: salaryFieldsChanged && recalculatedSalaryCount > 0
@@ -665,7 +676,7 @@ export const updateEmployee = async (req, res) => {
   }
 };
 
-// Delete employee (hard delete - remove completely)
+// Delete employee (soft delete / deactivate)
 export const deleteEmployee = async (req, res) => {
   try {
     const { id } = req.params;
@@ -681,30 +692,30 @@ export const deleteEmployee = async (req, res) => {
       });
     }
 
-    const employeeName = employee.name;
+    if (employee.deactivatedAt) {
+      return res.status(400).json({
+        status: "error",
+        message: "Employee is already deactivated"
+      });
+    }
 
-    // Delete attendance logs first (foreign key dependency)
-    await AttendanceLog.destroy({ where: { userId: id } });
-    console.log(`Deleted attendance logs for employee ${id}`);
+    await employee.update({
+      isActive: false,
+      deactivatedAt: new Date()
+    });
 
-    // Delete face profiles
-    await FaceProfile.destroy({ where: { userId: id } });
-    console.log(`Deleted face profiles for employee ${id}`);
-
-    // Delete user
-    await employee.destroy();
-    console.log(`Employee permanently deleted: ${employeeName} (ID: ${id})`);
+    console.log(`Employee soft deleted / deactivated: ${employee.name} (ID: ${id})`);
 
     return res.json({
       status: "success",
-      message: "Employee deleted successfully",
+      message: "Employee deactivated successfully",
       deletedEmployee: {
         id: id,
-        name: employeeName
+        name: employee.name
       }
     });
   } catch (err) {
-    console.error("Error deleting employee:", err);
+    console.error("Error deactivating employee:", err);
     return res.status(500).json({
       status: "error",
       message: err.message
@@ -728,11 +739,52 @@ export const permanentlyDeleteEmployee = async (req, res) => {
       });
     }
 
-    // Delete face profiles first
-    await FaceProfile.destroy({ where: { userId: id } });
+    await sequelize.transaction(async (transaction) => {
+      await AttendanceLog.destroy({ where: { userId: id }, transaction });
+      console.log(`Deleted attendance logs for employee ${id}`);
 
-    // Delete user
-    await employee.destroy();
+      await FaceProfile.destroy({ where: { userId: id }, transaction });
+      console.log(`Deleted face profiles for employee ${id}`);
+
+      await SalaryHistory.destroy({ where: { userId: id }, transaction });
+      console.log(`Deleted salary history for employee ${id}`);
+
+      await SalaryAdvance.destroy({ where: { userId: id }, transaction });
+      console.log(`Deleted salary advances for employee ${id}`);
+
+      await Salary.destroy({ where: { userId: id }, transaction });
+      console.log(`Deleted salary records for employee ${id}`);
+
+      await Document.destroy({ where: { [Op.or]: [{ userId: id }, { uploadedBy: id }] }, transaction });
+      console.log(`Deleted documents for employee ${id}`);
+
+      await Dependent.destroy({ where: { userId: id }, transaction });
+      console.log(`Deleted dependents for employee ${id}`);
+
+      await Qualification.destroy({ where: { userId: id }, transaction });
+      console.log(`Deleted qualifications for employee ${id}`);
+
+      await WorkExperience.destroy({ where: { userId: id }, transaction });
+      console.log(`Deleted work experiences for employee ${id}`);
+
+      await JobHistory.destroy({ where: { userId: id }, transaction });
+      console.log(`Deleted job history for employee ${id}`);
+
+      await LeaveRequest.destroy({ where: { userId: id }, transaction });
+      console.log(`Deleted leave requests for employee ${id}`);
+
+      await OvertimeRequest.destroy({ where: { userId: id }, transaction });
+      console.log(`Deleted overtime requests for employee ${id}`);
+
+      await BusinessTripRequest.destroy({ where: { userId: id }, transaction });
+      console.log(`Deleted business trip requests for employee ${id}`);
+
+      await Notification.destroy({ where: { userId: id }, transaction });
+      console.log(`Deleted notifications for employee ${id}`);
+
+      await employee.destroy({ transaction });
+      console.log(`Employee permanently deleted: ${employee.name} (ID: ${id})`);
+    });
 
     console.log(`Employee permanently deleted: ${employee.name} (ID: ${id})`);
 
