@@ -812,6 +812,21 @@ export default function AttendanceLog() {
                           }}>
                             {isIn ? "IN" : "OUT"}
                           </span>
+                          {!isIn && log.isAuto && (
+                            <span style={{
+                              backgroundColor: "#dc3545",
+                              color: "#fff",
+                              padding: "3px 8px",
+                              borderRadius: "999px",
+                              fontSize: "11px",
+                              fontWeight: "700",
+                              display: "inline-block",
+                              marginLeft: "6px",
+                              border: "1px solid #c82333"
+                            }}>
+                              AUTO
+                            </span>
+                          )}
                         </td>
                         <td style={{
                           padding: "8px 10px",

@@ -2,7 +2,7 @@ import { ShiftSetting } from "../models/pg/index.js";
 
 export const createShift = async (req, res) => {
   try {
-    const { startTime, endTime, gracePeriodMinutes, overtimeThresholdMinutes, note } = req.body;
+    const { startTime, endTime, gracePeriodMinutes, overtimeThresholdMinutes, autoCheckoutGraceMinutes, note } = req.body;
     
     // Validate time format HH:MM
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
@@ -16,6 +16,7 @@ export const createShift = async (req, res) => {
       endTime,
       gracePeriodMinutes: gracePeriodMinutes || 5,
       overtimeThresholdMinutes: overtimeThresholdMinutes || 15,
+      autoCheckoutGraceMinutes: autoCheckoutGraceMinutes || 15,
       active: true,
       note: note || 'Company-wide working hours configuration'
     });
@@ -29,7 +30,7 @@ export const createShift = async (req, res) => {
 export const updateShift = async (req, res) => {
   try {
     const { id } = req.params;
-    const { startTime, endTime, gracePeriodMinutes, overtimeThresholdMinutes, note } = req.body;
+    const { startTime, endTime, gracePeriodMinutes, overtimeThresholdMinutes, autoCheckoutGraceMinutes, note } = req.body;
     
     const s = await ShiftSetting.findByPk(id);
     if (!s) return res.status(404).json({ status: 'error', message: 'Not found' });
@@ -50,6 +51,7 @@ export const updateShift = async (req, res) => {
       endTime: endTime || s.endTime,
       gracePeriodMinutes: gracePeriodMinutes !== undefined ? gracePeriodMinutes : s.gracePeriodMinutes,
       overtimeThresholdMinutes: overtimeThresholdMinutes !== undefined ? overtimeThresholdMinutes : s.overtimeThresholdMinutes,
+      autoCheckoutGraceMinutes: autoCheckoutGraceMinutes !== undefined ? autoCheckoutGraceMinutes : s.autoCheckoutGraceMinutes,
       note: note || s.note
     });
     return res.json({ status: 'success', shift: s });

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 
-export default function AttendanceHistory({ userId }) {
+export default function AttendanceHistory({ userId, refreshVersion }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -11,7 +11,7 @@ export default function AttendanceHistory({ userId }) {
 
   useEffect(() => {
     fetchAttendance();
-  }, [selectedMonth, selectedYear, userId]);
+  }, [selectedMonth, selectedYear, userId, refreshVersion]);
 
   const fetchAttendance = async () => {
     try {
@@ -99,6 +99,22 @@ export default function AttendanceHistory({ userId }) {
         </span>
       );
     } else {
+      if (log.isAuto) {
+        return (
+          <span style={{
+            backgroundColor: "#dc3545",
+            color: "#fff",
+            padding: "5px 14px",
+            borderRadius: "4px",
+            fontSize: "11px",
+            fontWeight: "600",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px"
+          }}>
+            Auto
+          </span>
+        );
+      }
       return log.isEarlyLeave ? (
         <span style={{ 
           backgroundColor: "#ffc107", 
