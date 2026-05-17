@@ -2,13 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { toastConfirm, toastError } from './lib/notify.jsx';
 import './hrDashboardExtras.css';
 import HrDashboard from './HrDashboard.jsx';
-import HrLeaveApprovals from './HrLeaveApprovals.jsx';
 import HrAnalytics from './HrAnalytics.jsx';
 import HrReports from './HrReports.jsx';
 import HrShiftAdmin from './HrShiftAdmin.jsx';
 import EmployeeManagement from './EmployeeManagement.jsx';
 import HrAttendance from './HrAttendance.jsx';
-import HrPayrollReference from './HrPayrollReference.jsx';
 import PersonalProfileModal from './PersonalProfileModal.jsx';
 import './index.css';
 
@@ -214,10 +212,8 @@ const TABS = [
   { key: 'job-titles',  label: 'Job titles',    icon: '📋' },
   { key: 'shifts',      label: 'Work shifts',   icon: '🕐' },
   { key: 'attendance',  label: 'Attendance',    icon: '📅' },
-  { key: 'leave',       label: 'Leave approval', icon: '✅' },
   { key: 'analytics',   label: 'Analytics',     icon: '📉' },
   { key: 'reports',     label: 'HR reports',    icon: '📑' },
-  { key: 'payroll-ref', label: 'Payroll ref.',  icon: '💼' },
 ];
 
 export default function App() {
@@ -322,10 +318,8 @@ export default function App() {
     'job-titles': 'Job title management',
     shifts: 'Work shifts',
     attendance: 'Attendance tracking',
-    leave: 'Leave approvals',
     analytics: 'HR analytics',
     reports: 'HR reports',
-    'payroll-ref': 'Payroll reference',
   };
 
   return (
@@ -398,8 +392,6 @@ export default function App() {
           {activeTab === 'job-titles'  && <JobTitleManagement token={token} />}
           {activeTab === 'shifts'      && <HrShiftAdmin token={token} />}
           {activeTab === 'attendance'  && <HrAttendance token={token} />}
-          {activeTab === 'payroll-ref' && <HrPayrollReference token={token} />}
-          {activeTab === 'leave'       && <HrLeaveApprovals token={token} />}
           {activeTab === 'analytics'   && <HrAnalytics token={token} />}
           {activeTab === 'reports'     && <HrReports token={token} />}
         </div>

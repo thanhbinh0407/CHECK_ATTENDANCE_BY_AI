@@ -292,7 +292,6 @@ export default function HrDashboard({ token, onNavigate }) {
             ['leave', '🏖️', 'Leave approvals'],
             ['analytics', '📉', 'Analytics'],
             ['reports', '📑', 'HR reports'],
-            ['payroll-ref', '💼', 'Payroll reference'],
           ].map(([tab, icon, label]) => (
             <button
               key={tab}

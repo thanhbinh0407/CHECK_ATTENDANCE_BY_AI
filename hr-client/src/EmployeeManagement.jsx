@@ -1129,22 +1129,26 @@ export default function EmployeeManagement({ token, user }) {
                         >
                           Details
                         </button>
-                        <button
-                          type="button"
-                          className="btn-tbl btn-tbl-edit"
-                          onClick={() => openEdit(emp)}
-                          title="Edit employee information (UC-07.2)"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-tbl btn-tbl-reset"
-                          onClick={() => resetPassword(emp)}
-                          title="Reset password (UC-07.4)"
-                        >
-                          Reset PW
-                        </button>
+                        {listMode !== 'inactive' && (
+                          <button
+                            type="button"
+                            className="btn-tbl btn-tbl-edit"
+                            onClick={() => openEdit(emp)}
+                            title="Edit employee information (UC-07.2)"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {listMode !== 'inactive' && (
+                          <button
+                            type="button"
+                            className="btn-tbl btn-tbl-reset"
+                            onClick={() => resetPassword(emp)}
+                            title="Reset password (UC-07.4)"
+                          >
+                            Reset PW
+                          </button>
+                        )}
                         {canShowAccountLifecycleActions(emp) && !isEmployeeInactive(emp) && (
                           <button
                             type="button"
