@@ -5,8 +5,8 @@ import SalaryCalculation from "./components/SalaryCalculation.jsx";
 import SalaryApprovalDashboard from "./components/SalaryApprovalDashboard.jsx";
 import SalaryRulesManagement from "./components/SalaryRulesManagement.jsx";
 import EmployeeManagement from "./components/EmployeeManagement.jsx";
+import AttendanceLog from "../../face-attendance-frontend/src/components/AttendanceLog.jsx";
 import SalaryGradeManagement from "./components/SalaryGradeManagement.jsx";
-import InsuranceConfigManagement from "./components/InsuranceConfigManagement.jsx";
 import D02LTReport from "./components/D02LTReport.jsx";
 import TK1TSForm from "./components/TK1TSForm.jsx";
 import RegulatoryExports from "./components/RegulatoryExports.jsx";
@@ -303,18 +303,26 @@ function App() {
     { id: "salary-approval", label: "Payroll approval", icon: "✅" },
   ];
 
+  // For accountant role, restrict menu to only Overview
+  const displayNavCore = user?.role === "accountant" ? [navCore[0]] : navCore;
+
+  const navAttendance = user?.role === "accountant"
+    ? [{ id: "attendance-logs", label: "Attendance Logs", icon: "📅" }]
+    : [];
+
   const navFinance = financeExtraRoles.includes(user?.role)
     ? [
         { id: "rules", label: "Salary rules", icon: "⚙️" },
         { id: "salary-grades", label: "Salary grades", icon: "📈" },
-        { id: "insurance-config", label: "Insurance settings", icon: "🏥" },
         { id: "d02-lt-report", label: "D02-LT report", icon: "📄" },
         { id: "tk1-ts-form", label: "TK1-TS form", icon: "📋" },
         { id: "regulatory-exports", label: "Annual tax (Excel)", icon: "🧾" },
       ]
     : [];
 
+  const displayNavFinance = user?.role === "accountant" ? [] : navFinance;
   const navPeople = [{ id: "employee-management", label: "Employees", icon: "🏢" }];
+  const displayNavPeople = user?.role === "accountant" ? [] : navPeople;
 
   const viewTitles = {
     dashboard: "Overview",
@@ -323,11 +331,11 @@ function App() {
     "salary-approval": "Payroll approval",
     rules: "Salary rules",
     "salary-grades": "Salary grades",
-    "insurance-config": "Insurance settings",
     "d02-lt-report": "D02-LT report",
     "tk1-ts-form": "TK1-TS form",
     "regulatory-exports": "Annual tax export",
     "employee-management": "Employees",
+    "attendance-logs": "Attendance Logs",
   };
 
   return (
@@ -342,7 +350,7 @@ function App() {
         </div>
         <nav className="acc-nav">
           <div className="acc-nav-label">Salary &amp; payroll</div>
-          {navCore.map((item) => (
+          {displayNavCore.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -353,10 +361,10 @@ function App() {
               {item.label}
             </button>
           ))}
-          {navFinance.length > 0 && (
+          {navAttendance.length > 0 && (
             <>
-              <div className="acc-nav-label">Compliance &amp; configuration</div>
-              {navFinance.map((item) => (
+              <div className="acc-nav-label">Attendance</div>
+              {navAttendance.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -369,18 +377,38 @@ function App() {
               ))}
             </>
           )}
-          <div className="acc-nav-label">Human resources</div>
-          {navPeople.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`acc-nav-item${currentView === item.id ? " acc-nav-item--active" : ""}`}
-              onClick={() => setCurrentView(item.id)}
-            >
-              <span aria-hidden>{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
+          {displayNavFinance.length > 0 && (
+            <>
+              <div className="acc-nav-label">Compliance &amp; configuration</div>
+              {displayNavFinance.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`acc-nav-item${currentView === item.id ? " acc-nav-item--active" : ""}`}
+                  onClick={() => setCurrentView(item.id)}
+                >
+                  <span aria-hidden>{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </>
+          )}
+          {displayNavPeople.length > 0 && (
+            <>
+              <div className="acc-nav-label">Human resources</div>
+              {displayNavPeople.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`acc-nav-item${currentView === item.id ? " acc-nav-item--active" : ""}`}
+                  onClick={() => setCurrentView(item.id)}
+                >
+                  <span aria-hidden>{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </>
+          )}
         </nav>
         <div className="acc-sidebar-footer">
           <strong>{user?.name || "Accountant"}</strong>
@@ -423,13 +451,13 @@ function App() {
           {currentView === "salary-approval" && <SalaryApprovalDashboard onNavigate={setCurrentView} />}
           {currentView === "rules" && <SalaryRulesManagement />}
           {currentView === "salary-grades" && <SalaryGradeManagement />}
-          {currentView === "insurance-config" && <InsuranceConfigManagement />}
           {currentView === "d02-lt-report" && <D02LTReport />}
           {currentView === "tk1-ts-form" && <TK1TSForm />}
           {currentView === "regulatory-exports" && (
             <RegulatoryExports apiBase={API_BASE} token={authToken} />
           )}
           {currentView === "employee-management" && <EmployeeManagement />}
+          {currentView === "attendance-logs" && <AttendanceLog />}
         </div>
       </div>
       <PersonalProfileModal

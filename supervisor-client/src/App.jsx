@@ -5,7 +5,6 @@ import QualificationApprovals from './components/QualificationApprovals.jsx';
 import DependentApprovals from './components/DependentApprovals.jsx';
 import JobTitleManagement from './components/JobTitleManagement.jsx';
 import DepartmentManagement from './components/DepartmentManagement.jsx';
-import InsuranceConfigManagement from './components/InsuranceConfigManagement.jsx';
 import AnalyticsDashboard from './components/AnalyticsDashboard.jsx';
 import BusinessTripDetailModal from './components/BusinessTripDetailModal.jsx';
 import SalaryAdvanceDetailModal from './components/SalaryAdvanceDetailModal.jsx';
@@ -1124,8 +1123,6 @@ const NAV_GROUPS = [
       { key: 'leave', label: 'Leave approvals', icon: '📋' },
       { key: 'overtime', label: 'Overtime approvals', icon: '⏰' },
       { key: 'business-trip', label: 'Trip approvals', icon: '✈️' },
-      { key: 'salary-advance', label: 'Advance approvals', icon: '💵' },
-      { key: 'salary', label: 'Payroll approvals', icon: '💰' },
     ],
   },
   {
@@ -1135,7 +1132,6 @@ const NAV_GROUPS = [
       { key: 'dependents', label: 'Dependents', icon: '👨‍👩‍👧' },
       { key: 'job-titles', label: 'Job titles', icon: '🏷️' },
       { key: 'departments', label: 'Departments', icon: '🏢' },
-      { key: 'insurance-config', label: 'Insurance settings', icon: '🛡️' },
     ],
   },
   {
@@ -1266,13 +1262,10 @@ export default function App() {
     leave: 'Leave approvals',
     overtime: 'Overtime approvals',
     'business-trip': 'Business trip approvals',
-    'salary-advance': 'Salary advance approvals',
-    salary: 'Payroll approvals',
     qualifications: 'Qualification approvals',
     dependents: 'Dependent approvals',
     'job-titles': 'Job title management',
     departments: 'Department management',
-    'insurance-config': 'Insurance settings',
     analytics: 'Analytics dashboard',
     reports: 'Reports',
   };
@@ -1374,13 +1367,10 @@ export default function App() {
           {activeTab === 'leave'            && <LeaveApprovals token={token} />}
           {activeTab === 'overtime'         && <OvertimeApprovals token={token} />}
           {activeTab === 'business-trip'    && <BusinessTripApprovals token={token} />}
-          {activeTab === 'salary-advance'   && <SalaryAdvanceApprovals token={token} />}
-          {activeTab === 'salary'           && <SalaryApprovals token={token} />}
           {activeTab === 'qualifications'   && <QualificationApprovals token={token} />}
           {activeTab === 'dependents'       && <DependentApprovals token={token} />}
           {activeTab === 'job-titles'       && <JobTitleManagement token={token} />}
           {activeTab === 'departments'      && <DepartmentManagement token={token} />}
-          {activeTab === 'insurance-config' && <InsuranceConfigManagement token={token} />}
           {activeTab === 'analytics'        && <AnalyticsDashboard token={token} />}
           {activeTab === 'reports'          && <SupervisorReports token={token} />}
         </div>

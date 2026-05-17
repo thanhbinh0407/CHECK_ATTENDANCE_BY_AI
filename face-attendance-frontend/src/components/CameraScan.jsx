@@ -1,104 +1,98 @@
-import React, { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import * as faceapi from "face-api.js";
 
-export default function CameraScan({ onDetected }) {
-  const videoRef = useRef();
-  const canvasRef = useRef();
+export default function CameraScan({ onDetected, modelPath = "/models" }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const detectionIntervalRef = useRef(null);
 
+  // Load models on component mount
   useEffect(() => {
-    loadModels();
-  }, []);
-
-  const loadModels = async () => {
-    try {
-      setMessage("Loading models...");
-      
-      // Try multiple model URLs as fallback
-      const modelUrls = [
-        "/models",
-        "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@latest/model/"
-      ];
-
-      let loaded = false;
-      let lastError = null;
-
-      for (const modelUrl of modelUrls) {
+    const loadModels = async () => {
+      try {
+        setMessage("Loading models...");
+        const MODEL_URL = `${modelPath}/`;
+        await Promise.all([
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
+          faceapi.nets.faceDetectionNet.loadFromUri(MODEL_URL),
+        ]);
+        setModelsLoaded(true);
+        setMessage("Models loaded. Ready to scan.");
+        console.log("All models loaded successfully");
+      } catch (err) {
+        console.warn(`Failed to load from ${modelPath}:`, err.message);
         try {
-          console.log(`Attempting to load from: ${modelUrl}`);
-          
-          // Load with verbose error handling
-          const detectorPromise = faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl);
-          const landmarkPromise = faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl);
-          const recognitionPromise = faceapi.nets.faceRecognitionNet.loadFromUri(modelUrl);
-          
-          await Promise.all([detectorPromise, landmarkPromise, recognitionPromise]);
-          
-          console.log(`Models loaded successfully from ${modelUrl}`);
+          const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/";
+          await Promise.all([
+            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
+            faceapi.nets.faceDetectionNet.loadFromUri(MODEL_URL),
+          ]);
           setModelsLoaded(true);
-          setMessage("Models loaded. Ready to scan.");
-          loaded = true;
-          break;
-        } catch (err) {
-          lastError = err;
-          console.warn(`Failed to load from ${modelUrl}:`, err.message);
+          setMessage("Models loaded (CDN). Ready to scan.");
+          console.log("All models loaded from CDN");
+        } catch (fallbackErr) {
+          console.error("Failed to load models from fallback:", fallbackErr);
+          setMessage("Model loading failed. Please refresh the page.");
         }
       }
+    };
 
-      if (!loaded) {
-        throw lastError || new Error("Failed to load models from all sources");
-      }
-    } catch (error) {
-      console.error("Model loading error:", error);
-      setMessage("Model loading failed. Please refresh the page.");
-    }
-  };
+    loadModels();
+  }, [modelPath]);
 
+  // Start camera
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 640, height: 480 } 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
       });
-      videoRef.current.srcObject = stream;
-      videoRef.current.onloadedmetadata = () => {
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
         videoRef.current.play();
         setCameraActive(true);
         setMessage("Camera started");
-      };
+      }
     } catch (error) {
-      console.error("Error accessing camera:", error);
+      setCameraActive(false);
       setMessage("Camera access was denied or is unavailable: " + error.message + ". Please check camera permissions and try again.");
     }
   };
 
+  // Stop camera
   const stopCamera = () => {
     if (videoRef.current && videoRef.current.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
       setCameraActive(false);
       setMessage("Camera stopped");
     }
   };
 
-  const handleScan = async () => {
+  const captureAndScan = async () => {
     if (!modelsLoaded) {
       setMessage("Models not loaded yet");
       return;
     }
-    
     if (!cameraActive) {
       setMessage("Camera not active");
       return;
     }
 
     setLoading(true);
+
     try {
+      // Detect face
       const detection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+        .detectSingleFace(videoRef.current)
         .withFaceLandmarks()
-        .withFaceDescriptor();
+        .withFaceExpressions();
 
       if (!detection) {
         setMessage("No face detected - please position your face in front of the camera");
@@ -106,36 +100,31 @@ export default function CameraScan({ onDetected }) {
         return;
       }
 
+      // Draw detection on canvas
       drawDetection(detection);
 
-      // prepare payload
-      const descriptor = Array.from(detection.descriptor);
-      
-      // Extract and convert face image
-      let imageBase64 = null;
-      try {
-        const box = detection.detection.box;
-        const regionsToExtract = [new faceapi.Rect(box.x, box.y, box.width, box.height)];
-        const faceImages = await faceapi.extractFaces(videoRef.current, regionsToExtract);
-        
-        if (faceImages.length > 0) {
-          const tmpCanvas = document.createElement("canvas");
-          tmpCanvas.width = faceImages[0].width;
-          tmpCanvas.height = faceImages[0].height;
-          const ctx = tmpCanvas.getContext("2d");
-          ctx.drawImage(faceImages[0], 0, 0);
-          imageBase64 = tmpCanvas.toDataURL("image/jpeg");
-        }
-      } catch (error) {
-        console.warn("Error extracting face image:", error);
+      // Get descriptor
+      const descriptor = await faceapi.computeFaceDescriptor(videoRef.current);
+      if (!descriptor) {
+        setMessage("Failed to compute face descriptor");
+        setLoading(false);
+        return;
       }
 
+      // Capture image (optional)
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      ctx.drawImage(videoRef.current, 0, 0);
+      const imageBase64 = canvas.toDataURL("image/jpeg", 0.9);
+
+      // Prepare payload
       const payload = {
-        descriptor,
+        descriptor: Array.from(descriptor),
         confidence: detection.detection.score,
+        imageBase64: imageBase64,
         timestamp: new Date().toISOString(),
-        deviceId: "web-kiosk-1",
-        imageBase64
       };
 
       // call attendance API
@@ -158,6 +147,16 @@ export default function CameraScan({ onDetected }) {
       
       if (onDetected) onDetected(data);
       
+      // Check if user account is deactivated
+      if (data.deactivated) {
+        setMessage(`âŒ ${data.message || "Your account has been deactivated. Please contact HR."}`);
+        return;
+      }
+      
+      if (data.deactivated) {
+        setMessage(`❌ ${data.message || "Your account has been deactivated. Please contact HR."}`);
+        return;
+      }
       if (data.status === "success") {
         setMessage(`Attendance logged successfully! User: ${data.userId}`);
       } else {
@@ -203,161 +202,155 @@ export default function CameraScan({ onDetected }) {
 
   const subtitleStyle = {
     fontSize: "14px",
-    color: "#666",
+    color: "#666666",
     marginBottom: "24px",
     textAlign: "center"
   };
 
-  const videoContainerStyle = {
+  const cameraContainerStyle = {
     position: "relative",
     width: "100%",
-    maxWidth: "640px",
-    margin: "0 auto 24px",
+    maxWidth: "600px",
+    margin: "0 auto 24px auto",
+    backgroundColor: "#000",
     borderRadius: "8px",
     overflow: "hidden",
-    backgroundColor: "#000",
-    boxShadow: "0 2px 12px rgba(0,0,0,0.15)"
+    aspectRatio: "4 / 3"
   };
 
   const videoStyle = {
     width: "100%",
-    display: "block",
-    backgroundColor: "#000"
+    height: "100%",
+    objectFit: "cover"
+  };
+
+  const canvasStyle = {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%"
+  };
+
+  const messageBoxStyle = {
+    marginBottom: "20px",
+    padding: "12px 16px",
+    borderRadius: "6px",
+    fontSize: "14px",
+    textAlign: "center",
+    minHeight: "40px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: (message && message.toLowerCase().includes("error")) ? "#f8d7da" :
+                     (message && message.toLowerCase().includes("success")) ? "#d4edda" :
+                     (message && message.toLowerCase().includes("âŒ")) ? "#f8d7da" :
+                     "#e7f3ff",
+    color: (message && message.toLowerCase().includes("error")) ? "#721c24" :
+           (message && message.toLowerCase().includes("success")) ? "#155724" :
+           (message && message.toLowerCase().includes("âŒ")) ? "#721c24" :
+           "#004085",
+    border: "1px solid " + 
+           ((message && message.toLowerCase().includes("error")) ? "#f5c6cb" :
+            (message && message.toLowerCase().includes("success")) ? "#c3e6cb" :
+            (message && message.toLowerCase().includes("âŒ")) ? "#f5c6cb" :
+            "#bee5eb")
   };
 
   const buttonContainerStyle = {
     display: "flex",
-    gap: "12px",
+    gap: "10px",
     justifyContent: "center",
-    marginBottom: "24px",
-    flexWrap: "wrap"
+    marginBottom: "16px"
   };
 
   const buttonStyle = {
-    padding: "12px 24px",
+    padding: "10px 20px",
     fontSize: "14px",
     fontWeight: "600",
     border: "none",
     borderRadius: "6px",
     cursor: "pointer",
-    transition: "all 0.3s ease",
-    minWidth: "140px"
+    transition: "all 0.2s"
   };
 
-  const primaryButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: "#007bff",
-    color: "#fff"
-  };
-  primaryButtonStyle[":hover"] = { backgroundColor: "#0056b3" };
-
-  const dangerButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: "#dc3545",
-    color: "#fff"
-  };
-  dangerButtonStyle[":hover"] = { backgroundColor: "#c82333" };
-
-  const successButtonStyle = {
+  const startButtonStyle = {
     ...buttonStyle,
     backgroundColor: "#28a745",
-    color: "#fff"
-  };
-  successButtonStyle[":hover"] = { backgroundColor: "#218838" };
-
-  const statusBoxStyle = {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "16px",
-    marginBottom: "24px",
-    backgroundColor: "#f8f9fa",
-    padding: "16px",
-    borderRadius: "8px"
+    color: "white"
   };
 
-  const statusItemStyle = {
-    padding: "12px",
-    backgroundColor: "#fff",
-    borderRadius: "6px",
-    border: "1px solid #e0e0e0",
-    fontSize: "14px"
+  const stopButtonStyle = {
+    ...buttonStyle,
+    backgroundColor: "#dc3545",
+    color: "white"
   };
 
-  const messageBoxStyle = {
-    padding: "16px",
-    marginBottom: "24px",
-    backgroundColor: (message && message.toLowerCase().includes("error")) ? "#f8d7da" :
-                    (message && (message.toLowerCase().includes("success") || message.toLowerCase().includes("logged"))) ? "#d4edda" : "#fff3cd",
-    border: "1px solid " + ((message && message.toLowerCase().includes("error")) ? "#f5c6cb" : 
-                           (message && (message.toLowerCase().includes("success") || message.toLowerCase().includes("logged"))) ? "#c3e6cb" : "#ffeaa7"),
-    borderRadius: "6px",
-    color: "#333"
+  const scanButtonStyle = {
+    ...buttonStyle,
+    backgroundColor: "#007bff",
+    color: "white",
+    opacity: loading || !cameraActive ? 0.5 : 1,
+    cursor: loading || !cameraActive ? "not-allowed" : "pointer"
+  };
+
+  const statusStyle = {
+    fontSize: "12px",
+    color: "#666666",
+    textAlign: "center",
+    marginTop: "8px"
   };
 
   return (
     <div style={containerStyle}>
-      <div style={titleStyle}>Face Recognition System</div>
-      <div style={subtitleStyle}>Professional Attendance Management</div>
-      
-      <div style={statusBoxStyle}>
-        <div style={statusItemStyle}>
-          <strong>Models:</strong> {modelsLoaded ? "Ready" : "Loading..."}
-        </div>
-        <div style={statusItemStyle}>
-          <strong>Camera:</strong> {cameraActive ? "Active" : "Inactive"}
-        </div>
+      <h1 style={titleStyle}>ðŸ“¸ Face Attendance Scanner</h1>
+      <p style={subtitleStyle}>Position your face in front of the camera to check in/out</p>
+
+      <div style={messageBoxStyle}>
+        {message || "Ready to scan"}
       </div>
 
-      <div style={videoContainerStyle}>
-        <video 
-          ref={videoRef} 
-          style={videoStyle}
-          autoPlay 
-          muted 
-          playsInline
-        />
-        <canvas
-          ref={canvasRef}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none"
-          }}
-        />
+      <div style={cameraContainerStyle}>
+        <video ref={videoRef} style={videoStyle} autoPlay muted playsInline />
+        <canvas ref={canvasRef} style={canvasStyle} />
       </div>
 
       <div style={buttonContainerStyle}>
-        <button 
+        <button
           onClick={startCamera}
-          style={successButtonStyle}
-          disabled={cameraActive || loading}
+          disabled={cameraActive}
+          style={{
+            ...startButtonStyle,
+            opacity: cameraActive ? 0.5 : 1,
+            cursor: cameraActive ? "not-allowed" : "pointer"
+          }}
         >
-          Start Camera
+          ðŸ“· Start Camera
         </button>
-        <button 
+        <button
           onClick={stopCamera}
-          style={dangerButtonStyle}
           disabled={!cameraActive}
+          style={{
+            ...stopButtonStyle,
+            opacity: !cameraActive ? 0.5 : 1,
+            cursor: !cameraActive ? "not-allowed" : "pointer"
+          }}
         >
-          Stop Camera
+          â¹ï¸ Stop Camera
         </button>
-        <button 
-          onClick={handleScan}
-          style={primaryButtonStyle}
-          disabled={!cameraActive || loading || !modelsLoaded}
+        <button
+          onClick={captureAndScan}
+          disabled={loading || !cameraActive}
+          style={scanButtonStyle}
         >
-          {loading ? "Scanning..." : "Scan & Attendance"}
+          {loading ? "ðŸ”„ Scanning..." : "âœ… Scan & Log"}
         </button>
       </div>
 
-      {message && (
-        <div style={messageBoxStyle}>
-          {message}
-        </div>
-      )}
+      <div style={statusStyle}>
+        <strong>Camera:</strong> {cameraActive ? "Active" : "Inactive"} | <strong>Models:</strong> {modelsLoaded ? "Ready" : "Loading..."}
+      </div>
     </div>
   );
 }
+
