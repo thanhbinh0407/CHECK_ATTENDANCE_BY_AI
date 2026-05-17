@@ -175,7 +175,6 @@ export default function JobTitleManagement({ token }) {
                   <th>Code</th>
                   <th>Name</th>
                   <th>Level</th>
-                  <th>Salary range</th>
                   <th>Active</th>
                   <th>Actions</th>
                 </tr>
@@ -187,11 +186,6 @@ export default function JobTitleManagement({ token }) {
                     <td className="sup-mgmt-code">{item.code}</td>
                     <td>{item.name}</td>
                     <td>{item.level ?? '—'}</td>
-                    <td>
-                      {Number(item.baseSalaryMin || 0).toLocaleString('en-US')}
-                      {' – '}
-                      {Number(item.baseSalaryMax || 0).toLocaleString('en-US')}
-                    </td>
                     <td>
                       <span className={`badge ${item.isActive ? 'badge-approved' : 'badge-rejected'}`}>
                         {item.isActive ? 'Active' : 'Inactive'}
@@ -206,10 +200,10 @@ export default function JobTitleManagement({ token }) {
                   </tr>
                 ))}
                 {items.length === 0 && (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', color: '#718096', padding: '12px 14px' }}>No job titles</td></tr>
+                  <tr><td colSpan={6} style={{ textAlign: 'center', color: '#718096', padding: '12px 14px' }}>No job titles</td></tr>
                 )}
                 {items.length > 0 && filtered.length === 0 && (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', color: '#718096', padding: '12px 14px' }}>No rows match your search</td></tr>
+                  <tr><td colSpan={6} style={{ textAlign: 'center', color: '#718096', padding: '12px 14px' }}>No rows match your search</td></tr>
                 )}
               </tbody>
             </table>
