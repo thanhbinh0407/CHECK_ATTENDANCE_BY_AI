@@ -16,49 +16,55 @@ const formatLocalDate = (date) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-export function parseShiftPlan(shift) {
-  const fallbackMainShifts = [{ startTime: shift?.startTime || "08:00", endTime: shift?.endTime || "17:00" }];
+export const parseShiftPlan = (shift) => {
+  const fallbackMainShifts = [{ startTime: shift?.startTime || '08:00', endTime: shift?.endTime || '17:00' }];
   const fallback = {
     mainShifts: fallbackMainShifts,
     overtimeStart: null,
-    overtimeThresholdMinutes: Number(shift?.overtimeThresholdMinutes || 15),
-    expectedLogsPerDay: fallbackMainShifts.length * 2,
+    overtimeEnd: null,
+    overtimeThresholdMinutes: Number(shift?.overtimeThresholdMinutes ?? 15),
+    absentThresholdMinutes: Number(shift?.absentThresholdMinutes ?? shift?.absenceThresholdMinutes ?? 15),
+    autoCheckoutGraceMinutes: Number(shift?.autoCheckoutGraceMinutes ?? 15),
   };
 
   if (!shift?.note) return fallback;
+
   try {
     const parsed = JSON.parse(shift.note);
     const mainShifts = Array.isArray(parsed?.mainShifts) && parsed.mainShifts.length > 0
       ? parsed.mainShifts
           .map((s) => ({ startTime: s?.startTime, endTime: s?.endTime }))
-          .filter((s) => typeof s.startTime === "string" && typeof s.endTime === "string")
+          .filter((s) => typeof s.startTime === 'string' && typeof s.endTime === 'string')
       : fallbackMainShifts;
-
-    const overtimeStart = typeof parsed?.overtime?.startTime === "string" ? parsed.overtime.startTime : null;
+    const overtimeStart = typeof parsed?.overtime?.startTime === 'string' ? parsed.overtime.startTime : null;
+    const overtimeEnd = typeof parsed?.overtime?.endTime === 'string' ? parsed.overtime.endTime : null;
     const overtimeThresholdMinutes = Number(parsed?.overtime?.thresholdMinutes ?? shift?.overtimeThresholdMinutes ?? 15);
+    const absentThresholdMinutes = Number(parsed?.absentThresholdMinutes ?? parsed?.absenceThresholdMinutes ?? 15);
+    const autoCheckoutGraceMinutes = Number(parsed?.autoCheckoutGraceMinutes ?? shift?.autoCheckoutGraceMinutes ?? 15);
 
     return {
       mainShifts,
       overtimeStart,
+      overtimeEnd,
       overtimeThresholdMinutes: Number.isFinite(overtimeThresholdMinutes) ? overtimeThresholdMinutes : 15,
-      expectedLogsPerDay: mainShifts.length * 2,
+      absentThresholdMinutes: Number.isFinite(absentThresholdMinutes) ? absentThresholdMinutes : 15,
+      autoCheckoutGraceMinutes: Number.isFinite(autoCheckoutGraceMinutes) ? autoCheckoutGraceMinutes : 15,
     };
   } catch {
     return fallback;
   }
-}
+};
 
-function nextTypeFromCount(count, lastType) {
+export const nextTypeFromCount = (count, lastType = null) => {
   if (lastType === 'IN') return 'OUT';
   if (lastType === 'OUT') return 'IN';
-  return count % 2 === 0 ? "IN" : "OUT";
-}
+  return count % 2 === 0 ? 'IN' : 'OUT';
+};
 
 export const logAttendance = async (req, res) => {
   try {
-    const { descriptor, confidence, imageBase64, timestamp, deviceId } = req.body;
-    
-    // Validate input
+    const { descriptor, deviceId, timestamp, confidence, imageBase64 } = req.body;
+
     if (!descriptor || !Array.isArray(descriptor)) {
       return res.status(400).json({ 
         status: "error", 
@@ -143,12 +149,66 @@ export const logAttendance = async (req, res) => {
         order: [['timestamp','ASC']]
       });
 
+      const mainShiftLogsCount = todayLogs.filter(l => !l.isOvertime).length;
       const shiftPlan = parseShiftPlan(applicableShift);
+      const absentThresholdMs = (shiftPlan.absentThresholdMinutes || 15) * 60000;
+      const autoCheckoutGraceMinutes = Number(shiftPlan.autoCheckoutGraceMinutes ?? applicableShift?.autoCheckoutGraceMinutes ?? 15) || 15;
       const expectedLogsPerDay = (shiftPlan.mainShifts.length * 2) + (isOTApproved ? 2 : 0);
 
-      if (todayLogs.length >= expectedLogsPerDay) {
-        // User completed all check in/out actions for the day according to configured shifts
-        console.log(`User ${match.userId} already has ${todayLogs.length}/${expectedLogsPerDay} logs today`);
+      const shiftBoundaries = shiftPlan.mainShifts.map((shift) => ({
+        start: parseTimeToday(shift.startTime),
+        end: parseTimeToday(shift.endTime)
+      }));
+      const shiftBoundaryMarkers = shiftBoundaries.reduce((markers, shift, index) => {
+        if (index === 0) return markers;
+        const prev = shiftBoundaries[index - 1];
+        if (prev.end && shift.start) {
+          markers.push(new Date(Math.round((prev.end.getTime() + shift.start.getTime()) / 2)));
+        }
+        return markers;
+      }, []);
+      const assignMainShiftIndex = (timestamp) => {
+        if (!timestamp || shiftPlan.mainShifts.length === 0) return 0;
+        const ts = timestamp.getTime();
+        if (shiftBoundaryMarkers.length === 0) return 0;
+        if (ts <= shiftBoundaryMarkers[0].getTime()) return 0;
+        for (let i = 1; i < shiftBoundaryMarkers.length; i += 1) {
+          if (ts <= shiftBoundaryMarkers[i].getTime()) return i;
+        }
+        return shiftPlan.mainShifts.length - 1;
+      };
+
+      const getSessionLogs = (sessionIndex) => todayLogs.filter((log) => {
+        if (log.isOvertime) return false;
+        const assigned = assignMainShiftIndex(new Date(log.timestamp));
+        return assigned === sessionIndex;
+      });
+
+      const isMainShiftFinalized = (sessionIndex) => {
+        const session = shiftPlan.mainShifts[sessionIndex];
+        if (!session) return true;
+        const sessionStart = parseTimeToday(session.startTime);
+        const logs = getSessionLogs(sessionIndex);
+        if (logs.length >= 2) return true;
+        if (!sessionStart) return false;
+        return now.getTime() > sessionStart.getTime() + absentThresholdMs;
+      };
+
+      let sessionIndex = 0;
+      while (sessionIndex < shiftPlan.mainShifts.length && isMainShiftFinalized(sessionIndex)) {
+        sessionIndex += 1;
+      }
+
+      const lastMainShift = shiftPlan.mainShifts[shiftPlan.mainShifts.length - 1];
+      const lastMainShiftEnd = lastMainShift ? parseTimeToday(lastMainShift.endTime) : null;
+      const overtimeStart = shiftPlan.overtimeStart
+        ? parseTimeToday(shiftPlan.overtimeStart)
+        : (lastMainShiftEnd ? new Date(lastMainShiftEnd.getTime() + (shiftPlan.overtimeThresholdMinutes || 15) * 60000) : null);
+      const overtimeEnd = shiftPlan.overtimeEnd ? parseTimeToday(shiftPlan.overtimeEnd) : null;
+      const overtimeOpen = isOTApproved && overtimeStart && now >= overtimeStart;
+      const allMainSessionsFinalized = sessionIndex >= shiftPlan.mainShifts.length;
+
+      if (allMainSessionsFinalized && !isOTApproved) {
         const avatarUrl = await userAvatarUrl(match.userId);
         return res.json({
           status: 'success',
@@ -173,25 +233,18 @@ export const logAttendance = async (req, res) => {
       let isLate = false, isEarlyLeave = false, isOvertime = false;
       let linkedShiftId = null;
       let note = null;
-      let mainShiftLogsCount = 0;
-      let sessionIndex = 0;
 
       try {
         if (applicableShift) {
           linkedShiftId = applicableShift.id;
           const graceMinutes = applicableShift.gracePeriodMinutes || 5;
 
-          // Count only main shift logs (not OT logs)
-          mainShiftLogsCount = todayLogs.filter(l => !l.isOvertime).length;
-          sessionIndex = Math.floor(mainShiftLogsCount / 2);
-          const totalMainSessions = shiftPlan.mainShifts.length;
-          // OT session only exists if OT is APPROVED
-          const isOvertimeSession = (sessionIndex >= totalMainSessions) && isOTApproved;
-          const session = isOvertimeSession
-            ? { startTime: shiftPlan.overtimeStart, endTime: null }
-            : shiftPlan.mainShifts[sessionIndex] || shiftPlan.mainShifts[totalMainSessions - 1];
-          const start = parseTimeToday(session?.startTime || applicableShift.startTime);
-          const end = parseTimeToday(session?.endTime || applicableShift.endTime);
+          const isOvertimeSession = allMainSessionsFinalized && isOTApproved;
+          const currentSession = isOvertimeSession
+            ? { startTime: shiftPlan.overtimeStart, endTime: shiftPlan.overtimeEnd }
+            : shiftPlan.mainShifts[sessionIndex] || shiftPlan.mainShifts[shiftPlan.mainShifts.length - 1];
+          const start = parseTimeToday(currentSession?.startTime || applicableShift.startTime);
+          const end = parseTimeToday(currentSession?.endTime || applicableShift.endTime);
 
           if (type === 'IN') {
             if (isOvertimeSession) {
@@ -202,7 +255,6 @@ export const logAttendance = async (req, res) => {
               note = `Late by ${Math.round((now - start) / 60000)} min`;
             }
           } else {
-            // OUT
             if (isOvertimeSession) {
               isOvertime = true;
               note = `Overtime check-out`;
@@ -212,12 +264,10 @@ export const logAttendance = async (req, res) => {
                 note = `Left early by ${Math.round((end - now) / 60000)} min`;
               }
 
-              const overtimeStart = shiftPlan.overtimeStart
-                ? parseTimeToday(shiftPlan.overtimeStart)
-                : (end ? new Date(end.getTime() + (shiftPlan.overtimeThresholdMinutes || 15) * 60000) : null);
-              if (overtimeStart && now > overtimeStart) {
+              const overtimeStartForOut = overtimeStart || (end ? new Date(end.getTime() + (shiftPlan.overtimeThresholdMinutes || 15) * 60000) : null);
+              if (isOTApproved && overtimeStartForOut && now > overtimeStartForOut) {
                 isOvertime = true;
-                note = `Overtime ${Math.round((now - overtimeStart) / 60000)} min`;
+                note = `Overtime ${Math.round((now - overtimeStartForOut) / 60000)} min`;
               }
             }
           }
@@ -330,15 +380,46 @@ export const getTodayAttendance = async (req, res) => {
     if (deviceId) where.deviceId = String(deviceId);
     if (userId) where.userId = Number(userId);
 
+    const parseTimeToday = (timeStr) => {
+      if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) return null;
+      const [hh, mm] = timeStr.split(':').map(Number);
+      const d = new Date(today);
+      d.setHours(hh, mm, 0, 0);
+      return d;
+    };
+
     const activeShift = await ShiftSetting.findOne({ where: { active: true } });
     const shiftPlan = parseShiftPlan(activeShift);
     const allowedLateMinutes = Number(activeShift?.gracePeriodMinutes ?? 5);
-    const overtimeStartMs = shiftPlan.overtimeStart ? (() => {
-      const [hh, mm] = shiftPlan.overtimeStart.split(':').map(Number);
-      const d = new Date(today);
-      d.setHours(hh, mm, 0, 0);
-      return d.getTime();
-    })() : null;
+    const absentThresholdMs = (shiftPlan.absentThresholdMinutes || 15) * 60000;
+    const autoCheckoutGraceMinutes = Number(shiftPlan.autoCheckoutGraceMinutes || activeShift?.autoCheckoutGraceMinutes || 15);
+    const overtimeStart = shiftPlan.overtimeStart ? parseTimeToday(shiftPlan.overtimeStart) : null;
+    const overtimeEnd = shiftPlan.overtimeEnd ? parseTimeToday(shiftPlan.overtimeEnd) : null;
+
+    const shiftBoundaries = shiftPlan.mainShifts.map((shift) => ({
+      start: parseTimeToday(shift.startTime),
+      end: parseTimeToday(shift.endTime),
+    }));
+
+    const shiftBoundaryMarkers = shiftBoundaries.reduce((markers, shift, index) => {
+      if (index === 0) return markers;
+      const prev = shiftBoundaries[index - 1];
+      if (prev.end && shift.start) {
+        markers.push(new Date(Math.round((prev.end.getTime() + shift.start.getTime()) / 2)));
+      }
+      return markers;
+    }, []);
+
+    const assignMainShiftIndex = (timestamp) => {
+      if (!timestamp || shiftPlan.mainShifts.length === 0) return 0;
+      const ts = timestamp.getTime();
+      if (shiftBoundaryMarkers.length === 0) return 0;
+      if (ts <= shiftBoundaryMarkers[0].getTime()) return 0;
+      for (let i = 1; i < shiftBoundaryMarkers.length; i += 1) {
+        if (ts <= shiftBoundaryMarkers[i].getTime()) return i;
+      }
+      return shiftPlan.mainShifts.length - 1;
+    };
 
     const logs = await AttendanceLog.findAll({
       where,
@@ -347,6 +428,8 @@ export const getTodayAttendance = async (req, res) => {
     });
 
     let overtimeRequest = null;
+    let hasOvertimeRequestToday = false;
+    let hasApprovedOvertimeRequestToday = false;
     if (userId) {
       overtimeRequest = await OvertimeRequest.findOne({
         where: {
@@ -356,32 +439,61 @@ export const getTodayAttendance = async (req, res) => {
         },
         order: [['id', 'DESC']]
       });
+      hasOvertimeRequestToday = Boolean(overtimeRequest);
+      hasApprovedOvertimeRequestToday = overtimeRequest?.approvalStatus === 'approved';
     }
 
-    const hasOvertimeRequestToday = Boolean(overtimeRequest);
-    const totalLogCapacity = shiftPlan.mainShifts.length * 2 + (hasOvertimeRequestToday ? 2 : 0);
+    const totalLogCapacity = shiftPlan.mainShifts.length * 2 + (hasApprovedOvertimeRequestToday ? 2 : 0);
 
     const logsAsc = [...logs].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    let nonOvertimeCount = 0;
-    const items = logsAsc.map((log) => {
-      let isOvertime = Boolean(log.isOvertime);
-      let shiftLabel = 'Overtime shift';
-      if (!isOvertime) {
-        const nonOvertimeIndex = nonOvertimeCount++;
-        const sessionIndex = Math.floor(nonOvertimeIndex / 2);
-        if (sessionIndex >= shiftPlan.mainShifts.length) {
-          isOvertime = true;
+    const shiftGroups = shiftPlan.mainShifts.map((shift, idx) => ({
+      shiftIndex: idx,
+      shiftLabel: `Shift ${idx + 1}`,
+      logs: []
+    }));
+
+    const items = [];
+    let overtimeLogCount = 0;
+    const lastMainShiftEndTime = shiftBoundaries.length > 0 && shiftBoundaries[shiftBoundaries.length - 1].end
+      ? shiftBoundaries[shiftBoundaries.length - 1].end.getTime()
+      : null;
+
+    logsAsc.forEach((log) => {
+      const ts = new Date(log.timestamp);
+      const isOvertime = Boolean(log.isOvertime) && hasApprovedOvertimeRequestToday;
+      let shiftLabel = null;
+
+      if (isOvertime) {
+        shiftLabel = 'Overtime shift';
+        overtimeLogCount += 1;
+      } else {
+        const assignedIndex = assignMainShiftIndex(ts);
+        const boundary = shiftBoundaries[assignedIndex];
+        const cutoff = boundary && boundary.end ? boundary.end.getTime() + absentThresholdMs : Infinity;
+        if (ts.getTime() <= cutoff) {
+          shiftLabel = `Shift ${assignedIndex + 1}`;
+          shiftGroups[assignedIndex].logs.push(log);
+        } else if (hasApprovedOvertimeRequestToday && lastMainShiftEndTime && ts.getTime() >= lastMainShiftEndTime) {
+          // Allow an early OT check-in before overtimeStart once the last main shift is over.
+          shiftLabel = 'Overtime shift';
+          overtimeLogCount += 1;
+        } else {
+          const otStart = shiftPlan.overtimeStart ? parseTimeToday(shiftPlan.overtimeStart) : null;
+          if (hasOvertimeRequestToday && otStart && ts.getTime() >= otStart.getTime()) {
+            shiftLabel = 'Overtime shift';
+            overtimeLogCount += 1;
+          } else {
+            return;
+          }
         }
-        shiftLabel = isOvertime
-          ? 'Overtime shift'
-          : `Shift ${Math.min(sessionIndex + 1, shiftPlan.mainShifts.length)}`;
       }
+
       const flags = {
         isLate: Boolean(log.isLate),
         isEarlyLeave: Boolean(log.isEarlyLeave),
         isOvertime
       };
-      return {
+      items.push({
         id: log.id,
         userId: log.userId,
         detectedName: log.detectedName,
@@ -394,9 +506,91 @@ export const getTodayAttendance = async (req, res) => {
         flags,
         shiftLabel,
         allowedLateMinutes,
+        overtimeRequestStatus: overtimeRequest?.approvalStatus || null,
         avatarUrl: log.User?.avatarUrl || null
-      };
-    }).reverse();
+      });
+    });
+
+    if (userId) {
+      const overtimeStart = shiftPlan.overtimeStart ? parseTimeToday(shiftPlan.overtimeStart) : null;
+      const now = new Date();
+      const allMainShiftFinalized = shiftPlan.mainShifts.every((shift, idx) => {
+        const start = parseTimeToday(shift.startTime);
+        const hasShiftLogs = shiftGroups[idx]?.logs.length > 0;
+        if (hasShiftLogs) return true;
+        return start ? now.getTime() > start.getTime() + absentThresholdMs : false;
+      });
+
+      shiftPlan.mainShifts.forEach((shift, idx) => {
+        const start = parseTimeToday(shift.startTime);
+        if (!start) return;
+        const hasShiftLogs = shiftGroups[idx]?.logs.length > 0;
+        const absentDeadline = new Date(start.getTime() + absentThresholdMs);
+        if (!hasShiftLogs && now > absentDeadline) {
+          items.push({
+            id: `absent-${idx + 1}`,
+            userId: Number(userId),
+            detectedName: 'Absent',
+            timestamp: start,
+            type: 'ABSENT',
+            confidence: null,
+            matchDistance: null,
+            note: 'No check-in recorded for this shift',
+            shiftId: activeShift?.id || null,
+            flags: { isLate: false, isEarlyLeave: false, isOvertime: false },
+            shiftLabel: `Shift ${idx + 1}`,
+            allowedLateMinutes,
+            isAbsent: true,
+            avatarUrl: null,
+          });
+        }
+      });
+
+      const overtimeStartTime = overtimeStart;
+      if (hasApprovedOvertimeRequestToday && allMainShiftFinalized) {
+        if (overtimeLogCount === 0) {
+          const overtimeAbsentDeadline = overtimeStartTime ? new Date(overtimeStartTime.getTime() + absentThresholdMs) : null;
+          const showOvertimePlaceholder = !overtimeAbsentDeadline || now <= overtimeAbsentDeadline;
+          if (overtimeAbsentDeadline && now > overtimeAbsentDeadline) {
+            items.push({
+              id: `absent-overtime`,
+              userId: Number(userId),
+              detectedName: 'Absent',
+              timestamp: overtimeStartTime || now,
+              type: 'ABSENT',
+              confidence: null,
+              matchDistance: null,
+              note: 'No overtime check-in recorded for approved OT',
+              shiftId: activeShift?.id || null,
+              flags: { isLate: false, isEarlyLeave: false, isOvertime: true },
+              shiftLabel: 'Overtime shift',
+              allowedLateMinutes,
+              isAbsent: true,
+              avatarUrl: null,
+            });
+          } else if (showOvertimePlaceholder) {
+            items.push({
+              id: 'overtime-request',
+              userId: Number(userId),
+              detectedName: 'Overtime',
+              timestamp: overtimeStartTime || now,
+              type: null,
+              confidence: null,
+              matchDistance: null,
+              note: 'Approved overtime request',
+              shiftId: activeShift?.id || null,
+              flags: { isLate: false, isEarlyLeave: false, isOvertime: true },
+              shiftLabel: 'Overtime shift',
+              allowedLateMinutes,
+              overtimeRequestStatus: overtimeRequest?.approvalStatus || null,
+              avatarUrl: null
+            });
+          }
+        }
+      }
+    }
+
+    const sortedItems = items.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     return res.json({
       status: "success",
@@ -407,10 +601,13 @@ export const getTodayAttendance = async (req, res) => {
       shiftPlan: {
         mainShifts: shiftPlan.mainShifts,
         overtimeStart: shiftPlan.overtimeStart,
+        overtimeEnd: shiftPlan.overtimeEnd,
         overtimeThresholdMinutes: shiftPlan.overtimeThresholdMinutes,
+        absentThresholdMinutes: shiftPlan.absentThresholdMinutes,
+        autoCheckoutGraceMinutes: shiftPlan.autoCheckoutGraceMinutes,
         expectedLogsPerDay: totalLogCapacity
       },
-      logs: items
+      logs: sortedItems
     });
   } catch (err) {
     console.error("Error fetching today's attendance:", err);
@@ -493,7 +690,18 @@ export const matchFace = async (req, res) => {
 
       const activeShift = await ShiftSetting.findOne({ where: { active: true } });
       const shiftPlan = parseShiftPlan(activeShift);
-      expectedLogsPerDay = shiftPlan.expectedLogsPerDay || 2;
+
+      const overtimeRequest = await OvertimeRequest.findOne({
+        where: {
+          userId: match.userId,
+          date: formatLocalDate(now),
+          approvalStatus: { [Op.in]: ['pending', 'approved'] }
+        },
+        order: [['id', 'DESC']]
+      });
+      const isOTApproved = overtimeRequest?.approvalStatus === 'approved';
+
+      expectedLogsPerDay = (shiftPlan.mainShifts.length * 2) + (isOTApproved ? 2 : 0);
       finished = logsToday.length >= expectedLogsPerDay;
       nextType = finished ? null : nextTypeFromCount(logsToday.length);
     }
