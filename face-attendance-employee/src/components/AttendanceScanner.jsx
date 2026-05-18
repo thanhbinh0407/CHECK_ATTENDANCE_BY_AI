@@ -497,7 +497,7 @@ function AttendanceScanner() {
           time: log.timestamp ? new Date(log.timestamp).toLocaleTimeString("en-US") : "",
           name: log.detectedName || "Unknown",
           status: "✓",
-          type: log.type || "IN",
+          type: log.type ?? null,
           logsCount: 0,
           avatarUrl: log.avatarUrl || null,
           note: log.note || "",
@@ -568,6 +568,9 @@ function AttendanceScanner() {
       }
       return `Overtime shift`;
     }
+    if (log.overtimeRequestStatus === 'approved') {
+      return `OT Approved`;
+    }
     if (log.overtimeRequestStatus === 'pending') {
       return `Pending OT request`;
     }
@@ -583,27 +586,46 @@ function AttendanceScanner() {
   };
 
   const groupedShiftLogs = useMemo(() => {
-    const groups = new Map();
+    const mainShifts = workShiftPlan?.mainShifts || [{ startTime: '08:00', endTime: '17:00' }];
+    const groups = mainShifts.map((shift, idx) => ({
+      shiftLabel: `Shift ${idx + 1}`,
+      shiftStart: shift.startTime,
+      shiftEnd: shift.endTime,
+      checkIn: null,
+      checkOut: null,
+      overtimeRequestStatus: null,
+      logs: [],
+      isAbsent: false,
+    }));
+
     const sortedLogs = [...attendanceLogs].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
     sortedLogs.forEach((log) => {
-      const label = log.shiftLabel || "Shift 1";
-      const group = groups.get(label) || {
-        shiftLabel: label,
-        checkIn: null,
-        checkOut: null,
-        overtimeRequestStatus: log.overtimeRequestStatus || null,
-        logs: []
-      };
+      const label = log.shiftLabel || 'Shift 1';
+      let group = groups.find((g) => g.shiftLabel === label);
+      if (!group) {
+        group = {
+          shiftLabel: label,
+          shiftStart: null,
+          shiftEnd: null,
+          checkIn: null,
+          checkOut: null,
+          overtimeRequestStatus: log.overtimeRequestStatus || null,
+          logs: [],
+          isAbsent: false,
+        };
+        groups.push(group);
+      }
       group.logs.push(log);
       if (log.type === 'IN') group.checkIn = log;
       if (log.type === 'OUT') group.checkOut = log;
+      if (log.type === 'ABSENT') group.isAbsent = true;
       if (!group.overtimeRequestStatus && log.overtimeRequestStatus) {
         group.overtimeRequestStatus = log.overtimeRequestStatus;
       }
-      groups.set(label, group);
     });
-    return Array.from(groups.values()).sort((a, b) => getShiftOrder(a.shiftLabel) - getShiftOrder(b.shiftLabel));
-  }, [attendanceLogs]);
+
+    return groups.sort((a, b) => getShiftOrder(a.shiftLabel) - getShiftOrder(b.shiftLabel));
+  }, [attendanceLogs, workShiftPlan]);
 
   const startDetection = () => {
     setIsScanning(true);
@@ -2685,7 +2707,7 @@ function AttendanceScanner() {
               </p>
             </div>
 
-            {attendanceLogs.length === 0 ? (
+            {groupedShiftLogs.length === 0 ? (
               <div style={{ 
                 textAlign: "center", 
                 padding: "60px 24px",
@@ -2718,7 +2740,23 @@ function AttendanceScanner() {
                   const checkIn = group.checkIn;
                   const checkOut = group.checkOut;
                   const completed = checkIn && checkOut;
-                  const groupStatus = completed ? "Completed" : "Incomplete";
+                  const now = new Date();
+                  const shiftEndTime = group.shiftEnd ? (() => {
+                    const [hh, mm] = group.shiftEnd.split(':').map(Number);
+                    const d = new Date();
+                    d.setHours(hh, mm, 0, 0);
+                    return d;
+                  })() : null;
+                  const isOvertimeGroup = /overtime/i.test(group.shiftLabel);
+                  const groupStatus = group.isAbsent
+                    ? 'Absent'
+                    : completed
+                    ? 'Completed'
+                    : group.logs.length === 0
+                    ? isOvertimeGroup
+                      ? 'Pending'
+                      : (shiftEndTime && now < shiftEndTime ? 'Pending' : 'Absent')
+                    : 'Incomplete';
 
                   return (
                     <div
@@ -2747,6 +2785,15 @@ function AttendanceScanner() {
                           }}>
                             {group.shiftLabel}
                           </div>
+                          {group.shiftStart && group.shiftEnd ? (
+                            <div style={{
+                              fontSize: "13px",
+                              color: "#475569",
+                              marginBottom: "6px"
+                            }}>
+                              {group.shiftStart} - {group.shiftEnd}
+                            </div>
+                          ) : null}
                           <div style={{
                             fontSize: "13px",
                             color: "#6b7280"
@@ -2779,7 +2826,7 @@ function AttendanceScanner() {
                         {['IN', 'OUT'].map((type) => {
                           const log = type === 'IN' ? checkIn : checkOut;
                           const isIn = type === 'IN';
-                          const statusColor = isIn ? '#52c41a' : '#fa8c16';
+                          const statusColor = group.isAbsent ? '#ef4444' : log?.type === 'ABSENT' ? '#ef4444' : isIn ? '#52c41a' : '#fa8c16';
                           const isAutoCheckout = !isIn && checkOut && checkOut.isAuto;
 
                           return (
@@ -2845,6 +2892,14 @@ function AttendanceScanner() {
                                     {log.name}
                                   </div>
                                 </>
+                              ) : group.isAbsent ? (
+                                <div style={{
+                                  fontSize: "14px",
+                                  color: "#dc2626",
+                                  fontWeight: 700
+                                }}>
+                                  Absent
+                                </div>
                               ) : (
                                 <div style={{
                                   fontSize: "14px",

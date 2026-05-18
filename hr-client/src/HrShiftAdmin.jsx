@@ -88,6 +88,17 @@ function parseOvertimeConfig(shift, mainShiftEnd) {
   }
 }
 
+function parseAbsenceThreshold(shift) {
+  if (!shift?.note) return 15;
+  try {
+    const parsed = JSON.parse(shift.note);
+    const threshold = Number(parsed?.absentThresholdMinutes ?? parsed?.absenceThresholdMinutes ?? 15);
+    return Number.isFinite(threshold) && threshold >= 0 ? threshold : 15;
+  } catch {
+    return 15;
+  }
+}
+
 /**
  * Manage company-wide work shift configuration (GET/POST /api/shifts).
  */
@@ -99,6 +110,7 @@ export default function HrShiftAdmin({ token }) {
   const [draftEndTime, setDraftEndTime] = useState('17:00');
   const [draftOvertimeStart, setDraftOvertimeStart] = useState('17:15');
   const [draftOvertimeEnd, setDraftOvertimeEnd] = useState('19:15');
+  const [draftAbsenceThreshold, setDraftAbsenceThreshold] = useState(15);
   const [mainShiftDraft, setMainShiftDraft] = useState({
     shift1Start: '08:00',
     shift1End: '12:00',
@@ -118,11 +130,13 @@ export default function HrShiftAdmin({ token }) {
         const current = data.shifts[0];
         const parsedMain = parseMainShiftConfig(current);
         const parsedOvertime = parseOvertimeConfig(current, parsedMain.shift2End);
+        const parsedAbsenceThreshold = parseAbsenceThreshold(current);
         setShift(current);
         setMainShiftDraft(parsedMain);
         setDraftEndTime(parsedMain.shift2End || current.endTime || '17:00');
         setDraftOvertimeStart(parsedOvertime.startTime);
         setDraftOvertimeEnd(parsedOvertime.endTime);
+        setDraftAbsenceThreshold(parsedAbsenceThreshold);
         setMessage('');
       } else if (!res.ok) {
         setShift(null);
@@ -150,6 +164,7 @@ export default function HrShiftAdmin({ token }) {
     const shift2End = form.shift2End?.value;
     const gracePeriodMinutes = parseInt(form.gracePeriodMinutes?.value, 10) || 5;
     const autoCheckoutGraceMinutes = parseInt(form.autoCheckoutGraceMinutes?.value, 10) || 15;
+    const absenceThresholdMinutes = parseInt(form.absenceThresholdMinutes?.value, 10);
     const overtimeThresholdMinutes = diffMinutes(shift2End, draftOvertimeStart);
 
     const startTime = shift1Start;
@@ -200,6 +215,7 @@ export default function HrShiftAdmin({ token }) {
         startTime: draftOvertimeStart,
         endTime: draftOvertimeEnd,
       },
+      absentThresholdMinutes: Number.isFinite(absenceThresholdMinutes) ? absenceThresholdMinutes : 15,
     });
 
     try {
@@ -294,6 +310,10 @@ export default function HrShiftAdmin({ token }) {
             <div style={{ marginBottom: '10px' }}>
               <label>Auto Checkout Grace Period (min)</label>
               <strong style={{ color: '#2b6cb0' }}>{shift.autoCheckoutGraceMinutes || 15} min</strong>
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <label>Mark absent after shift end (min)</label>
+              <strong style={{ color: '#2b6cb0' }}>{parseAbsenceThreshold(shift)} min</strong>
             </div>
           </div>
 
@@ -392,6 +412,8 @@ export default function HrShiftAdmin({ token }) {
               <input type="number" name="gracePeriodMinutes" min={0} max={60} defaultValue={shift?.gracePeriodMinutes ?? 5} />
               <label style={{ marginTop: '12px' }}>Auto Checkout Grace Period (min)</label>
               <input type="number" name="autoCheckoutGraceMinutes" min={0} max={60} defaultValue={shift?.autoCheckoutGraceMinutes ?? 15} />
+              <label style={{ marginTop: '12px' }}>Mark absent after shift end (min)</label>
+              <input type="number" name="absenceThresholdMinutes" min={0} max={180} defaultValue={draftAbsenceThreshold} />
             </div>
           </div>
           </div>
