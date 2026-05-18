@@ -385,6 +385,11 @@ export default function AttendanceLog() {
                 <option value="all">All</option>
                 <option value="IN">Check-in</option>
                 <option value="OUT">Check-out</option>
+                <option value="OT_IN">Overtime Check-in</option>
+                <option value="OT_OUT">Overtime Check-out</option>
+                <option value="LATE_IN">Late Check-in</option>
+                <option value="EARLY_OUT">Early Check-out</option>
+                <option value="ABSENT">Absent</option>
               </select>
             </div>
 
@@ -746,10 +751,50 @@ export default function AttendanceLog() {
                   {sortedLogs.map((log) => {
                     const empName = getEmployeeName(log.userId);
                     const emp = employees.find(e => e.id === log.userId);
-                    const isIn = log.type === 'IN';
-                    const typeColor = isIn ? "#28a745" : "#ff9800";
-                    const typeBgColor = isIn ? "#d4edda" : "#fff3cd";
-                    const typeTextColor = isIn ? "#155724" : "#856404";
+                    
+                    // Determine type colors based on type
+                    let typeColor, typeBgColor, typeTextColor, typeLabel;
+                    switch(log.type) {
+                      case 'OT_IN':
+                      case 'OT_OUT':
+                        typeColor = "#6f42c1";
+                        typeBgColor = "#e2d9f3";
+                        typeTextColor = "#4a2c73";
+                        typeLabel = log.type === 'OT_IN' ? "OT IN" : "OT OUT";
+                        break;
+                      case 'LATE_IN':
+                        typeColor = "#dc3545";
+                        typeBgColor = "#f8d7da";
+                        typeTextColor = "#721c24";
+                        typeLabel = "LATE IN";
+                        break;
+                      case 'EARLY_OUT':
+                        typeColor = "#fd7e14";
+                        typeBgColor = "#fff3cd";
+                        typeTextColor = "#856404";
+                        typeLabel = "EARLY OUT";
+                        break;
+                      case 'ABSENT':
+                        typeColor = "#e74c3c";
+                        typeBgColor = "#fadbd8";
+                        typeTextColor = "#922b21";
+                        typeLabel = "ABSENT";
+                        break;
+                      case 'IN':
+                        typeColor = "#28a745";
+                        typeBgColor = "#d4edda";
+                        typeTextColor = "#155724";
+                        typeLabel = "IN";
+                        break;
+                      case 'OUT':
+                      default:
+                        typeColor = "#ff9800";
+                        typeBgColor = "#fff3cd";
+                        typeTextColor = "#856404";
+                        typeLabel = "OUT";
+                        break;
+                    }
+                    
                     return (
                       <tr
                         key={log.id}
@@ -810,9 +855,9 @@ export default function AttendanceLog() {
                             display: "inline-block",
                             border: `1px solid ${typeColor}`
                           }}>
-                            {isIn ? "IN" : "OUT"}
+                            {typeLabel}
                           </span>
-                          {!isIn && log.isAuto && (
+                          {log.type === 'OT_OUT' && log.isAuto && (
                             <span style={{
                               backgroundColor: "#dc3545",
                               color: "#fff",

@@ -38,7 +38,7 @@ router.use(authMiddleware);
 
 /**
  * Attendance logs (auth + permission). Replaces the former public GET /admin/logs.
- * Query: from, to | month+year | userId, departmentId, type (IN|OUT), search, limit, offset
+ * Query: from, to | month+year | userId, departmentId, type (IN|OUT|OT_IN|OT_OUT|LATE_IN|EARLY_OUT), search, limit, offset
  */
 router.get(
   "/attendance-logs",

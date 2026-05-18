@@ -11,6 +11,19 @@ function monthYearDefaults() {
   return { month: d.getMonth() + 1, year: d.getFullYear() };
 }
 
+function getTypeLabel(type) {
+  const typeLabels = {
+    'IN': 'Check-in',
+    'OUT': 'Check-out',
+    'OT_IN': 'OT Check-in',
+    'OT_OUT': 'OT Check-out',
+    'LATE_IN': 'Late Check-in',
+    'EARLY_OUT': 'Early Check-out',
+    'ABSENT': 'Absent'
+  };
+  return typeLabels[type] || type || '—';
+}
+
 export default function HrAttendance({ token }) {
   const defaults = useMemo(() => monthYearDefaults(), []);
 
@@ -71,7 +84,9 @@ export default function HrAttendance({ token }) {
         p.set('year', a.year);
       }
       if (a.departmentId) p.set('departmentId', a.departmentId);
-      if (a.type === 'IN' || a.type === 'OUT') p.set('type', a.type);
+      if (a.type && ['IN', 'OUT', 'OT_IN', 'OT_OUT', 'LATE_IN', 'EARLY_OUT', 'ABSENT'].includes(a.type)) {
+        p.set('type', a.type);
+      }
       if (a.search.trim()) p.set('search', a.search.trim());
       return p.toString();
     },
@@ -205,9 +220,14 @@ export default function HrAttendance({ token }) {
           <label className="hr-att-field">
             <span>Type</span>
             <select value={fType} onChange={(e) => setFType(e.target.value)}>
-              <option value="">IN + OUT</option>
-              <option value="IN">IN</option>
-              <option value="OUT">OUT</option>
+              <option value="">All</option>
+              <option value="IN">Check-in</option>
+              <option value="OUT">Check-out</option>
+              <option value="OT_IN">Overtime Check-in</option>
+              <option value="OT_OUT">Overtime Check-out</option>
+              <option value="LATE_IN">Late Check-in</option>
+              <option value="EARLY_OUT">Early Check-out</option>
+              <option value="ABSENT">Absent</option>
             </select>
           </label>
           <label className="hr-att-field hr-att-field--span2">
@@ -262,7 +282,7 @@ export default function HrAttendance({ token }) {
                     <td>{log.User?.employeeCode || log.userId}</td>
                     <td>{log.User?.name || log.detectedName || '—'}</td>
                     <td>{log.User?.Department?.name || '—'}</td>
-                    <td><span className={`badge badge-${(log.type || '').toLowerCase()}`}>{log.type || '—'}</span></td>
+                    <td><span className={`badge badge-${(log.type || '').toLowerCase()}`}>{getTypeLabel(log.type)}</span></td>
                     <td>{log.isLate ? 'Yes' : '—'}</td>
                     <td style={{ fontSize: 12, color: '#64748b' }}>{log.deviceId || '—'}</td>
                   </tr>

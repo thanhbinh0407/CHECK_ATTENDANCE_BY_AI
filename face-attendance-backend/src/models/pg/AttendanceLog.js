@@ -28,7 +28,7 @@ const AttendanceLog = sequelize.define('AttendanceLog', {
     type: DataTypes.FLOAT,
   },
   type: {
-    type: DataTypes.ENUM('IN','OUT'),
+    type: DataTypes.ENUM('IN','OUT','OT_IN','OT_OUT','LATE_IN','EARLY_OUT','ABSENT'),
     allowNull: false,
     defaultValue: 'IN'
   },
@@ -44,6 +44,10 @@ const AttendanceLog = sequelize.define('AttendanceLog', {
     defaultValue: false
   },
   isEarlyLeave: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  isAbsent: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
