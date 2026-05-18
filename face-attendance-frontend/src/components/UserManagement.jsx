@@ -52,6 +52,21 @@ function getActorIdFromToken() {
   }
 }
 
+function getActorRoleFromToken() {
+  try {
+    const t = localStorage.getItem("authToken");
+    if (!t) return null;
+    const part = t.split(".")[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
+    return (payload.role ?? null)?.toLowerCase() ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -643,17 +658,19 @@ export default function UserManagement() {
               role="menu"
               onClick={(e) => e.stopPropagation()}
             >
-              <button
-                type="button"
-                role="menuitem"
-                className="um-actions-item"
-                onClick={() => {
-                  closeActionMenu();
-                  openEdit(actionMenuUser);
-                }}
-              >
-                Edit / Role
-              </button>
+              {getActorRoleFromToken() !== "manager" && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="um-actions-item"
+                  onClick={() => {
+                    closeActionMenu();
+                    openEdit(actionMenuUser);
+                  }}
+                >
+                  Edit / Role
+                </button>
+              )}
               <button
                 type="button"
                 role="menuitem"

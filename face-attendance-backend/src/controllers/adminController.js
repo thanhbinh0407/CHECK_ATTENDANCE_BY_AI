@@ -2042,17 +2042,20 @@ export const getHrAttendanceLogs = async (req, res) => {
 
     const where = {};
 
-    // Date range filters
+    // Date range filters - fix: include full end-of-day
     if (from && to) {
+      const startDate = new Date(from);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(to);
+      endDate.setHours(23, 59, 59, 999); // Set to end of day
       where.timestamp = {
-        [Op.between]: [new Date(from), new Date(to)]
+        [Op.between]: [startDate, endDate]
       };
     } else if (month && year) {
       const startDate = new Date(year, month - 1, 1);
-      const endDate = new Date(year, month, 1);
+      const endDate = new Date(year, month, 0, 23, 59, 59, 999); // Last day of month, end of day
       where.timestamp = {
-        [Op.gte]: startDate,
-        [Op.lt]: endDate
+        [Op.between]: [startDate, endDate]
       };
     }
 
@@ -2061,8 +2064,8 @@ export const getHrAttendanceLogs = async (req, res) => {
       where.userId = parseInt(userId, 10);
     }
 
-    // Type filter (IN/OUT)
-    if (type) {
+    // Type filter
+    if (type && type !== 'all') {
       where.type = type.toUpperCase();
     }
 
