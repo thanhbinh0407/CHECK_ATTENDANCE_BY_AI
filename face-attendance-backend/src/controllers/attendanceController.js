@@ -56,8 +56,23 @@ export const parseShiftPlan = (shift) => {
 };
 
 export const nextTypeFromCount = (count, lastType = null) => {
-  if (lastType === 'IN') return 'OUT';
-  if (lastType === 'OUT') return 'IN';
+  // Extract base type (IN or OUT) from complex types
+  let baseLastType = lastType;
+  if (lastType) {
+    if (lastType === 'ABSENT') {
+      // If last was ABSENT, still expect OUT as next (since IN was skipped)
+      return 'OUT';
+    } else if (lastType.startsWith('OT_')) {
+      baseLastType = lastType.substring(3); // 'OT_IN' -> 'IN', 'OT_OUT' -> 'OUT'
+    } else if (lastType === 'LATE_IN') {
+      baseLastType = 'IN';
+    } else if (lastType === 'EARLY_OUT') {
+      baseLastType = 'OUT';
+    }
+  }
+  
+  if (baseLastType === 'IN') return 'OUT';
+  if (baseLastType === 'OUT') return 'IN';
   return count % 2 === 0 ? 'IN' : 'OUT';
 };
 
@@ -227,10 +242,10 @@ export const logAttendance = async (req, res) => {
       }
 
       const lastLogType = todayLogs.length > 0 ? todayLogs[todayLogs.length - 1]?.type : null;
-      const type = nextTypeFromCount(todayLogs.length, lastLogType);
+      const baseType = nextTypeFromCount(todayLogs.length, lastLogType);
 
       // Compute flags based on configured shift session
-      let isLate = false, isEarlyLeave = false, isOvertime = false;
+      let isLate = false, isEarlyLeave = false, isOvertime = false, isAbsent = false;
       let linkedShiftId = null;
       let note = null;
 
@@ -246,13 +261,19 @@ export const logAttendance = async (req, res) => {
           const start = parseTimeToday(currentSession?.startTime || applicableShift.startTime);
           const end = parseTimeToday(currentSession?.endTime || applicableShift.endTime);
 
-          if (type === 'IN') {
+          if (baseType === 'IN') {
             if (isOvertimeSession) {
               isOvertime = true;
               note = `Overtime check-in`;
-            } else if (start && now > new Date(start.getTime() + graceMinutes * 60000)) {
-              isLate = true;
-              note = `Late by ${Math.round((now - start) / 60000)} min`;
+            } else if (start) {
+              // Check if absent (late beyond threshold)
+              if (now > new Date(start.getTime() + absentThresholdMs)) {
+                isAbsent = true;
+                note = `Absent - Late by ${Math.round((now - start) / 60000)} min beyond threshold (${shiftPlan.absentThresholdMinutes} min)`;
+              } else if (now > new Date(start.getTime() + graceMinutes * 60000)) {
+                isLate = true;
+                note = `Late by ${Math.round((now - start) / 60000)} min`;
+              }
             }
           } else {
             if (isOvertimeSession) {
@@ -274,6 +295,18 @@ export const logAttendance = async (req, res) => {
         }
       } catch (e) { console.warn('Flag computation failed', e.message); }
 
+      // Determine final type based on flags
+      let type = baseType;
+      if (isAbsent) {
+        type = 'ABSENT';
+      } else if (isOvertime) {
+        type = baseType === 'IN' ? 'OT_IN' : 'OT_OUT';
+      } else if (isLate && baseType === 'IN') {
+        type = 'LATE_IN';
+      } else if (isEarlyLeave && baseType === 'OUT') {
+        type = 'EARLY_OUT';
+      }
+
       console.log(`Attendance decision: user=${match.userId} logs=${todayLogs.length} mainShiftLogs=${mainShiftLogsCount} lastType=${lastLogType} type=${type} expected=${expectedLogsPerDay} isOTApproved=${isOTApproved} sessionIndex=${sessionIndex}`);
       log = await AttendanceLog.create({
         userId: match.userId,
@@ -287,11 +320,12 @@ export const logAttendance = async (req, res) => {
         note,
         isLate,
         isEarlyLeave,
+        isAbsent,
         isOvertime,
         imageBase64: imageBase64 || null
       });
 
-      console.log(`Attendance logged: ${match.detectedName} (Distance: ${match.distance.toFixed(3)}) type=${type} flags:${isLate? 'LATE':''}${isEarlyLeave? ' EARLY':''}${isOvertime? ' OT':''}`);
+      console.log(`Attendance logged: ${match.detectedName} (Distance: ${match.distance.toFixed(3)}) type=${type} flags:${isAbsent? 'ABSENT':''}${isLate? ' LATE':''}${isEarlyLeave? ' EARLY':''}${isOvertime? ' OT':''}`);
 
       // Emit real-time update
       emitToRoom('admin', 'attendance-update', {
@@ -301,6 +335,7 @@ export const logAttendance = async (req, res) => {
         timestamp: now,
         isLate,
         isEarlyLeave,
+        isAbsent,
         isOvertime
       });
 
@@ -324,7 +359,7 @@ export const logAttendance = async (req, res) => {
         finished,
         nextType,
         expectedLogsPerDay: expectedLogsPerDayAfterLog,
-        flags: { isLate, isEarlyLeave, isOvertime },
+        flags: { isAbsent, isLate, isEarlyLeave, isOvertime },
         shiftId: linkedShiftId,
         avatarUrl
       });
