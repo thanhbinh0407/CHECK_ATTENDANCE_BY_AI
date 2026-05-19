@@ -23,15 +23,15 @@ const PERIOD_START = new Date('2025-01-01T00:00:00.000Z');
 const ATTENDANCE_LOG_THROUGH = new Date(Date.UTC(2026, 11, 31, 23, 59, 59, 999));
 
 const REQUIRED_COUNTS = {
-  totalEmployees: 150,
-  dependentEmployees: 60,
-  withJobTitle: 90,
-  withoutJobTitle: 60,
+  totalEmployees: 70,
+  dependentEmployees: 40,
+  withJobTitle: 50,
+  withoutJobTitle: 20,
   seniority: {
-    ten_years: 25,
-    five_years: 45,
-    three_years: 40,
-    new_joiner: 40
+    ten_years: 14,
+    five_years: 18,
+    three_years: 18,
+    new_joiner: 20
   }
 };
 
@@ -128,7 +128,7 @@ const DEPENDENT_INDEX_MAP = {
     { fullName: 'Pham Huy Hoang', relationship: 'spouse', gender: 'male', dateOfBirth: '1990-03-12', occupation: 'Small business owner' },
     { fullName: 'Pham Gia Linh', relationship: 'child', gender: 'female', dateOfBirth: '2015-05-19', occupation: 'Student' }
   ],
-  45: [
+  39: [
     { fullName: 'Hoang Thi Minh', relationship: 'parent', gender: 'female', dateOfBirth: '1965-07-04', occupation: 'Retired' }
   ]
 };
@@ -332,18 +332,22 @@ function buildEmployeeProfiles() {
     if (seniorityBand === 'five_years') contractType = ['3_year', '3_year', '3_year', '1_year', '3_year', '1_year', '1_year', '3_year', '1_year', '1_year', '1_year', '1_year', '1_year', '1_year', '1_year'][indexInBand];
     if (seniorityBand === 'new_joiner') contractType = 'probation';
 
-    const dependents = DEPENDENT_INDEX_MAP[i]
-      ? DEPENDENT_INDEX_MAP[i]
-      : (dependentEmployeesGenerated < REQUIRED_COUNTS.dependentEmployees
-        ? [{
-          fullName: `${deterministicName(i + 200)} Relative`,
-          relationship: i % 3 === 0 ? 'child' : (i % 3 === 1 ? 'spouse' : 'parent'),
-          gender: i % 2 === 0 ? 'female' : 'male',
-          dateOfBirth: i % 3 === 0 ? '2017-08-10' : '1991-04-10',
-          occupation: i % 3 === 0 ? 'Student' : 'Office staff'
-        }]
-        : []);
-    if (dependents.length > 0) dependentEmployeesGenerated += 1;
+    let dependents;
+    if (DEPENDENT_INDEX_MAP[i]) {
+      dependents = DEPENDENT_INDEX_MAP[i];
+      dependentEmployeesGenerated += 1;
+    } else if (dependentEmployeesGenerated < REQUIRED_COUNTS.dependentEmployees) {
+      dependents = [{
+        fullName: `${deterministicName(i + 200)} Relative`,
+        relationship: i % 3 === 0 ? 'child' : (i % 3 === 1 ? 'spouse' : 'parent'),
+        gender: i % 2 === 0 ? 'female' : 'male',
+        dateOfBirth: i % 3 === 0 ? '2017-08-10' : '1991-04-10',
+        occupation: i % 3 === 0 ? 'Student' : 'Office staff'
+      }];
+      dependentEmployeesGenerated += 1;
+    } else {
+      dependents = [];
+    }
 
     profiles.push({
       index: i,
@@ -1196,8 +1200,8 @@ async function seedDB() {
     // Extra approved leave in April 2026 (reference month) for realistic monthly report demos
     const april2026LeaveDemo = [
       { empIdx: 12, start: new Date('2026-04-14T00:00:00.000Z'), end: new Date('2026-04-15T00:00:00.000Z'), days: 2 },
-      { empIdx: 47, start: new Date('2026-04-21T00:00:00.000Z'), end: new Date('2026-04-21T00:00:00.000Z'), days: 1 },
-      { empIdx: 88, start: new Date('2026-04-28T00:00:00.000Z'), end: new Date('2026-04-29T00:00:00.000Z'), days: 2 }
+      { empIdx: 27, start: new Date('2026-04-21T00:00:00.000Z'), end: new Date('2026-04-21T00:00:00.000Z'), days: 1 },
+      { empIdx: 53, start: new Date('2026-04-28T00:00:00.000Z'), end: new Date('2026-04-29T00:00:00.000Z'), days: 2 }
     ];
     for (const row of april2026LeaveDemo) {
       const emp = employees[row.empIdx];
@@ -2158,49 +2162,49 @@ async function seedDB() {
     };
 
     // February 2026 — filter preset "month 2 / year 2026" or range inside Feb
-    await applyTurnoverExit('EMP120', 'resigned', 2026, 1, 12);
-    await applyTurnoverNewHire('EMP121', 2026, 1, 22);
+    await applyTurnoverExit('EMP060', 'resigned', 2026, 1, 12);
+    await applyTurnoverNewHire('EMP061', 2026, 1, 22);
 
     // March 2026 — distinct from April; good for "March only" vs "Apr only" vs spanning Mar–Apr
-    await applyTurnoverExit('EMP131', 'resigned', 2026, 2, 6);
-    await applyTurnoverExit('EMP132', 'terminated', 2026, 2, 14);
-    await applyTurnoverExit('EMP133', 'resigned', 2026, 2, 26);
-    await applyTurnoverNewHire('EMP128', 2026, 2, 5);
-    await applyTurnoverNewHire('EMP129', 2026, 2, 16);
-    await applyTurnoverNewHire('EMP130', 2026, 2, 27);
+    await applyTurnoverExit('EMP062', 'resigned', 2026, 2, 6);
+    await applyTurnoverExit('EMP063', 'terminated', 2026, 2, 14);
+    await applyTurnoverExit('EMP064', 'resigned', 2026, 2, 26);
+    await applyTurnoverNewHire('EMP065', 2026, 2, 5);
+    await applyTurnoverNewHire('EMP066', 2026, 2, 16);
+    await applyTurnoverNewHire('EMP067', 2026, 2, 27);
 
     // April 2026 — primary demo window (e.g. 2026-03-31 … 2026-04-29)
     const turnoverExit = [
-      { code: 'EMP141', status: 'resigned', day: 7 },
-      { code: 'EMP142', status: 'resigned', day: 11 },
-      { code: 'EMP143', status: 'resigned', day: 15 },
-      { code: 'EMP144', status: 'terminated', day: 18 },
-      { code: 'EMP145', status: 'terminated', day: 22 },
-      { code: 'EMP146', status: 'resigned', day: 25 },
+      { code: 'EMP068', status: 'resigned', day: 7 },
+      { code: 'EMP069', status: 'resigned', day: 11 },
+      { code: 'EMP070', status: 'terminated', day: 15 },
+      { code: 'EMP057', status: 'terminated', day: 18 },
+      { code: 'EMP058', status: 'terminated', day: 22 },
+      { code: 'EMP059', status: 'resigned', day: 25 },
     ];
     for (const row of turnoverExit) {
       await applyTurnoverExit(row.code, row.status, 2026, 3, row.day);
     }
     const turnoverNewHires = [
-      { code: 'EMP147', day: 4 },
-      { code: 'EMP148', day: 11 },
-      { code: 'EMP149', day: 18 },
-      { code: 'EMP150', day: 24 },
+      { code: 'EMP060', day: 4 },
+      { code: 'EMP062', day: 11 },
+      { code: 'EMP063', day: 18 },
+      { code: 'EMP064', day: 24 },
     ];
     for (const row of turnoverNewHires) {
       await applyTurnoverNewHire(row.code, 2026, 3, row.day);
     }
 
     // May 2026 — filter "May / 2026" or ranges that exclude April
-    await applyTurnoverNewHire('EMP126', 2026, 4, 6);
-    await applyTurnoverExit('EMP127', 'terminated', 2026, 4, 19);
+    await applyTurnoverNewHire('EMP057', 2026, 4, 6);
+    await applyTurnoverExit('EMP058', 'terminated', 2026, 4, 19);
 
     // Boundary: last day of March + first day of April (cross-month range tests)
-    await applyTurnoverExit('EMP134', 'resigned', 2026, 2, 31);
-    await applyTurnoverNewHire('EMP135', 2026, 3, 1);
+    await applyTurnoverExit('EMP055', 'resigned', 2026, 2, 31);
+    await applyTurnoverNewHire('EMP056', 2026, 3, 1);
 
     const turnoverDemoNote =
-      'Feb(120/121) + Mar(128-133) + Apr(141-150) + May(126/127) + boundary Mar31/Apr1(134/135)';
+      'Feb(060/061) + Mar(062-067) + Apr(068-070/057-059/060-064) + May(057/058) + boundary Mar31/Apr1(055/056)';
     console.log(`   HR reports (turnover demo): ${turnoverDemoNote}`);
 
     // Summary
@@ -2226,7 +2230,7 @@ async function seedDB() {
     console.log('   HR Staff:   hr@company.com / HR@12345');
     console.log('   Supervisor: supervisor@company.com / Supervisor@12345');
     console.log('   Accountant: accountant@company.com / Accountant@12345');
-    console.log('   Employees:  emp001@company.com to emp150@company.com / Password123!');
+    console.log('   Employees:  emp001@company.com to emp070@company.com / Password123!');
     console.log('\nAll employees have diverse deterministic data covering key system features.');
 
     process.exit(0);

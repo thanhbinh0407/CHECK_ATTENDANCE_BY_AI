@@ -3,6 +3,7 @@ import User from "../models/pg/User.js";
 import AttendanceLog from "../models/pg/AttendanceLog.js";
 import sequelize from "../db/sequelize.js";
 import { Op } from "sequelize";
+import { emitToRoom } from "../socket.js";
 
 // Check and notify contract expiration
 export const checkContractExpiration = async () => {
@@ -76,6 +77,8 @@ export const checkContractExpiration = async () => {
           read: false
         });
 
+        emitToRoom(`user-${employee.id}`, 'force-logout', { reason: 'Contract expired' });
+
         for (const managerId of managerIds) {
           await Notification.create({
             userId: managerId,
@@ -114,6 +117,83 @@ export const checkContractExpiration = async () => {
     console.log(`[Notification Service] Contract check complete. ${notified} expiring, ${deactivated} deactivated.`);
   } catch (error) {
     console.error("[Notification Service] Error checking contract expiration:", error);
+  }
+};
+
+export const expireContractsIfNeeded = async () => {
+  const parseDate = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const calculateContractEndDate = (contractType, startDate) => {
+    const hireDate = parseDate(startDate);
+    if (!hireDate || !contractType) return null;
+    const endDate = new Date(hireDate);
+    switch (contractType) {
+      case 'probation_1_month':
+        endDate.setMonth(endDate.getMonth() + 1);
+        break;
+      case 'probation_2_month':
+        endDate.setMonth(endDate.getMonth() + 2);
+        break;
+      case 'probation_3_month':
+        endDate.setMonth(endDate.getMonth() + 3);
+        break;
+      case 'formal_1_year':
+        endDate.setFullYear(endDate.getFullYear() + 1);
+        break;
+      case 'formal_2_year':
+        endDate.setFullYear(endDate.getFullYear() + 2);
+        break;
+      case 'formal_3_year':
+        endDate.setFullYear(endDate.getFullYear() + 3);
+        break;
+      default:
+        return null;
+    }
+    return endDate;
+  };
+
+  try {
+    const today = new Date();
+    const msPerDay = 24 * 60 * 60 * 1000;
+
+    const activeContracts = await User.findAll({
+      where: {
+        contractType: { [Op.ne]: null },
+        employmentStatus: 'active',
+        isActive: true,
+        startDate: { [Op.ne]: null }
+      }
+    });
+
+    let expiredCount = 0;
+    for (const employee of activeContracts) {
+      const contractEndDate = calculateContractEndDate(employee.contractType, employee.startDate);
+      if (!contractEndDate) continue;
+
+      const daysUntilExpiration = Math.ceil((contractEndDate - today) / msPerDay);
+      if (daysUntilExpiration < 0) {
+        await employee.update({ isActive: false, employmentStatus: 'terminated' });
+        await Notification.create({
+          userId: employee.id,
+          type: 'contract_expired',
+          title: 'Contract expired',
+          message: `Your ${employee.contractType} contract expired on ${contractEndDate.toLocaleDateString('en-US')}. The account is now deactivated.`,
+          read: false
+        });
+        emitToRoom(`user-${employee.id}`, 'force-logout', { reason: 'Contract expired' });
+        expiredCount += 1;
+      }
+    }
+
+    if (expiredCount > 0) {
+      console.log(`[Notification Service] Forced logout for ${expiredCount} expired contract(s).`);
+    }
+  } catch (error) {
+    console.error("[Notification Service] Error expiring contracts:", error);
   }
 };
 

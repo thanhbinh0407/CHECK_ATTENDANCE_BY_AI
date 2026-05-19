@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import { getPermissionsByRole } from "../config/permissionMatrix.js";
 import User from "../models/pg/User.js";
 import { isEmployeeLoginAllowed } from "../utils/contractStatus.js";
+import { emitToRoom } from "../socket.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 const LOGIN_DENIED_CONTRACT_MESSAGE = "Your contract has expired or has been suspended/terminated.";
@@ -52,6 +53,7 @@ export const authMiddleware = (req, res, next) => {
         }
 
         if (!isEmployeeLoginAllowed(dbUser)) {
+          emitToRoom(`user-${resolvedId}`, 'force-logout', { reason: 'Contract expired or suspended' });
           return res.status(403).json({
             status: "error",
             message: LOGIN_DENIED_CONTRACT_MESSAGE,
