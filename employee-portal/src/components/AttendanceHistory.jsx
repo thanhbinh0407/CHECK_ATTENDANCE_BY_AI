@@ -181,11 +181,14 @@ export default function AttendanceHistory({ userId, refreshVersion }) {
         logs: []
       };
 
-      if (log.type === "IN") {
+      const isCheckInType = ["IN", "LATE_IN", "OT_IN"].includes(log.type);
+      const isCheckOutType = ["OUT", "EARLY_OUT", "OT_OUT"].includes(log.type);
+
+      if (isCheckInType) {
         if (!existingShift.checkIn || new Date(log.timestamp) < new Date(existingShift.checkIn.timestamp)) {
           existingShift.checkIn = log;
         }
-      } else {
+      } else if (isCheckOutType) {
         if (!existingShift.checkOut || new Date(log.timestamp) > new Date(existingShift.checkOut.timestamp)) {
           existingShift.checkOut = log;
         }

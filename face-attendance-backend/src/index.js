@@ -198,7 +198,7 @@ try {
 
 // Setup scheduled tasks for notifications
 import { checkLateArrivals } from "./controllers/notificationController.js";
-import { checkContractExpiration, notifyBirthdays, notifyWorkAnniversaries } from "./services/notificationService.js";
+import { checkContractExpiration, expireContractsIfNeeded, notifyBirthdays, notifyWorkAnniversaries } from "./services/notificationService.js";
 import { performAutoCheckout } from "./services/autoCheckoutService.js";
 // Check for late arrivals every hour
 setInterval(async () => {
@@ -217,6 +217,15 @@ setInterval(async () => {
     console.error("Error checking contract expiration:", err);
   }
 }, 24 * 60 * 60 * 1000); // Every 24 hours
+
+// Enforce expired contract logout in near-real time
+setInterval(async () => {
+  try {
+    await expireContractsIfNeeded();
+  } catch (err) {
+    console.error("Error expiring contracts:", err);
+  }
+}, 5 * 1000); // Every 5 seconds
 
 // Check birthdays and anniversaries daily at 8 AM
 setInterval(async () => {

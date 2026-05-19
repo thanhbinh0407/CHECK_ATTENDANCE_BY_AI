@@ -601,6 +601,7 @@ function AttendanceScanner() {
     const sortedLogs = [...attendanceLogs].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
     sortedLogs.forEach((log) => {
       const label = log.shiftLabel || 'Shift 1';
+      const isOvertimeLog = /overtime/i.test(label);
       let group = groups.find((g) => g.shiftLabel === label);
       if (!group) {
         group = {
@@ -616,8 +617,8 @@ function AttendanceScanner() {
         groups.push(group);
       }
       group.logs.push(log);
-      if (log.type === 'IN') group.checkIn = log;
-      if (log.type === 'OUT') group.checkOut = log;
+      if (log.type === 'IN' || (isOvertimeLog && log.type === 'OT_IN')) group.checkIn = log;
+      if (log.type === 'OUT' || (isOvertimeLog && log.type === 'OT_OUT')) group.checkOut = log;
       if (log.type === 'ABSENT') group.isAbsent = true;
       if (!group.overtimeRequestStatus && log.overtimeRequestStatus) {
         group.overtimeRequestStatus = log.overtimeRequestStatus;
@@ -2899,6 +2900,24 @@ function AttendanceScanner() {
                                   fontWeight: 700
                                 }}>
                                   Absent
+                                </div>
+                              ) : isOvertimeGroup && group.overtimeRequestStatus ? (
+                                <div style={{
+                                  fontSize: "14px",
+                                  color: "#1d4ed8",
+                                  fontWeight: 700
+                                }}>
+                                  {group.overtimeRequestStatus === 'approved'
+                                    ? 'Approved OT request'
+                                    : 'Pending OT request'}
+                                </div>
+                              ) : isOvertimeGroup && group.logs?.find((item) => item.note) ? (
+                                <div style={{
+                                  fontSize: "14px",
+                                  color: "#475569",
+                                  fontWeight: 600
+                                }}>
+                                  {group.logs.find((item) => item.note).note}
                                 </div>
                               ) : (
                                 <div style={{

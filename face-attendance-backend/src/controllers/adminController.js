@@ -440,6 +440,9 @@ export const updateEmployee = async (req, res) => {
     const oldEmploymentStatus = employee.employmentStatus || null;
     const newEmploymentStatus = updateData.employmentStatus !== undefined ? updateData.employmentStatus : oldEmploymentStatus;
     const employmentStatusChanged = oldEmploymentStatus !== newEmploymentStatus;
+    const oldActive = !!employee.isActive;
+    const newActive = updateData.isActive !== undefined ? !!updateData.isActive : oldActive;
+    const activationChanged = oldActive !== newActive;
 
     // Allow contract type renewal/upgrade if start date remains the same
     // Only block if start date changes while contract is still effective
@@ -606,9 +609,14 @@ export const updateEmployee = async (req, res) => {
         { employeeId: employee.id, changeType: 'salary', type: getSalaryChangeType() });
     }
 
-    // Force logout if employment status changed to suspended
-    if (employmentStatusChanged && String(newEmploymentStatus).toLowerCase() === 'suspended') {
-      emitToRoom(`user-${employee.id}`, 'force-logout', { reason: 'Contract suspended' });
+    const normalizedEmploymentStatus = String(newEmploymentStatus || '').toLowerCase();
+    if (
+      activationChanged && !newActive ||
+      employmentStatusChanged && ['suspended', 'terminated', 'resigned'].includes(normalizedEmploymentStatus)
+    ) {
+      emitToRoom(`user-${employee.id}`, 'force-logout', {
+        reason: !newActive ? 'Account deactivated' : `Contract ${normalizedEmploymentStatus}`,
+      });
     }
 
     return res.json({
@@ -2036,6 +2044,7 @@ export const getHrAttendanceLogs = async (req, res) => {
       departmentId,
       type,
       search,
+      matchStatus,
       limit = 50,
       offset = 0
     } = req.query;
@@ -2069,6 +2078,13 @@ export const getHrAttendanceLogs = async (req, res) => {
       where.type = type.toUpperCase();
     }
 
+    // Match status filter
+    if (matchStatus === 'matched') {
+      where.userId = { [Op.ne]: null };
+    } else if (matchStatus === 'unmatched') {
+      where.userId = null;
+    }
+
     // Department filter (join with User)
     let include = [];
     if (departmentId) {
@@ -2088,9 +2104,12 @@ export const getHrAttendanceLogs = async (req, res) => {
 
     // Search filter
     if (search) {
+      const searchTerm = `%${search}%`;
       where[Op.or] = [
-        { '$User.name$': { [Op.iLike]: `%${search}%` } },
-        { '$User.employeeCode$': { [Op.iLike]: `%${search}%` } }
+        { '$User.name$': { [Op.iLike]: searchTerm } },
+        { '$User.employeeCode$': { [Op.iLike]: searchTerm } },
+        { deviceId: { [Op.iLike]: searchTerm } },
+        { detectedName: { [Op.iLike]: searchTerm } }
       ];
       if (!include.length) {
         include.push({

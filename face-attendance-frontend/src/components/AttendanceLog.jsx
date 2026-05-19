@@ -735,7 +735,7 @@ export default function AttendanceLog() {
                       color: "#495057",
                       textTransform: "uppercase",
                       letterSpacing: "0.04em"
-                    }}>Dist.</th>
+                    }}>Auto checkout</th>
                     <th style={{
                       padding: "8px 10px",
                       textAlign: "left",
@@ -857,7 +857,7 @@ export default function AttendanceLog() {
                           }}>
                             {typeLabel}
                           </span>
-                          {log.type === 'OT_OUT' && log.isAuto && (
+                          {log.isAuto && (
                             <span style={{
                               backgroundColor: "#dc3545",
                               color: "#fff",
@@ -886,10 +886,10 @@ export default function AttendanceLog() {
                           padding: "8px 10px",
                           textAlign: "center",
                           fontSize: "12px",
-                          color: "#666",
-                          fontFamily: "monospace"
+                          fontWeight: "600",
+                          color: log.isAuto ? "#155724" : "#495057",
                         }}>
-                          {log.matchDistance != null ? log.matchDistance.toFixed(3) : "—"}
+                          {log.isAuto ? "AUTO" : "MANUAL"}
                         </td>
                         <td style={{
                           padding: "8px 10px",

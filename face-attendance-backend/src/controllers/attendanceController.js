@@ -16,6 +16,14 @@ const formatLocalDate = (date) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+export const parseTimeToday = (timeStr, baseDate = new Date()) => {
+  if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) return null;
+  const [hh, mm] = timeStr.split(':').map(Number);
+  const d = new Date(baseDate);
+  d.setHours(hh, mm, 0, 0);
+  return d;
+};
+
 export const parseShiftPlan = (shift) => {
   const fallbackMainShifts = [{ startTime: shift?.startTime || '08:00', endTime: shift?.endTime || '17:00' }];
   const fallback = {
@@ -56,12 +64,13 @@ export const parseShiftPlan = (shift) => {
 };
 
 export const nextTypeFromCount = (count, lastType = null) => {
-  // Extract base type (IN or OUT) from complex types
+  // Extract base type (IN or OUT) from complex types.
+  // ABSENT means the whole shift was skipped, so the next action should
+  // be the start of the next shift (IN) rather than an OUT for the same shift.
   let baseLastType = lastType;
   if (lastType) {
     if (lastType === 'ABSENT') {
-      // If last was ABSENT, still expect OUT as next (since IN was skipped)
-      return 'OUT';
+      return 'IN';
     } else if (lastType.startsWith('OT_')) {
       baseLastType = lastType.substring(3); // 'OT_IN' -> 'IN', 'OT_OUT' -> 'OUT'
     } else if (lastType === 'LATE_IN') {
@@ -342,7 +351,7 @@ export const logAttendance = async (req, res) => {
       const expectedLogsPerDayAfterLog = expectedLogsPerDay;
       const nextCount = todayLogs.length + 1;
       const finished = nextCount >= expectedLogsPerDayAfterLog;
-      const nextType = finished ? null : nextTypeFromCount(nextCount);
+      const nextType = finished ? null : nextTypeFromCount(nextCount, type);
       const avatarUrl = await userAvatarUrl(match.userId);
 
       return res.json({
@@ -735,10 +744,73 @@ export const matchFace = async (req, res) => {
         order: [['id', 'DESC']]
       });
       const isOTApproved = overtimeRequest?.approvalStatus === 'approved';
+      const absentThresholdMs = (shiftPlan.absentThresholdMinutes || 15) * 60000;
+
+      const shiftBoundaries = shiftPlan.mainShifts.map((shift) => ({
+        start: parseTimeToday(shift.startTime, now),
+        end: parseTimeToday(shift.endTime, now),
+      }));
+
+      const shiftBoundaryMarkers = shiftBoundaries.reduce((markers, shift, index) => {
+        if (index === 0) return markers;
+        const prev = shiftBoundaries[index - 1];
+        if (prev.end && shift.start) {
+          markers.push(new Date(Math.round((prev.end.getTime() + shift.start.getTime()) / 2)));
+        }
+        return markers;
+      }, []);
+
+      const assignMainShiftIndex = (timestamp) => {
+        if (!timestamp || shiftPlan.mainShifts.length === 0) return 0;
+        const ts = timestamp.getTime();
+        if (shiftBoundaryMarkers.length === 0) return 0;
+        if (ts <= shiftBoundaryMarkers[0].getTime()) return 0;
+        for (let i = 1; i < shiftBoundaryMarkers.length; i += 1) {
+          if (ts <= shiftBoundaryMarkers[i].getTime()) return i;
+        }
+        return shiftPlan.mainShifts.length - 1;
+      };
+
+      const allMainShiftFinalized = shiftPlan.mainShifts.every((shift, idx) => {
+        const start = parseTimeToday(shift.startTime, now);
+        const shiftLogs = logsToday.filter((log) => {
+          if (!log.type) return false;
+          if (log.type.startsWith('OT_')) return false;
+          return assignMainShiftIndex(new Date(log.timestamp)) === idx;
+        });
+        return (
+          shiftLogs.length > 0 ||
+          (start && now.getTime() > start.getTime() + absentThresholdMs)
+        );
+      });
 
       expectedLogsPerDay = (shiftPlan.mainShifts.length * 2) + (isOTApproved ? 2 : 0);
-      finished = logsToday.length >= expectedLogsPerDay;
-      nextType = finished ? null : nextTypeFromCount(logsToday.length);
+      if (allMainShiftFinalized && !isOTApproved) {
+        finished = true;
+        nextType = null;
+      } else if (allMainShiftFinalized && isOTApproved) {
+        const otLogs = logsToday.filter((log) => /^OT_/.test(log.type || ''));
+        if (otLogs.length === 0) {
+          finished = false;
+          nextType = 'OT_IN';
+        } else {
+          const lastOtLog = otLogs[otLogs.length - 1];
+          if (lastOtLog.type === 'OT_IN') {
+            finished = false;
+            nextType = 'OT_OUT';
+          } else if (lastOtLog.type === 'OT_OUT') {
+            finished = true;
+            nextType = null;
+          } else {
+            finished = false;
+            nextType = 'OT_IN';
+          }
+        }
+      } else {
+        finished = logsToday.length >= expectedLogsPerDay;
+        const lastType = logsToday.length ? logsToday[logsToday.length - 1].type : null;
+        nextType = finished ? null : nextTypeFromCount(logsToday.length, lastType);
+      }
     }
 
     return res.json({

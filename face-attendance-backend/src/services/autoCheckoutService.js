@@ -116,14 +116,14 @@ export const performAutoCheckout = async () => {
         for (const [userId, logs] of Object.entries(userLogs)) {
           if (!approvedUserIds.has(parseInt(userId))) continue;
 
-          const overtimeLogs = logs.filter((log) => Boolean(log.isOvertime));
-          if (overtimeLogs.length === 1 && overtimeLogs[0].type === 'IN' && overtimeLogs[0].timestamp < otAutoCheckoutTime) {
+          const overtimeLogs = logs.filter((log) => Boolean(log.isOvertime) && ['IN', 'OT_IN'].includes(log.type));
+          if (overtimeLogs.length === 1 && overtimeLogs[0].timestamp < otAutoCheckoutTime) {
             await AttendanceLog.create({
               userId: parseInt(userId),
               detectedName: 'Auto checkout',
               confidence: 1.0,
               matchDistance: 0,
-              type: 'OUT',
+              type: 'OT_OUT',
               timestamp: otAutoCheckoutTime,
               note: `Auto check-out after overtime end ${shiftPlan.overtimeEnd} + ${graceMinutes}min grace period`,
               shiftId: shift.id,
