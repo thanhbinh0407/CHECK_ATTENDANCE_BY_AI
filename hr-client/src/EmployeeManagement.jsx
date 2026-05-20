@@ -418,6 +418,78 @@ function AnnualLeaveConfigModal({ form, setField, onClose, onSave, saving, baseD
   );
 }
 
+// ─── Maternity Leave Modal ────────────────────────────────────────────────────
+function MaternityLeaveModal({ employee, form, setForm, onClose, onConfirm, saving }) {
+  if (!employee) return null;
+
+  const startDate = new Date(form.startDate);
+  const endDate = new Date(startDate);
+  endDate.setMonth(endDate.getMonth() + 6);
+  const endDateStr = form.startDate ? endDate.toLocaleDateString() : '—';
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ width: 440 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Maternity Leave Suspension</h3>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+
+        <p style={{ color: '#4a5568', marginBottom: 16, fontSize: 13 }}>
+          Suspend account for <strong>{employee.name}</strong> ({employee.employeeCode}) due to maternity leave.
+          Account will be automatically reactivated after the suspension period ends.
+        </p>
+
+        <div className="form-group" style={{ marginBottom: 16 }}>
+          <label>Start date (ngày bắt đầu) *</label>
+          <input
+            required
+            type="date"
+            value={form.startDate}
+            onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+            disabled={saving}
+          />
+        </div>
+
+        <div style={{
+          padding: 12,
+          background: '#f0f9ff',
+          border: '1px solid #e0f2fe',
+          borderRadius: 6,
+          marginBottom: 16,
+          fontSize: 13,
+          color: '#0369a1',
+        }}>
+          <strong>End date (ngày kết thúc):</strong> {endDateStr}
+          <br />
+          <small style={{ color: '#0c4a6e' }}>
+            (6 months from start date)
+          </small>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={onConfirm}
+            disabled={saving || !form.startDate}
+          >
+            {saving ? 'Suspending...' : 'Confirm Suspension'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RoleBadge({ role }) {
   const meta = ROLE_META[role] || ROLE_META.employee;
   return (
@@ -484,6 +556,14 @@ export default function EmployeeManagement({ token, user }) {
     additionalEvery5Years: annualLeaveAdditionalEvery5Years,
   });
 
+  // ── maternity leave suspension ──
+  const [maternityEmployee, setMaternityEmployee] = useState(null);
+  const [maternityForm, setMaternityForm] = useState({
+    startDate: '',
+    reason: 'maternity_leave', // mặc định là thai sản
+  });
+  const [maternitySaving, setMaternitySaving] = useState(false);
+
   const isManager = user?.role === 'manager';
   const actorId = user?.id ?? user?.userId ?? null;
 
@@ -496,6 +576,8 @@ export default function EmployeeManagement({ token, user }) {
   const isEmployeeInactive = useCallback((employee) => {
     if (!employee) return false;
     const st = String(employee.employmentStatus || '').toLowerCase();
+    // Maternity leave không tính là inactive - tài khoản vẫn hoạt động được
+    if (st === 'maternity_leave') return false;
     return employee.isActive === false || st === 'suspended' || st === 'terminated' || st === 'resigned';
   }, []);
 
@@ -877,6 +959,44 @@ export default function EmployeeManagement({ token, user }) {
     }
   };
 
+  const handleMaternityLeave = async () => {
+    if (!maternityEmployee || !maternityForm.startDate) {
+      toastError('Please select start date');
+      return;
+    }
+
+    setMaternitySaving(true);
+    try {
+      const startDate = new Date(maternityForm.startDate);
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + 6); // Add 6 months
+
+      const res = await fetch(`${API}/admin/employees/${maternityEmployee.id}`, {
+        method: 'PUT',
+        headers: authHeaders(token),
+        body: JSON.stringify({
+          employmentStatus: 'maternity_leave',
+          maternityStartDate: maternityForm.startDate,
+          maternityEndDate: endDate.toISOString().split('T')[0],
+          lastUpdatedBy: actorId,
+        }),
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        setMaternityEmployee(null);
+        setMaternityForm({ startDate: '', reason: 'maternity_leave' });
+        load();
+        toastSuccess(`Maternity leave activated for ${maternityEmployee.name} (${maternityEmployee.employeeCode}). Suspended until ${endDate.toLocaleDateString()}`);
+      } else {
+        toastError(data.message || 'Error applying maternity leave');
+      }
+    } catch (err) {
+      toastError('Cannot connect to server: ' + err.message);
+    } finally {
+      setMaternitySaving(false);
+    }
+  };
+
   const resetPassword = async (emp) => {
     const ok = await toastConfirm({ message: `Reset password for "${emp.name}" (${emp.employeeCode})?` });
     if (!ok) return;
@@ -1109,7 +1229,11 @@ export default function EmployeeManagement({ token, user }) {
                     </td>
                     <td><RoleBadge role={emp.role} /></td>
                     <td>
-                      {user?.role === 'hr' ? (
+                      {String(emp?.employmentStatus || '').toLowerCase() === 'maternity_leave' ? (
+                        <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', fontWeight: 600 }}>
+                          🤰 Maternity
+                        </span>
+                      ) : user?.role === 'hr' ? (
                         <span style={{ fontWeight: 600, color: '#334155' }}>
                           {getContractDaysLabel(emp)}
                         </span>
@@ -1129,7 +1253,7 @@ export default function EmployeeManagement({ token, user }) {
                         >
                           Details
                         </button>
-                        {listMode !== 'inactive' && (
+                        {listMode !== 'inactive' && user?.role !== 'hr' && (
                           <button
                             type="button"
                             className="btn-tbl btn-tbl-edit"
@@ -1147,6 +1271,17 @@ export default function EmployeeManagement({ token, user }) {
                             title="Reset password (UC-07.4)"
                           >
                             Reset PW
+                          </button>
+                        )}
+                        {canShowAccountLifecycleActions(emp) && !isEmployeeInactive(emp) && (
+                          <button
+                            type="button"
+                            className="btn-tbl btn-tbl-edit"
+                            onClick={() => { setMaternityEmployee(emp); setMaternityForm({ startDate: '', reason: 'maternity_leave' }); }}
+                            title="Suspend for maternity leave (6 months)"
+                            style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
+                          >
+                            Maternity
                           </button>
                         )}
                         {canShowAccountLifecycleActions(emp) && !isEmployeeInactive(emp) && (
@@ -1435,6 +1570,18 @@ export default function EmployeeManagement({ token, user }) {
       {/* UC-07.4 — Password reveal */}
       {newPwInfo && (
         <PasswordRevealModal info={newPwInfo} onClose={() => setNewPwInfo(null)} />
+      )}
+
+      {/* Maternity Leave Modal */}
+      {maternityEmployee && (
+        <MaternityLeaveModal
+          employee={maternityEmployee}
+          form={maternityForm}
+          setForm={setMaternityForm}
+          onClose={() => setMaternityEmployee(null)}
+          onConfirm={handleMaternityLeave}
+          saving={maternitySaving}
+        />
       )}
     </div>
   );

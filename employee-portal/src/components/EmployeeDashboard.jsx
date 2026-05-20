@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import "../employeeDashboard.css";
 
-export default function EmployeeDashboard({ userId, userName, onNavigate }) {
+export default function EmployeeDashboard({ userId, userName, userRole, onNavigate }) {
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
   const now = new Date();
   const [dash, setDash] = useState({
@@ -248,9 +248,11 @@ export default function EmployeeDashboard({ userId, userName, onNavigate }) {
           <button type="button" className="emp-dash-act" onClick={() => go("overtime")}>
             Overtime request
           </button>
-          <button type="button" className="emp-dash-act" onClick={() => go("salary")}>
-            Salary &amp; payslip
-          </button>
+          {userRole !== "employee" && (
+            <button type="button" className="emp-dash-act" onClick={() => go("salary")}>
+              Salary &amp; payslip
+            </button>
+          )}
           <button type="button" className="emp-dash-act" onClick={() => go("account")}>
             Account &amp; password
           </button>

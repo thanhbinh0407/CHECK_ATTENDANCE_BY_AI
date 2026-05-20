@@ -290,6 +290,17 @@ export default function App() {
     };
   }, []);
 
+  // Reset activeTab if it's hidden for current role (e.g., HR staff can't access Attendance)
+  const displayTabs = user?.role === 'hr'
+    ? TABS.filter(tab => tab.key !== 'attendance')
+    : TABS;
+
+  useEffect(() => {
+    if (user && !displayTabs.find(tab => tab.key === activeTab)) {
+      setActiveTab('dashboard');
+    }
+  }, [user?.role]);
+
   const logout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
@@ -331,7 +342,7 @@ export default function App() {
           <h2>HR Portal</h2>
         </div>
         <div className="sidebar-nav">
-          {TABS.map(tab => (
+          {displayTabs.map(tab => (
             <div
               key={tab.key}
               className={`nav-item ${activeTab === tab.key ? 'active' : ''}`}
