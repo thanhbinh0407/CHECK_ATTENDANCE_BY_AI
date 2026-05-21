@@ -591,14 +591,16 @@ function App() {
         >
           Attendance
         </button>
-        <button
-          onClick={() => setActiveTab("salary")}
-          style={tabStyle(activeTab === "salary")}
-          onMouseEnter={(e) => handleTabHover(e, activeTab === "salary")}
-          onMouseLeave={(e) => handleTabLeave(e, activeTab === "salary")}
-        >
-          Salary
-        </button>
+        {user?.role !== "employee" && (
+          <button
+            onClick={() => setActiveTab("salary")}
+            style={tabStyle(activeTab === "salary")}
+            onMouseEnter={(e) => handleTabHover(e, activeTab === "salary")}
+            onMouseLeave={(e) => handleTabLeave(e, activeTab === "salary")}
+          >
+            Salary
+          </button>
+        )}
         <button
           onClick={() => setActiveTab("leave")}
           style={tabStyle(activeTab === "leave")}
@@ -623,14 +625,16 @@ function App() {
         >
           Dependents
         </button>
-        <button
-          onClick={() => setActiveTab("salary-advance")}
-          style={tabStyle(activeTab === "salary-advance")}
-          onMouseEnter={(e) => handleTabHover(e, activeTab === "salary-advance")}
-          onMouseLeave={(e) => handleTabLeave(e, activeTab === "salary-advance")}
-        >
-          Salary Advance
-        </button>
+        {user?.role !== "employee" && (
+          <button
+            onClick={() => setActiveTab("salary-advance")}
+            style={tabStyle(activeTab === "salary-advance")}
+            onMouseEnter={(e) => handleTabHover(e, activeTab === "salary-advance")}
+            onMouseLeave={(e) => handleTabLeave(e, activeTab === "salary-advance")}
+          >
+            Salary Advance
+          </button>
+        )}
         <button
           onClick={() => setActiveTab("overtime")}
           style={tabStyle(activeTab === "overtime")}
@@ -681,10 +685,10 @@ function App() {
       {/* Content */}
       <div style={contentStyle}>
         {activeTab === "dashboard" && (
-          <EmployeeDashboard userId={user?.id} userName={user?.name} onNavigate={setActiveTab} />
+          <EmployeeDashboard userId={user?.id} userName={user?.name} userRole={user?.role} onNavigate={setActiveTab} />
         )}
         {activeTab === "attendance" && <AttendanceHistory userId={user?.id} refreshVersion={portalRefresh.attendance} />}
-        {activeTab === "salary" && <SalaryHistory userId={user?.id} isActive={true} />}
+        {activeTab === "salary" && user?.role !== "employee" && <SalaryHistory userId={user?.id} isActive={true} />}
         {activeTab === "leave" && (
           <LeaveRequest userId={user?.id} refreshVersion={portalRefresh.leave} />
         )}
@@ -694,7 +698,7 @@ function App() {
         {activeTab === "dependents" && (
           <Dependents userId={user?.id} refreshVersion={portalRefresh.dependent} />
         )}
-        {activeTab === "salary-advance" && (
+        {activeTab === "salary-advance" && user?.role !== "employee" && (
           <SalaryAdvanceRequest refreshVersion={portalRefresh.salary_advance} />
         )}
         {activeTab === "overtime" && (

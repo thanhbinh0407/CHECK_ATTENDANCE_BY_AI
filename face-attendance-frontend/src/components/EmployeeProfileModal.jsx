@@ -91,7 +91,19 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   const [attendanceFilter, setAttendanceFilter] = useState(null); // { month, year } | null = auto
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [expandedLeaveId, setExpandedLeaveId] = useState(null); // leave request id whose reason is expanded
+  const [user, setUser] = useState(null);
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      try {
+        setUser(JSON.parse(userData));
+      } catch (error) {
+        console.error("Error parsing user from localStorage:", error);
+      }
+    }
+  }, []);
 
   const parseDate = (value) => {
     if (!value) return null;
@@ -2167,21 +2179,23 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                       )}
                     </div>
 
-                    <div className="epm-field">
-                      <label className="epm-label">Base Salary (VND)</label>
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          value={editForm.baseSalary}
-                          onChange={(e) => setEditForm({ ...editForm, baseSalary: parseFloat(e.target.value) || 0 })}
-                          style={inputStyle}
-                        />
-                      ) : (
-                        <div style={valueStyle}>
-                          {employeeDetails?.baseSalary ? new Intl.NumberFormat('en-US').format(employeeDetails.baseSalary) + " VND" : "-"}
-                        </div>
-                      )}
-                    </div>
+                    {user?.role !== "manager" && (
+                      <div className="epm-field">
+                        <label className="epm-label">Base Salary (VND)</label>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            value={editForm.baseSalary}
+                            onChange={(e) => setEditForm({ ...editForm, baseSalary: parseFloat(e.target.value) || 0 })}
+                            style={inputStyle}
+                          />
+                        ) : (
+                          <div style={valueStyle}>
+                            {employeeDetails?.baseSalary ? new Intl.NumberFormat('en-US').format(employeeDetails.baseSalary) + " VND" : "-"}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="epm-field">
                       <label className="epm-label">Start Date</label>
@@ -2377,6 +2391,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
 
                 </div>
 
+                {user?.role !== "manager" && (
                   <div className="epm-section">
                     <h4 className="epm-section-title">Payroll, allowances & insurance</h4>
                     <div className="epm-fields">
@@ -2504,6 +2519,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                     </div>
                   </div>
                 </div>
+                )}
 
                   {isEditing && (
                     <div style={{ display: "flex", gap: theme.spacing.md, marginTop: theme.spacing.xl }}>
