@@ -2079,10 +2079,13 @@ export const getHrAttendanceLogs = async (req, res) => {
     }
 
     // Match status filter
-    if (matchStatus === 'matched') {
-      where.userId = { [Op.ne]: null };
-    } else if (matchStatus === 'unmatched') {
-      where.userId = null;
+    // If a specific userId is provided, matchStatus is ignored (it's redundant)
+    if (!userId) {
+      if (matchStatus === 'matched') {
+        where.userId = { [Op.ne]: null };
+      } else if (matchStatus === 'unmatched') {
+        where.userId = null;
+      }
     }
 
     // Department filter (join with User)
@@ -2119,21 +2122,43 @@ export const getHrAttendanceLogs = async (req, res) => {
       }
     }
 
-    const { rows, count } = await AttendanceLog.findAndCountAll({
-      where,
-      include,
-      order: [['timestamp', 'DESC']],
-      limit: Math.min(parseInt(limit, 10) || 50, 1000),
-      offset: parseInt(offset, 10) || 0,
-    });
+    const limitInt = parseInt(limit, 10);
+    const offsetInt = parseInt(offset, 10) || 0;
+    let rows, count;
+    if (limitInt === 0) {
+      // Special case: return all matching rows (no pagination)
+      const all = await AttendanceLog.findAndCountAll({
+        where,
+        include,
+        order: [['timestamp', 'DESC']],
+      });
+      rows = all.rows;
+      count = all.count;
+    } else {
+      const numericLimit = Math.min(Math.max(limitInt || 50, 1), 100000);
+      const result = await AttendanceLog.findAndCountAll({
+        where,
+        include,
+        order: [['timestamp', 'DESC']],
+        limit: numericLimit,
+        offset: offsetInt,
+      });
+      rows = result.rows;
+      count = result.count;
+    }
+
+    const numericLimit = Math.min(parseInt(limit, 10) || 50, 1000);
+    const numericOffset = parseInt(offset, 10) || 0;
+    const hasMore = numericOffset + (rows.length || 0) < (count || 0);
 
     return res.json({
       status: "success",
       logs: rows,
       pagination: {
         total: count,
-        limit: Math.min(parseInt(limit, 10) || 50, 1000),
-        offset: parseInt(offset, 10) || 0,
+        limit: numericLimit,
+        offset: numericOffset,
+        hasMore,
       },
     });
   } catch (err) {

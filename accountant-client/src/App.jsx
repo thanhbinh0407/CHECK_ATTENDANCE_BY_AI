@@ -306,7 +306,7 @@ function App() {
   // For accountant role, restrict menu to only Overview
   const displayNavCore = user?.role === "accountant" ? [navCore[0]] : navCore;
 
-  const navAttendance = user?.role === "accountant"
+  const navAttendance = ["accountant", "manager"].includes(user?.role)
     ? [{ id: "attendance-logs", label: "Attendance Logs", icon: "📅" }]
     : [];
 

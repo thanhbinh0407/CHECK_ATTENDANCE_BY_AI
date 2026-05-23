@@ -16,10 +16,19 @@ export default function EmployeeDetailView() {
   const [departments, setDepartments] = useState([]);
   const [jobTitles, setJobTitles] = useState([]);
   const [managers, setManagers] = useState([]);
+  const [user, setUser] = useState(null);
 
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
   useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      try {
+        setUser(JSON.parse(userData));
+      } catch (error) {
+        console.error("Error parsing user from localStorage:", error);
+      }
+    }
     fetchEmployees();
     fetchDepartments();
     fetchJobTitles();
@@ -380,7 +389,7 @@ export default function EmployeeDetailView() {
 
               {/* Tabs */}
               <div style={{ display: "flex", borderBottom: `1px solid ${theme.neutral.gray200}` }}>
-                {["info", "attendance", "leave", "salary"].map((tab) => (
+                {["info", "attendance", "leave", ...(user?.role !== "manager" ? ["salary"] : [])].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -523,20 +532,22 @@ export default function EmployeeDetailView() {
                               ))}
                             </select>
                           </div>
-                          <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Base Salary (VND)</label>
-                            <input
-                              type="number"
-                              value={editForm.baseSalary}
-                              onChange={(e) => setEditForm({ ...editForm, baseSalary: parseFloat(e.target.value) || 0 })}
-                              style={{
-                                width: "100%",
-                                padding: theme.spacing.md,
-                                border: `1px solid ${theme.neutral.gray300}`,
-                                borderRadius: theme.radius.md
-                              }}
-                            />
-                          </div>
+                          {user?.role !== "manager" && (
+                            <div>
+                              <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Base Salary (VND)</label>
+                              <input
+                                type="number"
+                                value={editForm.baseSalary}
+                                onChange={(e) => setEditForm({ ...editForm, baseSalary: parseFloat(e.target.value) || 0 })}
+                                style={{
+                                  width: "100%",
+                                  padding: theme.spacing.md,
+                                  border: `1px solid ${theme.neutral.gray300}`,
+                                  borderRadius: theme.radius.md
+                                }}
+                              />
+                            </div>
+                          )}
                           <div>
                             <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Start Date</label>
                             <input
@@ -913,17 +924,21 @@ export default function EmployeeDetailView() {
                           </p>
                         </div>
 
-                        <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Salary Grade:</label>
-                          <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.SalaryGrade?.name || selectedEmployeeForModal.salaryGrade || "Not updated"}</p>
-                        </div>
+                        {user?.role !== "manager" && (
+                          <>
+                            <div>
+                              <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Salary Grade:</label>
+                              <p style={{ margin: 0, color: theme.neutral.gray600 }}>{selectedEmployeeForModal.SalaryGrade?.name || selectedEmployeeForModal.salaryGrade || "Not updated"}</p>
+                            </div>
 
-                        <div>
-                          <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Base Salary:</label>
-                          <p style={{ margin: 0, color: theme.neutral.gray600, fontWeight: "600" }}>
-                            ₫{selectedEmployeeForModal.baseSalary?.toLocaleString("en-US") || "0"}
-                          </p>
-                        </div>
+                            <div>
+                              <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Base Salary:</label>
+                              <p style={{ margin: 0, color: theme.neutral.gray600, fontWeight: "600" }}>
+                                ₫{selectedEmployeeForModal.baseSalary?.toLocaleString("en-US") || "0"}
+                              </p>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -946,7 +961,7 @@ export default function EmployeeDetailView() {
                 )}
 
                 {/* Salary Tab */}
-                {activeTab === "salary" && selectedEmployeeForModal && (
+                {activeTab === "salary" && selectedEmployeeForModal && user?.role !== "manager" && (
                   <div>
                     <h3 style={{ color: theme.primary.main, marginBottom: theme.spacing.lg }}>Salary History</h3>
                     <p style={{ color: theme.neutral.gray500 }}>Feature under development...</p>

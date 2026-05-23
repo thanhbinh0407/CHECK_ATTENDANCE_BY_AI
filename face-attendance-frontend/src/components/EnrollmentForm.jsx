@@ -37,6 +37,7 @@ export default function EnrollmentForm() {
   const [detectedFaceCount, setDetectedFaceCount] = useState(0);
   const [jobTitles, setJobTitles] = useState([]);
   const [jobTitlesLoading, setJobTitlesLoading] = useState(false);
+  const [user, setUser] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
     idNumber: "",
@@ -91,6 +92,18 @@ export default function EnrollmentForm() {
   // Load face detection models
   useEffect(() => {
     loadModels();
+  }, []);
+
+  // Load user from localStorage
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      try {
+        setUser(JSON.parse(userData));
+      } catch (error) {
+        console.error("Error parsing user from localStorage:", error);
+      }
+    }
   }, []);
   
   // Validation functions
@@ -912,32 +925,36 @@ export default function EnrollmentForm() {
               </select>
             </div>
 
-            {/* Base Salary */}
-            <div style={{ marginBottom: "14px" }}>
-              <label style={labelStyle}>
-                <span style={{ fontSize: "15px" }}>💰</span>
-                <span>Base Salary (VND) *</span>
-              </label>
-              <input
-                type="number"
-                style={getInputStyle("baseSalary")}
-                value={formData.baseSalary}
-                readOnly
-                min="0"
-                placeholder="1800000"
-              />
-              {touched.baseSalary && errors.baseSalary && (
-                <div style={errorMessageStyle}>
-                  <span>⚠️</span>
-                  <span>{errors.baseSalary}</span>
+            {user?.role !== "manager" && (
+              <>
+                {/* Base Salary */}
+                <div style={{ marginBottom: "14px" }}>
+                  <label style={labelStyle}>
+                    <span style={{ fontSize: "15px" }}>💰</span>
+                    <span>Base Salary (VND) *</span>
+                  </label>
+                  <input
+                    type="number"
+                    style={getInputStyle("baseSalary")}
+                    value={formData.baseSalary}
+                    readOnly
+                    min="0"
+                    placeholder="1800000"
+                  />
+                  {touched.baseSalary && errors.baseSalary && (
+                    <div style={errorMessageStyle}>
+                      <span>⚠️</span>
+                      <span>{errors.baseSalary}</span>
+                    </div>
+                  )}
+                  {!errors.baseSalary && (
+                    <div style={{ fontSize: "12px", color: theme.neutral.gray600, marginTop: "6px", fontWeight: "500" }}>
+                      💡 Auto from selected Job Title (view only)
+                    </div>
+                  )}
                 </div>
-              )}
-              {!errors.baseSalary && (
-                <div style={{ fontSize: "12px", color: theme.neutral.gray600, marginTop: "6px", fontWeight: "500" }}>
-                  💡 Auto from selected Job Title (view only)
-                </div>
-              )}
-            </div>
+              </>
+            )}
 
             <div style={{ marginBottom: "16px", paddingTop: "14px", borderTop: "1px solid #e5e7eb" }}>
               <div style={{ display: "flex", alignItems: "center", marginBottom: "10px", padding: "10px 12px", backgroundColor: "#f9fafb", borderRadius: "8px" }}>
