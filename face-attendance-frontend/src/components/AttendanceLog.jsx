@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { exportAttendanceToExcel, exportAttendanceToPDF } from "../utils/exportUtils.js";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { exportAttendanceToExcel, exportAttendanceToPDF, exportAttendanceWorkHoursSummaryToExcel, exportAttendanceMonthlyWorkHoursSummaryToExcel, exportAttendanceMonthlyWorkHoursSummaryToDocx } from "../utils/exportUtils.js";
 import { toastWarning } from "../lib/notify.jsx";
 
 function todayISO() {
@@ -14,6 +14,122 @@ function daysAgoISO(days) {
 
 const PAGE_SIZE = 100;
 const EXPORT_MAX_ROWS = 25000;
+const ATTENDANCE_TIMEZONE = "Asia/Ho_Chi_Minh";
+
+function getAttendanceDateKey(timestamp) {
+  if (!timestamp) return "";
+  return new Date(timestamp).toLocaleDateString("sv-SE", { timeZone: ATTENDANCE_TIMEZONE });
+}
+
+function formatWorkHoursLabel(hours, otHours) {
+  if (!hours) return "—";
+  const baseLabel = `${hours.toFixed(1)}h`;
+  return otHours ? `${baseLabel} · OT ${otHours.toFixed(1)}h` : baseLabel;
+}
+
+function computeWorkHourSummary(logs = []) {
+  const groups = new Map();
+
+  logs.forEach((log) => {
+    const dateKey = getAttendanceDateKey(log.timestamp);
+    const employeeId = String(log.userId || "unknown");
+    const groupKey = `${employeeId}||${dateKey}`;
+
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, {
+        dateKey,
+        employeeId,
+        checkIns: [],
+        checkOuts: [],
+        hasOvertime: false,
+        hasAbsent: false,
+        hasLate: false,
+        hasEarlyLeave: false,
+      });
+    }
+
+    const group = groups.get(groupKey);
+    const type = String(log.type || "").toUpperCase();
+    if (type === "IN" || type === "LATE_IN" || type === "OT_IN") {
+      group.checkIns.push(log);
+    }
+    if (type === "OUT" || type === "EARLY_OUT" || type === "OT_OUT") {
+      group.checkOuts.push(log);
+    }
+    if (log.isOvertime) group.hasOvertime = true;
+    if (log.isAbsent) group.hasAbsent = true;
+    if (log.isLate) group.hasLate = true;
+    if (log.isEarlyLeave) group.hasEarlyLeave = true;
+  });
+
+  const map = new Map();
+  const totals = {
+    totalHours: 0,
+    totalOtHours: 0,
+    daysWorked: 0,
+    absentRows: 0,
+    lateRows: 0,
+    earlyLeaveRows: 0,
+  };
+
+  groups.forEach((group, key) => {
+    const checkIn = group.checkIns.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))[0];
+    const checkOut = group.checkOuts.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)).slice(-1)[0];
+    let totalHours = 0;
+    let otHours = 0;
+    let label = "—";
+    let status = "No hours";
+
+    if (checkIn && checkOut) {
+      totalHours = Math.max(0, (new Date(checkOut.timestamp) - new Date(checkIn.timestamp)) / 3600000);
+      const localOut = new Date(checkOut.timestamp).toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: ATTENDANCE_TIMEZONE,
+      });
+      const [outHour, outMin] = localOut.split(":").map(Number);
+      const outDecimal = outHour + outMin / 60;
+      otHours = group.hasOvertime ? Math.max(0, totalHours - 9) : Math.max(0, outDecimal - 17);
+      otHours = Number(otHours.toFixed(1));
+      label = formatWorkHoursLabel(totalHours, otHours);
+      status = group.hasAbsent
+        ? group.hasLate || group.hasEarlyLeave
+          ? "Absent Half Day"
+          : "Absent"
+        : group.hasLate
+        ? "Late"
+        : group.hasEarlyLeave
+        ? "Early Leave"
+        : group.hasOvertime
+        ? "OT"
+        : "Normal";
+      totals.totalHours += totalHours;
+      totals.totalOtHours += otHours;
+      totals.daysWorked += 1;
+      totals.lateRows += group.hasLate ? 1 : 0;
+      totals.earlyLeaveRows += group.hasEarlyLeave ? 1 : 0;
+    } else if (group.hasAbsent) {
+      label = "Absent";
+      status = "Absent";
+      totals.absentRows += 1;
+    } else if (checkIn || checkOut) {
+      label = "Partial";
+      status = "Partial";
+    }
+
+    map.set(key, {
+      totalHours,
+      otHours,
+      label,
+      status,
+      checkIn,
+      checkOut,
+    });
+  });
+
+  return { map, totals };
+}
 
 export default function AttendanceLog() {
   const [allLogs, setAllLogs] = useState([]);
@@ -26,6 +142,7 @@ export default function AttendanceLog() {
     start: daysAgoISO(31),
     end: todayISO(),
   }));
+  const [selectedMonth, setSelectedMonth] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [logsTotal, setLogsTotal] = useState(0);
@@ -124,7 +241,8 @@ export default function AttendanceLog() {
     const qs = new URLSearchParams({
       from,
       to,
-      limit: String(EXPORT_MAX_ROWS),
+      // use limit=0 to request all matching rows from server for exports
+      limit: String(0),
       offset: "0",
     });
     if (searchQuery.trim()) qs.set("search", searchQuery.trim());
@@ -144,6 +262,7 @@ export default function AttendanceLog() {
       try {
         setExportingKind(kind);
         setError("");
+        // For monthly export request all matching rows (no server-side limit)
         const qs = buildExportQuery();
         const res = await fetch(`${apiBase}/api/admin/attendance-logs?${qs}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -155,8 +274,16 @@ export default function AttendanceLog() {
           toastWarning(`Export includes first ${rows.length} rows only. Narrow the date range for a full export.`);
         }
         const name = `attendance-history-${from}-${to}`;
-        if (kind === "excel") exportAttendanceToExcel(rows, employees, name);
-        else await exportAttendanceToPDF(rows, employees, name);
+        if (kind === "excel") {
+          exportAttendanceToExcel(rows, employees, name);
+        } else if (kind === "work-hours") {
+          exportAttendanceWorkHoursSummaryToExcel(rows, employees, `work-hours-${from}-${to}`);
+        } else if (kind === "monthly-work-hours") {
+          // Export monthly work hours as Excel to avoid DOCX page/row breaks and keep labels explicit
+          exportAttendanceMonthlyWorkHoursSummaryToExcel(rows, employees, `attendance-monthly-${from}-${to}`);
+        } else {
+          await exportAttendanceToPDF(rows, employees, name);
+        }
       } catch (e) {
         setError("Export failed: " + e.message);
       } finally {
@@ -170,6 +297,39 @@ export default function AttendanceLog() {
     const emp = employees.find(e => e.id === userId);
     return emp?.name || `User ${userId}`;
   };
+
+  const workHoursSummary = useMemo(() => computeWorkHourSummary(allLogs), [allLogs]);
+
+  const handleSelectMonth = useCallback(() => {
+    if (!selectedMonth) return;
+    const [yearStr, monthStr] = selectedMonth.split('-');
+    const year = Number(yearStr);
+    const month = Number(monthStr); // 1-12
+    if (!year || !month) return;
+    const start = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).toISOString().split('T')[0];
+    setDateRange({ start, end: lastDay });
+  }, [selectedMonth, setDateRange]);
+
+  const selectedStats = useMemo(() => {
+    if (!selectedEmployeeId) return null;
+    const keyPrefix = `${String(selectedEmployeeId)}||`;
+    const entries = [...workHoursSummary.map.entries()].filter(([key]) => key.startsWith(keyPrefix));
+    const totalHours = entries.reduce((sum, [, value]) => sum + (value.totalHours || 0), 0);
+    const totalOtHours = entries.reduce((sum, [, value]) => sum + (value.otHours || 0), 0);
+    const daysWorked = entries.filter(([, value]) => value.totalHours > 0).length;
+    const absentDays = entries.filter(([, value]) => value.status === "Absent").length;
+    const lateDays = entries.filter(([, value]) => value.status === "Late").length;
+    const earlyLeaveDays = entries.filter(([, value]) => value.status === "Early Leave").length;
+    return {
+      totalHours,
+      totalOtHours,
+      daysWorked,
+      absentDays,
+      lateDays,
+      earlyLeaveDays,
+    };
+  }, [selectedEmployeeId, workHoursSummary]);
 
   const containerStyle = {
     maxWidth: "1200px",
@@ -517,6 +677,28 @@ export default function AttendanceLog() {
               >
                 This Month
               </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #d0d7de', fontSize: 12 }}
+                />
+                <button
+                  onClick={handleSelectMonth}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e0e0e0',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 500
+                  }}
+                >
+                  Select Month
+                </button>
+              </div>
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
               <button
@@ -542,9 +724,51 @@ export default function AttendanceLog() {
               </button>
               <button
                 type="button"
+                onClick={() => runExport("work-hours")}
+                disabled={exportingKind !== ""}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: "#0d6efd",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: exportingKind !== "" ? "not-allowed" : "pointer",
+                  fontWeight: "600",
+                  fontSize: "14px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  opacity: exportingKind !== "" ? 0.7 : 1
+                }}
+              >
+                ⏱️ Export Work Hours
+              </button>
+              <button
+                type="button"
+                onClick={() => runExport("monthly-work-hours")}
+                disabled={exportingKind !== ""}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: "#6610f2",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: exportingKind !== "" ? "not-allowed" : "pointer",
+                  fontWeight: "600",
+                  fontSize: "14px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  opacity: exportingKind !== "" ? 0.7 : 1
+                }}
+              >
+                📆 Export Monthly Work Hours
+              </button>
+              <button
+                type="button"
                 onClick={() => runExport("pdf")}
                 disabled={exportingKind !== ""}
-              style={{
+                style={{
                 padding: "10px 20px",
                 backgroundColor: "#dc3545",
                 color: "#fff",
@@ -592,10 +816,10 @@ export default function AttendanceLog() {
         </div>
 
         {/* Stats Cards */}
-        {selectedEmployeeId && (
+        {selectedEmployeeId && selectedStats && (
           <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
             gap: "24px",
             marginBottom: "32px"
           }}>
@@ -607,11 +831,11 @@ export default function AttendanceLog() {
               border: "1px solid #e0e0e0",
               textAlign: "center"
             }}>
-              <div style={{ fontSize: "32px", fontWeight: "700", color: "#28a745", marginBottom: "8px" }}>
-                {allLogs.length}
+              <div style={{ fontSize: "32px", fontWeight: "700", color: "#1d4ed8", marginBottom: "8px" }}>
+                {selectedStats.totalHours.toFixed(1)}h
               </div>
               <div style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>
-                Records (this page)
+                Total work hours
               </div>
             </div>
             <div style={{
@@ -622,11 +846,41 @@ export default function AttendanceLog() {
               border: "1px solid #e0e0e0",
               textAlign: "center"
             }}>
-              <div style={{ fontSize: "32px", fontWeight: "700", color: "#4facfe", marginBottom: "8px" }}>
-                {allLogs.filter(l => l.userId).length}
+              <div style={{ fontSize: "32px", fontWeight: "700", color: "#9333ea", marginBottom: "8px" }}>
+                {selectedStats.totalOtHours.toFixed(1)}h
               </div>
               <div style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>
-                Matched (this page)
+                Total OT hours
+              </div>
+            </div>
+            <div style={{
+              backgroundColor: "#fff",
+              padding: "24px",
+              borderRadius: "12px",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+              border: "1px solid #e0e0e0",
+              textAlign: "center"
+            }}>
+              <div style={{ fontSize: "32px", fontWeight: "700", color: "#f59e0b", marginBottom: "8px" }}>
+                {selectedStats.daysWorked}
+              </div>
+              <div style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>
+                Days worked
+              </div>
+            </div>
+            <div style={{
+              backgroundColor: "#fff",
+              padding: "24px",
+              borderRadius: "12px",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+              border: "1px solid #e0e0e0",
+              textAlign: "center"
+            }}>
+              <div style={{ fontSize: "32px", fontWeight: "700", color: "#dc3545", marginBottom: "8px" }}>
+                {selectedStats.absentDays}
+              </div>
+              <div style={{ fontSize: "14px", color: "#666", fontWeight: "500" }}>
+                Absent days
               </div>
             </div>
           </div>
@@ -744,7 +998,7 @@ export default function AttendanceLog() {
                       color: "#495057",
                       textTransform: "uppercase",
                       letterSpacing: "0.04em"
-                    }}>Device</th>
+                    }}>Work Hours</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -895,11 +1149,11 @@ export default function AttendanceLog() {
                           padding: "8px 10px",
                           fontSize: "12px",
                           color: "#666",
-                          maxWidth: "120px",
+                          maxWidth: "180px",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                         }}>
-                          {log.deviceId || "—"}
+                          {workHoursSummary.map.get(`${String(log.userId || "unknown")}||${getAttendanceDateKey(log.timestamp)}`)?.label || "—"}
                         </td>
                       </tr>
                     );

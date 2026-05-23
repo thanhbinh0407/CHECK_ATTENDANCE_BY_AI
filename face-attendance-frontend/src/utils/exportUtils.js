@@ -1,6 +1,8 @@
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import { applyPlugin } from 'jspdf-autotable';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, PageOrientation } from 'docx';
+import { saveAs } from 'file-saver';
 import { calculateCompleteSalary, SALARY_CONSTANTS } from './salaryCalculation.js';
 import { toastError, toastWarning } from '../lib/notify.jsx';
 import notoSansRegularUrl from '../assets/fonts/NotoSans-Regular.ttf?url';
@@ -389,6 +391,512 @@ export const exportAttendanceToExcel = (logs, employees, filename = 'lich-su-die
   }
 
   XLSX.writeFile(wb, `${filename}.xlsx`);
+};
+
+const buildAttendanceWorkHourRows = (logs = [], employees = []) => {
+  const employeeMap = getAttendanceEmployeeMap(employees);
+  const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const timeFormatter = new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Ho_Chi_Minh'
+  });
+
+  const groups = new Map();
+
+  logs.forEach((log) => {
+    const timestamp = new Date(log.timestamp);
+    const dateKey = dateFormatter.format(timestamp);
+    const employeeId = String(log.userId || 'unknown');
+    const groupKey = `${employeeId}||${dateKey}`;
+
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, {
+        employeeId: log.userId,
+        dateKey,
+        checkIns: [],
+        checkOuts: [],
+        hasAbsent: false,
+        hasLate: false,
+        hasEarlyLeave: false,
+        hasOvertime: false,
+      });
+    }
+
+    const group = groups.get(groupKey);
+    const type = String(log.type || '').toUpperCase();
+    if (['IN', 'LATE_IN', 'OT_IN'].includes(type)) {
+      group.checkIns.push(log);
+    }
+    if (['OUT', 'EARLY_OUT', 'OT_OUT'].includes(type)) {
+      group.checkOuts.push(log);
+    }
+    if (log.isAbsent) group.hasAbsent = true;
+    if (log.isLate) group.hasLate = true;
+    if (log.isEarlyLeave) group.hasEarlyLeave = true;
+    if (log.isOvertime) group.hasOvertime = true;
+  });
+
+  const rows = [];
+  groups.forEach((group) => {
+    const employee = employeeMap.get(String(group.employeeId)) || {};
+    const checkIn = group.checkIns.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))[0];
+    const checkOuts = group.checkOuts.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const checkOut = checkOuts[checkOuts.length - 1];
+    const timestampIn = checkIn ? new Date(checkIn.timestamp) : null;
+    const timestampOut = checkOut ? new Date(checkOut.timestamp) : null;
+    const totalHours = timestampIn && timestampOut ? Math.max(0, (timestampOut - timestampIn) / 3600000) : 0;
+    let otHours = 0;
+    if (totalHours > 0) {
+      otHours = group.hasOvertime ? Math.max(0, totalHours - 9) : 0;
+      if (!group.hasOvertime && timestampOut) {
+        const outLabel = timeFormatter.format(timestampOut);
+        const [outHour, outMin] = outLabel.split(':').map(Number);
+        otHours = Math.max(0, outHour + outMin / 60 - 17);
+      }
+      otHours = Number(otHours.toFixed(1));
+    }
+
+    let status = 'No hours';
+    if (group.hasAbsent && !timestampIn && !timestampOut) {
+      status = 'Absent';
+    } else if (group.hasAbsent && timestampIn && timestampOut) {
+      status = group.hasOvertime ? 'Absent + OT' : 'Partial Absent';
+    } else if (group.hasOvertime) {
+      status = 'OT';
+    } else if (group.hasLate) {
+      status = 'Late';
+    } else if (group.hasEarlyLeave) {
+      status = 'Early Leave';
+    } else if (timestampIn && timestampOut) {
+      status = 'Normal';
+    } else if (timestampIn || timestampOut) {
+      status = 'Partial';
+    }
+
+    rows.push({
+      employeeName: employee.name || '',
+      employeeCode: employee.employeeCode || '',
+      date: group.dateKey,
+      checkIn: checkIn ? timeFormatter.format(timestampIn) : '',
+      checkOut: checkOut ? timeFormatter.format(timestampOut) : '',
+      workHours: totalHours > 0 ? totalHours.toFixed(1) : '',
+      otHours: otHours > 0 ? otHours.toFixed(1) : '',
+      status,
+    });
+  });
+
+  return rows.sort((a, b) => a.employeeCode.localeCompare(b.employeeCode) || a.date.localeCompare(b.date));
+};
+
+const buildAttendanceMonthlyWorkHourRows = (logs = [], employees = []) => {
+  const dailyRows = buildAttendanceWorkHourRows(logs, employees);
+  const monthlyMap = new Map();
+
+  dailyRows.forEach((row) => {
+    const [year, month] = row.date.split('-');
+    const key = `${row.employeeCode}||${year}-${month}`;
+    const existing = monthlyMap.get(key) || {
+      employeeName: row.employeeName,
+      employeeCode: row.employeeCode,
+      year,
+      month,
+      totalHours: 0,
+      totalOtHours: 0,
+      daysWorked: 0,
+      absentDays: 0,
+    };
+
+    existing.totalHours += Number(row.workHours || 0);
+    existing.totalOtHours += Number(row.otHours || 0);
+    if (row.workHours) existing.daysWorked += 1;
+    if (['Absent', 'Partial Absent', 'Absent + OT'].includes(row.status)) existing.absentDays += 1;
+    monthlyMap.set(key, existing);
+  });
+
+  return Array.from(monthlyMap.values()).sort((a, b) =>
+    a.employeeCode.localeCompare(b.employeeCode) || a.year.localeCompare(b.year) || a.month.localeCompare(b.month)
+  );
+};
+
+const ATTENDANCE_DAY_CODE = {
+  IN: 'I',
+  OUT: 'O',
+  OT_IN: 'OTI',
+  OT_OUT: 'OTO',
+  LATE_IN: 'L',
+  EARLY_OUT: 'E',
+  ABSENT: 'A',
+};
+
+const buildAttendanceSheetRows = (logs = [], employees = []) => {
+  const employeeMap = new Map((employees || []).map((employee) => [String(employee.id), employee]));
+  const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const rows = new Map();
+
+  (employees || []).forEach((employee) => {
+    rows.set(String(employee.id), {
+      employee,
+      dayCodes: new Map(),
+    });
+  });
+
+  logs.forEach((log) => {
+    const timestamp = new Date(log.timestamp);
+    if (Number.isNaN(timestamp.getTime())) return;
+    const dateKey = dateFormatter.format(timestamp);
+    const dayNumber = Number(dateKey.split('-')[2]);
+    if (dayNumber < 1 || dayNumber > 31) return;
+
+    const employeeId = String(log.userId || 'unknown');
+    if (!rows.has(employeeId)) {
+      rows.set(employeeId, {
+        employee: employeeMap.get(employeeId) || { id: log.userId, name: '', employeeCode: '' },
+        dayCodes: new Map(),
+      });
+    }
+
+    const row = rows.get(employeeId);
+    const type = String(log.type || '').toUpperCase();
+    const code = ATTENDANCE_DAY_CODE[type] || (log.isAbsent ? ATTENDANCE_DAY_CODE.ABSENT : '');
+    if (!code) return;
+
+    const existing = row.dayCodes.get(dayNumber) || '';
+    if (existing === ATTENDANCE_DAY_CODE.ABSENT) {
+      return;
+    }
+
+    if (code === ATTENDANCE_DAY_CODE.ABSENT) {
+      row.dayCodes.set(dayNumber, ATTENDANCE_DAY_CODE.ABSENT);
+      return;
+    }
+
+    const values = existing ? new Set(existing.split(',').map((part) => part.trim())) : new Set();
+    values.add(code);
+    row.dayCodes.set(dayNumber, Array.from(values).join(', '));
+  });
+  // compute OT minutes and late minutes per user for the provided logs (month scope)
+  const otMinutesMap = new Map();
+  const lateMinutesMap = new Map();
+  const absentFlagMap = new Map();
+  logs.forEach((log) => {
+    const uid = String(log.userId || 'unknown');
+    const otMinutes = extractMinutesFromNote(log.note, 'Overtime') || 0;
+    const lateMinutes = extractMinutesFromNote(log.note, 'Late') || 0;
+    const isOTFlag = log.isOvertime || String(log.type || '').toUpperCase().includes('OT');
+    const isLateFlag = log.isLate || String(log.type || '').toUpperCase().includes('LATE');
+    const isAbsentFlag = log.isAbsent || String(log.type || '').toUpperCase().includes('ABSENT');
+
+    if (isOTFlag || otMinutes) otMinutesMap.set(uid, (otMinutesMap.get(uid) || 0) + (otMinutes || 0));
+    if (isLateFlag || lateMinutes) lateMinutesMap.set(uid, (lateMinutesMap.get(uid) || 0) + (lateMinutes || 0));
+    if (isAbsentFlag) absentFlagMap.set(uid, (absentFlagMap.get(uid) || 0) + 1);
+  });
+
+    const results = Array.from(rows.values()).map((row) => {
+    const dayValues = Array.from({ length: 31 }, (_, index) => row.dayCodes.get(index + 1) || '');
+    const totalWorkDays = dayValues.filter((value) => value && value !== ATTENDANCE_DAY_CODE.ABSENT).length;
+    const absentDays = dayValues.filter((v) => v && v.split(',').some(p => p.trim() === ATTENDANCE_DAY_CODE.ABSENT)).length;
+    // fallback: count absent flags parsed from logs if day-based count is zero
+    const absentFlagCount = absentFlagMap.get(String(row.employee.id)) || 0;
+    const totalAbsentDays = Math.max(absentDays, absentFlagCount);
+    const totalAbsentHours = Number((totalAbsentDays * 8).toFixed(1));
+    const totalOtHours = Number(((otMinutesMap.get(String(row.employee.id)) || 0) / 60).toFixed(1));
+    const totalLateMinutes = Number((lateMinutesMap.get(String(row.employee.id)) || 0));
+    return {
+      employeeName: row.employee.name || '',
+      employeeCode: row.employee.employeeCode || '',
+      position: row.employee.JobTitle?.name || row.employee.jobTitle || '',
+      dayValues,
+      totalWorkDays,
+      absentDays: totalAbsentDays,
+      totalAbsentHours,
+      totalOtHours,
+      totalLateMinutes,
+    };
+  }).sort((a, b) => a.employeeCode.localeCompare(b.employeeCode) || a.employeeName.localeCompare(b.employeeName));
+
+  return results;
+};
+
+const createDocxCell = (
+  text,
+  { bold = false, align = AlignmentType.CENTER, width = 1000, fontSize = 16, verticalAlign = 'center' } = {}
+) =>
+  new TableCell({
+    children: [
+      new Paragraph({
+        children: [
+          new TextRun({ text: text ? String(text) : '', bold, size: fontSize }),
+        ],
+        alignment: align,
+      }),
+    ],
+    verticalAlign,
+    width: { size: width, type: WidthType.DXA },
+    margins: { top: 100, bottom: 100, left: 100, right: 100 },
+  });
+
+export const exportAttendanceMonthlyWorkHoursSummaryToDocx = async (logs, employees, filename = 'attendance-sheet') => {
+  const rows = buildAttendanceSheetRows(logs, employees);
+  if (rows.length === 0) {
+    toastWarning('No attendance data available for monthly attendance export.');
+    return;
+  }
+
+  const monthDates = logs
+    .filter((log) => log.timestamp)
+    .map((log) => new Date(log.timestamp))
+    .filter((date) => !Number.isNaN(date.getTime()));
+  const dateLabel = monthDates.length
+    ? monthDates.length === 1
+      ? new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(monthDates[0])
+      : new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(monthDates[0])
+    : new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+
+  const makeHeaderRange = (startDay, endDay, includeSummary = false) => {
+    const cells = [
+      createDocxCell('No.', { bold: true, width: 700, fontSize: 18 }),
+      createDocxCell('Employee Name', { bold: true, width: 3000, align: AlignmentType.LEFT, fontSize: 18 }),
+      createDocxCell('Position', { bold: true, width: 2000, align: AlignmentType.LEFT, fontSize: 18 }),
+    ];
+    for (let d = startDay; d <= endDay; d += 1) cells.push(createDocxCell(String(d), { bold: true, width: 600, fontSize: 16 }));
+    if (includeSummary) {
+      cells.push(createDocxCell('Absent Days', { bold: true, width: 800, fontSize: 16 }));
+      cells.push(createDocxCell('Total Absent Hours', { bold: true, width: 1000, fontSize: 16 }));
+      cells.push(createDocxCell('Total OT Hours', { bold: true, width: 900, fontSize: 16 }));
+      cells.push(createDocxCell('Total Late (mins)', { bold: true, width: 900, fontSize: 16 }));
+      cells.push(createDocxCell('Total Work Days', { bold: true, width: 900, fontSize: 18 }));
+      cells.push(createDocxCell('Notes', { bold: true, width: 1600, align: AlignmentType.LEFT, fontSize: 16 }));
+    }
+    return cells;
+  };
+
+  const header1 = makeHeaderRange(1, 16, false);
+  const header2 = makeHeaderRange(17, 31, true);
+
+  const tableRows1 = [new TableRow({ children: header1 })];
+  const tableRows2 = [new TableRow({ children: header2 })];
+
+  rows.forEach((row, index) => {
+    const leftCells = [
+      createDocxCell(String(index + 1), { width: 700, fontSize: 14 }),
+      createDocxCell(row.employeeName, { width: 3200, align: AlignmentType.LEFT, fontSize: 14 }),
+      createDocxCell(row.position, { width: 2200, align: AlignmentType.LEFT, fontSize: 14 }),
+    ];
+    for (let i = 0; i < 16; i += 1) leftCells.push(createDocxCell(row.dayValues[i] || '', { width: 600, fontSize: 12 }));
+
+    const rightCells = [
+      createDocxCell(String(index + 1), { width: 700, fontSize: 14 }),
+      createDocxCell(row.employeeName, { width: 3200, align: AlignmentType.LEFT, fontSize: 14 }),
+      createDocxCell(row.position, { width: 2200, align: AlignmentType.LEFT, fontSize: 14 }),
+    ];
+    for (let i = 16; i < 31; i += 1) rightCells.push(createDocxCell(row.dayValues[i] || '', { width: 600, fontSize: 12 }));
+    // summary columns on the right table
+    rightCells.push(createDocxCell(String(row.absentDays || 0), { width: 800, fontSize: 14, align: AlignmentType.CENTER }));
+    rightCells.push(createDocxCell(String(row.totalAbsentHours || 0), { width: 1000, fontSize: 14, align: AlignmentType.CENTER }));
+    rightCells.push(createDocxCell(String(row.totalOtHours || 0), { width: 900, fontSize: 14, align: AlignmentType.CENTER }));
+    rightCells.push(createDocxCell(String(row.totalLateMinutes || 0), { width: 900, fontSize: 14, align: AlignmentType.CENTER }));
+    rightCells.push(createDocxCell(String(row.totalWorkDays), { width: 900, fontSize: 14, align: AlignmentType.RIGHT }));
+    rightCells.push(createDocxCell('', { width: 1600, align: AlignmentType.LEFT, fontSize: 12 }));
+
+    tableRows1.push(new TableRow({ children: leftCells }));
+    tableRows2.push(new TableRow({ children: rightCells }));
+  });
+
+  const legendParagraphs = [
+    new Paragraph({
+      children: [new TextRun({ text: 'Legend:', bold: true, size: 16 })],
+      spacing: { before: 400, after: 120 },
+      alignment: AlignmentType.CENTER,
+    }),
+    new Paragraph({ children: [new TextRun({ text: 'Check-in = I | Check-out = O | Overtime Check-in = OTI | Overtime Check-out = OTO | Late Check-in = L | Early Check-out = E | Absent = A', size: 14 })], alignment: AlignmentType.CENTER }),
+  ];
+
+  const children = [
+    new Paragraph({ children: [new TextRun({ text: 'COMPANY', bold: true, size: 24 })], alignment: AlignmentType.LEFT }),
+    new Paragraph({ children: [new TextRun({ text: 'ATTENDANCE SHEET', bold: true, size: 32 })], alignment: AlignmentType.CENTER, spacing: { after: 200 } }),
+    new Paragraph({ children: [new TextRun({ text: `Month: ${dateLabel}`, size: 18 })], alignment: AlignmentType.CENTER, spacing: { after: 300 } }),
+    new Table({ rows: tableRows1, width: { size: 100, type: WidthType.PERCENTAGE } }),
+    new Paragraph({ children: [new TextRun({ text: 'Continued →', italics: true, size: 12 })], alignment: AlignmentType.CENTER, spacing: { before: 200, after: 200 } }),
+    new Table({ rows: tableRows2, width: { size: 100, type: WidthType.PERCENTAGE } }),
+    ...legendParagraphs,
+  ];
+
+  const doc = new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            size: { width: '29.7cm', height: '21cm', orientation: PageOrientation.LANDSCAPE },
+            margin: { top: '1.5cm', right: '1.2cm', bottom: '1.5cm', left: '1.2cm' },
+          },
+        },
+        children,
+      },
+    ],
+  });
+
+  const blob = await Packer.toBlob(doc);
+  saveAs(blob, `${filename}.docx`);
+};
+
+const styleExcelTotalRow = (ws, totalRowNumber, columnCount) => {
+  for (let c = 0; c < columnCount; c += 1) {
+    const address = XLSX.utils.encode_cell({ r: totalRowNumber, c });
+    if (!ws[address]) ws[address] = { t: 's', v: '' };
+    ws[address].s = {
+      font: { bold: true, color: { rgb: 'FF000000' } },
+      fill: { patternType: 'solid', fgColor: { rgb: 'FFF3F4F6' } },
+      alignment: { horizontal: 'center', vertical: 'center' },
+    };
+  }
+};
+
+export const exportAttendanceWorkHoursSummaryToExcel = (logs, employees, filename = 'work-hours-summary') => {
+  const rows = buildAttendanceWorkHourRows(logs, employees);
+  if (rows.length === 0) {
+    toastWarning('No attendance data available for work hours export.');
+    return;
+  }
+
+  const data = rows.map((row) => ({
+    'Employee': row.employeeName,
+    'Code': row.employeeCode,
+    'Date': row.date,
+    'Check-in': row.checkIn,
+    'Check-out': row.checkOut,
+    'Work Hours': row.workHours,
+    'OT Hours': row.otHours,
+    'Status': row.status,
+  }));
+
+  const totalWorkHours = rows.reduce((sum, row) => sum + Number(row.workHours || 0), 0);
+  const totalOtHours = rows.reduce((sum, row) => sum + Number(row.otHours || 0), 0);
+  data.push({
+    Employee: 'TOTAL',
+    Code: '',
+    Date: '',
+    'Check-in': '',
+    'Check-out': '',
+    'Work Hours': totalWorkHours.toFixed(1),
+    'OT Hours': totalOtHours.toFixed(1),
+    Status: ''
+  });
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Work Hours');
+  ws['!cols'] = [
+    { wch: 24 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 }
+  ];
+
+  const totalRowNumber = data.length + 1;
+  styleExcelTotalRow(ws, totalRowNumber, 8);
+
+  XLSX.writeFile(wb, `${filename}.xlsx`);
+};
+
+export const exportAttendanceMonthlyWorkHoursSummaryToExcel = (logs, employees, filename = 'work-hours-monthly-summary') => {
+  const rows = buildAttendanceMonthlyWorkHourRows(logs, employees);
+  if (rows.length === 0) {
+    toastWarning('No attendance data available for monthly work hours export.');
+    return;
+  }
+
+  const data = rows.map((row) => ({
+    Employee: row.employeeName,
+    Code: row.employeeCode,
+    Month: row.month,
+    Year: row.year,
+    'Total Work Hours': row.totalHours.toFixed(1),
+    'Total OT Hours': row.totalOtHours.toFixed(1),
+    'Days Worked': row.daysWorked,
+    'Absent Days': row.absentDays,
+  }));
+
+  const totalWorkHours = rows.reduce((sum, row) => sum + Number(row.totalHours || 0), 0);
+  const totalOtHours = rows.reduce((sum, row) => sum + Number(row.totalOtHours || 0), 0);
+  const totalDaysWorked = rows.reduce((sum, row) => sum + Number(row.daysWorked || 0), 0);
+  const totalAbsentDays = rows.reduce((sum, row) => sum + Number(row.absentDays || 0), 0);
+
+  data.push({
+    Employee: 'TOTAL',
+    Code: '',
+    Month: '',
+    Year: '',
+    'Total Work Hours': totalWorkHours.toFixed(1),
+    'Total OT Hours': totalOtHours.toFixed(1),
+    'Days Worked': totalDaysWorked,
+    'Absent Days': totalAbsentDays,
+  });
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Monthly Work Hours');
+  ws['!cols'] = [
+    { wch: 24 },
+    { wch: 14 },
+    { wch: 10 },
+    { wch: 8 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 12 },
+    { wch: 12 }
+  ];
+
+  const totalRowNumber = data.length + 1;
+  styleExcelTotalRow(ws, totalRowNumber, 8);
+
+  XLSX.writeFile(wb, `${filename}.xlsx`);
+};
+
+export const exportAttendanceWorkHoursSummaryToPDF = async (logs, employees, filename = 'work-hours-summary') => {
+  const rows = buildAttendanceWorkHourRows(logs, employees);
+  if (rows.length === 0) {
+    toastWarning('No attendance data available for work hours export.');
+    return;
+  }
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  ensureAutoTable(doc);
+
+  const tableData = rows.map((row) => [
+    row.employeeName,
+    row.employeeCode,
+    row.date,
+    row.checkIn,
+    row.checkOut,
+    row.workHours,
+    row.otHours,
+    row.status,
+  ]);
+
+  doc.setFontSize(18);
+  doc.text('Work Hours Summary', 14, 20);
+  doc.setFontSize(11);
+  doc.text(`Exported: ${new Date().toLocaleDateString('vi-VN')}`, 14, 28);
+
+  doc.autoTable({
+    startY: 34,
+    head: [[
+      'Employee', 'Code', 'Date', 'Check-in', 'Check-out', 'Work Hours', 'OT Hours', 'Status'
+    ]],
+    body: tableData,
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [56, 189, 248], textColor: [255, 255, 255] },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    margin: { left: 14, right: 14 }
+  });
+
+  doc.save(`${filename}.pdf`);
 };
 
 // Export salaries to Excel with detailed breakdown
