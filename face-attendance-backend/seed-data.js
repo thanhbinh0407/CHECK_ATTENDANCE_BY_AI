@@ -71,6 +71,128 @@ const ATTENDANCE_OVERRIDES = {
     earlyLeaveDates: ['2026-02-05', '2026-02-19']
   }
 };
+
+const JAN_APR_2026_SCENARIO_DAYS = {
+  1: [5, 12, 19, 26],
+  2: [2, 9, 16, 23],
+  3: [4, 11, 18, 25],
+  4: [1, 8, 15, 22]
+};
+const ATTENDANCE_SCENARIO_KEYS = [
+  'normal',
+  'autoCheckout',
+  'absentOneShift',
+  'absentTwoShifts',
+  'absentTwoShiftsWithOT',
+  'fullTwoShift',
+  'fullThreeShift',
+  'lateNotAbsent'
+];
+
+function isJanuaryToApril2026(date) {
+  return date.getUTCFullYear() === 2026 && date.getUTCMonth() >= 0 && date.getUTCMonth() <= 3;
+}
+
+function getScenarioForDate(employeeIndex, date) {
+  if (!isJanuaryToApril2026(date)) return null;
+  const month = date.getUTCMonth() + 1;
+  const days = JAN_APR_2026_SCENARIO_DAYS[month] || [];
+  if (!days.includes(date.getUTCDate())) return null;
+  return ATTENDANCE_SCENARIO_KEYS[(employeeIndex + date.getUTCDate()) % ATTENDANCE_SCENARIO_KEYS.length];
+}
+
+function buildAttendanceLogRow({
+  userId,
+  detectedName,
+  type,
+  timestamp,
+  confidence = 0.92,
+  matchDistance = 0.08,
+  deviceId = 'MAIN_ENTRANCE',
+  isLate = false,
+  isEarlyLeave = false,
+  isAbsent = false,
+  isOvertime = false,
+  note = null
+}) {
+  const row = {
+    userId,
+    detectedName,
+    confidence,
+    matchDistance,
+    type,
+    deviceId,
+    timestamp,
+  };
+  if (typeof isLate === 'boolean') row.isLate = isLate;
+  if (typeof isEarlyLeave === 'boolean') row.isEarlyLeave = isEarlyLeave;
+  if (typeof isAbsent === 'boolean') row.isAbsent = isAbsent;
+  if (typeof isOvertime === 'boolean') row.isOvertime = isOvertime;
+  if (note) row.note = note;
+  return row;
+}
+
+function addScenarioAttendance(date, emp, profile, scenario, attendanceRows) {
+  const localToUTC = (hour, minute) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), hour - 7, minute));
+  const put = (type, hour, minute, extras = {}) => {
+    attendanceRows.push(buildAttendanceLogRow({
+      userId: emp.id,
+      detectedName: emp.name,
+      type,
+      timestamp: localToUTC(hour, minute),
+      deviceId: extras.deviceId || 'MAIN_ENTRANCE',
+      isLate: extras.isLate,
+      isEarlyLeave: extras.isEarlyLeave,
+      isAbsent: extras.isAbsent,
+      isOvertime: extras.isOvertime,
+      note: extras.note,
+      confidence: extras.confidence ?? 0.92,
+      matchDistance: extras.matchDistance ?? 0.08,
+    }));
+  };
+
+  switch (scenario) {
+    case 'autoCheckout':
+      put('IN', 7, 40, { isLate: false, note: 'Manual check-in, auto checkout applied' });
+      put('OUT', 17, 55, { isEarlyLeave: false, isOvertime: false, note: 'Auto checkout' });
+      break;
+    case 'absentOneShift':
+      put('ABSENT', 8, 0, { isAbsent: true, note: 'Absent morning shift' });
+      put('IN', 13, 10, { note: 'Afternoon return' });
+      put('OUT', 17, 5, { note: 'Afternoon checkout' });
+      break;
+    case 'absentTwoShifts':
+      put('ABSENT', 8, 0, { isAbsent: true, note: 'Full day absence' });
+      break;
+    case 'absentTwoShiftsWithOT':
+      put('ABSENT', 8, 0, { isAbsent: true, note: 'Absent main shifts' });
+      put('OT_IN', 18, 0, { isOvertime: true, note: 'Overtime after absent day' });
+      put('OT_OUT', 20, 0, { isOvertime: true, note: 'Overtime after absent day' });
+      break;
+    case 'fullTwoShift':
+      put('IN', 7, 30);
+      put('OUT', 11, 30);
+      put('IN', 13, 0);
+      put('OUT', 17, 0);
+      break;
+    case 'fullThreeShift':
+      put('IN', 7, 30);
+      put('OUT', 11, 30);
+      put('IN', 13, 0);
+      put('OUT', 17, 0);
+      put('OT_IN', 18, 0, { isOvertime: true });
+      put('OT_OUT', 20, 0, { isOvertime: true });
+      break;
+    case 'lateNotAbsent':
+      put('LATE_IN', 8, 12, { isLate: true, note: 'Late but not absent' });
+      put('OUT', 17, 5);
+      break;
+    default:
+      put('IN', 7, 35, { isLate: false });
+      put('OUT', 17, 10, { isEarlyLeave: false, isOvertime: false });
+      break;
+  }
+}
 const EXPERIENCE_COMPANIES_BY_DEPT = [
   ['FPT Software', 'Viettel Solutions', 'CMC Global', 'TMA Solutions', 'NashTech Vietnam'],
   ['Masan Consumer', 'Unilever Vietnam', 'PNJ', 'The Gioi Di Dong', 'VNPT Business'],
@@ -1066,6 +1188,15 @@ async function seedDB() {
         if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
         const serial = Math.floor((date - PERIOD_START) / (24 * 60 * 60 * 1000));
+        const scenarioKey = getScenarioForDate(i, date);
+        if (scenarioKey) {
+          addScenarioAttendance(date, emp, profile, scenarioKey, attendanceRows);
+          if (attendanceRows.length >= 1000) {
+            await AttendanceLog.bulkCreate(attendanceRows.splice(0, 1000));
+          }
+          continue;
+        }
+
         const isAbsent = (i + serial) % 17 === 0 || (profile.seniorityBand === 'new_joiner' && (i + serial) % 23 === 0);
         if (isAbsent) continue;
 
