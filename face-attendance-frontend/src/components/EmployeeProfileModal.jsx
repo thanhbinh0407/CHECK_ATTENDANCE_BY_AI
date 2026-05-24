@@ -2252,9 +2252,8 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                         >
                           <option value="">Select contract type</option>
                           <optgroup label="Probation Contracts">
-                            <option value="probation_1_month">Probation (1 month)</option>
-                            <option value="probation_2_month">Probation (2 months)</option>
                             <option value="probation_3_month">Probation (3 months)</option>
+                            <option value="probation_6_month">Probation (6 months)</option>
                           </optgroup>
                           <optgroup label="Formal Contracts">
                             <option value="formal_1_year">Formal (1 year)</option>
@@ -2656,9 +2655,8 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                           >
                             <option value="">Select contract type</option>
                             <optgroup label="Probation Contracts">
-                              <option value="probation_1_month">Probation (1 month)</option>
-                              <option value="probation_2_month">Probation (2 months)</option>
                               <option value="probation_3_month">Probation (3 months)</option>
+                              <option value="probation_6_month">Probation (6 months)</option>
                             </optgroup>
                             <optgroup label="Formal Contracts">
                               <option value="formal_1_year">Formal (1 year)</option>
