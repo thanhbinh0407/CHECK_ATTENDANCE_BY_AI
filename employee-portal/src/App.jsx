@@ -37,9 +37,8 @@ function portalAvatarSrc(apiBase, avatarUrl) {
 }
 
 const CONTRACT_DURATION_MONTHS = {
-  probation_1_month: 1,
-  probation_2_month: 2,
   probation_3_month: 3,
+  probation_6_month: 6,
   formal_1_year: 12,
   formal_2_year: 24,
   formal_3_year: 36,
@@ -77,7 +76,7 @@ function getContractExpiryReminder(profile) {
   today.setHours(0, 0, 0, 0);
 
   const daysLeft = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
-  if (daysLeft > 7) return null;
+  if (daysLeft > 30) return null;
 
   const endDateLabel = endDate.toLocaleDateString("vi-VN");
   const message =

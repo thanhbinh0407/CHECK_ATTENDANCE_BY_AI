@@ -580,11 +580,15 @@ export default function EmployeeDetailView() {
                               }}
                             >
                               <option value="">Select contract type</option>
-                              <option value="probation">Probation</option>
-                              <option value="1_year">1-year contract</option>
-                              <option value="3_year">3-year contract</option>
-                              <option value="indefinite">Indefinite-term contract</option>
-                              <option value="other">Other</option>
+                              <optgroup label="Probation Contracts">
+                                <option value="probation_3_month">Probation (3 months)</option>
+                                <option value="probation_6_month">Probation (6 months)</option>
+                              </optgroup>
+                              <optgroup label="Formal Contracts">
+                                <option value="formal_1_year">Formal (1 year)</option>
+                                <option value="formal_2_year">Formal (2 years)</option>
+                                <option value="formal_3_year">Formal (3 years)</option>
+                              </optgroup>
                             </select>
                             {!isContractEditable && (
                               <p style={{ marginTop: 8, color: '#a0aec0', fontSize: theme.typography.small.fontSize }}>

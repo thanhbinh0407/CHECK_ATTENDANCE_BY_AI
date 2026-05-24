@@ -104,7 +104,7 @@ const User = sequelize.define('User', {
   },
 
   contractType: {
-    type: DataTypes.ENUM('probation_1_month', 'probation_2_month', 'probation_3_month', 'formal_1_year', 'formal_2_year', 'formal_3_year'),
+    type: DataTypes.ENUM('probation_3_month', 'probation_6_month', 'formal_1_year', 'formal_2_year', 'formal_3_year'),
     allowNull: true
   },
 
@@ -112,6 +112,18 @@ const User = sequelize.define('User', {
     type: DataTypes.ENUM('active', 'maternity_leave', 'unpaid_leave', 'suspended', 'terminated', 'resigned'),
     allowNull: true,
     defaultValue: 'active'
+  },
+
+  maternityStartDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Start date of maternity leave'
+  },
+
+  maternityEndDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'End date of maternity leave'
   },
 
   managerId: {
