@@ -8,6 +8,8 @@ import HrShiftAdmin from './HrShiftAdmin.jsx';
 import EmployeeManagement from './EmployeeManagement.jsx';
 import HrAttendance from './HrAttendance.jsx';
 import PersonalProfileModal from './PersonalProfileModal.jsx';
+import DepartmentManagement from './components/DepartmentManagement.jsx';
+import Dependents from './components/Dependents.jsx';
 import './index.css';
 
 const API = 'http://localhost:5000/api';
@@ -26,98 +28,6 @@ function authHeaders(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 }
 
-// ─── DEPARTMENT MANAGEMENT ─────────────────────────────────────────────────────
-function DepartmentManagement({ token }) {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: '', description: '' });
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch(`${API}/departments`, { headers: authHeaders(token) });
-    const data = await res.json();
-    setItems(data.departments || data.data || []);
-    setLoading(false);
-  }, [token]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const openCreate = () => { setEditing(null); setForm({ name: '', description: '' }); setShowModal(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ name: item.name, description: item.description || '' }); setShowModal(true); };
-
-  const save = async (e) => {
-    e.preventDefault();
-    const method = editing ? 'PUT' : 'POST';
-    const url = editing ? `${API}/departments/${editing.id}` : `${API}/departments`;
-    const res = await fetch(url, { method, headers: authHeaders(token), body: JSON.stringify(form) });
-    const data = await res.json();
-    if (data.status === 'success' || data.department || data.data) { setShowModal(false); load(); }
-    else toastError(data.message || 'Error saving department');
-  };
-
-  const remove = async (id) => {
-    const ok = await toastConfirm({ message: 'Delete this department?' });
-    if (!ok) return;
-    const res = await fetch(`${API}/departments/${id}`, { method: 'DELETE', headers: authHeaders(token) });
-    const data = await res.json();
-    if (data.status === 'success') load();
-    else toastError(data.message || 'Error deleting department');
-  };
-
-  return (
-    <div>
-      <div className="search-bar" style={{ justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary" onClick={openCreate}>+ Add department</button>
-      </div>
-      <div className="card">
-        {loading ? <div className="loading">Loading...</div> : (
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>ID</th><th>Department name</th><th>Description</th><th></th></tr></thead>
-              <tbody>
-                {items.map(item => (
-                  <tr key={item.id}>
-                    <td>{item.id}</td><td>{item.name}</td><td>{item.description || '—'}</td>
-                    <td style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => openEdit(item)}>Edit</button>
-                      <button className="btn btn-danger" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => remove(item.id)}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" style={{ width: 420 }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>{editing ? 'Update department' : 'Add department'}</h3>
-              <button className="close-btn" onClick={() => setShowModal(false)}>×</button>
-            </div>
-            <form onSubmit={save}>
-              <div className="form-group" style={{ marginBottom: 14 }}>
-                <label>Department name *</label>
-                <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-              </div>
-              <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Description</label>
-                <textarea rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} style={{ resize: 'vertical' }} />
-              </div>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Save</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── JOB TITLE MANAGEMENT ──────────────────────────────────────────────────────
 function JobTitleManagement({ token }) {
@@ -214,6 +124,7 @@ const TABS = [
   { key: 'attendance',  label: 'Attendance',    icon: '📅' },
   { key: 'analytics',   label: 'Analytics',     icon: '📉' },
   { key: 'reports',     label: 'HR reports',    icon: '📑' },
+  { key: 'dependents',  label: 'Dependents',    icon: '👪' },
 ];
 
 export default function App() {
@@ -327,6 +238,7 @@ export default function App() {
     employees: 'Employee management',
     departments: 'Department management',
     'job-titles': 'Job title management',
+    dependents: 'Dependent management',
     shifts: 'Work shifts',
     attendance: 'Attendance tracking',
     analytics: 'HR analytics',
@@ -400,6 +312,7 @@ export default function App() {
           {activeTab === 'dashboard'   && <HrDashboard token={token} onNavigate={setActiveTab} />}
           {activeTab === 'employees'   && <EmployeeManagement token={token} user={user} />}
           {activeTab === 'departments' && <DepartmentManagement token={token} />}
+          {activeTab === 'dependents'  && <Dependents token={token} />}
           {activeTab === 'job-titles'  && <JobTitleManagement token={token} />}
           {activeTab === 'shifts'      && <HrShiftAdmin token={token} />}
           {activeTab === 'attendance'  && <HrAttendance token={token} />}

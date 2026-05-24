@@ -28,6 +28,7 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
     idNumber: "",
     address: ""
   });
+  const [userRole, setUserRole] = useState(null);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [fileUploadError, setFileUploadError] = useState("");
   const [uploadingDocs, setUploadingDocs] = useState(false);
@@ -40,6 +41,16 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
     return `${yyyy}-${mm}-${dd}`;
   };
   const today = getLocalToday();
+
+  // For manager role, dependents must be under 18 years old.
+  const getMinDobForUnder18 = () => {
+    const d = new Date();
+    // cutoff = today - 18 years
+    const cutoff = new Date(d.getFullYear() - 18, d.getMonth(), d.getDate());
+    // allowed DOB must be after cutoff, so min = cutoff + 1 day
+    cutoff.setDate(cutoff.getDate() + 1);
+    return cutoff.toISOString().split('T')[0];
+  };
 
   const showMessage = (text, type) => {
     setMessage(text);
@@ -66,10 +77,12 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
         return;
       }
 
-      // Decode token to see user info
+      // Decode token to see user info and determine role
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         console.log("Token contains user:", payload);
+        const role = payload.role || payload.userRole || payload.roleName || payload.roleType || null;
+        setUserRole(role);
       } catch (e) {
         console.log("Cannot decode token");
       }
@@ -145,12 +158,24 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
       return "";
     }
     const selectedDate = new Date(value);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
-    
-    if (selectedDate > today) {
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
+
+    if (selectedDate > todayDate) {
       return "Date of Birth cannot be in the future";
     }
+
+    // If current user is manager, dependent must be under 18 (DOB after cutoff)
+    if (userRole === 'manager') {
+      const cutoff = new Date();
+      cutoff.setFullYear(cutoff.getFullYear() - 18);
+      cutoff.setHours(0,0,0,0);
+      // dependent must be born after cutoff (strictly younger than 18)
+      if (selectedDate <= cutoff) {
+        return "Dependent must be under 18 years old";
+      }
+    }
+
     return "";
   };
 
@@ -1163,7 +1188,7 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                     marginBottom: "10px"
                   }}>
                     <span>📅</span>
-                    <span>Date of Birth</span>
+                    <span>Date of Birth{userRole === 'manager' ? ' (must be under 18)' : ''}</span>
                   </label>
                   <input
                     type="date"
@@ -1171,6 +1196,7 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                     value={formData.dateOfBirth}
                     onChange={handleInputChange}
                     max={today}
+                    min={userRole === 'manager' ? getMinDobForUnder18() : undefined}
                     style={{
                       width: "100%",
                       padding: "14px 16px",

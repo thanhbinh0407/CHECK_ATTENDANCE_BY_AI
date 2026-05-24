@@ -153,7 +153,73 @@ export default function EmployeeDetailView() {
     setIsContractEditable(String(selectedEmployeeForModal.employmentStatus || '').toLowerCase() !== 'suspended');
   };
 
+  // Helper function to calculate max date (18 years ago)
+  const getMaxDateOfBirth = () => {
+    const today = new Date();
+    const maxDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+    return maxDate.toISOString().split('T')[0];
+  };
+
+  // Helper function to validate if person is at least 18 years old
+  const isAtLeast18 = (dateString) => {
+    if (!dateString) return false;
+    const birthDate = new Date(dateString);
+    const today = new Date();
+    const age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      return age - 1 >= 18;
+    }
+    return age >= 18;
+  };
+
+  // Validate required fields
+  const validateRequiredFields = () => {
+    const baseRequired = ['name', 'email', 'phoneNumber', 'address', 'gender', 'departmentId', 'jobTitleId', 'contractType', 'startDate'];
+    const requiredFields = [...baseRequired];
+
+    // Base salary is editable only for non-managers
+    if (user?.role !== 'manager') requiredFields.push('baseSalary');
+
+    // Date of birth should be required for manager role
+    if (user?.role === 'manager') requiredFields.push('dateOfBirth');
+
+    const emptyFields = requiredFields.filter(field => !editForm[field] || (typeof editForm[field] === 'string' && editForm[field].trim() === ''));
+    
+    if (emptyFields.length > 0) {
+      const fieldNames = {
+        name: 'Full Name',
+        email: 'Email',
+        phoneNumber: 'Phone Number',
+        address: 'Address',
+        gender: 'Gender',
+        departmentId: 'Department',
+        jobTitleId: 'Job Title',
+        baseSalary: 'Base Salary',
+        contractType: 'Contract Type',
+        startDate: 'Start Date',
+        dateOfBirth: 'Date of Birth'
+      };
+      const missingFields = emptyFields.map(f => fieldNames[f] || f).join(', ');
+      setMessage(`Error: The following fields are required: ${missingFields}`);
+      return false;
+    }
+    return true;
+  };
+
   const handleSave = async () => {
+    // Validate required fields
+    if (!validateRequiredFields()) {
+      return;
+    }
+
+    // Validate age if date of birth is provided
+    if (editForm.dateOfBirth && !isAtLeast18(editForm.dateOfBirth)) {
+      setMessage("Error: Employee must be at least 18 years old");
+      return;
+    }
+
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
@@ -451,9 +517,10 @@ export default function EmployeeDetailView() {
                             />
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Phone Number</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Phone Number *</label>
                             <input
                               type="text"
+                              required
                               value={editForm.phoneNumber}
                               onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })}
                               style={{
@@ -465,9 +532,11 @@ export default function EmployeeDetailView() {
                             />
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Date of Birth</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>{user?.role === 'manager' ? 'Date of Birth (Must be 18+) *' : 'Date of Birth (Must be 18+)'}</label>
                             <input
                               type="date"
+                              required={user?.role === 'manager'}
+                              max={getMaxDateOfBirth()}
                               value={editForm.dateOfBirth}
                               onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
                               style={{
@@ -479,8 +548,9 @@ export default function EmployeeDetailView() {
                             />
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Gender</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Gender *</label>
                             <select
+                              required
                               value={editForm.gender}
                               onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
                               style={{
@@ -497,8 +567,9 @@ export default function EmployeeDetailView() {
                             </select>
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Department</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Department *</label>
                             <select
+                              required
                               value={editForm.departmentId || ""}
                               onChange={(e) => setEditForm({ ...editForm, departmentId: e.target.value ? parseInt(e.target.value) : null })}
                               style={{
@@ -515,8 +586,9 @@ export default function EmployeeDetailView() {
                             </select>
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Position</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Position *</label>
                             <select
+                              required
                               value={editForm.jobTitleId || ""}
                               onChange={(e) => setEditForm({ ...editForm, jobTitleId: e.target.value ? parseInt(e.target.value) : null })}
                               style={{
@@ -652,8 +724,9 @@ export default function EmployeeDetailView() {
                             </select>
                           </div>
                           <div>
-                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Address</label>
+                            <label style={{ fontWeight: "600", display: "block", marginBottom: theme.spacing.xs }}>Address *</label>
                             <textarea
+                              required
                               value={editForm.address}
                               onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
                               rows={3}
