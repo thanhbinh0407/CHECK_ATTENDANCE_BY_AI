@@ -143,6 +143,7 @@ export default function AttendanceLog() {
     end: todayISO(),
   }));
   const [selectedMonth, setSelectedMonth] = useState("");
+  const [monthlyExportLanguage, setMonthlyExportLanguage] = useState('en');
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [logsTotal, setLogsTotal] = useState(0);
@@ -279,8 +280,12 @@ export default function AttendanceLog() {
         } else if (kind === "work-hours") {
           exportAttendanceWorkHoursSummaryToExcel(rows, employees, `work-hours-${from}-${to}`);
         } else if (kind === "monthly-work-hours") {
-          // Export monthly work hours as Excel to avoid DOCX page/row breaks and keep labels explicit
-          exportAttendanceMonthlyWorkHoursSummaryToExcel(rows, employees, `attendance-monthly-${from}-${to}`);
+          exportAttendanceMonthlyWorkHoursSummaryToExcel(
+            rows,
+            employees,
+            `attendance-monthly-${from}-${to}`,
+            monthlyExportLanguage
+          );
         } else {
           await exportAttendanceToPDF(rows, employees, name);
         }
@@ -290,7 +295,7 @@ export default function AttendanceLog() {
         setExportingKind("");
       }
     },
-    [apiBase, buildExportQuery, employees, dateRange.start, dateRange.end]
+    [apiBase, buildExportQuery, employees, dateRange.start, dateRange.end, monthlyExportLanguage]
   );
 
   const getEmployeeName = (userId) => {
@@ -698,6 +703,18 @@ export default function AttendanceLog() {
                 >
                   Select Month
                 </button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #dee2e6', borderRadius: 10, padding: '10px 14px', backgroundColor: '#f8f9fa' }}>
+                <span style={{ fontSize: 13, color: '#495057', fontWeight: 600 }}>Export language</span>
+                <select
+                  value={monthlyExportLanguage}
+                  onChange={(e) => setMonthlyExportLanguage(e.target.value)}
+                  style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #ced4da', fontSize: 13, minWidth: 140, backgroundColor: '#ffffff', color: '#212529' }}
+                >
+                  <option value="en">English</option>
+                  <option value="vi">Vietnamese</option>
+                </select>
+                <span style={{ fontSize: 12, color: '#6c757d' }}>Monthly Work Hours export</span>
               </div>
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
