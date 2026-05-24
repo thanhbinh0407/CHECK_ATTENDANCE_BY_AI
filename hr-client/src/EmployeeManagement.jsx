@@ -154,10 +154,15 @@ function CreateEmployeeModal({ form, setField, onClose, onSave, saving, departme
               <label>Contract type</label>
               <select value={form.contractType} onChange={e => setField('contractType', e.target.value)}>
                 <option value="">— Select —</option>
-                <option value="probation">Probation</option>
-                <option value="1_year">1 year</option>
-                <option value="3_year">3 years</option>
-                <option value="indefinite">Indefinite</option>
+                <optgroup label="Probation Contracts">
+                  <option value="probation_3_month">Probation (3 months)</option>
+                  <option value="probation_6_month">Probation (6 months)</option>
+                </optgroup>
+                <optgroup label="Formal Contracts">
+                  <option value="formal_1_year">Formal (1 year)</option>
+                  <option value="formal_2_year">Formal (2 years)</option>
+                  <option value="formal_3_year">Formal (3 years)</option>
+                </optgroup>
               </select>
             </div>
             <div className="form-group">
@@ -212,22 +217,7 @@ function EditModal({ form, setField, onClose, onSave, saving, departments, jobTi
           {/* ── Basic Info ── */}
           <p className="form-section-label">Basic Information</p>
           <div className="form-row">
-            <div className="form-row">
             <div className="form-group">
-              <label>Contract Type</label>
-              <select value={form.contractType} onChange={e => setField('contractType', e.target.value)} disabled={!isContractEditable}>
-                <option value="">— Select —</option>
-                <option value="probation">Probation</option>
-                <option value="1_year">1 Year</option>
-                <option value="3_year">3 Years</option>
-                <option value="indefinite">Indefinite</option>
-              </select>
-              {!isContractEditable && (
-                <div style={{ marginTop: 6, color: '#a0aec0', fontSize: 12 }}>
-                  Contract editing disabled while employment is suspended.
-                </div>
-              )}
-            </div>
               <label>Employee Code</label>
               <input value={form.employeeCode} onChange={e => setField('employeeCode', e.target.value)} />
             </div>
@@ -299,16 +289,24 @@ function EditModal({ form, setField, onClose, onSave, saving, departments, jobTi
             </div>
             <div className="form-group">
               <label>Contract Type</label>
-              <select value={form.contractType} onChange={e => setField('contractType', e.target.value)}>
+              <select value={form.contractType} onChange={e => setField('contractType', e.target.value)} disabled={!isContractEditable}>
                 <option value="">— Select —</option>
-                <option value="probation">Probation</option>
-                <option value="1_year">1 Year</option>
-                <option value="3_year">3 Years</option>
-                <option value="indefinite">Indefinite</option>
+                <optgroup label="Probation Contracts">
+                  <option value="probation_3_month">Probation (3 months)</option>
+                  <option value="probation_6_month">Probation (6 months)</option>
+                </optgroup>
+                <optgroup label="Formal Contracts">
+                  <option value="formal_1_year">Formal (1 year)</option>
+                  <option value="formal_2_year">Formal (2 years)</option>
+                  <option value="formal_3_year">Formal (3 years)</option>
+                </optgroup>
               </select>
+              {!isContractEditable && (
+                <div style={{ marginTop: 6, color: '#a0aec0', fontSize: 12 }}>
+                  Contract editing disabled while employment is suspended.
+                </div>
+              )}
             </div>
-          </div>
-            <div className="form-row">
             <div className="form-group">
               <label>Start Date</label>
               <input type="date" value={form.startDate} onChange={e => setField('startDate', e.target.value)} disabled={!isContractEditable} />
@@ -316,6 +314,8 @@ function EditModal({ form, setField, onClose, onSave, saving, departments, jobTi
                 Annual leave is 12 days/year, plus +1 day every 5 years of service.
               </div>
             </div>
+          </div>
+          <div className="form-row">
             <div className="form-group">
               <label>Base Salary (VND)</label>
               <input type="number" min="0" value={form.baseSalary} onChange={e => setField('baseSalary', e.target.value)} />
@@ -422,10 +422,23 @@ function AnnualLeaveConfigModal({ form, setField, onClose, onSave, saving, baseD
 function MaternityLeaveModal({ employee, form, setForm, onClose, onConfirm, saving }) {
   if (!employee) return null;
 
-  const startDate = new Date(form.startDate);
-  const endDate = new Date(startDate);
-  endDate.setMonth(endDate.getMonth() + 6);
-  const endDateStr = form.startDate ? endDate.toLocaleDateString() : '—';
+  // Auto-calculate end date when start date changes
+  const handleStartDateChange = (value) => {
+    setForm({ ...form, startDate: value });
+    
+    if (value) {
+      const startDate = new Date(value);
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + 6);
+      setForm(prev => ({ 
+        ...prev, 
+        startDate: value,
+        endDate: endDate.toISOString().split('T')[0] 
+      }));
+    } else {
+      setForm(prev => ({ ...prev, startDate: value, endDate: '' }));
+    }
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -441,29 +454,27 @@ function MaternityLeaveModal({ employee, form, setForm, onClose, onConfirm, savi
         </p>
 
         <div className="form-group" style={{ marginBottom: 16 }}>
-          <label>Start date (ngày bắt đầu) *</label>
+          <label>Start date *</label>
           <input
             required
             type="date"
             value={form.startDate}
-            onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+            onChange={(e) => handleStartDateChange(e.target.value)}
             disabled={saving}
           />
         </div>
 
-        <div style={{
-          padding: 12,
-          background: '#f0f9ff',
-          border: '1px solid #e0f2fe',
-          borderRadius: 6,
-          marginBottom: 16,
-          fontSize: 13,
-          color: '#0369a1',
-        }}>
-          <strong>End date (ngày kết thúc):</strong> {endDateStr}
-          <br />
-          <small style={{ color: '#0c4a6e' }}>
-            (6 months from start date)
+        <div className="form-group" style={{ marginBottom: 16 }}>
+          <label>End date *</label>
+          <input
+            required
+            type="date"
+            value={form.endDate}
+            onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+            disabled={saving}
+          />
+          <small style={{ color: '#0c4a6e', display: 'block', marginTop: 4 }}>
+            Auto-calculated as 6 months from start date, but can be edited
           </small>
         </div>
 
@@ -480,7 +491,7 @@ function MaternityLeaveModal({ employee, form, setForm, onClose, onConfirm, savi
             type="button"
             className="btn btn-primary"
             onClick={onConfirm}
-            disabled={saving || !form.startDate}
+            disabled={saving || !form.startDate || !form.endDate}
           >
             {saving ? 'Suspending...' : 'Confirm Suspension'}
           </button>
@@ -560,6 +571,7 @@ export default function EmployeeManagement({ token, user }) {
   const [maternityEmployee, setMaternityEmployee] = useState(null);
   const [maternityForm, setMaternityForm] = useState({
     startDate: '',
+    endDate: '',
     reason: 'maternity_leave', // mặc định là thai sản
   });
   const [maternitySaving, setMaternitySaving] = useState(false);
@@ -600,12 +612,8 @@ export default function EmployeeManagement({ token, user }) {
     if (contractType === 'indefinite') return 'Indefinite';
 
     const durationByType = {
-      probation: 2,
-      probation_1_month: 1,
-      probation_2_month: 2,
       probation_3_month: 3,
-      '1_year': 12,
-      '3_year': 36,
+      probation_6_month: 6,
       formal_1_year: 12,
       formal_2_year: 24,
       formal_3_year: 36,
@@ -648,6 +656,33 @@ export default function EmployeeManagement({ token, user }) {
     if (diffDays > 0) return `${diffDays} days`;
     if (diffDays === 0) return 'Expires today';
     return `Expired ${Math.abs(diffDays)} days`;
+  }, []);
+
+  const getContractDaysRemaining = useCallback((employee) => {
+    const contractType = employee?.contractType;
+    if (!contractType || contractType === 'indefinite' || !employee?.startDate) return null;
+
+    const durationByType = {
+      probation_3_month: 3,
+      probation_6_month: 6,
+      formal_1_year: 12,
+      formal_2_year: 24,
+      formal_3_year: 36,
+    };
+
+    const months = durationByType[contractType];
+    if (!months) return null;
+
+    const start = new Date(employee.startDate);
+    if (Number.isNaN(start.getTime())) return null;
+
+    const endDate = new Date(start);
+    endDate.setMonth(endDate.getMonth() + months);
+    endDate.setHours(23, 59, 59, 999);
+
+    const now = new Date();
+    const diffDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays;
   }, []);
 
   const openLeaveConfig = () => {
@@ -753,7 +788,9 @@ export default function EmployeeManagement({ token, user }) {
       const matchJt =
         !filterJobTitle || String(emp.jobTitleId) === filterJobTitle;
       const matchContract =
-        !filterContract || emp.contractType === filterContract;
+        !filterContract || (filterContract === 'maternity' 
+          ? String(emp?.employmentStatus || '').toLowerCase() === 'maternity_leave'
+          : emp.contractType === filterContract);
       const matchList =
         listMode === 'active' ? !isEmployeeInactive(emp) : isEmployeeInactive(emp);
       return matchSearch && matchDept && matchRole && matchJt && matchContract && matchList;
@@ -960,33 +997,42 @@ export default function EmployeeManagement({ token, user }) {
   };
 
   const handleMaternityLeave = async () => {
-    if (!maternityEmployee || !maternityForm.startDate) {
-      toastError('Please select start date');
+    if (!maternityEmployee || !maternityForm.startDate || !maternityForm.endDate) {
+      toastError('Please select both start date and end date');
       return;
     }
 
     setMaternitySaving(true);
     try {
-      const startDate = new Date(maternityForm.startDate);
-      const endDate = new Date(startDate);
-      endDate.setMonth(endDate.getMonth() + 6); // Add 6 months
-
       const res = await fetch(`${API}/admin/employees/${maternityEmployee.id}`, {
         method: 'PUT',
         headers: authHeaders(token),
         body: JSON.stringify({
           employmentStatus: 'maternity_leave',
           maternityStartDate: maternityForm.startDate,
-          maternityEndDate: endDate.toISOString().split('T')[0],
+          maternityEndDate: maternityForm.endDate,
           lastUpdatedBy: actorId,
         }),
       });
       const data = await res.json();
       if (data.status === 'success') {
         setMaternityEmployee(null);
-        setMaternityForm({ startDate: '', reason: 'maternity_leave' });
+        const empToUpdate = maternityEmployee;
+        setMaternityForm({ startDate: '', endDate: '', reason: 'maternity_leave' });
+        
+        // Update detail view if employee details modal is open
+        if (detailUser && detailUser.id === empToUpdate.id) {
+          setDetailUser(prev => ({
+            ...prev,
+            employmentStatus: 'maternity_leave',
+            maternityStartDate: maternityForm.startDate,
+            maternityEndDate: maternityForm.endDate
+          }));
+        }
+        
         load();
-        toastSuccess(`Maternity leave activated for ${maternityEmployee.name} (${maternityEmployee.employeeCode}). Suspended until ${endDate.toLocaleDateString()}`);
+        const endDate = new Date(maternityForm.endDate);
+        toastSuccess(`Maternity leave activated for ${empToUpdate.name} (${empToUpdate.employeeCode}). Suspended until ${endDate.toLocaleDateString()}`);
       } else {
         toastError(data.message || 'Error applying maternity leave');
       }
@@ -1132,10 +1178,12 @@ export default function EmployeeManagement({ token, user }) {
         </select>
         <select className="emp-filter-select" value={filterContract} onChange={e => setFilterContract(e.target.value)} aria-label="Filter by contract type">
           <option value="">All contract types</option>
-          <option value="probation">Probation</option>
-          <option value="1_year">1 year</option>
-          <option value="3_year">3 years</option>
-          <option value="indefinite">Indefinite</option>
+          <option value="maternity">Maternity</option>
+          <option value="probation_3_month">Probation (3 months)</option>
+          <option value="probation_6_month">Probation (6 months)</option>
+          <option value="formal_1_year">Formal (1 year)</option>
+          <option value="formal_2_year">Formal (2 years)</option>
+          <option value="formal_3_year">Formal (3 years)</option>
         </select>
       </div>
 
@@ -1234,9 +1282,22 @@ export default function EmployeeManagement({ token, user }) {
                           🤰 Maternity
                         </span>
                       ) : user?.role === 'hr' ? (
-                        <span style={{ fontWeight: 600, color: '#334155' }}>
-                          {getContractDaysLabel(emp)}
-                        </span>
+                        (() => {
+                          const daysRemaining = getContractDaysRemaining(emp);
+                          const isWarning = daysRemaining !== null && daysRemaining <= 30 && daysRemaining > 0;
+                          const isExpired = daysRemaining !== null && daysRemaining <= 0;
+                          return (
+                            <span style={{
+                              fontWeight: 600,
+                              color: isExpired ? '#dc2626' : isWarning ? '#dc2626' : '#334155',
+                              backgroundColor: isWarning || isExpired ? '#fee2e2' : 'transparent',
+                              padding: isWarning || isExpired ? '4px 8px' : '0',
+                              borderRadius: isWarning || isExpired ? '4px' : '0',
+                            }}>
+                              {getContractDaysLabel(emp)}
+                            </span>
+                          );
+                        })()
                       ) : (
                         <span className={`badge ${isEmployeeInactive(emp) ? 'badge-inactive' : 'badge-active'}`}>
                           {isEmployeeInactive(emp) ? 'Inactive' : 'Active'}
@@ -1277,7 +1338,7 @@ export default function EmployeeManagement({ token, user }) {
                           <button
                             type="button"
                             className="btn-tbl btn-tbl-edit"
-                            onClick={() => { setMaternityEmployee(emp); setMaternityForm({ startDate: '', reason: 'maternity_leave' }); }}
+                            onClick={() => { setMaternityEmployee(emp); setMaternityForm({ startDate: '', endDate: '', reason: 'maternity_leave' }); }}
                             title="Suspend for maternity leave (6 months)"
                             style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
                           >
@@ -1400,9 +1461,29 @@ export default function EmployeeManagement({ token, user }) {
                 </div>
                 <div><span style={{ color: '#718096' }}>Role:</span> <RoleBadge role={detailUser.role} /></div>
                 <div><span style={{ color: '#718096' }}>Status:</span>{' '}
-                  <span className={`badge ${isEmployeeInactive(detailUser) ? 'badge-inactive' : 'badge-active'}`}>
-                    {isEmployeeInactive(detailUser) ? 'Inactive' : 'Active'}
-                  </span>
+                  {detailUser.employmentStatus === 'maternity_leave' ? (
+                    <span style={{ color: '#dc2626', fontSize: 13 }}>
+                      Maternity: {detailUser.maternityStartDate?.slice(0, 10) || '—'} to {detailUser.maternityEndDate?.slice(0, 10) || '—'}
+                    </span>
+                  ) : (
+                    (() => {
+                      const daysRemaining = getContractDaysRemaining(detailUser);
+                      const isWarning = daysRemaining !== null && daysRemaining <= 30 && daysRemaining > 0;
+                      const isExpired = daysRemaining !== null && daysRemaining <= 0;
+                      return (
+                        <span style={{
+                          fontSize: 13,
+                          color: isExpired ? '#dc2626' : isWarning ? '#dc2626' : '#2563eb',
+                          backgroundColor: isWarning || isExpired ? '#fee2e2' : 'transparent',
+                          padding: isWarning || isExpired ? '2px 6px' : '0',
+                          borderRadius: isWarning || isExpired ? '3px' : '0',
+                          fontWeight: isWarning || isExpired ? 600 : 400,
+                        }}>
+                          {getContractDaysLabel(detailUser)}
+                        </span>
+                      );
+                    })()
+                  )}
                 </div>
                 <div><span style={{ color: '#718096' }}>Start Date:</span> {detailUser.startDate ? detailUser.startDate.slice(0,10) : '—'}</div>
                 <div><span style={{ color: '#718096' }}>Base Salary:</span> {detailUser.baseSalary ? Number(detailUser.baseSalary).toLocaleString('vi-VN') + ' ₫' : '—'}</div>
@@ -1465,65 +1546,7 @@ export default function EmployeeManagement({ token, user }) {
               )}
             </div>
 
-            {/* Salary History */}
-            <div className="detail-section">
-              <div className="detail-section-title">Salary Change History</div>
-              <div className="detail-filter-row">
-                <input className="detail-filter-input" type="date" value={detailSalaryFilter.fromDate}
-                  onChange={e => { setDetailSalaryFilter(f => ({ ...f, fromDate: e.target.value })); setDetailSalaryPage(1); }} />
-                <input className="detail-filter-input" type="date" value={detailSalaryFilter.toDate}
-                  onChange={e => { setDetailSalaryFilter(f => ({ ...f, toDate: e.target.value })); setDetailSalaryPage(1); }} />
-                <select className="detail-filter-input" value={detailSalaryFilter.changeType}
-                  onChange={e => { setDetailSalaryFilter(f => ({ ...f, changeType: e.target.value })); setDetailSalaryPage(1); }}>
-                  <option value="">All Types</option>
-                  {SALARY_CHANGE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <button className="detail-filter-input" style={{ cursor: 'pointer', background: '#f1f5f9' }}
-                  onClick={() => { setDetailSalaryFilter({ fromDate: '', toDate: '', changeType: '' }); setDetailSalaryPage(1); }}>
-                  Clear
-                </button>
-              </div>
-              {detailSalaryRows.length === 0 ? (
-                <div style={{ color: '#94a3b8', fontSize: 13, padding: '8px 0' }}>No salary changes available.</div>
-              ) : (
-                <>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="detail-history-table">
-                      <thead>
-                        <tr><th>Effective Date</th><th>Type</th><th>Old → New Salary</th><th>Reason</th></tr>
-                      </thead>
-                      <tbody>
-                        {detailSalaryRows.map(h => (
-                          <tr key={h.id}>
-                            <td>{h.effectiveDate || '—'}</td>
-                            <td>
-                              <span className="change-badge" style={CHANGE_TYPE_BADGE[h.changeType] || CHANGE_TYPE_BADGE.other}>
-                                {h.changeType || 'other'}
-                              </span>
-                            </td>
-                            <td>
-                              {Number(h.previousBaseSalary || 0).toLocaleString('vi-VN')} ₫
-                              {' → '}
-                              {Number(h.newBaseSalary || 0).toLocaleString('vi-VN')} ₫
-                            </td>
-                            <td>{h.reason || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {detailSalaryMeta.totalItems > 0 && (
-                    <div className="detail-pagination">
-                      <button className="detail-filter-input" style={{ cursor: detailSalaryPage <= 1 ? 'not-allowed' : 'pointer' }}
-                        disabled={detailSalaryPage <= 1} onClick={() => setDetailSalaryPage(p => Math.max(1, p - 1))}>← Prev</button>
-                      <span>Page {detailSalaryMeta.currentPage || detailSalaryPage} / {detailSalaryMeta.totalPages || 1}</span>
-                      <button className="detail-filter-input" style={{ cursor: detailSalaryPage >= (detailSalaryMeta.totalPages || 1) ? 'not-allowed' : 'pointer' }}
-                        disabled={detailSalaryPage >= (detailSalaryMeta.totalPages || 1)} onClick={() => setDetailSalaryPage(p => p + 1)}>Next →</button>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+            {/* Salary Change History — Hidden */}
 
           </div>
         </div>

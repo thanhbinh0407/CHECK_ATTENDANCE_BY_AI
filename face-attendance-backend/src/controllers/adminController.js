@@ -41,9 +41,8 @@ const sumAllowances = (obj) => {
 };
 
 const CONTRACT_DURATION_MONTHS = {
-  probation_1_month: 1,
-  probation_2_month: 2,
   probation_3_month: 3,
+  probation_6_month: 6,
   formal_1_year: 12,
   formal_2_year: 24,
   formal_3_year: 36,
@@ -287,6 +286,8 @@ export const updateEmployee = async (req, res) => {
       taxCode,
       contractType,
       employmentStatus,
+      maternityStartDate,
+      maternityEndDate,
       managerId,
       branchName,
       lunchAllowance,
@@ -359,6 +360,8 @@ export const updateEmployee = async (req, res) => {
     if (taxCode !== undefined) updateData.taxCode = taxCode;
     if (contractType !== undefined) updateData.contractType = contractType || null;
     if (employmentStatus !== undefined) updateData.employmentStatus = employmentStatus || null;
+    if (maternityStartDate !== undefined) updateData.maternityStartDate = maternityStartDate ? new Date(maternityStartDate) : null;
+    if (maternityEndDate !== undefined) updateData.maternityEndDate = maternityEndDate ? new Date(maternityEndDate) : null;
     if (managerId !== undefined) updateData.managerId = managerId ? parseInt(managerId) : null;
     if (branchName !== undefined) updateData.branchName = branchName;
     if (lunchAllowance !== undefined) updateData.lunchAllowance = parseFloat(lunchAllowance) || 0;
@@ -1501,6 +1504,8 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         salaryGrade: employee.SalaryGrade?.name || 'N/A',
         contractType: employee.contractType,
         employmentStatus: employee.employmentStatus,
+        maternityStartDate: employee.maternityStartDate,
+        maternityEndDate: employee.maternityEndDate,
         managerId: employee.managerId,
         branchName: employee.branchName,
         Manager: employee.Manager ? { id: employee.Manager.id, name: employee.Manager.name, employeeCode: employee.Manager.employeeCode } : null,
@@ -1511,10 +1516,6 @@ export const getEmployeeDetailedInfo = async (req, res) => {
         bankName: employee.bankName,
         bankBranch: employee.bankBranch,
         taxCode: employee.taxCode,
-        contractType: employee.contractType,
-        employmentStatus: employee.employmentStatus,
-        managerId: employee.managerId,
-        branchName: employee.branchName,
         lunchAllowance: employee.lunchAllowance,
         transportAllowance: employee.transportAllowance,
         phoneAllowance: employee.phoneAllowance,
