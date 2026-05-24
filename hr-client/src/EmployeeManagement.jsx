@@ -1486,7 +1486,6 @@ export default function EmployeeManagement({ token, user }) {
                   )}
                 </div>
                 <div><span style={{ color: '#718096' }}>Start Date:</span> {detailUser.startDate ? detailUser.startDate.slice(0,10) : '—'}</div>
-                <div><span style={{ color: '#718096' }}>Base Salary:</span> {detailUser.baseSalary ? Number(detailUser.baseSalary).toLocaleString('vi-VN') + ' ₫' : '—'}</div>
               </div>
             </div>
 

@@ -12,7 +12,7 @@
  *   - HR Staff:   hr@company.com / HR@12345
  *   - Accountant: accountant@company.com / Accountant@12345
  *   - Supervisor: supervisor@company.com / Supervisor@12345
- *   - Employees:  emp001@company.com đến emp050@company.com / Password123!
+ *   - Employees:  emp001@company.com đến emp030@company.com / Password123!
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
@@ -221,7 +221,7 @@ async function ensureTestUsers() {
     }
     console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('\nEMPLOYEES:');
-    console.log('  Range:    emp001@company.com to emp050@company.com');
+    console.log('  Range:    emp001@company.com to emp030@company.com');
     console.log('  Password: Password123!');
     console.log('  Note: These accounts are created by seed-data.js');
 

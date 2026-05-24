@@ -26,12 +26,6 @@ const shortcutGroups = [
   {
     title: "Payroll, Insurance & Reports",
     links: [
-      { to: "/salary", label: "Payroll Management", icon: "💰" },
-      { to: "/salary-calc", label: "Payroll Calculation", icon: "🧮" },
-      { to: "/salary-grades", label: "Salary Grades", icon: "📈" },
-      { to: "/insurance-config", label: "Insurance Settings", icon: "🏥" },
-      { to: "/insurance-d02", label: "D02-LT", icon: "📄" },
-      { to: "/insurance-tk1", label: "TK1-TS", icon: "📝" },
       { to: "/reports", label: "Reports", icon: "📊" },
       { to: "/analytics", label: "Analytics", icon: "📉" },
       { to: "/approval-audit", label: "Approval Responsibility Log", icon: "🧾" },
