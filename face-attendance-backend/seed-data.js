@@ -72,11 +72,19 @@ const ATTENDANCE_OVERRIDES = {
   }
 };
 
+const APRIL_2026_WEEKDAYS = [
+  1, 2, 3,
+  6, 7, 8, 9, 10,
+  13, 14, 15, 16, 17,
+  20, 21, 22, 23, 24,
+  27, 28, 29, 30
+];
+
 const JAN_APR_2026_SCENARIO_DAYS = {
   1: [5, 12, 19, 26],
   2: [2, 9, 16, 23],
   3: [4, 11, 18, 25],
-  4: [1, 8, 15, 22]
+  4: APRIL_2026_WEEKDAYS
 };
 const ATTENDANCE_SCENARIO_KEYS = [
   'normal',
@@ -1185,7 +1193,7 @@ async function seedDB() {
 
       for (let date = new Date(effectiveStart); date <= ATTENDANCE_LOG_THROUGH; date = addDays(date, 1)) {
         const dayOfWeek = date.getUTCDay();
-        if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+        if (dayOfWeek === 0) continue; // skip Sundays only; Saturdays are now working days
 
         const serial = Math.floor((date - PERIOD_START) / (24 * 60 * 60 * 1000));
         const scenarioKey = getScenarioForDate(i, date);
@@ -1198,7 +1206,26 @@ async function seedDB() {
         }
 
         const isAbsent = (i + serial) % 17 === 0 || (profile.seniorityBand === 'new_joiner' && (i + serial) % 23 === 0);
-        if (isAbsent) continue;
+        if (isAbsent) {
+          attendanceRows.push({
+            userId: emp.id,
+            detectedName: emp.name,
+            confidence: Number((0.9 + ((i + serial) % 8) * 0.01).toFixed(2)),
+            matchDistance: Number((0.05 + ((i + serial) % 10) * 0.01).toFixed(2)),
+            type: 'ABSENT',
+            isLate: false,
+            isEarlyLeave: false,
+            isOvertime: false,
+            isAbsent: true,
+            deviceId: 'MAIN_ENTRANCE',
+            timestamp: new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 1, 0)),
+            note: 'Absent full day'
+          });
+          if (attendanceRows.length >= 1000) {
+            await AttendanceLog.bulkCreate(attendanceRows.splice(0, 1000));
+          }
+          continue;
+        }
 
         const dateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
         const overrides = ATTENDANCE_OVERRIDES[profile.index];
@@ -1830,15 +1857,16 @@ async function seedDB() {
       throw new Error('Duplicate salary records detected for the same user and month');
     }
 
-    const invalidAttendancePairs = await sequelize.query(`
-      SELECT "userId", DATE("timestamp") AS work_date
-      FROM attendance_logs
-      GROUP BY "userId", DATE("timestamp")
-      HAVING SUM(CASE WHEN type = 'IN' THEN 1 ELSE 0 END) <> 1
-          OR SUM(CASE WHEN type = 'OUT' THEN 1 ELSE 0 END) <> 1
-          OR COUNT(*) <> 2
-      LIMIT 5
-    `, { type: QueryTypes.SELECT });
+        const invalidAttendancePairs = await sequelize.query(`
+          SELECT "userId", DATE("timestamp") AS work_date,
+            SUM(CASE WHEN type = 'IN' THEN 1 ELSE 0 END) AS in_count,
+            SUM(CASE WHEN type = 'OUT' THEN 1 ELSE 0 END) AS out_count
+          FROM attendance_logs
+          GROUP BY "userId", DATE("timestamp")
+          HAVING SUM(CASE WHEN type = 'IN' THEN 1 ELSE 0 END)
+            <> SUM(CASE WHEN type = 'OUT' THEN 1 ELSE 0 END)
+          LIMIT 5
+        `, { type: QueryTypes.SELECT });
     if (invalidAttendancePairs.length > 0) {
       throw new Error('Attendance IN/OUT pairing validation failed');
     }

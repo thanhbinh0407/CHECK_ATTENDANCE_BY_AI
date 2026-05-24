@@ -475,6 +475,50 @@ const buildAttendanceWorkHourRows = (logs = [], employees = []) => {
       status = 'Partial';
     }
 
+    const fmt = (ts) => (ts ? timeFormatter.format(new Date(ts)) : '');
+    const normalIns = group.checkIns
+      .filter((log) => !String(log.type || '').includes('OT'))
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const normalOuts = group.checkOuts
+      .filter((log) => !String(log.type || '').includes('OT'))
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const otIns = group.checkIns
+      .filter((log) => String(log.type || '').includes('OT'))
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const otOuts = group.checkOuts
+      .filter((log) => String(log.type || '').includes('OT'))
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    const normalShifts = [];
+    let normalOutIdx = 0;
+    for (let inIdx = 0; inIdx < normalIns.length; inIdx += 1) {
+      const inLog = normalIns[inIdx];
+      const inTs = new Date(inLog.timestamp);
+      while (normalOutIdx < normalOuts.length && new Date(normalOuts[normalOutIdx].timestamp) < inTs) normalOutIdx += 1;
+      if (normalOutIdx < normalOuts.length) {
+        normalShifts.push({ in: inLog, out: normalOuts[normalOutIdx] });
+        normalOutIdx += 1;
+      }
+    }
+
+    const otShifts = [];
+    let otOutIdx = 0;
+    for (let inIdx = 0; inIdx < otIns.length; inIdx += 1) {
+      const inLog = otIns[inIdx];
+      const inTs = new Date(inLog.timestamp);
+      while (otOutIdx < otOuts.length && new Date(otOuts[otOutIdx].timestamp) < inTs) otOutIdx += 1;
+      if (otOutIdx < otOuts.length) {
+        otShifts.push({ in: inLog, out: otOuts[otOutIdx] });
+        otOutIdx += 1;
+      }
+    }
+
+    const shift1 = normalShifts[0] ? `${fmt(normalShifts[0].in.timestamp)}-${fmt(normalShifts[0].out.timestamp)}` : '';
+    const shift2 = normalShifts[1] ? `${fmt(normalShifts[1].in.timestamp)}-${fmt(normalShifts[1].out.timestamp)}` : '';
+    const otShift = otShifts[0] ? `${fmt(otShifts[0].in.timestamp)}-${fmt(otShifts[0].out.timestamp)}` : '';
+    const isAbsentDay = ['Absent', 'Partial Absent', 'Absent + OT'].includes(status);
+    const absentLabel = translateMonthlyWorkHoursStatus('Absent', 'en');
+
     rows.push({
       employeeName: employee.name || '',
       employeeCode: employee.employeeCode || '',
@@ -484,6 +528,9 @@ const buildAttendanceWorkHourRows = (logs = [], employees = []) => {
       workHours: totalHours > 0 ? totalHours.toFixed(1) : '',
       otHours: otHours > 0 ? otHours.toFixed(1) : '',
       status,
+      shift1: shift1 || (isAbsentDay ? absentLabel : ''),
+      shift2: shift2 || (isAbsentDay && shift1 ? absentLabel : ''),
+      otShift: otShift || (isAbsentDay && !shift1 ? absentLabel : ''),
     });
   });
 
@@ -518,6 +565,162 @@ const buildAttendanceMonthlyWorkHourRows = (logs = [], employees = []) => {
   return Array.from(monthlyMap.values()).sort((a, b) =>
     a.employeeCode.localeCompare(b.employeeCode) || a.year.localeCompare(b.year) || a.month.localeCompare(b.month)
   );
+};
+
+const getMonthDayCount = (year, month) => new Date(Number(year), Number(month), 0).getDate();
+
+const MONTHLY_WORK_HOURS_LABELS = {
+  en: {
+    Employee: 'Employee',
+    Code: 'Code',
+    Month: 'Month',
+    Year: 'Year',
+    Day: 'Day',
+    Date: 'Date',
+    WorkHours: 'Work Hours',
+    OTHours: 'OT Hours',
+    Shift1: 'Shift 1',
+    Shift2: 'Shift 2',
+    OTShift: 'OT Shift',
+    Status: 'Status',
+    TotalWorkHours: 'Total Work Hours',
+    TotalOTHours: 'Total OT Hours',
+    DaysWorked: 'Days Worked',
+    AbsentDays: 'Absent Days',
+  },
+  vi: {
+    Employee: 'Nhân viên',
+    Code: 'Mã',
+    Month: 'Tháng',
+    Year: 'Năm',
+    Day: 'Ngày',
+    Date: 'Ngày',
+    WorkHours: 'Giờ làm',
+    OTHours: 'Giờ OT',
+    Shift1: 'Ca 1',
+    Shift2: 'Ca 2',
+    OTShift: 'Ca OT',
+    Status: 'Trạng thái',
+    TotalWorkHours: 'Tổng giờ làm',
+    TotalOTHours: 'Tổng giờ OT',
+    DaysWorked: 'Số ngày đi làm',
+    AbsentDays: 'Số ngày nghỉ',
+  },
+};
+
+const MONTHLY_WORK_HOURS_STATUS = {
+  en: {
+    Normal: 'Normal',
+    Absent: 'Absent',
+    'Partial Absent': 'Partial Absent',
+    'Absent + OT': 'Absent + OT',
+    OT: 'OT',
+    Late: 'Late',
+    'Early Leave': 'Early Leave',
+    Partial: 'Partial',
+    'No hours': 'No hours',
+    Weekend: 'Weekend',
+  },
+  vi: {
+    Normal: 'Bình thường',
+    Absent: 'Nghỉ',
+    'Partial Absent': 'Nghỉ một phần',
+    'Absent + OT': 'Nghỉ + OT',
+    OT: 'OT',
+    Late: 'Trễ',
+    'Early Leave': 'Về sớm',
+    Partial: 'Một phần',
+    'No hours': 'Không có giờ',
+    Weekend: 'Cuối tuần',
+  },
+};
+
+const getMonthlyWorkHoursLabel = (key, language = 'en') => {
+  return (MONTHLY_WORK_HOURS_LABELS[language] || MONTHLY_WORK_HOURS_LABELS.en)[key] || key;
+};
+
+const translateMonthlyWorkHoursStatus = (status, language = 'en') => {
+  return (MONTHLY_WORK_HOURS_STATUS[language] || MONTHLY_WORK_HOURS_STATUS.en)[status] || status || '';
+};
+
+const buildAttendanceMonthlyWorkHoursSheets = (logs = [], employees = [], language = 'en') => {
+  const dayRows = buildAttendanceWorkHourRows(logs, employees);
+  const employeeByCode = new Map((employees || []).map((employee) => [String(employee.employeeCode), employee]));
+  const monthGroups = new Map();
+
+  dayRows.forEach((row) => {
+    const [year, month, day] = row.date.split('-').map((part) => Number(part));
+    if (!year || !month || !day) return;
+
+    const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+    const groupKey = `${row.employeeCode}||${monthKey}`;
+    const existing = monthGroups.get(groupKey) || {
+      employeeName: row.employeeName,
+      employeeCode: row.employeeCode,
+      year,
+      month,
+      dayData: new Map(),
+      totalHours: 0,
+      totalOtHours: 0,
+      daysWorked: 0,
+      absentDays: 0,
+      startDate: safeParseDate(employeeByCode.get(String(row.employeeCode))?.startDate),
+    };
+
+    existing.dayData.set(day, {
+      hours: row.workHours || '',
+      status: row.status || '',
+    });
+    existing.totalHours += Number(row.workHours || 0);
+    existing.totalOtHours += Number(row.otHours || 0);
+    if (row.workHours) existing.daysWorked += 1;
+    if (['Absent', 'Partial Absent', 'Absent + OT'].includes(row.status)) existing.absentDays += 1;
+    monthGroups.set(groupKey, existing);
+  });
+
+  const sheets = new Map();
+  Array.from(monthGroups.values()).forEach((group) => {
+    const monthKey = `${group.year}-${String(group.month).padStart(2, '0')}`;
+    const dayCount = getMonthDayCount(group.year, group.month);
+    const row = {
+      [getMonthlyWorkHoursLabel('Employee', language)]: group.employeeName,
+      [getMonthlyWorkHoursLabel('Code', language)]: group.employeeCode,
+      [getMonthlyWorkHoursLabel('Month', language)]: group.month,
+      [getMonthlyWorkHoursLabel('Year', language)]: group.year,
+    };
+
+    for (let day = 1; day <= dayCount; day += 1) {
+      const cell = group.dayData.get(day);
+      const dayDate = new Date(Date.UTC(group.year, group.month - 1, day));
+      const isWeekend = dayDate.getUTCDay() === 0;
+      const beforeStart = group.startDate && dayDate < group.startDate;
+      row[`${getMonthlyWorkHoursLabel('Day', language)} ${day}`] = cell?.hours || '';
+      const statusKey = cell?.status || (beforeStart ? '' : isWeekend ? 'Weekend' : 'No hours');
+      row[`${getMonthlyWorkHoursLabel('Status', language)} ${day}`] = translateMonthlyWorkHoursStatus(statusKey, language);
+    }
+
+    row['Total Work Hours'] = Number(group.totalHours.toFixed(1));
+    row['Total OT Hours'] = Number(group.totalOtHours.toFixed(1));
+    row['Days Worked'] = group.daysWorked;
+    row['Absent Days'] = group.absentDays;
+
+    const sheet = sheets.get(monthKey) || {
+      year: group.year,
+      month: group.month,
+      dayCount,
+      rows: [],
+    };
+    sheet.rows.push(row);
+    sheets.set(monthKey, sheet);
+  });
+
+  return Array.from(sheets.values()).sort((a, b) => a.year - b.year || a.month - b.month);
+};
+
+const safeParseDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 };
 
 const ATTENDANCE_DAY_CODE = {
@@ -804,56 +1007,116 @@ export const exportAttendanceWorkHoursSummaryToExcel = (logs, employees, filenam
   XLSX.writeFile(wb, `${filename}.xlsx`);
 };
 
-export const exportAttendanceMonthlyWorkHoursSummaryToExcel = (logs, employees, filename = 'work-hours-monthly-summary') => {
-  const rows = buildAttendanceMonthlyWorkHourRows(logs, employees);
+export const exportAttendanceMonthlyWorkHoursSummaryToExcel = (
+  logs,
+  employees,
+  filename = 'work-hours-monthly-summary',
+  language = 'en'
+) => {
+  const rows = buildAttendanceWorkHourRows(logs, employees);
   if (rows.length === 0) {
     toastWarning('No attendance data available for monthly work hours export.');
     return;
   }
 
-  const data = rows.map((row) => ({
-    Employee: row.employeeName,
-    Code: row.employeeCode,
-    Month: row.month,
-    Year: row.year,
-    'Total Work Hours': row.totalHours.toFixed(1),
-    'Total OT Hours': row.totalOtHours.toFixed(1),
-    'Days Worked': row.daysWorked,
-    'Absent Days': row.absentDays,
-  }));
-
-  const totalWorkHours = rows.reduce((sum, row) => sum + Number(row.totalHours || 0), 0);
-  const totalOtHours = rows.reduce((sum, row) => sum + Number(row.totalOtHours || 0), 0);
-  const totalDaysWorked = rows.reduce((sum, row) => sum + Number(row.daysWorked || 0), 0);
-  const totalAbsentDays = rows.reduce((sum, row) => sum + Number(row.absentDays || 0), 0);
-
-  data.push({
-    Employee: 'TOTAL',
-    Code: '',
-    Month: '',
-    Year: '',
-    'Total Work Hours': totalWorkHours.toFixed(1),
-    'Total OT Hours': totalOtHours.toFixed(1),
-    'Days Worked': totalDaysWorked,
-    'Absent Days': totalAbsentDays,
+  const employeeByCode = new Map((employees || []).map((employee) => [String(employee.employeeCode), employee]));
+  const monthGroups = new Map();
+  rows.forEach((row) => {
+    const [year, month] = row.date.split('-');
+    if (!year || !month) return;
+    const sheetKey = `${year}-${month}||${row.employeeCode}`;
+    const group = monthGroups.get(sheetKey) || [];
+    group.push(row);
+    monthGroups.set(sheetKey, group);
   });
 
-  const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Monthly Work Hours');
-  ws['!cols'] = [
-    { wch: 24 },
-    { wch: 14 },
-    { wch: 10 },
-    { wch: 8 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 12 },
-    { wch: 12 }
-  ];
+  const totalLabel = language === 'vi' ? 'TỔNG' : 'TOTAL';
 
-  const totalRowNumber = data.length + 1;
-  styleExcelTotalRow(ws, totalRowNumber, 8);
+  monthGroups.forEach((monthRows, sheetKey) => {
+    const [sheetMonth, employeeCode] = sheetKey.split('||');
+    const [yearStr, monthStr] = sheetMonth.split('-');
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+    const employee = employeeByCode.get(employeeCode);
+    const employeeStartDate = safeParseDate(employee?.startDate);
+    const dayCount = getMonthDayCount(year, month);
+    const dayMap = new Map();
+
+    monthRows.forEach((row) => {
+      const day = Number(row.date.split('-')[2]);
+      if (day >= 1 && day <= dayCount) {
+        dayMap.set(day, row);
+      }
+    });
+
+    const headers = [
+      getMonthlyWorkHoursLabel('Employee', language),
+      getMonthlyWorkHoursLabel('Code', language),
+      getMonthlyWorkHoursLabel('Date', language),
+      getMonthlyWorkHoursLabel('Day', language),
+      getMonthlyWorkHoursLabel('WorkHours', language),
+      getMonthlyWorkHoursLabel('OTHours', language),
+      getMonthlyWorkHoursLabel('Shift1', language),
+      getMonthlyWorkHoursLabel('Shift2', language),
+      getMonthlyWorkHoursLabel('OTShift', language),
+      getMonthlyWorkHoursLabel('Status', language),
+    ];
+
+    const data = [];
+    for (let day = 1; day <= dayCount; day += 1) {
+      const dayDate = new Date(Date.UTC(year, month - 1, day));
+      const row = dayMap.get(day);
+      const isWeekend = dayDate.getUTCDay() === 0;
+      const beforeStart = employeeStartDate && dayDate < employeeStartDate;
+      const statusKey = row?.status || (beforeStart ? '' : isWeekend ? 'Weekend' : 'No hours');
+
+      data.push({
+        [getMonthlyWorkHoursLabel('Employee', language)]: row?.employeeName || employee?.name || '',
+        [getMonthlyWorkHoursLabel('Code', language)]: row?.employeeCode || employeeCode || '',
+        [getMonthlyWorkHoursLabel('Date', language)]: `${yearStr}-${monthStr}-${String(day).padStart(2, '0')}`,
+        [getMonthlyWorkHoursLabel('Day', language)]: String(day).padStart(2, '0'),
+        [getMonthlyWorkHoursLabel('WorkHours', language)]: row?.workHours || '',
+        [getMonthlyWorkHoursLabel('OTHours', language)]: row?.otHours || '',
+        [getMonthlyWorkHoursLabel('Shift1', language)]: row?.shift1 || '',
+        [getMonthlyWorkHoursLabel('Shift2', language)]: row?.shift2 || '',
+        [getMonthlyWorkHoursLabel('OTShift', language)]: row?.otShift || '',
+        [getMonthlyWorkHoursLabel('Status', language)]: translateMonthlyWorkHoursStatus(statusKey, language),
+      });
+    }
+
+    const totalWorkHours = monthRows.reduce((sum, row) => sum + Number(row.workHours || 0), 0);
+    const totalOtHours = monthRows.reduce((sum, row) => sum + Number(row.otHours || 0), 0);
+    const daysWorked = monthRows.filter((row) => row.workHours).length;
+    const absentDays = monthRows.filter((row) => ['Absent', 'Partial Absent', 'Absent + OT'].includes(row.status)).length;
+
+    data.push({
+      [getMonthlyWorkHoursLabel('Employee', language)]: totalLabel,
+      [getMonthlyWorkHoursLabel('Code', language)]: '',
+      [getMonthlyWorkHoursLabel('Date', language)]: '',
+      [getMonthlyWorkHoursLabel('Day', language)]: '',
+      [getMonthlyWorkHoursLabel('WorkHours', language)]: totalWorkHours.toFixed(1),
+      [getMonthlyWorkHoursLabel('OTHours', language)]: totalOtHours.toFixed(1),
+      [getMonthlyWorkHoursLabel('Status', language)]: `${getMonthlyWorkHoursLabel('DaysWorked', language)}: ${daysWorked}, ${getMonthlyWorkHoursLabel('AbsentDays', language)}: ${absentDays}`,
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data, { header: headers });
+    const sheetName = `WorkHours-${sheetKey}`;
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+    ws['!cols'] = [
+      { wch: 24 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 8 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 18 },
+    ];
+
+    const totalRowNumber = data.length + 1;
+    styleExcelTotalRow(ws, totalRowNumber, headers.length);
+  });
 
   XLSX.writeFile(wb, `${filename}.xlsx`);
 };
