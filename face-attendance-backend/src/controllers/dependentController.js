@@ -125,7 +125,21 @@ export const getDependentDocuments = async (req, res) => {
       order: [["createdAt", "DESC"]]
     });
 
-    return res.json({ status: "success", documents });
+    // Ensure documentPath is an absolute URL so frontends on other ports can load images/files
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const docsWithUrls = documents.map(d => ({
+      id: d.id,
+      dependentId: d.dependentId,
+      userId: d.userId,
+      documentPath: d.documentPath && d.documentPath.startsWith('/') ? `${origin}${d.documentPath}` : d.documentPath,
+      fileName: d.fileName,
+      fileSize: d.fileSize,
+      mimeType: d.mimeType,
+      createdAt: d.createdAt,
+      updatedAt: d.updatedAt
+    }));
+
+    return res.json({ status: "success", documents: docsWithUrls });
   } catch (err) {
     console.error("Error fetching dependent documents:", err);
     return res.status(500).json({ status: "error", message: err.message });
@@ -148,12 +162,19 @@ export const uploadDependentDocuments = async (req, res) => {
       return res.status(403).json({ status: "error", message: "Forbidden" });
     }
 
-    const files = req.files || [];
-    if (!Array.isArray(files) || files.length === 0) {
+    // Normalize req.files to an array whether multer used .array() or .fields()
+    let filesArray = [];
+    if (Array.isArray(req.files)) filesArray = req.files;
+    else if (req.files && typeof req.files === 'object') {
+      // req.files is an object where values are arrays
+      filesArray = Object.values(req.files).flat();
+    }
+
+    if (!Array.isArray(filesArray) || filesArray.length === 0) {
       return res.status(400).json({ status: "error", message: "No files uploaded" });
     }
 
-    const docsToCreate = files.map((f) => ({
+    const docsToCreate = filesArray.map((f) => ({
       dependentId: dependent.id,
       userId: dependent.userId,
       documentPath: getDependentFileUrl(f.filename),
@@ -164,10 +185,23 @@ export const uploadDependentDocuments = async (req, res) => {
 
     const created = await DependentDocument.bulkCreate(docsToCreate);
 
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const createdWithUrls = created.map(d => ({
+      id: d.id,
+      dependentId: d.dependentId,
+      userId: d.userId,
+      documentPath: d.documentPath && d.documentPath.startsWith('/') ? `${origin}${d.documentPath}` : d.documentPath,
+      fileName: d.fileName,
+      fileSize: d.fileSize,
+      mimeType: d.mimeType,
+      createdAt: d.createdAt,
+      updatedAt: d.updatedAt
+    }));
+
     return res.json({
       status: "success",
       message: "Documents uploaded successfully",
-      documents: created
+      documents: createdWithUrls
     });
   } catch (err) {
     console.error("Error uploading dependent documents:", err);

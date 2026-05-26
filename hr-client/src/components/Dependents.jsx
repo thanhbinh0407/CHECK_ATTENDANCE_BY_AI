@@ -4,6 +4,8 @@ export default function Dependents({ token }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
+  const [existingDocs, setExistingDocs] = useState([]);
+  const [existingCccdDocs, setExistingCccdDocs] = useState([]);
   const [searchEmployee, setSearchEmployee] = useState('');
   const [ageFilter, setAgeFilter] = useState('all');
 
@@ -60,6 +62,40 @@ export default function Dependents({ token }) {
       if (id && mapping[id]) return { ...it, user: { ...(it.user || {}), name: mapping[id] } };
       return it;
     }));
+  };
+
+  const fetchDependentDocuments = async (dependentId) => {
+    try {
+      const t = token || localStorage.getItem('authToken');
+      if (!t) return;
+      const res = await fetch(`${apiBase}/api/dependents/${dependentId}/documents`, { headers: { Authorization: `Bearer ${t}` } });
+      if (!res.ok) {
+        setExistingDocs([]);
+        setExistingCccdDocs([]);
+        return;
+      }
+        const data = await res.json().catch(() => null);
+        const docs = data?.documents || data || [];
+        const norm = (docs || []).map(d => {
+          if (typeof d === 'string') return { url: d, name: d.split('/').pop() };
+          const url = d.documentPath || d.url || d.path || d.file || '';
+          const name = d.fileName || d.name || d.filename || (url || '').split('/').pop();
+          return { url, name, type: d.mimeType || d.type || '' };
+        });
+        const cccd = data?.cccdFiles || [];
+        const normCccd = (cccd || []).map(d => {
+          if (typeof d === 'string') return { url: d, name: d.split('/').pop() };
+          const url = d.documentPath || d.url || d.path || '';
+          const name = d.fileName || d.name || d.filename || (url || '').split('/').pop();
+          return { url, name, type: d.mimeType || d.type || '' };
+        });
+      setExistingDocs(norm);
+      setExistingCccdDocs(normCccd);
+    } catch (err) {
+      console.error('Error fetching dependent documents', err);
+      setExistingDocs([]);
+      setExistingCccdDocs([]);
+    }
   };
 
   return (
@@ -133,7 +169,7 @@ export default function Dependents({ token }) {
                         <td>{d.dateOfBirth ? new Date(d.dateOfBirth).toLocaleDateString() : '—'}</td>
                         <td>{d.user?.name || d.userName || '—'}</td>
                         <td style={{ textAlign: 'right' }}>
-                          <button className="btn btn-secondary" onClick={() => setSelected(d)}>View</button>
+                          <button className="btn btn-secondary" onClick={() => { setSelected(d); fetchDependentDocuments(d.id); }}>View</button>
                         </td>
                       </tr>
                     ));
@@ -146,21 +182,63 @@ export default function Dependents({ token }) {
       </div>
 
       {selected && (
-        <div className="modal-overlay" onClick={() => setSelected(null)}>
+        <div className="modal-overlay" onClick={() => { setSelected(null); setExistingDocs([]); setExistingCccdDocs([]); }}>
           <div className="modal" style={{ width: 700 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Dependent details</h3>
-              <button className="close-btn" onClick={() => setSelected(null)}>×</button>
+              <button className="close-btn" onClick={() => { setSelected(null); setExistingDocs([]); setExistingCccdDocs([]); }}>×</button>
             </div>
             <div style={{ padding: 20 }}>
               <p><strong>Full name:</strong> {selected.fullName}</p>
-              {/* Relationship intentionally hidden in HR view */}
               <p><strong>Date of birth:</strong> {selected.dateOfBirth ? new Date(selected.dateOfBirth).toLocaleDateString() : '—'}</p>
               <p><strong>Gender:</strong> {selected.gender || '—'}</p>
               <p><strong>ID / CCCD:</strong> {selected.idNumber || '—'}</p>
               <p><strong>Address:</strong> {selected.address || '—'}</p>
               <p><strong>Phone:</strong> {selected.phoneNumber || '—'}</p>
               <p><strong>Email:</strong> {selected.email || '—'}</p>
+
+              {existingDocs && existingDocs.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <strong>Dependent Documents</strong>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    {existingDocs.map((d, i) => (
+                      <div key={i} style={{ width: 140, textAlign: 'center' }}>
+                        {/(jpg|jpeg|png|gif)$/i.test(d.name || d.url || '') ? (
+                          <a href={d.url} target="_blank" rel="noreferrer"><img src={d.url} alt={d.name} style={{ width: 130, height: 90, objectFit: 'cover', borderRadius: 6 }} /></a>
+                        ) : (
+                          <a href={d.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', width: 130, height: 90, borderRadius: 6, padding: 8, background: '#fff', textDecoration: 'none', color: '#333' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700 }}>Open</div>
+                            <div style={{ fontSize: 11 }}>{d.name}</div>
+                          </a>
+                        )}
+                        <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>{d.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {existingCccdDocs && existingCccdDocs.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <strong>CCCD / ID Documents</strong>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    {existingCccdDocs.map((d, i) => (
+                      <div key={i} style={{ width: 140, textAlign: 'center' }}>
+                        {/(jpg|jpeg|png|gif)$/i.test(d.name || d.url || '') ? (
+                          <a href={d.url} target="_blank" rel="noreferrer"><img src={d.url} alt={d.name} style={{ width: 130, height: 90, objectFit: 'cover', borderRadius: 6 }} /></a>
+                        ) : (
+                          <a href={d.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', width: 130, height: 90, borderRadius: 6, padding: 8, background: '#fff', textDecoration: 'none', color: '#333' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700 }}>Open</div>
+                            <div style={{ fontSize: 11 }}>{d.name}</div>
+                          </a>
+                        )}
+                        <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>{d.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         </div>

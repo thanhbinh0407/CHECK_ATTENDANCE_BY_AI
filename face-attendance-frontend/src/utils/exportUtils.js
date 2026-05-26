@@ -332,7 +332,8 @@ export const exportEmployeesToExcel = (employees, filename = 'danh-sach-nhan-vie
 // Export attendance logs to Excel
 export const exportAttendanceToExcel = (logs, employees, filename = 'lich-su-diem-danh') => {
   const summaryRows = buildAttendanceSummaryRows(logs, employees);
-  const includeEmployeeColumns = new Set(summaryRows.map((row) => row.employeeName || row.employeeCode)).size > 1;
+  // Show employee columns when there is at least one distinct employee
+  const includeEmployeeColumns = new Set(summaryRows.map((row) => row.employeeName || row.employeeCode)).size >= 1;
 
   const data = summaryRows.map((row) => {
     const item = {
@@ -1031,6 +1032,8 @@ export const exportAttendanceMonthlyWorkHoursSummaryToExcel = (
   });
 
   const wb = XLSX.utils.book_new();
+  // Aggregate monthly summary per month (employee-level totals)
+  const monthlySummary = new Map(); // monthKey -> Map(employeeCode -> totals)
   const totalLabel = language === 'vi' ? 'TỔNG' : 'TOTAL';
 
   monthGroups.forEach((monthRows, sheetKey) => {
@@ -1116,7 +1119,71 @@ export const exportAttendanceMonthlyWorkHoursSummaryToExcel = (
 
     const totalRowNumber = data.length + 1;
     styleExcelTotalRow(ws, totalRowNumber, headers.length);
+
+      // Store monthly summary totals for aggregated sheet
+      const monthKey = `${yearStr}-${monthStr}`;
+      const monthMap = monthlySummary.get(monthKey) || new Map();
+      monthMap.set(employeeCode, {
+        employeeName: employee?.name || (monthRows[0] && monthRows[0].employeeName) || '',
+        employeeCode: employeeCode || '',
+        totalWorkHours: Number(totalWorkHours.toFixed(1)),
+        totalOtHours: Number(totalOtHours.toFixed(1)),
+        daysWorked,
+        absentDays,
+      });
+      monthlySummary.set(monthKey, monthMap);
   });
+
+    // Append aggregated summary sheets per month
+    monthlySummary.forEach((empMap, monthKey) => {
+      const summaryRows = [];
+      let aggTotalWork = 0;
+      let aggTotalOt = 0;
+      let aggTotalDays = 0;
+      let aggAbsentDays = 0;
+
+      const empEntries = Array.from(empMap.values()).sort((a, b) => a.employeeCode.localeCompare(b.employeeCode));
+
+      const empLabel = getMonthlyWorkHoursLabel('Employee', language);
+      const codeLabel = getMonthlyWorkHoursLabel('Code', language);
+      const daysLabel = getMonthlyWorkHoursLabel('DaysWorked', language);
+      const totalWorkLabel = getMonthlyWorkHoursLabel('TotalWorkHours', language);
+      const totalOtLabel = getMonthlyWorkHoursLabel('TotalOTHours', language);
+      const absentLabel = getMonthlyWorkHoursLabel('AbsentDays', language);
+
+      empEntries.forEach((item) => {
+        summaryRows.push({
+          [empLabel]: item.employeeName,
+          [codeLabel]: item.employeeCode,
+          [daysLabel]: item.daysWorked,
+          [totalWorkLabel]: item.totalWorkHours,
+          [totalOtLabel]: item.totalOtHours,
+          [absentLabel]: item.absentDays,
+        });
+        aggTotalWork += Number(item.totalWorkHours || 0);
+        aggTotalOt += Number(item.totalOtHours || 0);
+        aggTotalDays += Number(item.daysWorked || 0);
+        aggAbsentDays += Number(item.absentDays || 0);
+      });
+
+      // Add total row using localized keys
+      summaryRows.push({
+        [empLabel]: totalLabel,
+        [codeLabel]: '',
+        [daysLabel]: aggTotalDays,
+        [totalWorkLabel]: aggTotalWork.toFixed(1),
+        [totalOtLabel]: aggTotalOt.toFixed(1),
+        [absentLabel]: aggAbsentDays,
+      });
+
+      const summaryHeaders = [empLabel, codeLabel, daysLabel, totalWorkLabel, totalOtLabel, absentLabel];
+
+      const wsSummary = XLSX.utils.json_to_sheet(summaryRows, { header: summaryHeaders });
+      const summarySheetName = `Summary-${monthKey}`;
+      XLSX.utils.book_append_sheet(wb, wsSummary, summarySheetName);
+      wsSummary['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 12 }];
+      styleExcelTotalRow(wsSummary, summaryRows.length + 1, summaryHeaders.length);
+    });
 
   XLSX.writeFile(wb, `${filename}.xlsx`);
 };

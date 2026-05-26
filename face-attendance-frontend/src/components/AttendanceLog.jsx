@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { exportAttendanceToExcel, exportAttendanceToPDF, exportAttendanceWorkHoursSummaryToExcel, exportAttendanceMonthlyWorkHoursSummaryToExcel, exportAttendanceMonthlyWorkHoursSummaryToDocx } from "../utils/exportUtils.js";
+import { exportAttendanceToExcel, exportAttendanceToPDF, exportAttendanceMonthlyWorkHoursSummaryToExcel, exportAttendanceMonthlyWorkHoursSummaryToDocx } from "../utils/exportUtils.js";
 import { toastWarning } from "../lib/notify.jsx";
 
 function todayISO() {
@@ -277,8 +277,6 @@ export default function AttendanceLog() {
         const name = `attendance-history-${from}-${to}`;
         if (kind === "excel") {
           exportAttendanceToExcel(rows, employees, name);
-        } else if (kind === "work-hours") {
-          exportAttendanceWorkHoursSummaryToExcel(rows, employees, `work-hours-${from}-${to}`);
         } else if (kind === "monthly-work-hours") {
           exportAttendanceMonthlyWorkHoursSummaryToExcel(
             rows,
@@ -739,27 +737,7 @@ export default function AttendanceLog() {
               >
                 📥 Export Excel
               </button>
-              <button
-                type="button"
-                onClick={() => runExport("work-hours")}
-                disabled={exportingKind !== ""}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: "#0d6efd",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  cursor: exportingKind !== "" ? "not-allowed" : "pointer",
-                  fontWeight: "600",
-                  fontSize: "14px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  opacity: exportingKind !== "" ? 0.7 : 1
-                }}
-              >
-                ⏱️ Export Work Hours
-              </button>
+              {/* Export Work Hours removed per request */}
               <button
                 type="button"
                 onClick={() => runExport("monthly-work-hours")}

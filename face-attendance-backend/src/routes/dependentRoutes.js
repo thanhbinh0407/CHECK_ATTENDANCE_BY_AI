@@ -58,7 +58,10 @@ router.delete(
 router.get("/:id/documents", getDependentDocuments);
 router.post(
   "/:id/documents",
-  uploadDependentMulter.array("documents", 10),
+  uploadDependentMulter.fields([
+    { name: "documents", maxCount: 10 },
+    { name: "cccdFiles", maxCount: 2 }
+  ]),
   auditMutation({
     action: "dependent.upload_documents",
     category: "own_dependent",
