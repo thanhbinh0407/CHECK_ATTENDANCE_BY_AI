@@ -6,13 +6,11 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
-    relationship: "",
     dateOfBirth: "",
     gender: "",
     idNumber: "",
     address: "",
-    phoneNumber: "",
-    email: ""
+    phoneNumber: ""
   });
   const [editingId, setEditingId] = useState(null);
   const [message, setMessage] = useState("");
@@ -21,17 +19,24 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
   const [deleteId, setDeleteId] = useState(null);
   const [errors, setErrors] = useState({
     fullName: "",
-    relationship: "",
     phoneNumber: "",
-    email: "",
     dateOfBirth: "",
     idNumber: "",
     address: ""
   });
+  const [cccdFiles, setCccdFiles] = useState([]);
+  const [cccdFileError, setCccdFileError] = useState("");
+  const [uploadedPreviews, setUploadedPreviews] = useState([]);
+  const [cccdPreviews, setCccdPreviews] = useState([]);
+  const [existingDocs, setExistingDocs] = useState([]);
+  const [existingCccdDocs, setExistingCccdDocs] = useState([]);
   const [userRole, setUserRole] = useState(null);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [fileUploadError, setFileUploadError] = useState("");
   const [uploadingDocs, setUploadingDocs] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewDependent, setViewDependent] = useState(null);
 
   const getLocalToday = () => {
     const d = new Date();
@@ -124,7 +129,6 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
   };
 
   const validateRelationship = (value) => {
-    if (!value || String(value).trim() === "") return "Relationship is required";
     return "";
   };
 
@@ -139,11 +143,6 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
   };
 
   const validateEmail = (value) => {
-    const t = String(value || "").trim();
-    if (!t) return "";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) {
-      return "Enter a valid email address";
-    }
     return "";
   };
 
@@ -181,13 +180,37 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
 
   const validateIdNumber = (value) => {
     const normalized = String(value || "").replace(/\D/g, "");
+    // compute age from dateOfBirth
+    const age = computeAge(formData.dateOfBirth);
+    // If under 6 -> not required
+    if (age !== null && age < 6) return "";
+    // If 6 <= age < 14 -> optional (if provided must be valid)
     if (!normalized) {
-      return "ID / CCCD is required";
+      if (age === null) {
+        // no DOB provided, keep requirement conservative
+        return "ID / CCCD is required";
+      }
+      if (age >= 14) return "ID / CCCD is required";
+      return "";
     }
     if (!/^(\d{9}|\d{12})$/.test(normalized)) {
       return "ID / CCCD must be exactly 9 or 12 digits";
     }
     return "";
+  };
+
+  const computeAge = (dob) => {
+    if (!dob) return null;
+    try {
+      const b = new Date(dob);
+      const todayD = new Date();
+      let age = todayD.getFullYear() - b.getFullYear();
+      const m = todayD.getMonth() - b.getMonth();
+      if (m < 0 || (m === 0 && todayD.getDate() < b.getDate())) age--;
+      return age;
+    } catch (e) {
+      return null;
+    }
   };
 
   // Capitalize first letter of each word while preserving Vietnamese accents
@@ -218,32 +241,28 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
     if (name === "fullName") {
       processedValue = value.replace(/\d/g, "");
       error = validateFullName(processedValue);
-    } else if (name === "relationship") {
-      processedValue = value;
-      error = validateRelationship(value);
     } else if (name === "phoneNumber") {
       processedValue = value.replace(/\D/g, "");
-      if (processedValue.length > 15) {
-        processedValue = processedValue.substring(0, 15);
-      }
+      if (processedValue.length > 15) processedValue = processedValue.substring(0, 15);
       error = validatePhoneNumber(processedValue);
-    } else if (name === "email") {
-      processedValue = value;
-      error = validateEmail(value);
-    } else if (name === "dateOfBirth") {
-      error = validateDateOfBirth(value);
     } else if (name === "idNumber") {
       processedValue = value.replace(/\D/g, "");
-      if (processedValue.length > 12) {
-        processedValue = processedValue.substring(0, 12);
-      }
+      if (processedValue.length > 12) processedValue = processedValue.substring(0, 12);
       error = validateIdNumber(processedValue);
     } else if (name === "address") {
       processedValue = value;
-      if (value.length > 500) {
-        processedValue = value.substring(0, 500);
-      }
+      if (value.length > 500) processedValue = value.substring(0, 500);
       error = validateAddress(processedValue);
+    } else if (name === "dateOfBirth") {
+      processedValue = value;
+      error = validateDateOfBirth(value);
+      // revalidate idNumber because requirement may change
+      setTimeout(() => {
+        setErrors(prev => ({ ...prev, idNumber: validateIdNumber(formData.idNumber) }));
+      }, 0);
+    } else {
+      // other simple fields: gender etc.
+      processedValue = value;
     }
 
     setFormData(prev => ({
@@ -274,13 +293,13 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
         error = validateFullName(value);
       }
     } else if (name === "relationship") {
-      error = validateRelationship(value);
+      error = "";
     } else if (name === "phoneNumber") {
       error = validatePhoneNumber(value);
-    } else if (name === "email") {
-      error = validateEmail(value);
     } else if (name === "dateOfBirth") {
       error = validateDateOfBirth(value);
+      // update id validation on blur as well
+      setErrors(prev => ({ ...prev, idNumber: validateIdNumber(formData.idNumber) }));
     } else if (name === "idNumber") {
       error = validateIdNumber(value);
     } else if (name === "address") {
@@ -308,10 +327,12 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
       return;
     }
 
-    const invalid = files.find((f) => f.type !== "application/pdf" || !f.name.toLowerCase().endsWith(".pdf"));
+    const allowed = ["application/pdf"];
+    // accept images
+    const invalid = files.find((f) => !(f.type.startsWith('image/') || allowed.includes(f.type) || f.name.toLowerCase().endsWith('.pdf')));
     if (invalid) {
       setUploadedFiles([]);
-      setFileUploadError("Only PDF files are allowed.");
+      setFileUploadError("Only PDF or image files are allowed for dependent document.");
       return;
     }
 
@@ -325,11 +346,68 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
     setUploadedFiles(files);
   };
 
+  const handleCccdChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    setCccdFileError("");
+
+    if (files.length === 0) {
+      setCccdFiles([]);
+      return;
+    }
+
+    if (files.length > 2) {
+      setCccdFiles([]);
+      setCccdFileError("You can upload up to 2 files for CCCD (front/back).");
+      return;
+    }
+
+    const invalid = files.find((f) => !(f.type.startsWith('image/') || f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')));
+    if (invalid) {
+      setCccdFiles([]);
+      setCccdFileError("Only PDF or image files are allowed for CCCD.");
+      return;
+    }
+
+    const tooLarge = files.find((f) => f.size > 10 * 1024 * 1024);
+    if (tooLarge) {
+      setCccdFiles([]);
+      setCccdFileError("Each file must not exceed 10MB.");
+      return;
+    }
+
+    setCccdFiles(files);
+  };
+
+  // build previews for selected files (object URLs)
+  useEffect(() => {
+    // uploadedFiles previews
+    const prev = (uploadedFiles || []).map((f) => ({
+      url: URL.createObjectURL(f),
+      name: f.name,
+      type: f.type
+    }));
+    setUploadedPreviews(prev);
+    return () => {
+      prev.forEach(p => URL.revokeObjectURL(p.url));
+    };
+  }, [uploadedFiles]);
+
+  useEffect(() => {
+    const prev = (cccdFiles || []).map((f) => ({ url: URL.createObjectURL(f), name: f.name, type: f.type }));
+    setCccdPreviews(prev);
+    return () => {
+      prev.forEach(p => URL.revokeObjectURL(p.url));
+    };
+  }, [cccdFiles]);
+
   const uploadDependentDocs = async (dependentId, token, apiBase) => {
-    if (!uploadedFiles || uploadedFiles.length === 0) return true;
+    // require dependent documents
+    if (!uploadedFiles || uploadedFiles.length === 0) return false;
 
     const fd = new FormData();
     uploadedFiles.forEach((f) => fd.append("documents", f));
+    // append cccd files if any
+    cccdFiles.forEach((f) => fd.append("cccdFiles", f));
 
     setUploadingDocs(true);
     try {
@@ -338,11 +416,27 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
         headers: { "Authorization": `Bearer ${token}` },
         body: fd
       });
-      const data = await res.json();
+
+      let parsed = null;
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        try {
+          parsed = await res.json();
+        } catch (e) {
+          parsed = { message: `Invalid JSON response (${e.message})` };
+        }
+      } else {
+        // non-json (html/text) responses
+        const txt = await res.text();
+        parsed = { message: txt };
+      }
+
       if (!res.ok) {
-        showMessage(`Upload failed: ${data.message || "Unable to upload documents"}`, "error");
+        const msg = parsed?.message || parsed?.error || res.statusText || "Upload failed";
+        showMessage(`Upload failed: ${String(msg).slice(0, 200)}`, "error");
         return false;
       }
+
       return true;
     } catch (err) {
       showMessage(`Upload error: ${err.message}`, "error");
@@ -356,18 +450,14 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
     e.preventDefault();
     
     const fullNameError = validateFullName(formData.fullName);
-    const relationshipError = validateRelationship(formData.relationship);
     const phoneNumberError = validatePhoneNumber(formData.phoneNumber);
-    const emailError = validateEmail(formData.email);
     const dateOfBirthError = validateDateOfBirth(formData.dateOfBirth);
     const idNumberError = validateIdNumber(formData.idNumber);
     const addressError = validateAddress(formData.address);
 
     setErrors({
       fullName: fullNameError,
-      relationship: relationshipError,
       phoneNumber: phoneNumberError,
-      email: emailError,
       dateOfBirth: dateOfBirthError,
       idNumber: idNumberError,
       address: addressError
@@ -375,9 +465,7 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
 
     if (
       fullNameError ||
-      relationshipError ||
       phoneNumberError ||
-      emailError ||
       dateOfBirthError ||
       idNumberError ||
       addressError
@@ -386,13 +474,17 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
       return;
     }
 
-    // For new dependent, require at least one PDF document
+    // For new dependent, require at least one dependent document (pdf or image)
     if (!editingId && (!uploadedFiles || uploadedFiles.length === 0)) {
-      showMessage("Please upload at least one PDF document for this dependent.", "error");
+      showMessage("Please upload at least one document (birth certificate) for this dependent.", "error");
       return;
     }
     if (fileUploadError) {
       showMessage(fileUploadError, "error");
+      return;
+    }
+    if (cccdFileError) {
+      showMessage(cccdFileError, "error");
       return;
     }
 
@@ -419,10 +511,11 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
       const payload = {
         userId: userIdFromToken,
         ...formData,
+        // default relationship is child
+        relationship: 'child',
         fullName: formData.fullName.trim(),
         address: formData.address?.trim() || null,
         phoneNumber: formData.phoneNumber?.trim() || null,
-        email: formData.email?.trim() || null,
         gender: formData.gender || null
       };
 
@@ -433,6 +526,10 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
         : `${apiBase}/api/dependents`;
 
       const method = editingId ? "PUT" : "POST";
+
+      // prevent double submit
+      if (submitting) return;
+      setSubmitting(true);
 
       const res = await fetch(url, {
         method,
@@ -460,24 +557,23 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
           setEditingId(null);
           setFormData({
             fullName: "",
-            relationship: "",
+            
             dateOfBirth: "",
             gender: "",
             idNumber: "",
             address: "",
             phoneNumber: "",
-            email: ""
+            
           });
           setErrors({
             fullName: "",
-            relationship: "",
             phoneNumber: "",
-            email: "",
             dateOfBirth: "",
             idNumber: "",
             address: ""
           });
           setUploadedFiles([]);
+          setCccdFiles([]);
           setFileUploadError("");
         }, 2000);
       } else {
@@ -485,36 +581,61 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
         showMessage(`Error: ${errorMsg}`, "error");
         console.error("API Error:", responseData);
       }
-    } catch (error) {
-      showMessage("Network error: " + error.message, "error");
-      console.error("Error saving dependent:", error);
-    }
+      } catch (error) {
+        showMessage("Network error: " + error.message, "error");
+        console.error("Error saving dependent:", error);
+      } finally {
+        setSubmitting(false);
+      }
   };
 
-  const handleEdit = (dep) => {
-    setEditingId(dep.id);
-    setFormData({
-      fullName: dep.fullName,
-      relationship: dep.relationship || "",
-      dateOfBirth: dep.dateOfBirth ? dep.dateOfBirth.split("T")[0] : "",
-      gender: dep.gender || "",
-      idNumber: dep.idNumber || "",
-      address: dep.address || "",
-      phoneNumber: dep.phoneNumber || "",
-      email: dep.email || ""
-    });
-    setUploadedFiles([]);
-    setFileUploadError("");
-    setErrors({
-      fullName: "",
-      relationship: "",
-      phoneNumber: "",
-      email: "",
-      dateOfBirth: "",
-      idNumber: "",
-      address: ""
-    });
-    setShowForm(true);
+  // View dependent (read-only). Editing has been removed as requested.
+  const handleView = (dep) => {
+    setViewDependent(dep);
+    setShowViewModal(true);
+    // fetch documents for preview
+    fetchDependentDocuments(dep.id);
+  };
+
+  const fetchDependentDocuments = async (dependentId) => {
+    try {
+      const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+      const res = await fetch(`${apiBase}/api/dependents/${dependentId}/documents`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        // try parse text
+        const txt = await res.text().catch(() => null);
+        console.warn('Could not fetch dependent documents:', res.status, txt);
+        setExistingDocs([]);
+        setExistingCccdDocs([]);
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      // expected shape: { documents: [url or {url,name,type}], cccdFiles: [...] }
+      const docs = data?.documents || data?.files || data || [];
+      // normalize to objects {url,name,type}
+      const norm = (docs || []).map(d => {
+        if (typeof d === 'string') return { url: d, name: d.split('/').pop() };
+        // server stores path in `documentPath` and original name in `fileName`
+        const url = d.documentPath || d.url || d.path || d.file || '';
+        const name = d.fileName || d.name || d.filename || (url || '').split('/').pop();
+        return { url, name, type: d.mimeType || d.type || '' };
+      });
+      const cccd = data?.cccdFiles || [];
+      const normCccd = (cccd || []).map(d => {
+        if (typeof d === 'string') return { url: d, name: d.split('/').pop() };
+        const url = d.documentPath || d.url || d.path || '';
+        const name = d.fileName || d.name || d.filename || (url||'').split('/').pop();
+        return { url, name, type: d.mimeType || d.type || '' };
+      });
+      setExistingDocs(norm);
+      setExistingCccdDocs(normCccd);
+    } catch (err) {
+      console.error('Error fetching dependent documents', err);
+      setExistingDocs([]);
+      setExistingCccdDocs([]);
+    }
   };
 
   const handleDelete = async () => {
@@ -615,25 +736,8 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
               setEditingId(null);
               setUploadedFiles([]);
               setFileUploadError("");
-              setFormData({
-                fullName: "",
-                relationship: "",
-                dateOfBirth: "",
-                gender: "",
-                idNumber: "",
-                address: "",
-                phoneNumber: "",
-                email: ""
-              });
-              setErrors({
-                fullName: "",
-                relationship: "",
-                phoneNumber: "",
-                email: "",
-                dateOfBirth: "",
-                idNumber: "",
-                address: ""
-              });
+              setFormData({ fullName: "", dateOfBirth: "", gender: "", idNumber: "", address: "", phoneNumber: "" });
+              setErrors({ fullName: "", phoneNumber: "", dateOfBirth: "", idNumber: "", address: "" });
               setShowForm(true);
             }}
             style={{
@@ -949,26 +1053,9 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                 onClick={() => {
                   setShowForm(false);
                   setEditingId(null);
-                  setFormData({ 
-                    fullName: "", 
-                    relationship: "", 
-                    dateOfBirth: "", 
-                    gender: "", 
-                    idNumber: "", 
-                    address: "", 
-                    phoneNumber: "", 
-                    email: "" 
-                  });
+                  setFormData({ fullName: "", dateOfBirth: "", gender: "", idNumber: "", address: "", phoneNumber: "" });
                   setMessage("");
-                  setErrors({
-                    fullName: "",
-                    relationship: "",
-                    phoneNumber: "",
-                    email: "",
-                    dateOfBirth: "",
-                    idNumber: "",
-                    address: ""
-                  });
+                  setErrors({ fullName: "", phoneNumber: "", dateOfBirth: "", idNumber: "", address: "" });
                 }}
                 style={{
                   background: "rgba(255, 255, 255, 0.2)",
@@ -1060,114 +1147,45 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                 )}
               </div>
 
-              {/* Relationship & Gender */}
+              {/* Gender (relationship removed — default to child) */}
               <div style={{ 
-                display: "grid", 
-                gridTemplateColumns: "1fr 1fr", 
-                gap: "20px", 
+                display: "block", 
                 marginBottom: "24px" 
               }}>
-                <div>
-                  <label style={{ 
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "14px", 
-                    fontWeight: "600", 
-                    color: "#333", 
-                    marginBottom: "10px"
-                  }}>
-                    <span>👨‍👩‍👧‍👦</span>
-                    <span>Relationship</span>
-                    <span style={{ color: "#dc3545" }}>*</span>
-                  </label>
-                  <select 
-                    name="relationship" 
-                    value={formData.relationship} 
-                    onChange={handleInputChange} 
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: `2px solid ${errors.relationship ? "#dc3545" : "#e0e0e0"}`,
-                      borderRadius: "10px",
-                      fontSize: "15px",
-                      transition: "all 0.3s ease",
-                      backgroundColor: "#f8f9fa",
-                      color: "#333",
-                      cursor: "pointer"
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = "#A2B9ED";
-                      e.target.style.backgroundColor = "white";
-                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = "#e0e0e0";
-                      e.target.style.backgroundColor = "#f8f9fa";
-                      e.target.style.boxShadow = "none";
-                    }}
-                  >
-                    <option value="">— Select relationship —</option>
-                    <option value="spouse">💑 Spouse</option>
-                    <option value="child">👶 Child</option>
-                    <option value="parent">👨‍👩‍👦 Parent</option>
-                    <option value="grandparent">👴👵 Grandparent</option>
-                    <option value="sibling">👫 Sibling</option>
-                    <option value="other">👤 Other</option>
-                  </select>
-                  {errors.relationship && (
-                    <div style={{ marginTop: "6px", fontSize: "12px", color: "#dc3545", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <span>⚠️</span>
-                      <span>{errors.relationship}</span>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label style={{ 
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "14px", 
-                    fontWeight: "600", 
-                    color: "#333", 
-                    marginBottom: "10px"
-                  }}>
-                    <span>⚧️</span>
-                    <span>Gender</span>
-                    <span style={{ fontSize: "12px", fontWeight: 500, color: "#6c757d" }}>(optional)</span>
-                  </label>
-                  <select 
-                    name="gender" 
-                    value={formData.gender} 
-                    onChange={handleInputChange}
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: "2px solid #e0e0e0",
-                      borderRadius: "10px",
-                      fontSize: "15px",
-                      transition: "all 0.3s ease",
-                      backgroundColor: "#f8f9fa",
-                      color: "#333",
-                      cursor: "pointer"
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = "#A2B9ED";
-                      e.target.style.backgroundColor = "white";
-                      e.target.style.boxShadow = "0 0 0 3px rgba(162, 185, 237, 0.1)";
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = "#e0e0e0";
-                      e.target.style.backgroundColor = "#f8f9fa";
-                      e.target.style.boxShadow = "none";
-                    }}
-                  >
-                    <option value="">— Not specified —</option>
-                    <option value="male">👨 Male</option>
-                    <option value="female">👩 Female</option>
-                    <option value="other">⚧️ Other</option>
-                  </select>
-                </div>
+                <label style={{ 
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "14px", 
+                  fontWeight: "600", 
+                  color: "#333", 
+                  marginBottom: "10px"
+                }}>
+                  <span>⚧️</span>
+                  <span>Gender</span>
+                  <span style={{ fontSize: "12px", fontWeight: 500, color: "#6c757d" }}>(optional)</span>
+                </label>
+                <select 
+                  name="gender" 
+                  value={formData.gender} 
+                  onChange={handleInputChange}
+                  style={{
+                    width: "100%",
+                    padding: "14px 16px",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    transition: "all 0.3s ease",
+                    backgroundColor: "#f8f9fa",
+                    color: "#333",
+                    cursor: "pointer"
+                  }}
+                >
+                  <option value="">— Not specified —</option>
+                  <option value="male">👨 Male</option>
+                  <option value="female">👩 Female</option>
+                  <option value="other">⚧️ Other</option>
+                </select>
               </div>
 
               {/* Date of Birth & ID Number */}
@@ -1189,6 +1207,9 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                   }}>
                     <span>📅</span>
                     <span>Date of Birth{userRole === 'manager' ? ' (must be under 18)' : ''}</span>
+                    <span style={{ marginLeft: 8, fontSize: 13, color: '#6c757d' }}>
+                      {formData.dateOfBirth ? (`Age: ${computeAge(formData.dateOfBirth)} yrs`) : ''}
+                    </span>
                   </label>
                   <input
                     type="date"
@@ -1244,10 +1265,14 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                   }}>
                     <span>🆔</span>
                     <span>ID / CCCD</span>
-                    <span style={{ color: "#dc3545" }}>*</span>
+                    {
+                      (computeAge(formData.dateOfBirth) !== null && computeAge(formData.dateOfBirth) >= 14) ? (
+                        <span style={{ color: "#dc3545" }}>*</span>
+                      ) : null
+                    }
                   </label>
                   <div style={{ fontSize: "11px", color: "#6c757d", marginBottom: "8px", lineHeight: 1.45 }}>
-                    Employees: enter exactly 9 or 12 digits (CMND/CCCD). This field is required.
+                    Employees: enter exactly 9 or 12 digits (CMND/CCCD). Requirement depends on age.
                   </div>
                   <input
                     type="text"
@@ -1313,7 +1338,7 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                 }}>
                   <span>📄</span>
                   <span>Dependent Documents (PDF)</span>
-                  {!editingId && <span style={{ color: "#dc3545" }}>*</span>}
+                  <span style={{ color: "#dc3545" }}>*</span>
                 </label>
                 <div style={{
                   fontSize: "12px",
@@ -1321,12 +1346,12 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                   marginBottom: "12px",
                   lineHeight: "1.5"
                 }}>
-                  Upload supporting documents for your dependent (PDF only, up to 10 files, max 10MB each).
+                  Upload supporting documents for your dependent (birth certificate). PDF or image files allowed, up to 10 files, max 10MB each.
                 </div>
 
                 <input
                   type="file"
-                  accept="application/pdf,.pdf"
+                  accept="application/pdf,image/*,.pdf,.jpg,.jpeg,.png"
                   multiple
                   onChange={handleDependentDocsChange}
                   style={{ marginBottom: "10px" }}
@@ -1346,41 +1371,122 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                   </div>
                 )}
 
-                {uploadedFiles?.length > 0 && (
-                  <div style={{
-                    marginTop: "10px",
-                    padding: "10px 12px",
-                    backgroundColor: "#fff",
-                    borderRadius: "10px",
-                    border: "1px solid #ffe08a"
-                  }}>
-                    <div style={{ fontSize: "12px", fontWeight: "700", color: "#856404", marginBottom: "6px" }}>
-                      Selected files
-                    </div>
-                    <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "#495057" }}>
-                      {uploadedFiles.map((f, idx) => (
-                        <li key={idx}>
-                          {f.name} ({(f.size / 1024 / 1024).toFixed(2)} MB)
-                        </li>
+                {uploadedPreviews?.length > 0 && (
+                  <div style={{ marginTop: "10px", padding: "10px 12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #ffe08a" }}>
+                    <div style={{ fontSize: "12px", fontWeight: "700", color: "#856404", marginBottom: "6px" }}>Selected files</div>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      {uploadedPreviews.map((p, idx) => (
+                        <div key={idx} style={{ width: 120, textAlign: 'center' }}>
+                          {p.type && p.type.startsWith('image/') ? (
+                            <a href={p.url} target="_blank" rel="noreferrer">
+                              <img src={p.url} alt={p.name} style={{ width: 110, height: 78, objectFit: 'cover', borderRadius: 6, border: '1px solid #e9ecef' }} />
+                            </a>
+                          ) : (
+                            <a href={p.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', width: 110, height: 78, borderRadius: 6, border: '1px solid #e9ecef', padding: 8, background: '#fafafa', textDecoration: 'none', color: '#333' }}>
+                              <div style={{ fontSize: 12, fontWeight: 700 }}>PDF</div>
+                              <div style={{ fontSize: 11 }}>{p.name}</div>
+                            </a>
+                          )}
+                          <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>{p.name}</div>
+                        </div>
                       ))}
-                    </ul>
-                    <button
-                      type="button"
-                      onClick={() => setUploadedFiles([])}
-                      style={{
-                        marginTop: "10px",
-                        padding: "6px 12px",
-                        backgroundColor: "#dc3545",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                        fontSize: "12px",
-                        fontWeight: "600"
-                      }}
-                    >
-                      Remove selected
-                    </button>
+                    </div>
+                    <button type="button" onClick={() => setUploadedFiles([])} style={{ marginTop: "10px", padding: "6px 12px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>Remove selected</button>
+                  </div>
+                )}
+                {existingDocs?.length > 0 && (
+                  <div style={{ marginTop: 12, padding: "10px", background: "#fafafa", borderRadius: 8, border: "1px solid #f0e6b2" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#856404', marginBottom: 8 }}>Existing birth documents</div>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      {existingDocs.map((p, idx) => (
+                        <div key={idx} style={{ width: 120, textAlign: 'center' }}>
+                          {p.url && (p.type || p.name.toLowerCase().endsWith('.jpg') || p.name.toLowerCase().endsWith('.png')) && p.type && p.type.startsWith('image/') ? (
+                            <a href={p.url} target="_blank" rel="noreferrer"><img src={p.url} alt={p.name} style={{ width: 110, height: 78, objectFit: 'cover', borderRadius: 6, border: '1px solid #e9ecef' }} /></a>
+                          ) : (
+                            <a href={p.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', width: 110, height: 78, borderRadius: 6, border: '1px solid #e9ecef', padding: 8, background: '#fff', textDecoration: 'none', color: '#333' }}>
+                              <div style={{ fontSize: 12, fontWeight: 700 }}>View</div>
+                              <div style={{ fontSize: 11 }}>{p.name}</div>
+                            </a>
+                          )}
+                          <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>{p.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* CCCD Front/Back Upload (supplemental) */}
+              <div style={{
+                marginBottom: "24px",
+                padding: "16px",
+                background: "#f1f3f5",
+                borderRadius: "12px",
+                border: "1px solid #e9ecef"
+              }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: "600", marginBottom: "10px", fontSize: "15px" }}>
+                  <span>🪪</span>
+                  <span>CCCD (Front/Back) — supplemental</span>
+                </label>
+                <div style={{ fontSize: "12px", color: "#6c757d", marginBottom: "8px" }}>
+                  Upload CCCD front/back images or PDF (optional or required depending on age). Up to 2 files, max 10MB each.
+                </div>
+                <input
+                  type="file"
+                  accept="application/pdf,image/*,.pdf,.jpg,.jpeg,.png"
+                  multiple
+                  onChange={handleCccdChange}
+                  style={{ marginBottom: "10px" }}
+                />
+
+                {cccdFileError && (
+                  <div style={{ marginTop: "6px", fontSize: "12px", color: "#dc3545", display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span>⚠️</span>
+                    <span>{cccdFileError}</span>
+                  </div>
+                )}
+
+                {cccdPreviews?.length > 0 && (
+                  <div style={{ marginTop: "10px", padding: "10px 12px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e9ecef" }}>
+                    <div style={{ fontSize: "12px", fontWeight: "700", color: "#495057", marginBottom: "6px" }}>Selected CCCD files</div>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      {cccdPreviews.map((p, idx) => (
+                        <div key={idx} style={{ width: 120, textAlign: 'center' }}>
+                          {p.type && p.type.startsWith('image/') ? (
+                            <a href={p.url} target="_blank" rel="noreferrer">
+                              <img src={p.url} alt={p.name} style={{ width: 110, height: 78, objectFit: 'cover', borderRadius: 6, border: '1px solid #e9ecef' }} />
+                            </a>
+                          ) : (
+                            <a href={p.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', width: 110, height: 78, borderRadius: 6, border: '1px solid #e9ecef', padding: 8, background: '#fafafa', textDecoration: 'none', color: '#333' }}>
+                              <div style={{ fontSize: 12, fontWeight: 700 }}>PDF</div>
+                              <div style={{ fontSize: 11 }}>{p.name}</div>
+                            </a>
+                          )}
+                          <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>{p.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <button type="button" onClick={() => setCccdFiles([])} style={{ marginTop: "10px", padding: "6px 12px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>Remove selected</button>
+                  </div>
+                )}
+                {existingCccdDocs?.length > 0 && (
+                  <div style={{ marginTop: 12, padding: "10px", background: "#fffaf6", borderRadius: 8, border: "1px solid #f0e6d8" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#495057', marginBottom: 8 }}>Existing CCCD files</div>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      {existingCccdDocs.map((p, idx) => (
+                        <div key={idx} style={{ width: 120, textAlign: 'center' }}>
+                          {p.url && (p.type && p.type.startsWith('image/')) ? (
+                            <a href={p.url} target="_blank" rel="noreferrer"><img src={p.url} alt={p.name} style={{ width: 110, height: 78, objectFit: 'cover', borderRadius: 6, border: '1px solid #e9ecef' }} /></a>
+                          ) : (
+                            <a href={p.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', width: 110, height: 78, borderRadius: 6, border: '1px solid #e9ecef', padding: 8, background: '#fff', textDecoration: 'none', color: '#333' }}>
+                              <div style={{ fontSize: 12, fontWeight: 700 }}>View</div>
+                              <div style={{ fontSize: 11 }}>{p.name}</div>
+                            </a>
+                          )}
+                          <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>{p.name}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1436,10 +1542,10 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                 )}
               </div>
 
-              {/* Phone & Email */}
+              {/* Phone */}
               <div style={{ 
                 display: "grid", 
-                gridTemplateColumns: "1fr 1fr", 
+                gridTemplateColumns: "1fr", 
                 gap: "20px", 
                 marginBottom: "24px" 
               }}>
@@ -1499,61 +1605,6 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                     </div>
                   )}
                 </div>
-                <div>
-                  <label style={{ 
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "14px", 
-                    fontWeight: "600", 
-                    color: "#333", 
-                    marginBottom: "10px"
-                  }}>
-                    <span>📧</span>
-                    <span>Email</span>
-                    <span style={{ fontSize: "12px", fontWeight: 500, color: "#6c757d" }}>(optional)</span>
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    placeholder="name@example.com"
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      border: `2px solid ${errors.email ? "#dc3545" : "#e0e0e0"}`,
-                      borderRadius: "10px",
-                      fontSize: "15px",
-                      transition: "all 0.3s ease",
-                      backgroundColor: "#f8f9fa"
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = errors.email ? "#dc3545" : "#A2B9ED";
-                      e.target.style.backgroundColor = "white";
-                      e.target.style.boxShadow = `0 0 0 3px ${errors.email ? "rgba(220, 53, 69, 0.1)" : "rgba(162, 185, 237, 0.1)"}`;
-                    }}
-                    onBlur={(e) => {
-                      handleBlur(e);
-                      e.target.style.borderColor = errors.email ? "#dc3545" : "#e0e0e0";
-                      e.target.style.backgroundColor = "#f8f9fa";
-                      e.target.style.boxShadow = "none";
-                    }}
-                  />
-                  {errors.email && (
-                    <div style={{
-                      marginTop: "6px",
-                      fontSize: "12px",
-                      color: "#dc3545",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px"
-                    }}>
-                      <span>⚠️</span>
-                      <span>{errors.email}</span>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Message */}
@@ -1586,26 +1637,9 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                   onClick={() => {
                     setShowForm(false);
                     setEditingId(null);
-                    setFormData({ 
-                      fullName: "", 
-                      relationship: "", 
-                      dateOfBirth: "", 
-                      gender: "", 
-                      idNumber: "", 
-                      address: "", 
-                      phoneNumber: "", 
-                      email: "" 
-                    });
+                    setFormData({ fullName: "", dateOfBirth: "", gender: "", idNumber: "", address: "", phoneNumber: "" });
                     setMessage("");
-                    setErrors({
-                      fullName: "",
-                      relationship: "",
-                      phoneNumber: "",
-                      email: "",
-                      dateOfBirth: "",
-                      idNumber: "",
-                      address: ""
-                    });
+                    setErrors({ fullName: "", phoneNumber: "", dateOfBirth: "", idNumber: "", address: "" });
                   }}
                   style={{ 
                     padding: "14px 28px", 
@@ -1634,7 +1668,7 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                 </button>
                 <button 
                   type="submit"
-                  disabled={uploadingDocs}
+                  disabled={uploadingDocs || submitting}
                   style={{ 
                     padding: "14px 28px", 
                     background: "linear-gradient(135deg, #A2B9ED 0%, #8BA3E0 100%)",
@@ -1721,18 +1755,7 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                   }}>
                     Full Name
                   </th>
-                  <th style={{ 
-                    padding: "14px 16px", 
-                    textAlign: "left",
-                    fontSize: "11px",
-                    fontWeight: "700",
-                    color: "#495057",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.8px",
-                    borderBottom: "2px solid #dee2e6"
-                  }}>
-                    Relationship
-                  </th>
+                  {/* Relationship column removed - dependents considered children by default */}
                   <th style={{ 
                     padding: "14px 16px", 
                     textAlign: "left",
@@ -1808,15 +1831,7 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                     }}>
                       {dep.fullName}
                     </td>
-                    <td style={{ 
-                      padding: "16px", 
-                      borderBottom: "1px solid #e9ecef",
-                      fontSize: "13px",
-                      color: "#495057",
-                      fontWeight: "600"
-                    }}>
-                      {getRelationshipLabel(dep.relationship)}
-                    </td>
+                    {/* Relationship removed - default child */}
                     <td style={{ 
                       padding: "16px", 
                       borderBottom: "1px solid #e9ecef",
@@ -1866,10 +1881,10 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                     }}>
                       <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
                         <button
-                          onClick={() => handleEdit(dep)}
+                          onClick={() => handleView(dep)}
                           style={{ 
                             padding: "6px 14px", 
-                            backgroundColor: "#FFC107", 
+                            backgroundColor: "#17a2b8", 
                             color: "white", 
                             border: "none", 
                             borderRadius: "6px", 
@@ -1879,15 +1894,15 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                             transition: "all 0.2s ease"
                           }}
                           onMouseOver={(e) => {
-                            e.target.style.backgroundColor = "#FFB300";
+                            e.target.style.backgroundColor = "#138496";
                             e.target.style.transform = "translateY(-1px)";
                           }}
                           onMouseOut={(e) => {
-                            e.target.style.backgroundColor = "#FFC107";
+                            e.target.style.backgroundColor = "#17a2b8";
                             e.target.style.transform = "translateY(0)";
                           }}
                         >
-                          EDIT
+                          VIEW
                         </button>
                         <button
                           onClick={() => {
@@ -2036,6 +2051,90 @@ export default function Dependents({ userId, refreshVersion = 0 }) {
                 Delete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Dependent Modal (read-only) */}
+      {showViewModal && viewDependent && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.6)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1000,
+          backdropFilter: "blur(4px)"
+        }}>
+          <div style={{
+            width: 820,
+            maxWidth: "95%",
+            backgroundColor: "white",
+            borderRadius: "12px",
+            padding: 20,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+            overflowY: "auto",
+            maxHeight: "90%"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h3 style={{ margin: 0 }}>{viewDependent.fullName}</h3>
+              <button onClick={() => { setShowViewModal(false); setViewDependent(null); setExistingDocs([]); setExistingCccdDocs([]); }} style={{ border: 'none', background: 'transparent', fontSize: 20 }}>×</button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              <div><strong>Date of Birth:</strong> {viewDependent.dateOfBirth ? new Date(viewDependent.dateOfBirth).toLocaleDateString() : '—'}</div>
+              <div><strong>Gender:</strong> {viewDependent.gender || '—'}</div>
+              <div><strong>Phone:</strong> {viewDependent.phoneNumber || '—'}</div>
+              <div><strong>Address:</strong> {viewDependent.address || '—'}</div>
+            </div>
+
+            {/* Existing documents previews */}
+            {(existingDocs && existingDocs.length > 0) && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>Dependent Documents</div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {existingDocs.map((d, i) => (
+                    <div key={i} style={{ width: 140, textAlign: 'center' }}>
+                      {/(jpg|jpeg|png|gif)$/i.test(d.name || d.url || '') ? (
+                        <a href={d.url} target="_blank" rel="noreferrer"><img src={d.url} alt={d.name} style={{ width: 130, height: 90, objectFit: 'cover', borderRadius: 6, border: '1px solid #e9ecef' }} /></a>
+                      ) : (
+                        <a href={d.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', width: 130, height: 90, borderRadius: 6, border: '1px solid #e9ecef', padding: 8, background: '#fff', textDecoration: 'none', color: '#333' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700 }}>Open</div>
+                          <div style={{ fontSize: 11 }}>{d.name}</div>
+                        </a>
+                      )}
+                      <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>{d.name}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(existingCccdDocs && existingCccdDocs.length > 0) && (
+              <div>
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>CCCD / ID Documents</div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {existingCccdDocs.map((d, i) => (
+                    <div key={i} style={{ width: 140, textAlign: 'center' }}>
+                      {/(jpg|jpeg|png|gif)$/i.test(d.name || d.url || '') ? (
+                        <a href={d.url} target="_blank" rel="noreferrer"><img src={d.url} alt={d.name} style={{ width: 130, height: 90, objectFit: 'cover', borderRadius: 6, border: '1px solid #e9ecef' }} /></a>
+                      ) : (
+                        <a href={d.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', width: 130, height: 90, borderRadius: 6, border: '1px solid #e9ecef', padding: 8, background: '#fff', textDecoration: 'none', color: '#333' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700 }}>Open</div>
+                          <div style={{ fontSize: 11 }}>{d.name}</div>
+                        </a>
+                      )}
+                      <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>{d.name}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       )}

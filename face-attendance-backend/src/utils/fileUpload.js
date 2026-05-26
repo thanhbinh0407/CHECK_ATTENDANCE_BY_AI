@@ -71,10 +71,12 @@ const dependentsStorage = multer.diskStorage({
 });
 
 const dependentsFileFilter = (req, file, cb) => {
-  const ext = path.extname(file.originalname).toLowerCase();
-  const isPdf = ext === ".pdf" && file.mimetype === "application/pdf";
-  if (isPdf) cb(null, true);
-  else cb(new Error("Only PDF files are allowed"));
+  // Allow images and PDFs for dependent documents (birth certs and CCCD fronts/backs)
+  const allowedTypes = /jpeg|jpg|png|pdf/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype || '');
+  if (extname && mimetype) cb(null, true);
+  else cb(new Error('Only image files (jpeg, jpg, png) and PDF files are allowed'));
 };
 
 export const uploadDependentDocuments = multer({

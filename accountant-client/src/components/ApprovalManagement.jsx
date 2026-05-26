@@ -7,6 +7,10 @@ export default function ApprovalManagement() {
   const [loading, setLoading] = useState(true);
   const [showReason, setShowReason] = useState({});
   const [rejectReasons, setRejectReasons] = useState({});
+  const [viewItem, setViewItem] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [existingDocs, setExistingDocs] = useState([]);
+  const [existingCccdDocs, setExistingCccdDocs] = useState([]);
 
   useEffect(() => {
     fetchPendingItems();
@@ -58,6 +62,41 @@ export default function ApprovalManagement() {
       }
     } catch (error) {
       console.error("Error approving item:", error);
+    }
+  };
+
+  const fetchDependentDocuments = async (dependentId) => {
+    try {
+      const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+      const res = await fetch(`${apiBase}/api/dependents/${dependentId}/documents`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        setExistingDocs([]);
+        setExistingCccdDocs([]);
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      const docs = data?.documents || data || [];
+      const norm = (docs || []).map(d => {
+        if (typeof d === 'string') return { url: d, name: d.split('/').pop() };
+        const url = d.documentPath || d.url || d.path || d.file || '';
+        const name = d.fileName || d.name || d.filename || (url || '').split('/').pop();
+        return { url, name, type: d.mimeType || d.type || '' };
+      });
+      const cccd = data?.cccdFiles || [];
+      const normCccd = (cccd || []).map(d => {
+        if (typeof d === 'string') return { url: d, name: d.split('/').pop() };
+        const url = d.documentPath || d.url || d.path || '';
+        const name = d.fileName || d.name || d.filename || (url||'').split('/').pop();
+        return { url, name, type: d.mimeType || d.type || '' };
+      });
+      setExistingDocs(norm);
+      setExistingCccdDocs(normCccd);
+    } catch (err) {
+      console.error('Error fetching dependent documents', err);
+      setExistingDocs([]);
+      setExistingCccdDocs([]);
     }
   };
 
@@ -192,6 +231,21 @@ export default function ApprovalManagement() {
                         Approve
                       </button>
                       <button
+                        onClick={() => { setViewItem(item); setShowViewModal(true); fetchDependentDocuments(item.id); }}
+                        style={{
+                          padding: "6px 12px",
+                          backgroundColor: "#17a2b8",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          marginLeft: 6
+                        }}
+                      >
+                        View
+                      </button>
+                      <button
                         onClick={() =>
                           setShowReason(prev => ({
                             ...prev,
@@ -205,7 +259,8 @@ export default function ApprovalManagement() {
                           border: "none",
                           borderRadius: "6px",
                           cursor: "pointer",
-                          fontSize: "12px"
+                          fontSize: "12px",
+                          marginLeft: 6
                         }}
                       >
                         Reject
@@ -276,6 +331,65 @@ export default function ApprovalManagement() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {/* View Modal for approvals */}
+      {showViewModal && viewItem && (
+        <div style={{ position: 'fixed', top:0,left:0,right:0,bottom:0, backgroundColor:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1200 }}>
+          <div style={{ width: 820, maxWidth: '95%', background: 'white', borderRadius: 8, padding: 20, maxHeight: '90%', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin:0 }}>{viewItem.fullName || viewItem.name}</h3>
+              <button onClick={() => { setShowViewModal(false); setViewItem(null); setExistingDocs([]); setExistingCccdDocs([]); }} style={{ border: 'none', background:'transparent', fontSize:20 }}>×</button>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <p><strong>Date of birth:</strong> {viewItem.dateOfBirth ? new Date(viewItem.dateOfBirth).toLocaleDateString() : '—'}</p>
+              <p><strong>Employee:</strong> {viewItem.User?.name || viewItem.userName || '—'}</p>
+              <p><strong>Details:</strong> {getDisplayDetail(viewItem)}</p>
+
+              {existingDocs && existingDocs.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <strong>Dependent Documents</strong>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    {existingDocs.map((d, i) => (
+                      <div key={i} style={{ width: 140, textAlign: 'center' }}>
+                        {/(jpg|jpeg|png|gif)$/i.test(d.name || d.url || '') ? (
+                          <a href={d.url} target="_blank" rel="noreferrer"><img src={d.url} alt={d.name} style={{ width: 130, height: 90, objectFit: 'cover', borderRadius: 6 }} /></a>
+                        ) : (
+                          <a href={d.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', width: 130, height: 90, borderRadius: 6, padding: 8, background: '#fff', textDecoration: 'none', color: '#333' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700 }}>Open</div>
+                            <div style={{ fontSize: 11 }}>{d.name}</div>
+                          </a>
+                        )}
+                        <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>{d.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {existingCccdDocs && existingCccdDocs.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <strong>CCCD / ID Documents</strong>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    {existingCccdDocs.map((d, i) => (
+                      <div key={i} style={{ width: 140, textAlign: 'center' }}>
+                        {/(jpg|jpeg|png|gif)$/i.test(d.name || d.url || '') ? (
+                          <a href={d.url} target="_blank" rel="noreferrer"><img src={d.url} alt={d.name} style={{ width: 130, height: 90, objectFit: 'cover', borderRadius: 6 }} /></a>
+                        ) : (
+                          <a href={d.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', width: 130, height: 90, borderRadius: 6, padding: 8, background: '#fff', textDecoration: 'none', color: '#333' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700 }}>Open</div>
+                            <div style={{ fontSize: 11 }}>{d.name}</div>
+                          </a>
+                        )}
+                        <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>{d.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
         </div>
       )}
       </div>
