@@ -24,7 +24,7 @@ const ATTENDANCE_LOG_THROUGH = new Date(Date.UTC(2026, 11, 31, 23, 59, 59, 999))
 
 const REQUIRED_COUNTS = {
   totalEmployees: 30,
-  dependentEmployees: 0,
+  dependentEmployees: 30, // All employees now have 1-2 children dependents
   withJobTitle: 30,
   withoutJobTitle: 0,
   seniority: {
@@ -388,6 +388,42 @@ function gradeCodeBySeniority(startDate) {
   return 'F';
 }
 
+/**
+ * Generate 1-2 child dependents under 18 years old for an employee
+ * All children birth years are between 2008-2026 (current reference date is 2026-04-30)
+ */
+function generateChildDependents(employeeIndex) {
+  const children = [];
+  // Determine number of children: 1-2 (deterministic based on employee index)
+  const numChildren = (employeeIndex % 2) === 0 ? 2 : 1;
+  
+  for (let c = 0; c < numChildren; c += 1) {
+    // Generate unique name for each child
+    const childName = `${deterministicName(employeeIndex + 500 + c)} Jr`;
+    const gender = ((employeeIndex + c) % 2) === 0 ? 'female' : 'male';
+    
+    // Birth year between 2008-2026 (under 18 at reference date 2026-04-30)
+    // 2008-2022 would be 6-18 years old; 2023-2025 would be 1-3 years old
+    const birthYear = 2008 + ((employeeIndex + c) % 18); // Range: 2008-2025
+    const birthMonth = ((employeeIndex + c + 1) % 12) + 1; // 1-12
+    const birthDay = ((employeeIndex + c * 3) % 27) + 1; // 1-27
+    
+    const dateOfBirth = `${birthYear}-${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`;
+    
+    const occupations = c === 0 ? 'Student' : (c === 1 ? 'Preschooler' : 'Student');
+    
+    children.push({
+      fullName: childName,
+      relationship: 'child',
+      gender,
+      dateOfBirth,
+      occupation: occupations
+    });
+  }
+  
+  return children;
+}
+
 function baseSalaryFromGradeCode(gradeCode) {
   const found = SALARY_GRADES_DEF.find(g => g.code === gradeCode);
   return found ? found.baseSalary : 9000000;
@@ -462,22 +498,9 @@ function buildEmployeeProfiles() {
     if (seniorityBand === 'five_years') contractType = ['3_year', '3_year', '3_year', '1_year', '3_year', '1_year', '1_year', '3_year', '1_year', '1_year', '1_year', '1_year', '1_year', '1_year', '1_year'][indexInBand];
     if (seniorityBand === 'new_joiner') contractType = 'probation';
 
-    let dependents;
-    if (DEPENDENT_INDEX_MAP[i]) {
-      dependents = DEPENDENT_INDEX_MAP[i];
-      dependentEmployeesGenerated += 1;
-    } else if (dependentEmployeesGenerated < REQUIRED_COUNTS.dependentEmployees) {
-      dependents = [{
-        fullName: `${deterministicName(i + 200)} Relative`,
-        relationship: i % 3 === 0 ? 'child' : (i % 3 === 1 ? 'spouse' : 'parent'),
-        gender: i % 2 === 0 ? 'female' : 'male',
-        dateOfBirth: i % 3 === 0 ? '2017-08-10' : '1991-04-10',
-        occupation: i % 3 === 0 ? 'Student' : 'Office staff'
-      }];
-      dependentEmployeesGenerated += 1;
-    } else {
-      dependents = [];
-    }
+    // Every employee gets 1-2 child dependents under 18 years old
+    const dependents = generateChildDependents(i);
+    dependentEmployeesGenerated += 1;
 
     profiles.push({
       index: i,
@@ -1287,6 +1310,51 @@ async function seedDB() {
     }
     attCount = await AttendanceLog.count();
     console.log(`   Created ${attCount} attendance logs`);
+
+    // Verify April 2026 attendance data completeness
+    console.log('15.5. Verifying April 2026 attendance data completeness...');
+    const aprilMissingData = [];
+    for (let i = 0; i < employees.length; i += 1) {
+      const emp = employees[i];
+      // Skip if employee started after April 2026
+      if (emp.startDate > new Date('2026-04-30')) continue;
+      
+      for (const day of APRIL_2026_WEEKDAYS) {
+        const dateStart = new Date(Date.UTC(2026, 3, day, 0, 0, 0)); // April = month 3 (0-indexed)
+        const dateEnd = new Date(Date.UTC(2026, 3, day, 23, 59, 59));
+        
+        const count = await AttendanceLog.count({
+          where: {
+            userId: emp.id,
+            timestamp: { [Op.between]: [dateStart, dateEnd] }
+          }
+        });
+        
+        if (count === 0) {
+          aprilMissingData.push({
+            employeeCode: emp.employeeCode,
+            date: `2026-04-${String(day).padStart(2, '0')}`,
+            message: 'No attendance record'
+          });
+        }
+      }
+    }
+    
+    if (aprilMissingData.length > 0) {
+      console.warn(`   ⚠️  April 2026 missing attendance data (${aprilMissingData.length} records):`);
+      const uniqueByEmp = {};
+      for (const missing of aprilMissingData) {
+        if (!uniqueByEmp[missing.employeeCode]) {
+          uniqueByEmp[missing.employeeCode] = [];
+        }
+        uniqueByEmp[missing.employeeCode].push(missing.date);
+      }
+      for (const [empCode, dates] of Object.entries(uniqueByEmp)) {
+        console.warn(`      ${empCode}: missing ${dates.length} day(s) (${dates.slice(0, 3).join(', ')}${dates.length > 3 ? '...' : ''})`);
+      }
+    } else {
+      console.log('   ✅ April 2026 attendance data is complete for all employees');
+    }
 
     // Create Leave Requests (deterministic)
     console.log('16. Creating deterministic leave requests...');

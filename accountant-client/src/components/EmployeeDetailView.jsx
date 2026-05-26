@@ -343,6 +343,33 @@ export default function EmployeeDetailView({
                                   <div>DOB: {dep.dateOfBirth ? new Date(dep.dateOfBirth).toLocaleDateString('en') : 'Not set'}</div>
                                   {dep.gender && <div>Gender: {dep.gender}</div>}
                                 </div>
+                                {/* Documents preview if available */}
+                                {(dep.documents || dep.files || dep.documentsUrls || dep.cccdFiles) && (
+                                  <div style={{ marginTop: 10 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Documents</div>
+                                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                      {((dep.documents && dep.documents.length) ? dep.documents : (dep.files && dep.files.length ? dep.files : (dep.documentsUrls || []))).map((f, i) => {
+                                        // normalize server's DependentDocument shape
+                                        const url = typeof f === 'string' ? f : (f.documentPath || f.url || f.path || f.file || '');
+                                        const name = typeof f === 'string' ? f.split('/').pop() : (f.fileName || f.name || f.filename || (url.split('/').pop()));
+                                        const isImage = /\.(jpg|jpeg|png|gif)$/i.test(name) || (f.mimeType && f.mimeType.startsWith('image/')) || (f.type && f.type.startsWith('image/'));
+                                        return (
+                                          <div key={i} style={{ width: 120, textAlign: 'center' }}>
+                                            {isImage ? (
+                                              <a href={url} target="_blank" rel="noreferrer"><img src={url} alt={name} style={{ width: 110, height: 78, objectFit: 'cover', borderRadius: 6, border: '1px solid #e9ecef' }} /></a>
+                                            ) : (
+                                              <a href={url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', width: 110, height: 78, borderRadius: 6, border: '1px solid #e9ecef', padding: 8, background: '#fff', textDecoration: 'none', color: '#333' }}>
+                                                <div style={{ fontSize: 12, fontWeight: 700 }}>View</div>
+                                                <div style={{ fontSize: 11 }}>{name}</div>
+                                              </a>
+                                            )}
+                                            <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>{name}</div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
