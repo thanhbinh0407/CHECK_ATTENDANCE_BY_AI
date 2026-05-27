@@ -11,8 +11,6 @@ const EMPTY_FORM = {
   code: '',
   name: '',
   level: '',
-  baseSalaryMin: '',
-  baseSalaryMax: '',
   isActive: true,
 };
 
@@ -54,8 +52,6 @@ export default function JobTitleManagement({ token }) {
       code: item.code || '',
       name: item.name || '',
       level: item.level != null && item.level !== '' ? String(item.level) : '',
-      baseSalaryMin: item.baseSalaryMin ?? '',
-      baseSalaryMax: item.baseSalaryMax ?? '',
       isActive: item.isActive !== false,
     });
     setModal({ mode: 'edit', item });
@@ -74,8 +70,7 @@ export default function JobTitleManagement({ token }) {
         name: form.name.trim(),
         description: null,
         level: form.level.trim() === '' ? null : form.level.trim(),
-        baseSalaryMin: form.baseSalaryMin === '' ? 0 : Number(form.baseSalaryMin),
-        baseSalaryMax: form.baseSalaryMax === '' ? 0 : Number(form.baseSalaryMax),
+        // base salary ranges removed for supervisor role UI
         isActive: !!form.isActive,
       };
       const url = modal.mode === 'create'
@@ -260,24 +255,7 @@ export default function JobTitleManagement({ token }) {
                     <option value="0">Inactive</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>Base salary min (VND)</label>
-                  <input
-                    type="number"
-                    value={form.baseSalaryMin}
-                    onChange={(e) => setForm((f) => ({ ...f, baseSalaryMin: e.target.value }))}
-                    style={{ padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: 6 }}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Base salary max (VND)</label>
-                  <input
-                    type="number"
-                    value={form.baseSalaryMax}
-                    onChange={(e) => setForm((f) => ({ ...f, baseSalaryMax: e.target.value }))}
-                    style={{ padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: 6 }}
-                  />
-                </div>
+                {/* Base salary fields removed for supervisor edit modal */}
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setModal(null)} disabled={saving}>Cancel</button>
