@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import socket from "../socket.js";
 import { exportAttendanceToExcel, exportAttendanceToPDF, exportAttendanceMonthlyWorkHoursSummaryToExcel, exportAttendanceMonthlyWorkHoursSummaryToDocx } from "../utils/exportUtils.js";
 import { toastWarning } from "../lib/notify.jsx";
 
@@ -43,6 +44,7 @@ function computeWorkHourSummary(logs = []) {
         checkOuts: [],
         hasOvertime: false,
         hasAbsent: false,
+        hasDayOff: false,
         hasLate: false,
         hasEarlyLeave: false,
       });
@@ -55,6 +57,9 @@ function computeWorkHourSummary(logs = []) {
     }
     if (type === "OUT" || type === "EARLY_OUT" || type === "OT_OUT") {
       group.checkOuts.push(log);
+    }
+    if (type === "OFF") {
+      group.hasDayOff = true;
     }
     if (log.isOvertime) group.hasOvertime = true;
     if (log.isAbsent) group.hasAbsent = true;
@@ -109,6 +114,9 @@ function computeWorkHourSummary(logs = []) {
       totals.daysWorked += 1;
       totals.lateRows += group.hasLate ? 1 : 0;
       totals.earlyLeaveRows += group.hasEarlyLeave ? 1 : 0;
+    } else if (group.hasDayOff) {
+      label = "Day Off";
+      status = "Day Off";
     } else if (group.hasAbsent) {
       label = "Absent";
       status = "Absent";
@@ -142,6 +150,7 @@ export default function AttendanceLog() {
     start: daysAgoISO(31),
     end: todayISO(),
   }));
+  const [showAdvancedDates, setShowAdvancedDates] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [monthlyExportLanguage, setMonthlyExportLanguage] = useState('en');
   const [filterType, setFilterType] = useState("all");
@@ -185,56 +194,94 @@ export default function AttendanceLog() {
     };
   }, [apiBase]);
 
+  // Extracted fetch function so it can be triggered by socket events
+  const fetchLogs = useCallback(async () => {
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
+    try {
+      setLogsLoading(true);
+      setError("");
+      const from = dateRange.start || daysAgoISO(31);
+      const to = dateRange.end || todayISO();
+      const qs = new URLSearchParams({
+        from,
+        to,
+        limit: String(PAGE_SIZE),
+        offset: String(listOffset),
+      });
+      if (searchQuery.trim()) qs.set("search", searchQuery.trim());
+      if (selectedEmployeeId) qs.set("userId", String(selectedEmployeeId));
+      if (filterType !== "all") qs.set("type", filterType);
+      if (filterStatus === "matched") qs.set("matchStatus", "matched");
+      if (filterStatus === "unmatched") qs.set("matchStatus", "unmatched");
+
+      const logsRes = await fetch(`${apiBase}/api/admin/attendance-logs?${qs}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const logsData = await logsRes.json();
+      if (!logsRes.ok) {
+        throw new Error(logsData?.message || `Failed to load logs (${logsRes.status})`);
+      }
+      setAllLogs(logsData.logs || []);
+      const pg = logsData.pagination || {};
+      setLogsTotal(typeof pg.total === "number" ? pg.total : (logsData.logs || []).length);
+      setLogsHasMore(Boolean(pg.hasMore));
+    } catch (err) {
+      setError("Error loading data: " + err.message);
+      console.error("Fetch error:", err);
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [apiBase, dateRange.start, dateRange.end, listOffset, searchQuery, selectedEmployeeId, filterType, filterStatus]);
+
   useEffect(() => {
     const token = localStorage.getItem("authToken");
     if (!token) return;
 
     let cancelled = false;
-    const tid = setTimeout(async () => {
-      try {
-        setLogsLoading(true);
-        setError("");
-        const from = dateRange.start || daysAgoISO(31);
-        const to = dateRange.end || todayISO();
-        const qs = new URLSearchParams({
-          from,
-          to,
-          limit: String(PAGE_SIZE),
-          offset: String(listOffset),
-        });
-        if (searchQuery.trim()) qs.set("search", searchQuery.trim());
-        if (selectedEmployeeId) qs.set("userId", String(selectedEmployeeId));
-        if (filterType !== "all") qs.set("type", filterType);
-        if (filterStatus === "matched") qs.set("matchStatus", "matched");
-        if (filterStatus === "unmatched") qs.set("matchStatus", "unmatched");
-
-        const logsRes = await fetch(`${apiBase}/api/admin/attendance-logs?${qs}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const logsData = await logsRes.json();
-        if (!logsRes.ok) {
-          throw new Error(logsData?.message || `Failed to load logs (${logsRes.status})`);
-        }
-        if (cancelled) return;
-        setAllLogs(logsData.logs || []);
-        const pg = logsData.pagination || {};
-        setLogsTotal(typeof pg.total === "number" ? pg.total : (logsData.logs || []).length);
-        setLogsHasMore(Boolean(pg.hasMore));
-      } catch (err) {
-        if (!cancelled) {
-          setError("Error loading data: " + err.message);
-          console.error("Fetch error:", err);
-        }
-      } finally {
-        if (!cancelled) setLogsLoading(false);
-      }
+    const tid = setTimeout(() => {
+      // debounce -> call shared fetchLogs
+      fetchLogs().catch((err) => {
+        if (!cancelled) console.error("fetchLogs error:", err);
+      });
     }, 220);
 
     return () => {
       cancelled = true;
       clearTimeout(tid);
     };
-  }, [dateRange.start, dateRange.end, listOffset, searchQuery, selectedEmployeeId, filterType, filterStatus, apiBase]);
+  }, [dateRange.start, dateRange.end, listOffset, searchQuery, selectedEmployeeId, filterType, filterStatus, fetchLogs]);
+
+  // Socket: connect and listen for attendance updates so UI refreshes immediately
+  useEffect(() => {
+    if (!socket) return undefined;
+
+    const handleConnect = () => {
+      socket.emit('join-room', { room: 'admin' });
+    };
+    const handleConnectError = (err) => {
+      console.warn('Socket connection error:', err);
+    };
+    const handleAttendanceUpdate = () => {
+      fetchLogs().catch((err) => console.error('Socket refresh failed:', err));
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('connect_error', handleConnectError);
+    socket.on('attendance-update', handleAttendanceUpdate);
+
+    if (!socket.connected) {
+      socket.connect();
+    } else {
+      handleConnect();
+    }
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('connect_error', handleConnectError);
+      socket.off('attendance-update', handleAttendanceUpdate);
+    };
+  }, [fetchLogs]);
 
   const buildExportQuery = useCallback(() => {
     const from = dateRange.start || daysAgoISO(31);
@@ -581,39 +628,65 @@ export default function AttendanceLog() {
 
             <div>
               <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "11px", color: "#495057" }}>
-                From Date
+                Date Options
               </label>
-              <input
-                type="date"
-                value={dateRange.start}
-                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  padding: "8px 10px",
-                  border: "1px solid #d0d7de",
-                  borderRadius: "6px",
-                  fontSize: "13px"
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "11px", color: "#495057" }}>
-                To Date
-              </label>
-              <input
-                type="date"
-                value={dateRange.end}
-                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  padding: "8px 10px",
-                  border: "1px solid #d0d7de",
-                  borderRadius: "6px",
-                  fontSize: "13px"
-                }}
-              />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  onClick={() => setShowAdvancedDates(s => !s)}
+                  style={{
+                    padding: "6px 12px",
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    fontWeight: "600"
+                  }}
+                >
+                  {showAdvancedDates ? 'Hide advanced date inputs' : 'Show advanced date inputs'}
+                </button>
+                <span style={{ fontSize: 12, color: '#6c757d' }}>Use quick filters for common ranges</span>
+              </div>
+              {showAdvancedDates && (
+                <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "11px", color: "#495057" }}>
+                      From Date
+                    </label>
+                    <input
+                      type="date"
+                      value={dateRange.start}
+                      onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                      style={{
+                        width: "100%",
+                        boxSizing: "border-box",
+                        padding: "8px 10px",
+                        border: "1px solid #d0d7de",
+                        borderRadius: "6px",
+                        fontSize: "13px"
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "11px", color: "#495057" }}>
+                      To Date
+                    </label>
+                    <input
+                      type="date"
+                      value={dateRange.end}
+                      onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                      style={{
+                        width: "100%",
+                        boxSizing: "border-box",
+                        padding: "8px 10px",
+                        border: "1px solid #d0d7de",
+                        borderRadius: "6px",
+                        fontSize: "13px"
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1028,6 +1101,12 @@ export default function AttendanceLog() {
                         typeBgColor = "#fadbd8";
                         typeTextColor = "#922b21";
                         typeLabel = "ABSENT";
+                        break;
+                      case 'OFF':
+                        typeColor = "#0d6efd";
+                        typeBgColor = "#dbeafe";
+                        typeTextColor = "#1d4ed8";
+                        typeLabel = "DAY OFF";
                         break;
                       case 'IN':
                         typeColor = "#28a745";

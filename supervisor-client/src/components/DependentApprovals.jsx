@@ -287,6 +287,7 @@ export default function DependentApprovals({ token }) {
       {detail && (
         <DependentDetailModal
           detail={detail}
+          token={token}
           onClose={() => setDetail(null)}
           showActions={(detail.approvalStatus || 'pending') === 'pending'}
           onApprove={() => {
@@ -375,7 +376,43 @@ function ageFromDob(dob) {
   }
 }
 
-function DependentDetailModal({ detail, onClose, showActions, onApprove, onReject }) {
+function DependentDetailModal({ detail, token, onClose, showActions, onApprove, onReject }) {
+  const [documents, setDocuments] = useState([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docsError, setDocsError] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    const loadDocuments = async () => {
+      if (!detail?.id) return;
+      setDocsLoading(true);
+      setDocsError(null);
+      try {
+        const res = await fetch(`${API}/dependents/${detail.id}/documents`, {
+          headers: authHeaders(token),
+        });
+        const data = await res.json();
+        if (!res.ok || data.status !== 'success') {
+          throw new Error(data.message || 'Unable to load documents');
+        }
+        if (active) {
+          setDocuments(Array.isArray(data.documents) ? data.documents : []);
+        }
+      } catch (err) {
+        if (active) {
+          setDocsError(err.message || 'Unable to load documents');
+          setDocuments([]);
+        }
+      } finally {
+        if (active) setDocsLoading(false);
+      }
+    };
+    loadDocuments();
+    return () => {
+      active = false;
+    };
+  }, [detail?.id, token]);
+
   const status = detail.approvalStatus || 'pending';
   const meta = STATUS_META[status] || STATUS_META.pending;
   const relLabel = relationshipLabel(detail.relationship);
@@ -625,6 +662,51 @@ function DependentDetailModal({ detail, onClose, showActions, onApprove, onRejec
               {detail.notes && <DetailRow label="Notes" value={detail.notes} full />}
               {detail.rejectionReason && (
                 <DetailRow label="Rejection reason" value={detail.rejectionReason} full />
+              )}
+            </div>
+          </section>
+
+          <section
+            style={{
+              background: '#fff',
+              borderRadius: 10,
+              border: '1px solid #e5e7eb',
+              padding: '12px 14px',
+            }}
+          >
+            <SectionTitle>Dependent documents</SectionTitle>
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {docsLoading ? (
+                <div style={{ color: '#6b7280' }}>Loading documents…</div>
+              ) : docsError ? (
+                <div style={{ color: '#991b1b' }}>{docsError}</div>
+              ) : documents.length === 0 ? (
+                <div style={{ color: '#6b7280' }}>No supplemental documents available.</div>
+              ) : (
+                documents.map((doc) => (
+                  <a
+                    key={doc.id}
+                    href={doc.documentPath}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #e5e7eb',
+                      color: '#1d4ed8',
+                      textDecoration: 'none',
+                      background: '#f8fafc',
+                    }}
+                  >
+                    <span>{doc.fileName || `Document #${doc.id}`}</span>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>
+                      {doc.mimeType || 'PDF'}{doc.fileSize ? ` · ${Math.round(doc.fileSize / 1024)} KB` : ''}
+                    </span>
+                  </a>
+                ))
               )}
             </div>
           </section>

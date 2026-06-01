@@ -25,6 +25,18 @@ const ADDITIONAL_ANNUAL_LEAVE_EVERY_5_YEARS = 1;
 const API         = 'http://localhost:5000/api';
 const SOCKET_URL  = 'http://localhost:5000';
 
+function safeParseResponse(res) {
+  return (async () => {
+    try {
+      const text = await res.text();
+      if (!text) return {};
+      try { return JSON.parse(text); } catch { return { message: text }; }
+    } catch (err) {
+      return { message: err.message || String(err) };
+    }
+  })();
+}
+
 // Change types that should trigger employee list reload
 const RELOAD_CHANGE_TYPES = new Set(['role', 'job', 'salary']);
 
@@ -736,7 +748,7 @@ export default function EmployeeManagement({ token, user }) {
         fetch(`${API}/job-titles`,      { headers: authHeaders(token) }),
       ]);
       const [empData, deptData, jtData] = await Promise.all([
-        empRes.json(), deptRes.json(), jtRes.json(),
+        safeParseResponse(empRes), safeParseResponse(deptRes), safeParseResponse(jtRes),
       ]);
       setEmployees(empData.employees   || empData.data   || []);
       setDepartments(deptData.departments || deptData.data || []);
@@ -853,7 +865,7 @@ export default function EmployeeManagement({ token, user }) {
         headers: authHeaders(token),
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (res.ok && (data.status === 'success' || data.employee)) {
         closeCreate();
         if (data.newPassword) {
@@ -888,7 +900,7 @@ export default function EmployeeManagement({ token, user }) {
         headers: authHeaders(token),
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (data.status === 'success' || data.employee || data.data) {
         closeEdit();
         load();
@@ -921,7 +933,7 @@ export default function EmployeeManagement({ token, user }) {
         headers: authHeaders(token),
         body: JSON.stringify({ password }),
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (data.status === 'success') {
         load();
         toastSuccess('Employee deactivated.');
@@ -945,7 +957,7 @@ export default function EmployeeManagement({ token, user }) {
         headers: authHeaders(token),
         body: JSON.stringify({}),
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (data.status === 'success') {
         load();
         toastSuccess('Employee restored.');
@@ -981,7 +993,7 @@ export default function EmployeeManagement({ token, user }) {
         headers: authHeaders(token),
         body: JSON.stringify({ password }),
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (res.ok && data.status === 'success') {
         load();
         toastSuccess('Employee permanently deleted.');
@@ -1014,7 +1026,7 @@ export default function EmployeeManagement({ token, user }) {
           lastUpdatedBy: actorId,
         }),
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (data.status === 'success') {
         setMaternityEmployee(null);
         const empToUpdate = maternityEmployee;
@@ -1052,7 +1064,7 @@ export default function EmployeeManagement({ token, user }) {
         headers: authHeaders(token),
         body: JSON.stringify({}),
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (data.status === 'success') {
         setNewPwInfo({
           name:         data.employeeName  || emp.name,
@@ -1082,7 +1094,7 @@ export default function EmployeeManagement({ token, user }) {
     setDetailLoading(true);
     try {
       const res  = await fetch(`${API}/admin/employees/${emp.id}/details`, { headers: authHeaders(token) });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       setDetailUser(res.ok && data.employee ? data.employee : { ...emp, jobHistory: [], salaryChangeHistory: [] });
     } catch {
       setDetailUser({ ...emp, jobHistory: [], salaryChangeHistory: [] });
@@ -1102,7 +1114,7 @@ export default function EmployeeManagement({ token, user }) {
     try {
       setDetailLoading(true);
       const res  = await fetch(`${API}/admin/employees/${detailUser.id}/history?${params}`, { headers: authHeaders(token) });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (!res.ok) return;
       if (historyType === 'job') {
         setDetailJobRows(data.jobHistory || []);

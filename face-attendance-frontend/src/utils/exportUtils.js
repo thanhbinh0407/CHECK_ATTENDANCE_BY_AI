@@ -25,6 +25,7 @@ const ATTENDANCE_SUMMARY_COLUMNS = [
   { key: 'lateMinutes', header: 'Late (mins)', widthChars: 12, widthPx: 100, align: 'center' },
   { key: 'earlyLeaveMinutes', header: 'Early Leave (mins)', widthChars: 16, widthPx: 120, align: 'center' },
   { key: 'otHours', header: 'OT Hours', widthChars: 10, widthPx: 90, align: 'center' },
+  { key: 'otDetails', header: 'OT Details', widthChars: 20, widthPx: 180, align: 'center' },
   { key: 'approvedEarlyLeave', header: 'Approved Early Leave', widthChars: 18, widthPx: 140, align: 'center' },
   { key: 'status', header: 'Status', widthChars: 14, widthPx: 120, align: 'left' },
 ];
@@ -50,6 +51,9 @@ const formatAttendanceTime = (timestamp) => {
     return '';
   }
 };
+
+const isCheckInType = (type) => typeof type === 'string' && (type === 'IN' || type.endsWith('_IN'));
+const isCheckOutType = (type) => typeof type === 'string' && (type === 'OUT' || type.endsWith('_OUT'));
 
 const buildAttendanceSummaryRows = (logs = [], employees = []) => {
   const employeeMap = getAttendanceEmployeeMap(employees);
@@ -78,33 +82,46 @@ const buildAttendanceSummaryRows = (logs = [], employees = []) => {
   const rows = [];
   groups.forEach(({ employeeId, dateKey, logs }) => {
     const employee = employeeMap.get(String(employeeId)) || {};
+    const employeeName = employee.name || (logs[0] && logs[0].detectedName) || `User ${employeeId}`;
+    const employeeCode = employee.employeeCode || String(employeeId || '') || '';
     const sortedLogs = logs.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    const morningInCandidates = sortedLogs.filter((log) => log.type === 'IN' && new Date(log.timestamp).getHours() < 12);
-    const afternoonInCandidates = sortedLogs.filter((log) => log.type === 'IN' && new Date(log.timestamp).getHours() >= 12);
-    const morningOutCandidates = sortedLogs.filter((log) => log.type === 'OUT' && new Date(log.timestamp).getHours() < 13);
-    const finalOutCandidates = sortedLogs.filter((log) => log.type === 'OUT');
+    const morningInCandidates = sortedLogs.filter((log) => isCheckInType(log.type) && new Date(log.timestamp).getHours() < 12);
+    const afternoonInCandidates = sortedLogs.filter((log) => isCheckInType(log.type) && new Date(log.timestamp).getHours() >= 12);
+    const morningOutCandidates = sortedLogs.filter((log) => isCheckOutType(log.type) && new Date(log.timestamp).getHours() < 13);
+    const finalOutCandidates = sortedLogs.filter((log) => isCheckOutType(log.type));
 
-    const morningCheckIn = morningInCandidates[0] || sortedLogs.find((log) => log.type === 'IN');
+    const morningCheckIn = morningInCandidates[0] || sortedLogs.find((log) => isCheckInType(log.type));
     const morningCheckOut = morningOutCandidates.length > 0
       ? morningOutCandidates[morningOutCandidates.length - 1]
-      : sortedLogs.find((log) => log.type === 'OUT');
-    const afternoonCheckIn = afternoonInCandidates[0] || sortedLogs.slice().reverse().find((log) => log.type === 'IN');
+      : sortedLogs.find((log) => isCheckOutType(log.type));
+    const afternoonCheckIn = afternoonInCandidates[0] || sortedLogs.slice().reverse().find((log) => isCheckInType(log.type));
     const finalCheckOut = finalOutCandidates.length > 0 ? finalOutCandidates[finalOutCandidates.length - 1] : null;
 
     const lateMinutes = sortedLogs
-      .filter((log) => log.type === 'IN' && log.isLate)
-      .reduce((sum, log) => sum + extractMinutesFromNote(log.note, 'Late'), 0);
+      .filter((log) => isCheckInType(log.type) && log.isLate)
+      .reduce((sum, log) => sum + (extractMinutesFromNote(log.note, 'Late') || Number(log.lateMinutes || 0)), 0);
 
     const earlyLeaveMinutes = sortedLogs
-      .filter((log) => log.type === 'OUT' && log.isEarlyLeave)
-      .reduce((sum, log) => sum + extractMinutesFromNote(log.note, 'Left early'), 0);
+      .filter((log) => isCheckOutType(log.type) && log.isEarlyLeave)
+      .reduce((sum, log) => sum + (extractMinutesFromNote(log.note, 'Left early') || Number(log.earlyLeaveMinutes || 0)), 0);
 
-    const otMinutes = sortedLogs
-      .filter((log) => log.isOvertime)
-      .reduce((sum, log) => {
-        const overtimeMinutes = extractMinutesFromNote(log.note, 'Overtime');
-        return sum + (overtimeMinutes || 0);
-      }, 0);
+    // build OT shifts and minutes (fallback to log.otMinutes when note doesn't contain minutes)
+    const otLogs = sortedLogs.filter((log) => log.isOvertime || String(log.type || '').toUpperCase().includes('OT'));
+    const otIns = otLogs.filter((log) => isCheckInType(log.type));
+    const otOuts = otLogs.filter((log) => isCheckOutType(log.type));
+    const otShifts = [];
+    let otOutIdx = 0;
+    for (let inIdx = 0; inIdx < otIns.length; inIdx += 1) {
+      const inLog = otIns[inIdx];
+      const inTs = new Date(inLog.timestamp);
+      while (otOutIdx < otOuts.length && new Date(otOuts[otOutIdx].timestamp) < inTs) otOutIdx += 1;
+      if (otOutIdx < otOuts.length) {
+        otShifts.push({ in: inLog, out: otOuts[otOutIdx] });
+        otOutIdx += 1;
+      }
+    }
+
+    const otMinutes = otLogs.reduce((sum, log) => sum + (extractMinutesFromNote(log.note, 'Overtime') || Number(log.otMinutes || 0)), 0);
 
     const hasApprovedEarlyLeave = sortedLogs.some((log) => /approved.*early/i.test(log.note || ''));
     const status = hasApprovedEarlyLeave
@@ -119,9 +136,13 @@ const buildAttendanceSummaryRows = (logs = [], employees = []) => {
               ? 'Early Leave'
               : 'On Time';
 
+    const otDetails = otShifts.length > 0
+      ? otShifts.map(s => `${formatAttendanceTime(s.in.timestamp)}-${formatAttendanceTime(s.out.timestamp)}`).join('; ')
+      : '';
+
     rows.push({
-      employeeName: employee.name || '',
-      employeeCode: employee.employeeCode || '',
+      employeeName: employeeName || '',
+      employeeCode: employeeCode || '',
       day: dayFormatter.format(new Date(`${dateKey}T00:00:00`)),
       date: dateKey,
       morningCheckIn: formatAttendanceTime(morningCheckIn?.timestamp),
@@ -131,6 +152,7 @@ const buildAttendanceSummaryRows = (logs = [], employees = []) => {
       lateMinutes: lateMinutes > 0 ? lateMinutes : '',
       earlyLeaveMinutes: earlyLeaveMinutes > 0 ? earlyLeaveMinutes : '',
       otHours: otMinutes > 0 ? (otMinutes / 60).toFixed(1) : '',
+      otDetails,
       approvedEarlyLeave: hasApprovedEarlyLeave ? 'Yes' : 'No',
       status,
     });
@@ -346,6 +368,7 @@ export const exportAttendanceToExcel = (logs, employees, filename = 'lich-su-die
       'Late (mins)': row.lateMinutes,
       'Early Leave (mins)': row.earlyLeaveMinutes,
       'OT Hours': row.otHours,
+      'OT Details': row.otDetails,
       'Approved Early Leave': row.approvedEarlyLeave,
       'Status': row.status,
     };
@@ -365,17 +388,18 @@ export const exportAttendanceToExcel = (logs, employees, filename = 'lich-su-die
     colWidths.push({ wch: 20 }, { wch: 12 });
   }
   colWidths.push(
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 14 },
-    { wch: 18 },
-    { wch: 10 },
-    { wch: 18 },
-    { wch: 14 }
+    { wch: 14 }, // Day
+    { wch: 14 }, // Date
+    { wch: 16 }, // Morning Check-in
+    { wch: 16 }, // Morning Check-out
+    { wch: 16 }, // Afternoon Check-in
+    { wch: 16 }, // Final Check-out
+    { wch: 14 }, // Late (mins)
+    { wch: 12 }, // Early Leave (mins)
+    { wch: 10 }, // OT Hours
+    { wch: 20 }, // OT Details
+    { wch: 18 }, // Approved Early Leave
+    { wch: 14 }  // Status
   );
   ws['!cols'] = colWidths;
 
@@ -442,6 +466,8 @@ const buildAttendanceWorkHourRows = (logs = [], employees = []) => {
   const rows = [];
   groups.forEach((group) => {
     const employee = employeeMap.get(String(group.employeeId)) || {};
+    const employeeName = employee.name || (group.checkIns[0]?.detectedName || group.checkOuts[0]?.detectedName) || String(group.employeeId || '');
+    const employeeCode = employee.employeeCode || String(group.employeeId || '');
     const checkIn = group.checkIns.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))[0];
     const checkOuts = group.checkOuts.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     const checkOut = checkOuts[checkOuts.length - 1];
@@ -521,8 +547,8 @@ const buildAttendanceWorkHourRows = (logs = [], employees = []) => {
     const absentLabel = translateMonthlyWorkHoursStatus('Absent', 'en');
 
     rows.push({
-      employeeName: employee.name || '',
-      employeeCode: employee.employeeCode || '',
+      employeeName: employeeName || '',
+      employeeCode: employeeCode || '',
       date: group.dateKey,
       checkIn: checkIn ? timeFormatter.format(timestampIn) : '',
       checkOut: checkOut ? timeFormatter.format(timestampOut) : '',
@@ -755,8 +781,9 @@ const buildAttendanceSheetRows = (logs = [], employees = []) => {
 
     const employeeId = String(log.userId || 'unknown');
     if (!rows.has(employeeId)) {
+      const emp = employeeMap.get(employeeId);
       rows.set(employeeId, {
-        employee: employeeMap.get(employeeId) || { id: log.userId, name: '', employeeCode: '' },
+        employee: emp || { id: log.userId, name: log.detectedName || '', employeeCode: String(log.userId || '') },
         dayCodes: new Map(),
       });
     }
@@ -1067,6 +1094,18 @@ export const exportAttendanceMonthlyWorkHoursSummaryToExcel = (
     ];
 
     const data = [];
+    // Insert a title row so the sheet clearly indicates which month it is
+    const titleRow = {};
+    titleRow[getMonthlyWorkHoursLabel('Employee', language)] = `${language === 'vi' ? 'Tháng' : 'Month'}: ${yearStr}-${monthStr}`;
+    // ensure other keys exist to keep column order
+    titleRow[getMonthlyWorkHoursLabel('Code', language)] = '';
+    titleRow[getMonthlyWorkHoursLabel('Date', language)] = '';
+    titleRow[getMonthlyWorkHoursLabel('Day', language)] = '';
+    titleRow[getMonthlyWorkHoursLabel('WorkHours', language)] = '';
+    titleRow[getMonthlyWorkHoursLabel('OTHours', language)] = '';
+    titleRow[getMonthlyWorkHoursLabel('Shift1', language)] = '';
+    // push title first
+    data.push(titleRow);
     for (let day = 1; day <= dayCount; day += 1) {
       const dayDate = new Date(Date.UTC(year, month - 1, day));
       const row = dayMap.get(day);
@@ -1130,6 +1169,10 @@ export const exportAttendanceMonthlyWorkHoursSummaryToExcel = (
         totalOtHours: Number(totalOtHours.toFixed(1)),
         daysWorked,
         absentDays,
+        lateCount: monthRows.filter(r => r.status === 'Late').length,
+        otCount: monthRows.filter(r => r.status === 'OT' || r.status === 'Absent + OT').length,
+        earlyLeaveCount: monthRows.filter(r => r.status === 'Early Leave').length,
+        normalCount: monthRows.filter(r => r.status === 'Normal').length,
       });
       monthlySummary.set(monthKey, monthMap);
   });
@@ -1137,6 +1180,19 @@ export const exportAttendanceMonthlyWorkHoursSummaryToExcel = (
     // Append aggregated summary sheets per month
     monthlySummary.forEach((empMap, monthKey) => {
       const summaryRows = [];
+      // add title row to summary sheet to indicate the month
+      const titleSummaryRow = {};
+      titleSummaryRow[empLabel] = `${language === 'vi' ? 'Tháng' : 'Month'}: ${monthKey}`;
+      titleSummaryRow[codeLabel] = '';
+      titleSummaryRow[daysLabel] = '';
+      titleSummaryRow[totalWorkLabel] = '';
+      titleSummaryRow[totalOtLabel] = '';
+      titleSummaryRow[absentLabel] = '';
+      titleSummaryRow[lateLabel] = '';
+      titleSummaryRow[otLabel] = '';
+      titleSummaryRow[earlyLabel] = '';
+      titleSummaryRow[normalLabel] = '';
+      summaryRows.push(titleSummaryRow);
       let aggTotalWork = 0;
       let aggTotalOt = 0;
       let aggTotalDays = 0;
@@ -1150,6 +1206,10 @@ export const exportAttendanceMonthlyWorkHoursSummaryToExcel = (
       const totalWorkLabel = getMonthlyWorkHoursLabel('TotalWorkHours', language);
       const totalOtLabel = getMonthlyWorkHoursLabel('TotalOTHours', language);
       const absentLabel = getMonthlyWorkHoursLabel('AbsentDays', language);
+      const lateLabel = 'Late Count';
+      const otLabel = 'OT Count';
+      const earlyLabel = 'Early Leave Count';
+      const normalLabel = 'Normal Count';
 
       empEntries.forEach((item) => {
         summaryRows.push({
@@ -1159,6 +1219,10 @@ export const exportAttendanceMonthlyWorkHoursSummaryToExcel = (
           [totalWorkLabel]: item.totalWorkHours,
           [totalOtLabel]: item.totalOtHours,
           [absentLabel]: item.absentDays,
+          [lateLabel]: item.lateCount || 0,
+          [otLabel]: item.otCount || 0,
+          [earlyLabel]: item.earlyLeaveCount || 0,
+          [normalLabel]: item.normalCount || 0,
         });
         aggTotalWork += Number(item.totalWorkHours || 0);
         aggTotalOt += Number(item.totalOtHours || 0);
@@ -1178,11 +1242,12 @@ export const exportAttendanceMonthlyWorkHoursSummaryToExcel = (
 
       const summaryHeaders = [empLabel, codeLabel, daysLabel, totalWorkLabel, totalOtLabel, absentLabel];
 
-      const wsSummary = XLSX.utils.json_to_sheet(summaryRows, { header: summaryHeaders });
+      const extendedHeaders = [empLabel, codeLabel, daysLabel, totalWorkLabel, totalOtLabel, absentLabel, lateLabel, otLabel, earlyLabel, normalLabel];
+      const wsSummary = XLSX.utils.json_to_sheet(summaryRows, { header: extendedHeaders });
       const summarySheetName = `Summary-${monthKey}`;
       XLSX.utils.book_append_sheet(wb, wsSummary, summarySheetName);
-      wsSummary['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 12 }];
-      styleExcelTotalRow(wsSummary, summaryRows.length + 1, summaryHeaders.length);
+      wsSummary['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 12 }];
+      styleExcelTotalRow(wsSummary, summaryRows.length + 1, extendedHeaders.length);
     });
 
   XLSX.writeFile(wb, `${filename}.xlsx`);

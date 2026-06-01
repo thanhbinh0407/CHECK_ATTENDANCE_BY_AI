@@ -16,7 +16,7 @@ const LOGIN_DENIED_CONTRACT_MESSAGE = "Your contract has expired or has been sus
  *  employee   - Nhân viên (tự phục vụ)
  */
 
-export const authMiddleware = (req, res, next) => {
+export const authMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -28,63 +28,55 @@ export const authMiddleware = (req, res, next) => {
 
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET);
-    // Attach permissions from token role first (fast path).
     decoded.permissions = getPermissionsByRole(decoded.role);
 
-    // Validate session against current DB state (force-logout on role changes, deactivation, etc.)
-    Promise.resolve()
-      .then(async () => {
-        const rawId = decoded.userId ?? decoded.id;
-        const resolvedId = Number.parseInt(String(rawId), 10);
-        if (!Number.isFinite(resolvedId) || resolvedId < 1) {
-          return res.status(401).json({ status: "error", message: "Invalid session" });
-        }
+    const rawId = decoded.userId ?? decoded.id;
+    const resolvedId = Number.parseInt(String(rawId), 10);
+    if (!Number.isFinite(resolvedId) || resolvedId < 1) {
+      return res.status(401).json({ status: "error", message: "Invalid session" });
+    }
 
-        const dbUser = await User.findByPk(resolvedId, {
-          attributes: ["id", "role", "isActive", "tokenVersion", "employmentStatus", "contractType", "startDate"],
-        });
+    const dbUser = await User.findByPk(resolvedId, {
+      attributes: ["id", "role", "isActive", "tokenVersion", "employmentStatus", "contractType", "startDate"],
+    });
 
-        if (!dbUser) {
-          return res.status(401).json({ status: "error", message: "Invalid session" });
-        }
+    if (!dbUser) {
+      return res.status(401).json({ status: "error", message: "Invalid session" });
+    }
 
-        if (!dbUser.isActive) {
-          return res.status(403).json({ status: "error", message: LOGIN_DENIED_CONTRACT_MESSAGE });
-        }
+    if (!dbUser.isActive) {
+      return res.status(403).json({ status: "error", message: LOGIN_DENIED_CONTRACT_MESSAGE });
+    }
 
-        if (!isEmployeeLoginAllowed(dbUser)) {
-          emitToRoom(`user-${resolvedId}`, 'force-logout', { reason: 'Contract expired or suspended' });
-          return res.status(403).json({
-            status: "error",
-            message: LOGIN_DENIED_CONTRACT_MESSAGE,
-          });
-        }
-
-        const tokenVer = Number(decoded.tokenVersion || 0);
-        const dbVer = Number(dbUser.tokenVersion || 0);
-        if (tokenVer !== dbVer) {
-          return res.status(401).json({ status: "error", message: "Session has been invalidated. Please login again." });
-        }
-
-        if (decoded.role !== dbUser.role) {
-          return res.status(401).json({ status: "error", message: "Role changed. Please login again." });
-        }
-
-        // Use authoritative role/permissions from DB; expose both id and userId for controllers.
-        const role = dbUser.role;
-        const permissions = getPermissionsByRole(role);
-        req.user = {
-          ...decoded,
-          id: dbUser.id,
-          userId: dbUser.id,
-          role,
-          permissions,
-        };
-        return next();
-      })
-      .catch(() => {
-        return res.status(401).json({ status: "error", message: "Invalid token" });
+    if (!isEmployeeLoginAllowed(dbUser)) {
+      emitToRoom(`user-${resolvedId}`, 'force-logout', { reason: 'Contract expired or suspended' });
+      return res.status(403).json({
+        status: "error",
+        message: LOGIN_DENIED_CONTRACT_MESSAGE,
       });
+    }
+
+    const tokenVer = Number(decoded.tokenVersion || 0);
+    const dbVer = Number(dbUser.tokenVersion || 0);
+    if (tokenVer !== dbVer) {
+      return res.status(401).json({ status: "error", message: "Session has been invalidated. Please login again." });
+    }
+
+    if (decoded.role !== dbUser.role) {
+      return res.status(401).json({ status: "error", message: "Role changed. Please login again." });
+    }
+
+    const role = dbUser.role;
+    const permissions = getPermissionsByRole(role);
+    req.user = {
+      ...decoded,
+      id: dbUser.id,
+      userId: dbUser.id,
+      role,
+      permissions,
+    };
+
+    next();
   } catch (err) {
     return res.status(401).json({
       status: "error",

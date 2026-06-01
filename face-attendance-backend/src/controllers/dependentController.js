@@ -115,9 +115,12 @@ export const getDependentDocuments = async (req, res) => {
       return res.status(404).json({ status: "error", message: "Dependent not found" });
     }
 
-    // Employee can only access own dependent
-    if (tokenUserId != null && dependent.userId !== tokenUserId && req.user?.role !== "admin") {
-      return res.status(403).json({ status: "error", message: "Forbidden" });
+    // Employee can only access own dependent; HR/Manager/Supervisor can view any dependent documents.
+    if (tokenUserId != null && dependent.userId !== tokenUserId) {
+      const allowedStaffRoles = ["hr", "manager", "supervisor"];
+      if (!allowedStaffRoles.includes(req.user?.role)) {
+        return res.status(403).json({ status: "error", message: "Forbidden" });
+      }
     }
 
     const documents = await DependentDocument.findAll({

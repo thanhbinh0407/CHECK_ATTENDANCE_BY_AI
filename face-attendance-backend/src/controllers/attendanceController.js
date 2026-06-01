@@ -3,7 +3,7 @@ import { matchDescriptor } from "../services/matchService.js";
 import { Op } from "sequelize";
 import { ShiftSetting } from "../models/pg/index.js";
 import Notification from "../models/pg/Notification.js";
-import { emitToRoom } from "../socket.js";
+import { emitToRoom, emitEmployeePortalRefresh } from "../socket.js";
 
 async function userAvatarUrl(userId) {
   if (!userId) return null;
@@ -348,6 +348,9 @@ export const logAttendance = async (req, res) => {
         isOvertime
       });
 
+      // Refresh the employee's own attendance history immediately
+      emitEmployeePortalRefresh(match.userId, 'attendance');
+
       const expectedLogsPerDayAfterLog = expectedLogsPerDay;
       const nextCount = todayLogs.length + 1;
       const finished = nextCount >= expectedLogsPerDayAfterLog;
@@ -385,6 +388,17 @@ export const logAttendance = async (req, res) => {
         imageBase64: imageBase64 || null
       });
       console.log(`Attendance logged (unknown): distance=${match.distance}`);
+      emitToRoom('admin', 'attendance-update', {
+        userId: null,
+        detectedName: match.detectedName || 'Unknown',
+        type: 'IN',
+        timestamp: now,
+        isLate: false,
+        isEarlyLeave: false,
+        isAbsent: false,
+        isOvertime: false,
+        anonymous: true
+      });
       return res.json({
         status: 'success',
         message: 'Face logged but no match found',

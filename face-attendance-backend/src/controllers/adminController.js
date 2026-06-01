@@ -12,6 +12,7 @@ import Department from "../models/pg/Department.js";
 import JobTitle from "../models/pg/JobTitle.js";
 import SalaryGrade from "../models/pg/SalaryGrade.js";
 import Dependent from "../models/pg/Dependent.js";
+import DependentDocument from "../models/pg/DependentDocument.js";
 import Qualification from "../models/pg/Qualification.js";
 import WorkExperience from "../models/pg/WorkExperience.js";
 import JobHistory from "../models/pg/JobHistory.js";
@@ -22,6 +23,8 @@ import ActionAudit from "../models/pg/ActionAudit.js";
 import sequelize from "../db/sequelize.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
+import ShiftSetting from "../models/pg/ShiftSetting.js";
+import { parseShiftPlan } from "./attendanceController.js";
 import { recalculatePendingSalariesForUsers } from "../services/salaryCalculationService.js";
 import { emitToRoom } from "../socket.js";
 import { sendNotification } from "./notificationController.js";
@@ -1274,7 +1277,14 @@ export const getEmployeeDetailedInfo = async (req, res) => {
             'email',
             'occupation',
             'approvalStatus'
-          ] 
+          ],
+          include: [
+            {
+              model: DependentDocument,
+              as: 'DependentDocuments',
+              attributes: ['id', 'dependentId', 'documentPath', 'fileName', 'fileSize', 'mimeType', 'createdAt', 'updatedAt']
+            }
+          ]
         },
         { model: Qualification, as: 'Qualifications', attributes: ['id', 'type', 'name', 'issuedBy', 'issuedDate', 'expiryDate', 'certificateNumber', 'documentPath', 'description', 'approvalStatus'] },
         { model: WorkExperience, as: 'WorkExperiences', attributes: ['id', 'companyName', 'position', 'startDate', 'endDate', 'description', 'responsibilities', 'achievements', 'isCurrent'], order: [['startDate', 'DESC']] }
@@ -1683,7 +1693,17 @@ export const getEmployeeDetailedInfo = async (req, res) => {
               idNumber: dep.idNumber,
               address: dep.address,
               phoneNumber: dep.phoneNumber,
-              email: dep.email
+              email: dep.email,
+              documents: (dep.DependentDocuments || []).map(doc => ({
+                id: doc.id,
+                dependentId: doc.dependentId,
+                fileName: doc.fileName,
+                fileSize: doc.fileSize,
+                mimeType: doc.mimeType,
+                documentPath: doc.documentPath && doc.documentPath.startsWith('/') ? `${req.protocol}://${req.get('host')}${doc.documentPath}` : doc.documentPath,
+                createdAt: doc.createdAt,
+                updatedAt: doc.updatedAt,
+              }))
             }))
           : [],
         // Qualifications / Certificates for frontend (Qualifications tab)
@@ -2076,7 +2096,17 @@ export const getHrAttendanceLogs = async (req, res) => {
 
     // Type filter
     if (type && type !== 'all') {
-      where.type = type.toUpperCase();
+      const t = String(type).toUpperCase();
+      // ABSENT may be represented either as a dedicated type value or via the isAbsent flag
+      if (t === 'ABSENT') {
+        // match rows where type is 'ABSENT' or isAbsent flag is true
+        where[Op.or] = [
+          { type: 'ABSENT' },
+          { isAbsent: true }
+        ];
+      } else {
+        where.type = t;
+      }
     }
 
     // Match status filter
@@ -2148,6 +2178,142 @@ export const getHrAttendanceLogs = async (req, res) => {
       count = result.count;
     }
 
+    // If a specific employee is selected and no attendance logs exist for a shift day,
+    // add synthetic ABSENT placeholders so HR can see the missing attendance day.
+    const selectedUserId = userId ? parseInt(userId, 10) : null;
+    const requestType = type ? String(type).toUpperCase() : 'ALL';
+    const includeAbsentPlaceholders = selectedUserId && (requestType === 'ALL' || requestType === 'ABSENT');
+    if (includeAbsentPlaceholders) {
+      const activeShift = await ShiftSetting.findOne({ where: { active: true } });
+      const shiftPlan = parseShiftPlan(activeShift);
+      const absentThresholdMs = (shiftPlan.absentThresholdMinutes || 15) * 60000;
+      const now = new Date();
+
+      const parseTimeOnDate = (timeStr, date) => {
+        if (!timeStr || !/^[0-9]{2}:[0-9]{2}$/.test(timeStr)) return null;
+        const [hh, mm] = timeStr.split(':').map(Number);
+        const d = new Date(date);
+        d.setHours(hh, mm, 0, 0);
+        return d;
+      };
+
+      const dayKeys = new Map();
+      const addDateKey = (date) => date.toISOString().slice(0, 10);
+      const start = from && to ? new Date(from) : month && year ? new Date(year, month - 1, 1) : null;
+      const end = from && to ? new Date(to) : month && year ? new Date(year, month, 0) : null;
+
+      if (start && end) {
+        const current = new Date(start);
+        current.setHours(0, 0, 0, 0);
+        const endDate = new Date(end);
+        endDate.setHours(23, 59, 59, 999);
+        while (current <= endDate) {
+          const key = addDateKey(current);
+          dayKeys.set(key, new Date(current));
+          current.setDate(current.getDate() + 1);
+        }
+      }
+
+      const logsByDay = new Map();
+      rows.forEach((log) => {
+        if (!log.timestamp) return;
+        const dateKey = new Date(log.timestamp).toISOString().slice(0, 10);
+        if (!logsByDay.has(dateKey)) logsByDay.set(dateKey, []);
+        logsByDay.get(dateKey).push(log);
+      });
+
+      const assignMainShiftIndex = (timestamp, boundaries) => {
+        if (!timestamp || boundaries.length === 0) return 0;
+        const ts = timestamp.getTime();
+        if (ts <= boundaries[0].getTime()) return 0;
+        for (let idx = 1; idx < boundaries.length; idx += 1) {
+          if (ts <= boundaries[idx].getTime()) return idx;
+        }
+        return boundaries.length - 1;
+      };
+
+      const syntheticRows = [];
+      for (const [dateKey, dateObj] of dayKeys.entries()) {
+        if (!shiftPlan.mainShifts || shiftPlan.mainShifts.length === 0) continue;
+        const dayLogs = logsByDay.get(dateKey) || [];
+        const isSunday = dateObj.getDay() === 0;
+
+        if (isSunday && dayLogs.length === 0) {
+          const shiftStart = parseTimeOnDate(shiftPlan.mainShifts[0]?.startTime, dateObj) || new Date(dateObj);
+          syntheticRows.push(AttendanceLog.build({
+            id: `off-${dateKey}`,
+            userId: selectedUserId,
+            detectedName: 'Day off',
+            timestamp: shiftStart,
+            confidence: null,
+            deviceId: null,
+            matchDistance: null,
+            type: 'OFF',
+            shiftId: activeShift?.id || null,
+            note: 'Sunday is a day off',
+            isLate: false,
+            isEarlyLeave: false,
+            isAbsent: false,
+            isOvertime: false,
+            isAuto: false,
+            createdAt: shiftStart,
+            updatedAt: shiftStart
+          }));
+          continue;
+        }
+
+        const shiftBoundaries = shiftPlan.mainShifts.map((shift) => parseTimeOnDate(shift.endTime, dateObj)).filter(Boolean);
+        const shiftGroups = shiftPlan.mainShifts.map((shift) => ({ shift, logs: [] }));
+
+        dayLogs.forEach((log) => {
+          if (log.isOvertime || String(log.type || '').startsWith('OT_')) return;
+          const ts = new Date(log.timestamp);
+          const shiftIndex = assignMainShiftIndex(ts, shiftBoundaries);
+          if (shiftGroups[shiftIndex]) {
+            shiftGroups[shiftIndex].logs.push(log);
+          }
+        });
+
+        shiftGroups.forEach((group, index) => {
+          if (group.logs.length > 0) return;
+          const shiftStart = parseTimeOnDate(group.shift?.startTime, dateObj);
+          if (!shiftStart) return;
+          const absentDeadline = new Date(shiftStart.getTime() + absentThresholdMs);
+          // Show absent once the absent threshold has passed for the shift
+          if (new Date(dateObj).toDateString() === now.toDateString()) {
+            if (now.getTime() <= absentDeadline.getTime()) return;
+          } else if (dateObj.getTime() > now.getTime()) {
+            return;
+          }
+
+          syntheticRows.push(AttendanceLog.build({
+            id: `absent-${dateKey}-${index}`,
+            userId: selectedUserId,
+            detectedName: 'Absent',
+            timestamp: shiftStart,
+            confidence: null,
+            deviceId: null,
+            matchDistance: null,
+            type: 'ABSENT',
+            shiftId: activeShift?.id || null,
+            note: 'No check-in recorded for this shift',
+            isLate: false,
+            isEarlyLeave: false,
+            isAbsent: true,
+            isOvertime: false,
+            isAuto: false,
+            createdAt: shiftStart,
+            updatedAt: shiftStart
+          }));
+        });
+      }
+
+      if (syntheticRows.length > 0) {
+        rows = [...rows, ...syntheticRows];
+        count += syntheticRows.length;
+      }
+    }
+
     const numericLimit = Math.min(parseInt(limit, 10) || 50, 1000);
     const numericOffset = parseInt(offset, 10) || 0;
     const hasMore = numericOffset + (rows.length || 0) < (count || 0);
@@ -2165,6 +2331,82 @@ export const getHrAttendanceLogs = async (req, res) => {
   } catch (err) {
     console.error("Error fetching HR attendance logs:", err);
     return res.status(500).json({ status: "error", message: err.message });
+  }
+};
+
+// Admin/HR: Mark one or more dates as ABSENT for a user by creating AttendanceLog rows
+export const markAttendanceAbsent = async (req, res) => {
+  try {
+    const { userId, employeeCode, dates, from, to, note } = req.body || {};
+
+    if (!userId && !employeeCode) {
+      return res.status(400).json({ status: 'error', message: 'userId or employeeCode required' });
+    }
+
+    // Resolve user
+    let user = null;
+    if (userId) user = await User.findByPk(userId, { attributes: ['id', 'name', 'employeeCode'] });
+    if (!user && employeeCode) {
+      user = await User.findOne({ where: { employeeCode }, attributes: ['id', 'name', 'employeeCode'] });
+    }
+    if (!user) return res.status(404).json({ status: 'error', message: 'User not found' });
+
+    // Build date list
+    let dateList = [];
+    if (Array.isArray(dates) && dates.length > 0) {
+      dateList = dates.map(d => String(d).slice(0,10));
+    } else if (from && to) {
+      const start = new Date(String(from));
+      const end = new Date(String(to));
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        dateList.push(`${yyyy}-${mm}-${dd}`);
+      }
+    } else {
+      return res.status(400).json({ status: 'error', message: 'Provide dates array or from/to range' });
+    }
+
+    const created = [];
+    for (const dateStr of dateList) {
+      // check for existing absent marker on that day
+      const dayStart = new Date(dateStr + 'T00:00:00.000Z');
+      const dayEnd = new Date(dateStr + 'T23:59:59.999Z');
+      const existing = await AttendanceLog.findOne({
+        where: {
+          userId: user.id,
+          timestamp: { [Op.between]: [dayStart, dayEnd] },
+          [Op.or]: [{ type: 'ABSENT' }, { isAbsent: true }]
+        }
+      });
+      if (existing) continue;
+
+      // create a timestamp at 09:00 local time (server timezone assumed to be local)
+      const ts = new Date(dateStr + 'T09:00:00.000');
+
+      const row = await AttendanceLog.create({
+        userId: user.id,
+        detectedName: user.name,
+        timestamp: ts,
+        confidence: 1.0,
+        deviceId: 'admin-marked-absent',
+        matchDistance: 0,
+        type: 'ABSENT',
+        note: note ? String(note) : 'Marked absent by admin',
+        isAbsent: true,
+        isLate: false,
+        isEarlyLeave: false,
+        isOvertime: false,
+        shiftId: null
+      });
+      created.push({ id: row.id, date: dateStr });
+    }
+
+    return res.json({ status: 'success', created, count: created.length });
+  } catch (err) {
+    console.error('Error marking absent:', err);
+    return res.status(500).json({ status: 'error', message: err.message });
   }
 };
 
