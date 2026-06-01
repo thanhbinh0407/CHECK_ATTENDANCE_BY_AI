@@ -18,6 +18,7 @@ import {
   getApprovalAuditLogs,
   getEmployeeDayActions,
   getHrAttendanceLogs,
+  markAttendanceAbsent,
   checkIdNumber,
 } from "../controllers/adminController.js";
 import {
@@ -44,6 +45,13 @@ router.get(
   "/attendance-logs",
   requirePermission(PERMISSIONS["attendance:read"]),
   getHrAttendanceLogs
+);
+
+// POST mark absent (HR/Manager/Supervisor)
+router.post(
+  "/attendance-logs/mark-absent",
+  hrOrManager,
+  markAttendanceAbsent
 );
 
 /**

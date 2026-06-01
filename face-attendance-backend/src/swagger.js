@@ -98,7 +98,7 @@ export const swaggerDoc = {
           { name: "to", in: "query", schema: { type: "string", format: "date" } },
           { name: "departmentId", in: "query", schema: { type: "integer" } },
           { name: "userId", in: "query", schema: { type: "integer" } },
-          { name: "type", in: "query", schema: { type: "string", enum: ["IN", "OUT"] } },
+          { name: "type", in: "query", schema: { type: "string", enum: ["IN", "OUT", "OT_IN", "OT_OUT", "LATE_IN", "EARLY_OUT", "ABSENT"] } },
           { name: "search", in: "query", schema: { type: "string" } },
           { name: "limit", in: "query", schema: { type: "integer" } },
           { name: "offset", in: "query", schema: { type: "integer" } }

@@ -94,6 +94,17 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
   const [user, setUser] = useState(null);
   const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
+  // Safely parse fetch responses (handles empty / non-JSON bodies)
+  const safeParseResponse = async (res) => {
+    try {
+      const text = await res.text();
+      if (!text) return {};
+      try { return JSON.parse(text); } catch { return { message: text }; }
+    } catch (err) {
+      return { message: err.message || String(err) };
+    }
+  };
+
   useEffect(() => {
     const userData = localStorage.getItem("user");
     if (userData) {
@@ -343,7 +354,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         `${apiBase}/api/admin/employees/${employee.id}/details?month=${month}&year=${year}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (res.ok) {
         setEmployeeDetails(prev => ({
           ...prev,
@@ -375,7 +386,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}/details?includeHistory=true`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (res.ok) {
         setEmployeeDetails(data.employee);
         const emp = data.employee;
@@ -434,7 +445,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       const res = await fetch(`${apiBase}/api/departments`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (res.ok) {
         setDepartments(data.departments || []);
       }
@@ -449,7 +460,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       const res = await fetch(`${apiBase}/api/job-titles`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (res.ok) {
         setJobTitles(data.jobTitles || []);
       }
@@ -464,7 +475,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       const res = await fetch(`${apiBase}/api/admin/employees`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (res.ok) {
         // Filter out current employee and only show active employees/admins/managers
         const managerList = (data.employees || []).filter(emp => 
@@ -716,7 +727,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       
       console.log("Saving form data:", formData);
       
-      const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}`, {
+      const response = await fetch(`${apiBase}/api/admin/employees/${employee.id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -725,9 +736,9 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         body: JSON.stringify(formData)
       });
 
-      const data = await res.json();
+      const data = await safeParseResponse(response);
       console.log("Save response:", data);
-      if (res.ok) {
+      if (response.ok) {
         setMessage("Updated successfully");
         setValidationErrors({});
         setIsEditing(false);
@@ -797,7 +808,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
       
       console.log("Saving contract data:", formData);
       
-      const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}`, {
+      const response = await fetch(`${apiBase}/api/admin/employees/${employee.id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -806,9 +817,9 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         body: JSON.stringify(formData)
       });
 
-      const data = await res.json();
+      const data = await safeParseResponse(response);
       console.log("Contract save response:", data);
-      if (res.ok) {
+      if (response.ok) {
         setMessage("Contract updated successfully");
         setIsEditingContract(false);
         fetchEmployeeDetails();
@@ -854,7 +865,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
     try {
       setLoading(true);
       const token = localStorage.getItem("authToken");
-      const res = await fetch(`${apiBase}/api/admin/employees/${employee.id}`, {
+      const response = await fetch(`${apiBase}/api/admin/employees/${employee.id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -867,8 +878,8 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         })
       });
 
-      const data = await res.json();
-      if (res.ok) {
+      const data = await safeParseResponse(response);
+      if (response.ok) {
         setMessage("Contract suspended successfully");
         fetchEmployeeDetails();
         if (onUpdate) onUpdate();
@@ -910,7 +921,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         body: JSON.stringify(workExpForm)
       });
 
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (res.ok) {
         setMessage(editingWorkExp === "new" ? "Work experience added successfully!" : "Work experience updated successfully!");
         setEditingWorkExp(null);
@@ -966,7 +977,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         }
       });
 
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (res.ok) {
         setMessage("Work experience deleted successfully!");
         fetchEmployeeDetails();
@@ -1057,7 +1068,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (res.ok) {
         setMessage(editingQual === "new" ? "Qualification added." : "Qualification updated.");
         setEditingQual(null);
@@ -1091,7 +1102,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (res.ok) {
         setMessage("Qualification deleted.");
         fetchEmployeeDetails();
@@ -1158,7 +1169,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (res.ok) {
         setMessage(editingDep === "new" ? "Dependent added." : "Dependent updated.");
         setEditingDep(null);
@@ -1192,7 +1203,7 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (res.ok) {
         setMessage("Dependent deleted.");
         fetchEmployeeDetails();
@@ -3203,6 +3214,24 @@ export default function EmployeeProfileModal({ employee, onClose, onUpdate }) {
                               {dep.notes && (
                                 <div>
                                   <strong>Notes:</strong> {dep.notes}
+                                </div>
+                              )}
+                              {dep.documents?.length > 0 && (
+                                <div>
+                                  <strong>Attached documents:</strong>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+                                    {dep.documents.map((doc) => (
+                                      <a
+                                        key={doc.id}
+                                        href={doc.documentPath}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ color: theme.primary.main, textDecoration: 'underline', fontSize: '13px' }}
+                                      >
+                                        {doc.fileName || `Document ${doc.id}`}
+                                      </a>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
                             </div>
