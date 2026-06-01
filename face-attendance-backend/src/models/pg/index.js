@@ -13,6 +13,7 @@ import JobTitle from "./JobTitle.js";
 import SalaryGrade from "./SalaryGrade.js";
 import Qualification from "./Qualification.js";
 import Dependent from "./Dependent.js";
+import DependentDocument from "./DependentDocument.js";
 import WorkExperience from "./WorkExperience.js";
 import Document from "./Document.js";
 import OvertimeRequest from "./OvertimeRequest.js";
@@ -46,6 +47,7 @@ Qualification.belongsTo(User, { foreignKey: "userId" });
 // DEPENDENT ASSOCIATIONS
 User.hasMany(Dependent, { foreignKey: "userId", as: "Dependents" });
 Dependent.belongsTo(User, { foreignKey: "userId" });
+Dependent.hasMany(DependentDocument, { foreignKey: "dependentId", as: "DependentDocuments" });
 
 // WORK EXPERIENCE ASSOCIATIONS
 User.hasMany(WorkExperience, { foreignKey: "userId", as: "WorkExperiences" });

@@ -1927,12 +1927,12 @@ async function seedDB() {
 
         const invalidAttendancePairs = await sequelize.query(`
           SELECT "userId", DATE("timestamp") AS work_date,
-            SUM(CASE WHEN type = 'IN' THEN 1 ELSE 0 END) AS in_count,
-            SUM(CASE WHEN type = 'OUT' THEN 1 ELSE 0 END) AS out_count
+            SUM(CASE WHEN type IN ('IN'::enum_attendance_logs_type, 'LATE_IN'::enum_attendance_logs_type, 'OT_IN'::enum_attendance_logs_type) THEN 1 ELSE 0 END) AS in_count,
+            SUM(CASE WHEN type IN ('OUT'::enum_attendance_logs_type, 'EARLY_OUT'::enum_attendance_logs_type, 'OT_OUT'::enum_attendance_logs_type) THEN 1 ELSE 0 END) AS out_count
           FROM attendance_logs
           GROUP BY "userId", DATE("timestamp")
-          HAVING SUM(CASE WHEN type = 'IN' THEN 1 ELSE 0 END)
-            <> SUM(CASE WHEN type = 'OUT' THEN 1 ELSE 0 END)
+          HAVING SUM(CASE WHEN type IN ('IN'::enum_attendance_logs_type, 'LATE_IN'::enum_attendance_logs_type, 'OT_IN'::enum_attendance_logs_type) THEN 1 ELSE 0 END)
+            <> SUM(CASE WHEN type IN ('OUT'::enum_attendance_logs_type, 'EARLY_OUT'::enum_attendance_logs_type, 'OT_OUT'::enum_attendance_logs_type) THEN 1 ELSE 0 END)
           LIMIT 5
         `, { type: QueryTypes.SELECT });
     if (invalidAttendancePairs.length > 0) {
