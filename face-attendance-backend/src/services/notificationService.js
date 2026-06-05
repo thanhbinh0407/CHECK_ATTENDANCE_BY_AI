@@ -68,7 +68,11 @@ export const checkContractExpiration = async () => {
       if (employee.Manager) managerIds.push(employee.Manager.id);
 
       if (daysUntilExpiration < 0) {
-        await employee.update({ isActive: false, employmentStatus: 'terminated' });
+        await employee.update({
+          isActive: false,
+          employmentStatus: 'terminated',
+          tokenVersion: Number(employee.tokenVersion || 0) + 1,
+        });
         await Notification.create({
           userId: employee.id,
           type: 'contract_expired',
@@ -176,7 +180,11 @@ export const expireContractsIfNeeded = async () => {
 
       const daysUntilExpiration = Math.ceil((contractEndDate - today) / msPerDay);
       if (daysUntilExpiration < 0) {
-        await employee.update({ isActive: false, employmentStatus: 'terminated' });
+        await employee.update({
+          isActive: false,
+          employmentStatus: 'terminated',
+          tokenVersion: Number(employee.tokenVersion || 0) + 1,
+        });
         await Notification.create({
           userId: employee.id,
           type: 'contract_expired',

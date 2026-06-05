@@ -63,6 +63,13 @@ export const parseShiftPlan = (shift) => {
   }
 };
 
+const minutesBetween = (later, earlier) => {
+  if (!later || !earlier) return null;
+  const diff = new Date(later).getTime() - new Date(earlier).getTime();
+  if (!Number.isFinite(diff)) return null;
+  return Math.max(0, Math.round(diff / 60000));
+};
+
 export const nextTypeFromCount = (count, lastType = null) => {
   // Extract base type (IN or OUT) from complex types.
   // ABSENT means the whole shift was skipped, so the next action should
@@ -255,6 +262,8 @@ export const logAttendance = async (req, res) => {
 
       // Compute flags based on configured shift session
       let isLate = false, isEarlyLeave = false, isOvertime = false, isAbsent = false;
+      let latenessMinutes = null;
+      let earlyLeaveMinutes = null;
       let linkedShiftId = null;
       let note = null;
 
@@ -272,15 +281,34 @@ export const logAttendance = async (req, res) => {
 
           if (baseType === 'IN') {
             if (isOvertimeSession) {
-              isOvertime = true;
-              note = `Overtime check-in`;
+              // For OT session, also check if check-in is too late (ABSENT logic applies to OT too)
+              if (start) {
+                if (now > new Date(start.getTime() + absentThresholdMs)) {
+                  isAbsent = true;
+                  latenessMinutes = minutesBetween(now, start);
+                  note = `OT Absent - Late by ${Math.round((now - start) / 60000)} min beyond threshold (${shiftPlan.absentThresholdMinutes} min)`;
+                } else if (now > new Date(start.getTime() + graceMinutes * 60000)) {
+                  isLate = true;
+                  isOvertime = true;
+                  latenessMinutes = minutesBetween(now, start);
+                  note = `OT Late by ${Math.round((now - start) / 60000)} min`;
+                } else {
+                  isOvertime = true;
+                  note = `Overtime check-in`;
+                }
+              } else {
+                isOvertime = true;
+                note = `Overtime check-in`;
+              }
             } else if (start) {
               // Check if absent (late beyond threshold)
               if (now > new Date(start.getTime() + absentThresholdMs)) {
                 isAbsent = true;
+                latenessMinutes = minutesBetween(now, start);
                 note = `Absent - Late by ${Math.round((now - start) / 60000)} min beyond threshold (${shiftPlan.absentThresholdMinutes} min)`;
               } else if (now > new Date(start.getTime() + graceMinutes * 60000)) {
                 isLate = true;
+                latenessMinutes = minutesBetween(now, start);
                 note = `Late by ${Math.round((now - start) / 60000)} min`;
               }
             }
@@ -291,6 +319,7 @@ export const logAttendance = async (req, res) => {
             } else {
               if (end && now < end) {
                 isEarlyLeave = true;
+                earlyLeaveMinutes = minutesBetween(end, now);
                 note = `Left early by ${Math.round((end - now) / 60000)} min`;
               }
 
@@ -331,6 +360,8 @@ export const logAttendance = async (req, res) => {
         isEarlyLeave,
         isAbsent,
         isOvertime,
+        latenessMinutes,
+        earlyLeaveMinutes,
         imageBase64: imageBase64 || null
       });
 
@@ -345,7 +376,9 @@ export const logAttendance = async (req, res) => {
         isLate,
         isEarlyLeave,
         isAbsent,
-        isOvertime
+        isOvertime,
+        latenessMinutes,
+        earlyLeaveMinutes
       });
 
       // Refresh the employee's own attendance history immediately
@@ -372,6 +405,8 @@ export const logAttendance = async (req, res) => {
         nextType,
         expectedLogsPerDay: expectedLogsPerDayAfterLog,
         flags: { isAbsent, isLate, isEarlyLeave, isOvertime },
+        latenessMinutes,
+        earlyLeaveMinutes,
         shiftId: linkedShiftId,
         avatarUrl
       });
@@ -397,6 +432,8 @@ export const logAttendance = async (req, res) => {
         isEarlyLeave: false,
         isAbsent: false,
         isOvertime: false,
+        latenessMinutes: null,
+        earlyLeaveMinutes: null,
         anonymous: true
       });
       return res.json({
@@ -562,6 +599,8 @@ export const getTodayAttendance = async (req, res) => {
         note: log.note || null,
         shiftId: log.shiftId || null,
         flags,
+        latenessMinutes: log.latenessMinutes ?? null,
+        earlyLeaveMinutes: log.earlyLeaveMinutes ?? null,
         shiftLabel,
         allowedLateMinutes,
         overtimeRequestStatus: overtimeRequest?.approvalStatus || null,
@@ -596,6 +635,8 @@ export const getTodayAttendance = async (req, res) => {
             note: 'No check-in recorded for this shift',
             shiftId: activeShift?.id || null,
             flags: { isLate: false, isEarlyLeave: false, isOvertime: false },
+            latenessMinutes: null,
+            earlyLeaveMinutes: null,
             shiftLabel: `Shift ${idx + 1}`,
             allowedLateMinutes,
             isAbsent: true,
@@ -621,6 +662,8 @@ export const getTodayAttendance = async (req, res) => {
               note: 'No overtime check-in recorded for approved OT',
               shiftId: activeShift?.id || null,
               flags: { isLate: false, isEarlyLeave: false, isOvertime: true },
+              latenessMinutes: null,
+              earlyLeaveMinutes: null,
               shiftLabel: 'Overtime shift',
               allowedLateMinutes,
               isAbsent: true,
@@ -638,6 +681,8 @@ export const getTodayAttendance = async (req, res) => {
               note: 'Approved overtime request',
               shiftId: activeShift?.id || null,
               flags: { isLate: false, isEarlyLeave: false, isOvertime: true },
+              latenessMinutes: null,
+              earlyLeaveMinutes: null,
               shiftLabel: 'Overtime shift',
               allowedLateMinutes,
               overtimeRequestStatus: overtimeRequest?.approvalStatus || null,
@@ -866,7 +911,7 @@ export const getTodayStatus = async (req, res) => {
       order: [['timestamp','ASC']]
     });
 
-    return res.json({ status: 'success', count: logs.length, logs: logs.map(l => ({ id: l.id, type: l.type, timestamp: l.timestamp, note: l.note, flags: { isLate: l.isLate, isEarlyLeave: l.isEarlyLeave, isOvertime: l.isOvertime }, shiftId: l.shiftId })) });
+    return res.json({ status: 'success', count: logs.length, logs: logs.map(l => ({ id: l.id, type: l.type, timestamp: l.timestamp, note: l.note, flags: { isLate: l.isLate, isEarlyLeave: l.isEarlyLeave, isOvertime: l.isOvertime }, shiftId: l.shiftId, latenessMinutes: l.latenessMinutes ?? null, earlyLeaveMinutes: l.earlyLeaveMinutes ?? null })) });
   } catch (err) {
     console.error('Status error', err);
     return res.status(500).json({ status: 'error', message: err.message });

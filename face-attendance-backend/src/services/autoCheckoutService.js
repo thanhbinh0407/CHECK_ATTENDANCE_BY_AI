@@ -12,14 +12,27 @@ const parseTimeToday = (hhmm, baseDate = new Date()) => {
   return d;
 };
 
+const createDayRange = (baseDate = new Date()) => {
+  const start = new Date(baseDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { start, end };
+};
+
+const isMainShiftCheckIn = (type) => type === 'IN' || type === 'LATE_IN';
+
+const isMainShiftCheckOut = (type) => type === 'OUT' || type === 'EARLY_OUT';
+
+const isOvertimeCheckIn = (log) => Boolean(log?.isOvertime) && (log.type === 'IN' || log.type === 'OT_IN');
+
+const isOvertimeCheckOut = (log) => Boolean(log?.isOvertime) && (log.type === 'OUT' || log.type === 'OT_OUT');
+
 export const performAutoCheckout = async () => {
   try {
-    console.log('[Auto Checkout] Starting auto checkout check...');
-
     // Get active shift setting
     const shift = await ShiftSetting.findOne({ where: { active: true } });
     if (!shift) {
-      console.log('[Auto Checkout] No active shift setting found. Skipping.');
       return;
     }
 
@@ -27,12 +40,12 @@ export const performAutoCheckout = async () => {
     const now = new Date();
     const graceMinutes = Number(shiftPlan.autoCheckoutGraceMinutes ?? shift.autoCheckoutGraceMinutes ?? shift.gracePeriodMinutes ?? 15);
     const gracePeriodMs = graceMinutes * 60 * 1000;
+    if (!Number.isFinite(graceMinutes) || graceMinutes <= 0) {
+      return;
+    }
 
     // Find all logs for today once so we can reuse them for main and OT session checks
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(todayStart);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const { start: todayStart, end: tomorrow } = createDayRange(now);
     const todayLogs = await AttendanceLog.findAll({
       where: {
         timestamp: { [Op.gte]: todayStart, [Op.lt]: tomorrow }
@@ -47,6 +60,51 @@ export const performAutoCheckout = async () => {
       userLogs[log.userId].push(log);
     });
 
+    const shiftBoundaries = shiftPlan.mainShifts.map((session) => ({
+      start: parseTimeToday(session.startTime, now),
+      end: parseTimeToday(session.endTime, now)
+    }));
+
+    const shiftBoundaryMarkers = shiftBoundaries.reduce((markers, session, index) => {
+      if (index === 0) return markers;
+      const prev = shiftBoundaries[index - 1];
+      if (prev.end && session.start) {
+        markers.push(new Date(Math.round((prev.end.getTime() + session.start.getTime()) / 2)));
+      }
+      return markers;
+    }, []);
+
+    const assignMainShiftIndex = (timestamp) => {
+      if (!timestamp || shiftPlan.mainShifts.length === 0) return 0;
+      const ts = timestamp.getTime();
+      if (shiftBoundaryMarkers.length === 0) return 0;
+      if (ts <= shiftBoundaryMarkers[0].getTime()) return 0;
+      for (let i = 1; i < shiftBoundaryMarkers.length; i += 1) {
+        if (ts <= shiftBoundaryMarkers[i].getTime()) return i;
+      }
+      return shiftPlan.mainShifts.length - 1;
+    };
+
+    const hasAutoCheckoutForShift = async (userId, sessionIndex, autoType) => {
+      const session = shiftPlan.mainShifts[sessionIndex];
+      if (!session) return true;
+
+      const existing = await AttendanceLog.findOne({
+        where: {
+          userId,
+          shiftId: shift.id,
+          type: autoType,
+          isAuto: true,
+          timestamp: {
+            [Op.gte]: todayStart,
+            [Op.lt]: tomorrow
+          }
+        }
+      });
+
+      return Boolean(existing);
+    };
+
     // For each main shift, check for auto checkout
     for (let sessionIndex = 0; sessionIndex < shiftPlan.mainShifts.length; sessionIndex++) {
       const session = shiftPlan.mainShifts[sessionIndex];
@@ -57,44 +115,45 @@ export const performAutoCheckout = async () => {
       if (now < autoCheckoutTime) continue; // Not yet time to auto checkout
 
       for (const [userId, logs] of Object.entries(userLogs)) {
-        const sessionStartIndex = sessionIndex * 2;
-        const sessionLogs = logs.slice(sessionStartIndex, sessionStartIndex + 2);
+        const sessionLogs = logs.filter((log) => !log.isOvertime && assignMainShiftIndex(new Date(log.timestamp)) === sessionIndex);
+        const hasCheckIn = sessionLogs.some((log) => isMainShiftCheckIn(log.type));
+        const hasCheckOut = sessionLogs.some((log) => isMainShiftCheckOut(log.type));
 
-        if (sessionLogs.length === 1 && sessionLogs[0].type === 'IN') {
-          const lastIn = sessionLogs[0];
-          if (lastIn.timestamp < autoCheckoutTime) {
-            const todayDateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-            const hasApprovedOT = await OvertimeRequest.findOne({
-              where: {
-                userId: parseInt(userId),
-                date: todayDateString,
-                approvalStatus: 'approved'
-              }
-            });
+        if (!hasCheckIn || hasCheckOut) continue;
 
-            if (!hasApprovedOT) {
-              await AttendanceLog.create({
-                userId: parseInt(userId),
-                detectedName: 'Auto checkout',
-                confidence: 1.0,
-                matchDistance: 0,
-                type: 'OUT',
-                timestamp: autoCheckoutTime,
-                note: `Auto check-out after ${session.endTime} + ${graceMinutes}min grace period`,
-                shiftId: shift.id,
-                isLate: false,
-                isEarlyLeave: false,
-                isOvertime: false,
-                isAuto: true
-              });
+        const existingAutoCheckout = await hasAutoCheckoutForShift(parseInt(userId, 10), sessionIndex, 'OUT');
+        if (existingAutoCheckout) continue;
 
-              emitEmployeePortalRefresh(userId, 'attendance');
-              console.log(`[Auto Checkout] Created auto check-out for user ${userId} at session ${sessionIndex + 1}`);
-            } else {
-              console.log(`[Auto Checkout] Skipped auto check-out for user ${userId} - has approved OT`);
-            }
+        const todayDateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const hasApprovedOT = await OvertimeRequest.findOne({
+          where: {
+            userId: parseInt(userId, 10),
+            date: todayDateString,
+            approvalStatus: 'approved'
           }
+        });
+
+        if (hasApprovedOT) {
+          continue;
         }
+
+        await AttendanceLog.create({
+          userId: parseInt(userId, 10),
+          detectedName: 'Auto checkout',
+          confidence: 1.0,
+          matchDistance: 0,
+          type: 'OUT',
+          timestamp: autoCheckoutTime,
+          note: `Auto check-out after ${session.endTime} + ${graceMinutes}min grace period`,
+          shiftId: shift.id,
+          isLate: false,
+          isEarlyLeave: false,
+          isOvertime: false,
+          isAuto: true
+        });
+
+        emitEmployeePortalRefresh(userId, 'attendance');
+        console.log(`[Auto Checkout] Created auto check-out for user ${userId} at session ${sessionIndex + 1}`);
       }
     }
 
@@ -116,31 +175,47 @@ export const performAutoCheckout = async () => {
         for (const [userId, logs] of Object.entries(userLogs)) {
           if (!approvedUserIds.has(parseInt(userId))) continue;
 
-          const overtimeLogs = logs.filter((log) => Boolean(log.isOvertime) && ['IN', 'OT_IN'].includes(log.type));
-          if (overtimeLogs.length === 1 && overtimeLogs[0].timestamp < otAutoCheckoutTime) {
-            await AttendanceLog.create({
-              userId: parseInt(userId),
-              detectedName: 'Auto checkout',
-              confidence: 1.0,
-              matchDistance: 0,
-              type: 'OT_OUT',
-              timestamp: otAutoCheckoutTime,
-              note: `Auto check-out after overtime end ${shiftPlan.overtimeEnd} + ${graceMinutes}min grace period`,
-              shiftId: shift.id,
-              isLate: false,
-              isEarlyLeave: false,
-              isOvertime: true,
-              isAuto: true
-            });
+          const overtimeLogs = logs.filter((log) => isOvertimeCheckIn(log));
+          const hasOvertimeCheckout = logs.some((log) => isOvertimeCheckOut(log));
+          if (overtimeLogs.length !== 1 || hasOvertimeCheckout) continue;
 
-            emitEmployeePortalRefresh(userId, 'attendance');
-            console.log(`[Auto Checkout] Created auto check-out for overtime user ${userId}`);
-          }
+          const existingAutoCheckout = await AttendanceLog.findOne({
+            where: {
+              userId: parseInt(userId, 10),
+              shiftId: shift.id,
+              type: 'OT_OUT',
+              isOvertime: true,
+              isAuto: true,
+              timestamp: {
+                [Op.gte]: todayStart,
+                [Op.lt]: tomorrow
+              }
+            }
+          });
+
+          if (existingAutoCheckout) continue;
+
+          await AttendanceLog.create({
+            userId: parseInt(userId, 10),
+            detectedName: 'Auto checkout',
+            confidence: 1.0,
+            matchDistance: 0,
+            type: 'OT_OUT',
+            timestamp: otAutoCheckoutTime,
+            note: `Auto check-out after overtime end ${shiftPlan.overtimeEnd} + ${graceMinutes}min grace period`,
+            shiftId: shift.id,
+            isLate: false,
+            isEarlyLeave: false,
+            isOvertime: true,
+            isAuto: true
+          });
+
+          emitEmployeePortalRefresh(userId, 'attendance');
+          console.log(`[Auto Checkout] Created auto check-out for overtime user ${userId}`);
         }
       }
     }
 
-    console.log('[Auto Checkout] Auto checkout check completed.');
   } catch (error) {
     console.error('[Auto Checkout] Error:', error);
   }

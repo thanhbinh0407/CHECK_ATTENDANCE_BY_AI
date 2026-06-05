@@ -39,7 +39,8 @@ const LOW_LIGHT_THRESHOLD = 55;
 
 const getNextAttendanceType = (matchData) => {
   if (!matchData) return "IN";
-  if (matchData.nextType === "IN" || matchData.nextType === "OUT") return matchData.nextType;
+  if (["IN", "OUT", "OT_IN", "OT_OUT"].includes(matchData.nextType)) return matchData.nextType;
+  if (matchData.finished) return null;
   const count = Array.isArray(matchData.logsToday) ? matchData.logsToday.length : 0;
   return count % 2 === 0 ? "IN" : "OUT";
 };
@@ -482,8 +483,6 @@ function AttendanceScanner() {
     try {
       const uid = userIdOverride ?? activeUserIdRef.current;
       if (!uid) {
-        // No active user yet -> don't show other people's rows.
-        if (attendanceLogs.length) setAttendanceLogs([]);
         return;
       }
       const qs = new URLSearchParams({ userId: String(uid) });
@@ -502,6 +501,9 @@ function AttendanceScanner() {
           avatarUrl: log.avatarUrl || null,
           note: log.note || "",
           flags: log.flags || {},
+          isAuto: Boolean(log.isAuto),
+          latenessMinutes: log.latenessMinutes ?? null,
+          earlyLeaveMinutes: log.earlyLeaveMinutes ?? null,
           shiftLabel: log.shiftLabel || "Main shift",
           allowedLateMinutes: log.allowedLateMinutes || data.allowedLateMinutes || 0,
           overtimeRequestStatus,
@@ -546,15 +548,13 @@ function AttendanceScanner() {
       return "Auto checkout";
     }
     if (log.flags.isLate) {
-      const lateMinutesMatch = log.note?.match(/(-?\d+)\s*min/);
-      const minutes = lateMinutesMatch ? Number(lateMinutesMatch[1]) : null;
+      const minutes = Number.isFinite(log.latenessMinutes) ? log.latenessMinutes : null;
       return minutes !== null
         ? `Late by ${minutes} min beyond Allowed late time (${log.allowedLateMinutes} min)`
         : `Late beyond Allowed late time (${log.allowedLateMinutes} min)`;
     }
     if (log.flags.isEarlyLeave) {
-      const earlyMinutesMatch = log.note?.match(/(-?\d+)\s*min/);
-      const minutes = earlyMinutesMatch ? Number(earlyMinutesMatch[1]) : null;
+      const minutes = Number.isFinite(log.earlyLeaveMinutes) ? log.earlyLeaveMinutes : null;
       return minutes !== null
         ? `Left early by ${minutes} min`
         : `Left early`;
@@ -586,6 +586,10 @@ function AttendanceScanner() {
   };
 
   const groupedShiftLogs = useMemo(() => {
+    if (attendanceLogs.length === 0) {
+      return [];
+    }
+
     const mainShifts = workShiftPlan?.mainShifts || [{ startTime: '08:00', endTime: '17:00' }];
     const groups = mainShifts.map((shift, idx) => ({
       shiftLabel: `Shift ${idx + 1}`,
@@ -1484,7 +1488,10 @@ function AttendanceScanner() {
           }
 
           console.log("Attendance logged:", result);
-          if (result?.userId) setActiveUserId(result.userId);
+          if (result?.userId) {
+            activeUserIdRef.current = result.userId;
+            setActiveUserId(result.userId);
+          }
           // Reload today's logs from server so list stays in sync and persists after reload
           await fetchTodayLogs(result?.userId || null);
 
@@ -1631,7 +1638,7 @@ function AttendanceScanner() {
   };
 
   const nextDialogType = getNextAttendanceType(confirmDialog?.matchData);
-  const nextDialogIsIn = nextDialogType === "IN";
+  const nextDialogIsIn = nextDialogType === "IN" || nextDialogType === "OT_IN";
 
   return (
     <div style={containerStyle}>
