@@ -59,6 +59,42 @@ function normalizeIdNumber(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
+function normalizeEmbedding(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "object") return Object.values(value);
+  return [];
+}
+
+async function findDuplicateFaceProfile(descriptor, threshold = 0.32) {
+  const profiles = await FaceProfile.findAll({
+    include: [{ model: User, attributes: ["id", "name", "email", "employeeCode"] }]
+  });
+
+  for (const profile of profiles) {
+    const embeddingsArray = normalizeEmbedding(profile.embeddings);
+    if (!embeddingsArray.length) continue;
+
+    const dist = euclidean(descriptor, embeddingsArray);
+    if (dist < threshold) {
+      return {
+        matched: true,
+        distance: dist,
+        user: profile.User
+          ? {
+              id: profile.User.id,
+              name: profile.User.name,
+              email: profile.User.email,
+              employeeCode: profile.User.employeeCode
+            }
+          : null
+      };
+    }
+  }
+
+  return { matched: false, distance: Infinity, user: null };
+}
+
 export const registerUser = async (req, res) => {
   try {
     const { name, idNumber, email, employeeCode, descriptor, password, jobTitle, educationLevel, certificates, dependents, baseSalary } = req.body;
@@ -117,22 +153,15 @@ export const registerUser = async (req, res) => {
 
     // Check for duplicate face if descriptor provided
     if (Array.isArray(descriptor) && descriptor.length > 0) {
-      const profiles = await FaceProfile.findAll();
-      const DUPLICATE_THRESHOLD = 0.32; // Same as HIGH threshold in matchService
-      for (const p of profiles) {
-        if (!p.embeddings) continue;
-        let embeddingsArray = p.embeddings;
-        if (!Array.isArray(embeddingsArray)) {
-          if (typeof embeddingsArray === 'object') embeddingsArray = Object.values(embeddingsArray);
-        }
-        if (!Array.isArray(embeddingsArray) || embeddingsArray.length === 0) continue;
-        const dist = euclidean(descriptor, embeddingsArray);
-        if (dist < DUPLICATE_THRESHOLD) {
-          return res.status(400).json({
-            status: "error",
-            message: "Face already registered in the system"
-          });
-        }
+      const duplicateFace = await findDuplicateFaceProfile(descriptor);
+      if (duplicateFace.matched) {
+        return res.status(409).json({
+          status: "error",
+          duplicate: true,
+          message: "Face already registered in the system",
+          matchedUser: duplicateFace.user,
+          distance: duplicateFace.distance
+        });
       }
     }
 
@@ -259,6 +288,43 @@ export const updateUserFace = async (req, res) => {
     return res.status(500).json({
       status: "error",
       message: "Update face failed: " + err.message
+    });
+  }
+};
+
+export const checkFaceDuplicate = async (req, res) => {
+  try {
+    const { descriptor } = req.body;
+
+    if (!Array.isArray(descriptor) || descriptor.length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "descriptor must be a non-empty array"
+      });
+    }
+
+    const duplicateFace = await findDuplicateFaceProfile(descriptor);
+
+    if (duplicateFace.matched) {
+      return res.status(409).json({
+        status: "error",
+        duplicate: true,
+        message: "Face already registered in the system",
+        matchedUser: duplicateFace.user,
+        distance: duplicateFace.distance
+      });
+    }
+
+    return res.json({
+      status: "success",
+      duplicate: false,
+      message: "Face is available for enrollment"
+    });
+  } catch (err) {
+    console.error("Check face duplicate error:", err);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to check face duplicate: " + err.message
     });
   }
 };

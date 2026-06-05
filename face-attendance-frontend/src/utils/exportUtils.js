@@ -1179,6 +1179,18 @@ export const exportAttendanceMonthlyWorkHoursSummaryToExcel = (
 
     // Append aggregated summary sheets per month
     monthlySummary.forEach((empMap, monthKey) => {
+      // Declare labels first before using them
+      const empLabel = getMonthlyWorkHoursLabel('Employee', language);
+      const codeLabel = getMonthlyWorkHoursLabel('Code', language);
+      const daysLabel = getMonthlyWorkHoursLabel('DaysWorked', language);
+      const totalWorkLabel = getMonthlyWorkHoursLabel('TotalWorkHours', language);
+      const totalOtLabel = getMonthlyWorkHoursLabel('TotalOTHours', language);
+      const absentLabel = getMonthlyWorkHoursLabel('AbsentDays', language);
+      const lateLabel = 'Late Count';
+      const otLabel = 'OT Count';
+      const earlyLabel = 'Early Leave Count';
+      const normalLabel = 'Normal Count';
+
       const summaryRows = [];
       // add title row to summary sheet to indicate the month
       const titleSummaryRow = {};
@@ -1199,17 +1211,6 @@ export const exportAttendanceMonthlyWorkHoursSummaryToExcel = (
       let aggAbsentDays = 0;
 
       const empEntries = Array.from(empMap.values()).sort((a, b) => a.employeeCode.localeCompare(b.employeeCode));
-
-      const empLabel = getMonthlyWorkHoursLabel('Employee', language);
-      const codeLabel = getMonthlyWorkHoursLabel('Code', language);
-      const daysLabel = getMonthlyWorkHoursLabel('DaysWorked', language);
-      const totalWorkLabel = getMonthlyWorkHoursLabel('TotalWorkHours', language);
-      const totalOtLabel = getMonthlyWorkHoursLabel('TotalOTHours', language);
-      const absentLabel = getMonthlyWorkHoursLabel('AbsentDays', language);
-      const lateLabel = 'Late Count';
-      const otLabel = 'OT Count';
-      const earlyLabel = 'Early Leave Count';
-      const normalLabel = 'Normal Count';
 
       empEntries.forEach((item) => {
         summaryRows.push({

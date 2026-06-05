@@ -71,6 +71,12 @@ const isContractStillEffective = (contractType, startDate) => {
   return endDate >= new Date();
 };
 
+const bumpTokenVersion = async (user, transaction) => {
+  const nextTokenVersion = Number(user.tokenVersion || 0) + 1;
+  await user.update({ tokenVersion: nextTokenVersion }, { transaction });
+  return nextTokenVersion;
+};
+
 // Get all employees
 export const getAllEmployees = async (req, res) => {
   try {
@@ -449,6 +455,15 @@ export const updateEmployee = async (req, res) => {
     const oldActive = !!employee.isActive;
     const newActive = updateData.isActive !== undefined ? !!updateData.isActive : oldActive;
     const activationChanged = oldActive !== newActive;
+    const normalizedEmploymentStatus = String(newEmploymentStatus || '').toLowerCase();
+    const logoutReason = !newActive
+      ? 'Account deactivated'
+      : (employmentStatusChanged && ['suspended', 'terminated', 'resigned'].includes(normalizedEmploymentStatus)
+        ? `Contract ${normalizedEmploymentStatus}`
+        : roleAuditPayload
+          ? 'Role changed'
+          : null);
+    const shouldForceLogout = Boolean(logoutReason);
 
     // Allow contract type renewal/upgrade if start date remains the same
     // Only block if start date changes while contract is still effective
@@ -493,6 +508,10 @@ export const updateEmployee = async (req, res) => {
 
     await sequelize.transaction(async (transaction) => {
       await employee.update(updateData, { transaction });
+
+      if (shouldForceLogout) {
+        await bumpTokenVersion(employee, transaction);
+      }
 
       if (roleAuditPayload) {
         await RoleChangeAudit.create(
@@ -615,13 +634,9 @@ export const updateEmployee = async (req, res) => {
         { employeeId: employee.id, changeType: 'salary', type: getSalaryChangeType() });
     }
 
-    const normalizedEmploymentStatus = String(newEmploymentStatus || '').toLowerCase();
-    if (
-      activationChanged && !newActive ||
-      employmentStatusChanged && ['suspended', 'terminated', 'resigned'].includes(normalizedEmploymentStatus)
-    ) {
+    if (shouldForceLogout) {
       emitToRoom(`user-${employee.id}`, 'force-logout', {
-        reason: !newActive ? 'Account deactivated' : `Contract ${normalizedEmploymentStatus}`,
+        reason: logoutReason,
       });
     }
 
@@ -696,7 +711,8 @@ export const deleteEmployee = async (req, res) => {
     const { id } = req.params;
 
     const employee = await User.findOne({
-      where: { id, role: "employee" }
+      where: { id, role: "employee" },
+      attributes: ["id", "name", "tokenVersion"],
     });
 
     if (!employee) {
@@ -716,6 +732,11 @@ export const deleteEmployee = async (req, res) => {
     await employee.update({
       isActive: false,
       deactivatedAt: new Date()
+    });
+    await bumpTokenVersion(employee);
+
+    emitToRoom(`user-${employee.id}`, 'force-logout', {
+      reason: 'Account deactivated',
     });
 
     console.log(`Employee soft deleted / deactivated: ${employee.name} (ID: ${id})`);
@@ -1848,7 +1869,7 @@ export const updateUserRole = async (req, res) => {
     }
 
     const targetUser = await User.findByPk(id, {
-      attributes: ["id", "name", "email", "employeeCode", "role", "isActive"],
+      attributes: ["id", "name", "email", "employeeCode", "role", "isActive", "tokenVersion"],
     });
 
     if (!targetUser) {
@@ -1870,6 +1891,7 @@ export const updateUserRole = async (req, res) => {
     const oldRole = targetUser.role;
     await sequelize.transaction(async (transaction) => {
       await targetUser.update({ role }, { transaction });
+      await bumpTokenVersion(targetUser, transaction);
       await RoleChangeAudit.create(
         {
           userId: targetUser.id,
@@ -1882,6 +1904,10 @@ export const updateUserRole = async (req, res) => {
         },
         { transaction }
       );
+    });
+
+    emitToRoom(`user-${targetUser.id}`, 'force-logout', {
+      reason: 'Role changed',
     });
 
     return res.json({
@@ -2153,33 +2179,17 @@ export const getHrAttendanceLogs = async (req, res) => {
       }
     }
 
-    const limitInt = parseInt(limit, 10);
-    const offsetInt = parseInt(offset, 10) || 0;
-    let rows, count;
-    if (limitInt === 0) {
-      // Special case: return all matching rows (no pagination)
-      const all = await AttendanceLog.findAndCountAll({
-        where,
-        include,
-        order: [['timestamp', 'DESC']],
-      });
-      rows = all.rows;
-      count = all.count;
-    } else {
-      const numericLimit = Math.min(Math.max(limitInt || 50, 1), 100000);
-      const result = await AttendanceLog.findAndCountAll({
-        where,
-        include,
-        order: [['timestamp', 'DESC']],
-        limit: numericLimit,
-        offset: offsetInt,
-      });
-      rows = result.rows;
-      count = result.count;
-    }
+    // ALWAYS fetch all matching records first (no pagination yet) to generate synthetic rows correctly
+    const allRecords = await AttendanceLog.findAll({
+      where,
+      include,
+      order: [['timestamp', 'DESC']],
+    });
+
+    let allRows = [...allRecords];
 
     // If a specific employee is selected and no attendance logs exist for a shift day,
-    // add synthetic ABSENT placeholders so HR can see the missing attendance day.
+    // add synthetic ABSENT/OFF placeholders so HR can see the missing attendance day.
     const selectedUserId = userId ? parseInt(userId, 10) : null;
     const requestType = type ? String(type).toUpperCase() : 'ALL';
     const includeAbsentPlaceholders = selectedUserId && (requestType === 'ALL' || requestType === 'ABSENT');
@@ -2215,7 +2225,7 @@ export const getHrAttendanceLogs = async (req, res) => {
       }
 
       const logsByDay = new Map();
-      rows.forEach((log) => {
+      allRecords.forEach((log) => {
         if (!log.timestamp) return;
         const dateKey = new Date(log.timestamp).toISOString().slice(0, 10);
         if (!logsByDay.has(dateKey)) logsByDay.set(dateKey, []);
@@ -2233,10 +2243,17 @@ export const getHrAttendanceLogs = async (req, res) => {
       };
 
       const syntheticRows = [];
+      const syntheticDateSet = new Set(); // Track which dates already have a synthetic row
+
       for (const [dateKey, dateObj] of dayKeys.entries()) {
         if (!shiftPlan.mainShifts || shiftPlan.mainShifts.length === 0) continue;
         const dayLogs = logsByDay.get(dateKey) || [];
         const isSunday = dateObj.getDay() === 0;
+
+        // Filter out OT logs from day logs (OT doesn't count toward absences)
+        const mainShiftLogs = dayLogs.filter(log => 
+          !log.isOvertime && !String(log.type || '').startsWith('OT_')
+        );
 
         if (isSunday && dayLogs.length === 0) {
           const shiftStart = parseTimeOnDate(shiftPlan.mainShifts[0]?.startTime, dateObj) || new Date(dateObj);
@@ -2259,14 +2276,18 @@ export const getHrAttendanceLogs = async (req, res) => {
             createdAt: shiftStart,
             updatedAt: shiftStart
           }));
+          syntheticDateSet.add(dateKey);
           continue;
         }
+
+        // Skip if we already have a synthetic row for this date
+        if (syntheticDateSet.has(dateKey)) continue;
 
         const shiftBoundaries = shiftPlan.mainShifts.map((shift) => parseTimeOnDate(shift.endTime, dateObj)).filter(Boolean);
         const shiftGroups = shiftPlan.mainShifts.map((shift) => ({ shift, logs: [] }));
 
-        dayLogs.forEach((log) => {
-          if (log.isOvertime || String(log.type || '').startsWith('OT_')) return;
+        // Assign logs to shift groups (only non-OT main shift logs)
+        mainShiftLogs.forEach((log) => {
           const ts = new Date(log.timestamp);
           const shiftIndex = assignMainShiftIndex(ts, shiftBoundaries);
           if (shiftGroups[shiftIndex]) {
@@ -2274,53 +2295,174 @@ export const getHrAttendanceLogs = async (req, res) => {
           }
         });
 
+        // Count how many main shifts are absent (have no check-in logs)
+        let absentShiftCount = 0;
+        const emptyShiftIndices = [];
         shiftGroups.forEach((group, index) => {
-          if (group.logs.length > 0) return;
-          const shiftStart = parseTimeOnDate(group.shift?.startTime, dateObj);
-          if (!shiftStart) return;
+          if (group.logs.length === 0) {
+            absentShiftCount += 1;
+            emptyShiftIndices.push(index);
+          }
+        });
+
+        // Only create a SINGLE "day absent" record if 2+ main shifts are absent (true absence)
+        // Skip if only 1 shift is missing but person has OT (they worked that day)
+        const hasOtInDay = dayLogs.some(log => log.isOvertime || String(log.type || '').startsWith('OT_'));
+        const shouldMarkAbsent = absentShiftCount >= 2 && !hasOtInDay;
+
+        if (shouldMarkAbsent && emptyShiftIndices.length > 0) {
+          const firstEmptyShiftGroup = shiftGroups[emptyShiftIndices[0]];
+          const shiftStart = parseTimeOnDate(firstEmptyShiftGroup.shift?.startTime, dateObj);
+          if (!shiftStart) continue;
+
           const absentDeadline = new Date(shiftStart.getTime() + absentThresholdMs);
-          // Show absent once the absent threshold has passed for the shift
-          if (new Date(dateObj).toDateString() === now.toDateString()) {
-            if (now.getTime() <= absentDeadline.getTime()) return;
+          
+          // Only show absent if threshold has passed and not in future
+          let shouldShow = true;
+          if (dateObj.toDateString() === now.toDateString()) {
+            shouldShow = now.getTime() > absentDeadline.getTime();
           } else if (dateObj.getTime() > now.getTime()) {
-            return;
+            shouldShow = false; // Don't create absent records for future dates
           }
 
-          syntheticRows.push(AttendanceLog.build({
-            id: `absent-${dateKey}-${index}`,
+          if (shouldShow) {
+            syntheticRows.push(AttendanceLog.build({
+              id: `absent-${dateKey}`,
+              userId: selectedUserId,
+              detectedName: 'Absent',
+              timestamp: shiftStart,
+              confidence: null,
+              deviceId: null,
+              matchDistance: null,
+              type: 'ABSENT',
+              shiftId: activeShift?.id || null,
+              note: `${absentShiftCount} main shifts absent on this day`,
+              isLate: false,
+              isEarlyLeave: false,
+              isAbsent: true,
+              isOvertime: false,
+              isAuto: false,
+              createdAt: shiftStart,
+              updatedAt: shiftStart
+            }));
+            syntheticDateSet.add(dateKey);
+          }
+        }
+
+        // ALSO check for OT ABSENT: if OT was approved but no OT check-in occurred
+        const otLogs = dayLogs.filter(log => log.isOvertime || String(log.type || '').startsWith('OT_'));
+        const hasOtCheckIn = otLogs.some(log => log.type === 'OT_IN' || log.type === 'OT_OUT');
+        
+        // Check if there's an approved OT request for this date
+        const dateKeyStr = dateKey; // YYYY-MM-DD format
+        const approvedOtRequest = await OvertimeRequest.findOne({
+          where: {
             userId: selectedUserId,
-            detectedName: 'Absent',
-            timestamp: shiftStart,
-            confidence: null,
-            deviceId: null,
-            matchDistance: null,
-            type: 'ABSENT',
-            shiftId: activeShift?.id || null,
-            note: 'No check-in recorded for this shift',
-            isLate: false,
-            isEarlyLeave: false,
-            isAbsent: true,
-            isOvertime: false,
-            isAuto: false,
-            createdAt: shiftStart,
-            updatedAt: shiftStart
-          }));
+            date: dateKeyStr,
+            approvalStatus: 'approved'
+          }
         });
+
+        if (approvedOtRequest && !hasOtCheckIn && !syntheticDateSet.has(dateKey)) {
+          const otStart = shiftPlan.overtimeStart ? parseTimeOnDate(shiftPlan.overtimeStart, dateObj) : null;
+          if (otStart) {
+            const otAbsentDeadline = new Date(otStart.getTime() + absentThresholdMs);
+            
+            // Only show absent if threshold has passed and not in future
+            let shouldShowOtAbsent = true;
+            if (dateObj.toDateString() === now.toDateString()) {
+              shouldShowOtAbsent = now.getTime() > otAbsentDeadline.getTime();
+            } else if (dateObj.getTime() > now.getTime()) {
+              shouldShowOtAbsent = false; // Don't create absent records for future dates
+            }
+
+            if (shouldShowOtAbsent) {
+              syntheticRows.push(AttendanceLog.build({
+                id: `ot-absent-${dateKey}`,
+                userId: selectedUserId,
+                detectedName: 'OT Absent',
+                timestamp: otStart,
+                confidence: null,
+                deviceId: null,
+                matchDistance: null,
+                type: 'ABSENT',
+                shiftId: activeShift?.id || null,
+                note: `OT shift not attended (approved but no check-in)`,
+                isLate: false,
+                isEarlyLeave: false,
+                isAbsent: true,
+                isOvertime: true,
+                isAuto: false,
+                createdAt: otStart,
+                updatedAt: otStart
+              }));
+              syntheticDateSet.add(dateKey);
+            }
+          }
+        }
       }
 
       if (syntheticRows.length > 0) {
-        rows = [...rows, ...syntheticRows];
-        count += syntheticRows.length;
+        allRows = [...allRows, ...syntheticRows];
       }
     }
 
-    const numericLimit = Math.min(parseInt(limit, 10) || 50, 1000);
+    // Sort all rows by timestamp descending
+    allRows.sort((a, b) => {
+      const aTime = new Date(a.timestamp).getTime();
+      const bTime = new Date(b.timestamp).getTime();
+      return bTime - aTime;
+    });
+
+    // Now apply pagination on the combined result
+    const parsedLimit = parseInt(limit, 10);
+    const numericLimit = parsedLimit === 0 ? 0 : Math.min(Math.max(parsedLimit || 50, 1), 100000);
     const numericOffset = parseInt(offset, 10) || 0;
-    const hasMore = numericOffset + (rows.length || 0) < (count || 0);
+
+    let rows, count;
+    if (numericLimit === 0) {
+      // Special case: return all rows (no pagination)
+      rows = allRows;
+      count = allRows.length;
+    } else {
+      count = allRows.length;
+      rows = allRows.slice(numericOffset, numericOffset + numericLimit);
+    }
+
+    const hasMore = numericLimit > 0 && numericOffset + rows.length < count;
+
+    // Enrich logs with latenessMinutes and earlyLeaveMinutes parsed from note field
+    const enrichedRows = rows.map(log => {
+      const plain = log.toJSON ? log.toJSON() : log;
+      
+      // Parse lateness from note: "Late by X min"
+      let latenessMinutes = null;
+      if (plain.isLate && plain.note) {
+        const lateMatch = plain.note.match(/Late by (\d+) min/);
+        if (lateMatch) {
+          latenessMinutes = parseInt(lateMatch[1], 10);
+        }
+      }
+      
+      // Parse early leave from note: "Left early by X min"
+      let earlyLeaveMinutes = null;
+      if (plain.isEarlyLeave && plain.note) {
+        const earlyMatch = plain.note.match(/Left early by (\d+) min/);
+        if (earlyMatch) {
+          earlyLeaveMinutes = parseInt(earlyMatch[1], 10);
+        }
+      }
+      
+      return {
+        ...plain,
+        latenessMinutes,
+        earlyLeaveMinutes
+      };
+    });
 
     return res.json({
       status: "success",
-      logs: rows,
+      logs: enrichedRows,
       pagination: {
         total: count,
         limit: numericLimit,

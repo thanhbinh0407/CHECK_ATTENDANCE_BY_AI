@@ -141,6 +141,7 @@ function computeWorkHourSummary(logs = []) {
 
 export default function AttendanceLog() {
   const [allLogs, setAllLogs] = useState([]);
+  const [allLogsForStats, setAllLogsForStats] = useState([]); // For monthly stats calculation
   const [employees, setEmployees] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [logsLoading, setLogsLoading] = useState(false);
@@ -283,6 +284,49 @@ export default function AttendanceLog() {
     };
   }, [fetchLogs]);
 
+  // Fetch ALL logs for stats calculation when employee is selected (without pagination)
+  useEffect(() => {
+    if (!selectedEmployeeId) {
+      setAllLogsForStats([]);
+      return;
+    }
+
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
+
+    let cancelled = false;
+    const fetchStatsLogs = async () => {
+      try {
+        const from = dateRange.start || daysAgoISO(31);
+        const to = dateRange.end || todayISO();
+        const qs = new URLSearchParams({
+          from,
+          to,
+          limit: String(0), // Get ALL logs for stats
+          offset: "0",
+          userId: String(selectedEmployeeId),
+        });
+        if (filterType !== "all") qs.set("type", filterType);
+
+        const res = await fetch(`${apiBase}/api/admin/attendance-logs?${qs}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!cancelled && res.ok) {
+          setAllLogsForStats(data.logs || []);
+        }
+      } catch (e) {
+        console.error("Error fetching stats logs:", e);
+      }
+    };
+
+    const tid = setTimeout(fetchStatsLogs, 100);
+    return () => {
+      cancelled = true;
+      clearTimeout(tid);
+    };
+  }, [apiBase, selectedEmployeeId, dateRange.start, dateRange.end, filterType]);
+
   const buildExportQuery = useCallback(() => {
     const from = dateRange.start || daysAgoISO(31);
     const to = dateRange.end || todayISO();
@@ -362,9 +406,11 @@ export default function AttendanceLog() {
   }, [selectedMonth, setDateRange]);
 
   const selectedStats = useMemo(() => {
-    if (!selectedEmployeeId) return null;
+    if (!selectedEmployeeId || allLogsForStats.length === 0) return null;
+    // Calculate stats from ALL logs in the date range, not just current page
+    const { map: summaryMap } = computeWorkHourSummary(allLogsForStats);
     const keyPrefix = `${String(selectedEmployeeId)}||`;
-    const entries = [...workHoursSummary.map.entries()].filter(([key]) => key.startsWith(keyPrefix));
+    const entries = [...summaryMap.entries()].filter(([key]) => key.startsWith(keyPrefix));
     const totalHours = entries.reduce((sum, [, value]) => sum + (value.totalHours || 0), 0);
     const totalOtHours = entries.reduce((sum, [, value]) => sum + (value.otHours || 0), 0);
     const daysWorked = entries.filter(([, value]) => value.totalHours > 0).length;
@@ -379,7 +425,7 @@ export default function AttendanceLog() {
       lateDays,
       earlyLeaveDays,
     };
-  }, [selectedEmployeeId, workHoursSummary]);
+  }, [selectedEmployeeId, allLogsForStats]);
 
   const containerStyle = {
     maxWidth: "1200px",
@@ -1042,6 +1088,15 @@ export default function AttendanceLog() {
                     }}>Type</th>
                     <th style={{
                       padding: "8px 10px",
+                      textAlign: "left",
+                      fontWeight: "700",
+                      fontSize: "11px",
+                      color: "#495057",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em"
+                    }}>Time Status</th>
+                    <th style={{
+                      padding: "8px 10px",
                       textAlign: "center",
                       fontWeight: "700",
                       fontSize: "11px",
@@ -1160,7 +1215,7 @@ export default function AttendanceLog() {
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                           }}>
-                            {log.detectedName || empName}
+                            {empName}
                           </span>
                         </td>
                         <td style={{
@@ -1199,6 +1254,41 @@ export default function AttendanceLog() {
                             }}>
                               AUTO
                             </span>
+                          )}
+                        </td>
+                        <td style={{
+                          padding: "8px 10px",
+                          fontSize: "12px",
+                          color: "#666",
+                        }}>
+                          {log.latenessMinutes ? (
+                            <span style={{
+                              backgroundColor: "#f8d7da",
+                              color: "#721c24",
+                              padding: "3px 8px",
+                              borderRadius: "4px",
+                              fontSize: "11px",
+                              fontWeight: "600",
+                              display: "inline-block",
+                              whiteSpace: "nowrap"
+                            }}>
+                              Late {log.latenessMinutes}m
+                            </span>
+                          ) : log.earlyLeaveMinutes ? (
+                            <span style={{
+                              backgroundColor: "#fff3cd",
+                              color: "#856404",
+                              padding: "3px 8px",
+                              borderRadius: "4px",
+                              fontSize: "11px",
+                              fontWeight: "600",
+                              display: "inline-block",
+                              whiteSpace: "nowrap"
+                            }}>
+                              Early {log.earlyLeaveMinutes}m
+                            </span>
+                          ) : (
+                            <span style={{ color: "#999" }}>—</span>
                           )}
                         </td>
                         <td style={{

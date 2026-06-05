@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import PersonalProfileModal from '../components/PersonalProfileModal.jsx';
+import socket from '../socket.js';
 import './managerShell.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
@@ -162,6 +163,25 @@ export default function ManagerLayout() {
     localStorage.removeItem('user');
     window.location.href = 'http://localhost:3000/';
   };
+
+  useEffect(() => {
+    if (!ready || !user?.id) return;
+
+    const joinRoom = () => {
+      socket.emit('join-room', { room: `user-${user.id}` });
+    };
+
+    socket.on('connect', joinRoom);
+    socket.on('force-logout', logout);
+    socket.connect();
+    if (socket.connected) joinRoom();
+
+    return () => {
+      socket.off('connect', joinRoom);
+      socket.off('force-logout', logout);
+      socket.disconnect();
+    };
+  }, [ready, user?.id]);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
 
