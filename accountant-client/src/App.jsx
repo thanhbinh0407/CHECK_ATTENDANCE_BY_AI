@@ -51,7 +51,7 @@ function App() {
       localStorage.setItem("user", JSON.stringify(next));
       return next;
     });
-  }, []);
+  }, [authToken, user?.id]);
 
   useEffect(() => {
     (async () => {
@@ -126,11 +126,16 @@ function App() {
 
   useEffect(() => {
     // Socket connection for real-time updates
-    socket.on('connect', () => {
+    const joinRooms = () => {
       console.log('Connected to server');
+      socket.emit('join-room', { room: `user-${user.id}` });
       socket.emit('join-room', { room: 'admin' });
       socket.emit('join-room', { room: 'audit-managers' });
-    });
+    };
+
+    socket.on('connect', joinRooms);
+    socket.on('force-logout', handleLogout);
+    socket.connect();
 
     socket.on('attendance-update', (data) => {
       console.log('Real-time attendance update:', data);
@@ -143,14 +148,15 @@ function App() {
     });
 
     if (socket.connected) {
-      socket.emit('join-room', { room: 'admin' });
-      socket.emit('join-room', { room: 'audit-managers' });
+      joinRooms();
     }
 
     return () => {
-      socket.off('connect');
+      socket.off('connect', joinRooms);
       socket.off('attendance-update');
       socket.off('new-notification');
+      socket.off('force-logout', handleLogout);
+      socket.disconnect();
     };
   }, []);
 

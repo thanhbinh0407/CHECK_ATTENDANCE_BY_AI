@@ -271,7 +271,8 @@ export default function HrAttendance({ token }) {
                   <th>Name</th>
                   <th>Department</th>
                   <th>Type</th>
-                  <th>Late</th>
+                  <th>Late Status</th>
+                  <th>Early Status</th>
                   <th>Device</th>
                 </tr>
               </thead>
@@ -283,12 +284,21 @@ export default function HrAttendance({ token }) {
                     <td>{log.User?.name || log.detectedName || '—'}</td>
                     <td>{log.User?.Department?.name || '—'}</td>
                     <td><span className={`badge badge-${(log.type || '').toLowerCase()}`}>{getTypeLabel(log.type)}</span></td>
-                    <td>{log.isLate ? 'Yes' : '—'}</td>
+                    <td>
+                      {log.isLate
+                        ? `${Number.isFinite(log.latenessMinutes) ? log.latenessMinutes : '—'} min late`
+                        : '—'}
+                    </td>
+                    <td>
+                      {log.isEarlyLeave
+                        ? `${Number.isFinite(log.earlyLeaveMinutes) ? log.earlyLeaveMinutes : '—'} min early`
+                        : '—'}
+                    </td>
                     <td style={{ fontSize: 12, color: '#64748b' }}>{log.deviceId || '—'}</td>
                   </tr>
                 ))}
                 {logs.length === 0 && (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', color: '#94a3b8', padding: 24 }}>No rows for this filter.</td></tr>
+                  <tr><td colSpan={8} style={{ textAlign: 'center', color: '#94a3b8', padding: 24 }}>No rows for this filter.</td></tr>
                 )}
               </tbody>
             </table>

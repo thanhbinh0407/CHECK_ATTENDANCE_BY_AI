@@ -1226,6 +1226,8 @@ export default function App() {
     };
     if (socket.connected) joinRooms();
     socket.on('connect', joinRooms);
+    socket.on('force-logout', logout);
+    socket.connect();
     const onNotify = (data) => {
       const title = data?.title || 'Notification';
       toastInfo(`New: ${title}`);
@@ -1233,7 +1235,9 @@ export default function App() {
     socket.on('new-notification', onNotify);
     return () => {
       socket.off('connect', joinRooms);
+      socket.off('force-logout', logout);
       socket.off('new-notification', onNotify);
+      socket.disconnect();
     };
   }, [token, user?.id]);
 

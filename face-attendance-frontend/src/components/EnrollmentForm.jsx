@@ -454,6 +454,27 @@ export default function EnrollmentForm() {
         return;
       }
 
+      const token = localStorage.getItem("authToken");
+      const duplicateCheckRes = await fetch(`${apiBase}/api/enroll/check-face`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ descriptor: Array.from(detection.descriptor) })
+      });
+
+      const duplicateCheckData = await duplicateCheckRes.json();
+      if (!duplicateCheckRes.ok || duplicateCheckData?.duplicate) {
+        setMessage(`❌ Registration failed: ${duplicateCheckData?.message || "Face already registered in the system"}`);
+        setErrors((prev) => ({
+          ...prev,
+          faceCapture: duplicateCheckData?.message || "Face already registered in the system"
+        }));
+        setCapturedDescriptor(null);
+        return;
+      }
+
       setCapturedDescriptor(Array.from(detection.descriptor));
       setMessage("Face captured successfully!");
       setErrors((prev) => ({ ...prev, faceCapture: "" }));

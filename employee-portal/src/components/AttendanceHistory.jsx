@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 
 export default function AttendanceHistory({ userId, refreshVersion }) {
   const [logs, setLogs] = useState([]);
+  const [shiftPlan, setShiftPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -31,6 +32,7 @@ export default function AttendanceHistory({ userId, refreshVersion }) {
       const data = await res.json();
       if (res.ok) {
         setLogs(data.logs || []);
+        setShiftPlan(data.shiftPlan || null);
       }
     } catch (error) {
       console.error("Error fetching attendance:", error);
@@ -158,61 +160,131 @@ export default function AttendanceHistory({ userId, refreshVersion }) {
     }
   };
 
-  // Group logs by date and shift for better display
+  // Group logs by date and configured work shift.
   const groupedLogs = useMemo(() => {
-    const grouped = {};
+    const plannedShifts = Array.isArray(shiftPlan?.mainShifts) && shiftPlan.mainShifts.length > 0
+      ? shiftPlan.mainShifts
+      : [
+          { startTime: "08:00", endTime: "12:00" },
+          { startTime: "13:00", endTime: "17:00" },
+        ];
+
+    const grouped = new Map();
     const sortedLogs = [...logs].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-    sortedLogs.forEach(log => {
-      const date = new Date(log.timestamp).toLocaleDateString("vi-VN");
-      if (!grouped[date]) {
-        grouped[date] = {
-          shiftsMap: new Map(),
-          allLogs: []
+    const getDateKey = (value) => new Date(value).toLocaleDateString("sv-SE");
+    const ensureDateGroup = (dateKey) => {
+      if (!grouped.has(dateKey)) {
+        const baseShifts = plannedShifts.map((shift, index) => ({
+          shiftLabel: `Shift ${index + 1}`,
+          shiftStart: shift.startTime,
+          shiftEnd: shift.endTime,
+          checkIn: null,
+          checkOut: null,
+          isOvertime: false,
+          logs: [],
+          overtimeRequestStatus: null,
+          isAbsent: false,
+        }));
+        grouped.set(dateKey, {
+          shiftsMap: new Map(baseShifts.map((shift) => [shift.shiftLabel, shift])),
+          allLogs: [],
+          overtimeRequest: null,
+        });
+      }
+      return grouped.get(dateKey);
+    };
+
+    const isOvertimeLog = (log) => Boolean(log.isOvertime) || Boolean(log.flags?.isOvertime) || /overtime/i.test(log.shiftLabel || "") || /^OT_/.test(log.type || "");
+    const isCheckInType = (type) => ["IN", "LATE_IN", "OT_IN"].includes(type);
+    const isCheckOutType = (type) => ["OUT", "EARLY_OUT", "OT_OUT"].includes(type);
+
+    sortedLogs.forEach((log) => {
+      const dateKey = getDateKey(log.timestamp);
+      const dateGroup = ensureDateGroup(dateKey);
+      dateGroup.allLogs.push(log);
+      if (!dateGroup.overtimeRequest && log.overtimeRequest) {
+        dateGroup.overtimeRequest = log.overtimeRequest;
+      }
+
+      const logShiftLabel = isOvertimeLog(log)
+        ? "Overtime shift"
+        : (log.shiftLabel || (Number.isFinite(log.shiftNumber) ? `Shift ${log.shiftNumber}` : null) || "Shift 1");
+
+      let shift = dateGroup.shiftsMap.get(logShiftLabel);
+      if (!shift) {
+        shift = {
+          shiftLabel: logShiftLabel,
+          shiftStart: null,
+          shiftEnd: null,
+          checkIn: null,
+          checkOut: null,
+          isOvertime: isOvertimeLog(log),
+          logs: [],
+          overtimeRequestStatus: null,
+          isAbsent: false,
         };
+        dateGroup.shiftsMap.set(logShiftLabel, shift);
       }
 
-      const shiftLabel = log.shiftLabel || `Shift ${Math.floor(grouped[date].allLogs.length / 2) + 1}`;
-      const existingShift = grouped[date].shiftsMap.get(shiftLabel) || {
-        shiftLabel,
-        checkIn: null,
-        checkOut: null,
-        isOvertime: log.isOvertime || false,
-        logs: []
-      };
-
-      const isCheckInType = ["IN", "LATE_IN", "OT_IN"].includes(log.type);
-      const isCheckOutType = ["OUT", "EARLY_OUT", "OT_OUT"].includes(log.type);
-
-      if (isCheckInType) {
-        if (!existingShift.checkIn || new Date(log.timestamp) < new Date(existingShift.checkIn.timestamp)) {
-          existingShift.checkIn = log;
-        }
-      } else if (isCheckOutType) {
-        if (!existingShift.checkOut || new Date(log.timestamp) > new Date(existingShift.checkOut.timestamp)) {
-          existingShift.checkOut = log;
+      shift.isOvertime = shift.isOvertime || isOvertimeLog(log);
+      if (!shift.overtimeRequestStatus && log.overtimeRequestStatus) {
+        shift.overtimeRequestStatus = log.overtimeRequestStatus;
+      }
+      if (isCheckInType(log.type)) {
+        if (!shift.checkIn || new Date(log.timestamp) < new Date(shift.checkIn.timestamp)) {
+          shift.checkIn = log;
         }
       }
-
-      existingShift.isOvertime = existingShift.isOvertime || Boolean(log.isOvertime);
-      existingShift.logs.push(log);
-      grouped[date].shiftsMap.set(shiftLabel, existingShift);
-      grouped[date].allLogs.push(log);
+      if (isCheckOutType(log.type)) {
+        if (!shift.checkOut || new Date(log.timestamp) > new Date(shift.checkOut.timestamp)) {
+          shift.checkOut = log;
+        }
+      }
+      if (log.type === "ABSENT") {
+        shift.isAbsent = true;
+      }
+      shift.logs.push(log);
     });
 
-    const result = Object.entries(grouped).map(([date, data]) => {
-      const shifts = Array.from(data.shiftsMap.values());
+    const result = Array.from(grouped.entries()).map(([dateKey, data]) => {
+      const shifts = plannedShifts.map((shift, index) => {
+        const label = `Shift ${index + 1}`;
+        const existing = data.shiftsMap.get(label);
+        if (existing) {
+          return existing;
+        }
+        return {
+          shiftLabel: label,
+          shiftStart: shift.startTime,
+          shiftEnd: shift.endTime,
+          checkIn: null,
+          checkOut: null,
+          isOvertime: false,
+          logs: [],
+          overtimeRequestStatus: null,
+          isAbsent: true,
+        };
+      });
+
+      const overtimeShifts = Array.from(data.shiftsMap.values()).filter((shift) => /overtime/i.test(shift.shiftLabel));
+      const orderedShifts = [...shifts, ...overtimeShifts].sort((a, b) => {
+        const aOrder = /overtime/i.test(a.shiftLabel) ? 999 : Number((a.shiftLabel.match(/\d+/) || [0])[0]);
+        const bOrder = /overtime/i.test(b.shiftLabel) ? 999 : Number((b.shiftLabel.match(/\d+/) || [0])[0]);
+        return aOrder - bOrder;
+      });
+
+      const date = new Date(dateKey).toLocaleDateString("vi-VN");
       return {
         date,
-        shifts,
+        shifts: orderedShifts,
         allLogs: data.allLogs,
-        overtimeRequest: data.allLogs[0]?.overtimeRequest || null,
-        primaryCheckIn: shifts[0]?.checkIn || null,
-        primaryCheckOut: shifts[shifts.length - 1]?.checkOut || null
+        overtimeRequest: data.overtimeRequest || data.allLogs[0]?.overtimeRequest || null,
+        primaryCheckIn: orderedShifts[0]?.checkIn || null,
+        primaryCheckOut: orderedShifts[orderedShifts.length - 1]?.checkOut || null,
       };
     });
 
-    // Sort by parsing vi-VN date string dd/mm/yyyy
     result.sort((a, b) => {
       const parseViDate = (s) => {
         const [d, m, y] = s.split("/");
@@ -223,15 +295,12 @@ export default function AttendanceHistory({ userId, refreshVersion }) {
         : parseViDate(a.date) - parseViDate(b.date);
     });
 
-    // Filter by search
     if (searchQuery) {
-      return result.filter(item => 
-        item.date.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      return result.filter((item) => item.date.toLowerCase().includes(searchQuery.toLowerCase()));
     }
 
     return result;
-  }, [logs, sortOrder, searchQuery]);
+  }, [logs, sortOrder, searchQuery, shiftPlan]);
 
   // Calculate working hours
   const calculateWorkingHours = (checkIn, checkOut) => {
@@ -356,7 +425,11 @@ export default function AttendanceHistory({ userId, refreshVersion }) {
       const dayOfWeek = date.getDay();
       if (dayOfWeek !== 0 && dayOfWeek !== 6) totalWorkingDays++;
     }
-    const absentDays = Math.max(0, totalWorkingDays - totalDays);
+    const absentDays = groupedLogs.reduce((acc, item) => {
+      const mainShiftRows = item.shifts.filter((shift) => !/overtime/i.test(shift.shiftLabel));
+      const missedAllMainShifts = mainShiftRows.length > 0 && mainShiftRows.every((shift) => shift.isAbsent || (!shift.checkIn && !shift.checkOut));
+      return acc + (missedAllMainShifts ? 1 : 0);
+    }, Math.max(0, totalWorkingDays - totalDays));
 
     return { totalDays, lateDays, earlyLeaveDays, absentDays };
   }, [groupedLogs, selectedMonth, selectedYear]);
@@ -1102,33 +1175,37 @@ export default function AttendanceHistory({ userId, refreshVersion }) {
                             borderLeft: "none"
                           }}>
                             {shift.checkIn ? (
-                              <div style={{ 
-                                display: "flex", 
-                                flexDirection: "column",
-                                gap: "4px"
-                              }}>
-                                <span style={{ 
-                                  fontSize: "15px", 
-                                  fontWeight: "600",
-                                  color: shift.checkIn.isLate ? "#dc3545" : "#28a745"
+                              shift.checkIn.isAbsent || shift.checkIn.type === 'ABSENT' ? (
+                                <span style={{ color: "#dc3545", fontSize: "13px", fontWeight: "600" }}>Absent</span>
+                              ) : (
+                                <div style={{ 
+                                  display: "flex", 
+                                  flexDirection: "column",
+                                  gap: "4px"
                                 }}>
-                                  {formatTime(shift.checkIn.timestamp)}
-                                </span>
-                                {shift.checkIn.isLate && calculateLateDuration(shift.checkIn) && (
-                                  <span style={{
-                                    backgroundColor: "#fff3cd",
-                                    color: "#856404",
-                                    padding: "3px 8px",
-                                    borderRadius: "3px",
-                                    fontSize: "11px",
+                                  <span style={{ 
+                                    fontSize: "15px", 
                                     fontWeight: "600",
-                                    display: "inline-block",
-                                    width: "fit-content"
+                                    color: shift.checkIn.isLate ? "#dc3545" : "#28a745"
                                   }}>
-                                    Late: {calculateLateDuration(shift.checkIn).text}
+                                    {formatTime(shift.checkIn.timestamp)}
                                   </span>
-                                )}
-                              </div>
+                                  {shift.checkIn.isLate && calculateLateDuration(shift.checkIn) && (
+                                    <span style={{
+                                      backgroundColor: "#fff3cd",
+                                      color: "#856404",
+                                      padding: "3px 8px",
+                                      borderRadius: "3px",
+                                      fontSize: "11px",
+                                      fontWeight: "600",
+                                      display: "inline-block",
+                                      width: "fit-content"
+                                    }}>
+                                      Late: {calculateLateDuration(shift.checkIn).text}
+                                    </span>
+                                  )}
+                                </div>
+                              )
                             ) : (
                               <span style={{ color: "#999", fontSize: "14px" }}>—</span>
                             )}
@@ -1198,8 +1275,10 @@ export default function AttendanceHistory({ userId, refreshVersion }) {
                             borderLeft: "none"
                           }}>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
-                              {/* Check-in status */}
-                              {shift.checkIn && (
+                              {/* Absent status - check both type and isAbsent flag */}
+                              {shift.checkIn && (shift.checkIn.isAbsent || shift.checkIn.type === 'ABSENT') ? (
+                                <span style={{ backgroundColor: "#dc3545", color: "#fff", padding: "4px 10px", borderRadius: "3px", fontSize: "10px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.4px" }}>Absent</span>
+                              ) : shift.checkIn && (
                                 shift.checkIn.isLate ? (
                                   <span style={{ backgroundColor: "#dc3545", color: "#fff", padding: "4px 10px", borderRadius: "3px", fontSize: "10px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.4px" }}>Late</span>
                                 ) : (

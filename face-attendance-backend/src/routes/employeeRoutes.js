@@ -152,6 +152,7 @@ router.get("/attendance", async (req, res) => {
         shiftNumber = Math.min(sessionIndex + 1, shiftPlan.mainShifts.length);
         shiftLabel = isOvertime ? "Overtime Shift" : `Shift ${shiftNumber}`;
       }
+      let latenessMinutes = null;
       let earlyLeaveMinutes = null;
 
       if (log.isLate && log.type === 'IN') {

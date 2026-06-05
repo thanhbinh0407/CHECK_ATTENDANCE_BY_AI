@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toastConfirm, toastError } from './lib/notify.jsx';
+import socket from './socket.js';
 import './hrDashboardExtras.css';
 import HrDashboard from './HrDashboard.jsx';
 import HrAnalytics from './HrAnalytics.jsx';
@@ -211,6 +212,25 @@ export default function App() {
       setActiveTab('dashboard');
     }
   }, [user?.role]);
+
+  useEffect(() => {
+    if (!token || !user?.id) return;
+
+    const joinRoom = () => {
+      socket.emit('join-room', { room: `user-${user.id}` });
+    };
+
+    socket.on('connect', joinRoom);
+    socket.on('force-logout', logout);
+    socket.connect();
+    if (socket.connected) joinRoom();
+
+    return () => {
+      socket.off('connect', joinRoom);
+      socket.off('force-logout', logout);
+      socket.disconnect();
+    };
+  }, [token, user?.id]);
 
   const logout = () => {
     localStorage.removeItem('authToken');
